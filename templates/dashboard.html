@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block title %}首页{% endblock %}
+{% block content %}
+{% set today_ids = today_tasks|map(attribute='id')|list %}
+{% set week_other = [] %}
+{% for a in week_tasks %}{% if a.id not in today_ids %}{% set _ = week_other.append(a) %}{% endif %}{% endfor %}
+{% set week_other_ids = week_other|map(attribute='id')|list %}
+{% set other_pending = [] %}
+{% for a in all_pending %}{% if a.id not in today_ids and a.id not in week_other_ids %}{% set _ = other_pending.append(a) %}{% endif %}{% endfor %}
+
+{% macro task_row(a) %}
+<div class="list-group-item d-flex align-items-center gap-2 py-2 px-3 task-item-inline" style="border-left:3px solid {{ 'var(--danger)' if a.task.end_time < now else 'var(--primary)' }};cursor:pointer;" data-bs-toggle="modal" data-bs-target="#taskModal-{{ a.id }}">
+  <div class="flex-grow-1" style="min-width:0;">
+    <div class="d-flex align-items-center gap-1">
+      <span style="font-size:.92rem;font-weight:600;" class="text-truncate">{{ a.task.title }}</span>
+      <span class="badge" style="background:{{ 'var(--primary)' if a.task.category == '工作' else 'var(--success)' if a.task.category == '个人' else 'var(--warning)' }};font-size:.65rem;">{{ a.task.category }}</span>
+      {% if a.task.end_time < now %}<span class="badge bg-danger" style="font-size:.65rem;">逾期</span>{% endif %}
+    </div>
+    <small class="text-muted" style="font-size:.78rem;">{{ a.task.end_time.strftime('%m-%d %H:%M') }} 截止</small>
+  </div>
+  <div class="d-flex align-items-center gap-2 flex-shrink-0" onclick="event.stopPropagation()">
+    <form action="{{ url_for('user_update_assign_progress', assignment_id=a.id) }}" method="POST" class="d-flex align-items-center gap-2" style="min-width:100px;">
+      <input type="range" name="progress" value="{{ a.progress }}" min="0" max="100" class="flex-grow-1" style="width:60px;" onchange="this.form.submit()" title="拖动以更新进度">
+      <small class="fw-bold" style="font-size:.82rem;min-width:2.2em;color:var(--primary);">{{ a.progress }}%</small>
+    </form>
+    {% if a.status != 'completed' %}
+    <form action="{{ url_for('user_complete_task', assignment_id=a.id) }}" method="POST">
+      <button class="btn btn-sm btn-outline-success rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;padding:0;border-width:2px;" title="完成">
+        <i class="bi bi-check-lg" style="font-size:.75rem;"></i>
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 style="font-size:1.5rem;font-weight:700;color:var(--gray-900);margin:0;">欢迎回来{{ '' if is_admin else (', ' + (current_user.name or current_user.username)) }}</h1>
+    <p style="font-size:.82rem;color:var(--gray-400);margin:4px 0 0;">{{ now.strftime('%Y年%m月%d日 %A') }}</p>
+  </div>
+</div>
+
+<div class="stat-grid stat-grid-4 mb-4">
+  <div class="stat-card" style="background:#e0f2fe;padding:12px 16px;">
+    <div class="stat-icon" style="font-size:1.2rem;margin-bottom:4px;color:#0284c7;"><i class="bi bi-calendar-day"></i></div>
+    <div class="stat-num" style="font-size:1.4rem;color:#0c4a6e;">{{ today_tasks|length }}</div>
+    <div class="stat-label" style="font-size:.72rem;color:#0284c7;">今日待办</div>
+  </div>
+  <div class="stat-card" style="background:#fef3c7;padding:12px 16px;">
+    <div class="stat-icon" style="font-size:1.2rem;margin-bottom:4px;color:#d97706;"><i class="bi bi-calendar-week"></i></div>
+    <div class="stat-num" style="font-size:1.4rem;color:#78350f;">{{ week_other|length }}</div>
+    <div class="stat-label" style="font-size:.72rem;color:#d97706;">本周待办</div>
+  </div>
+  <div class="stat-card" style="background:#ede9fe;padding:12px 16px;">
+    <div class="stat-icon" style="font-size:1.2rem;margin-bottom:4px;color:#7c3aed;"><i class="bi bi-inbox"></i></div>
+    <div class="stat-num" style="font-size:1.4rem;color:#4c1d95;">{{ other_pending|length }}</div>
+    <div class="stat-label" style="font-size:.72rem;color:#7c3aed;">剩余待办</div>
+  </div>
+  <div class="stat-card" style="background:#d1fae5;padding:12px 16px;">
+    <div class="stat-icon" style="font-size:1.2rem;margin-bottom:4px;color:#059669;"><i class="bi bi-check-circle"></i></div>
+    <div class="stat-num" style="font-size:1.4rem;color:#064e3b;">{{ completed }}</div>
+    <div class="stat-label" style="font-size:.72rem;color:#059669;">已完成</div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-6">
+    {% if today_tasks %}
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
+        <span><i class="bi bi-calendar-day" style="color:var(--danger);"></i> 今日</span>
+        <span class="badge bg-danger" style="font-size:.65rem;">{{ today_tasks|length }}</span>
+      </div>
+      <div class="list-group list-group-flush">
+        {% for a in today_tasks %}{{ task_row(a) }}{% endfor %}
+      </div>
+    </div>
+    {% endif %}
+    {% if week_other %}
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
+        <span><i class="bi bi-calendar-week" style="color:var(--warning);"></i> 本周</span>
+        <span class="badge bg-warning" style="font-size:.65rem;">{{ week_other|length }}</span>
+      </div>
+      <div class="list-group list-group-flush">
+        {% for a in week_other %}{{ task_row(a) }}{% endfor %}
+      </div>
+    </div>
+    {% endif %}
+    {% if other_pending %}
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
+        <span><i class="bi bi-inbox" style="color:var(--gray-400);"></i> 后续</span>
+        <span class="badge bg-secondary" style="font-size:.65rem;">{{ other_pending|length }}</span>
+      </div>
+      <div class="list-group list-group-flush">
+        {% for a in other_pending %}{{ task_row(a) }}{% endfor %}
+      </div>
+    </div>
+    {% endif %}
+    {% if not today_tasks and not week_other and not other_pending %}
+    <div class="card">
+      <div class="card-body text-center py-4" style="color:var(--gray-400);">
+        <i class="bi bi-emoji-smile" style="font-size:2rem;"></i>
+        <p class="mt-2 mb-0" style="font-size:.9rem;">暂无待办任务，去发布新任务吧</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-6">
+    {% if recent %}
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
+        <span><i class="bi bi-clock-history" style="color:var(--success);"></i> 最近完成</span>
+        <span class="badge bg-success" style="font-size:.65rem;">{{ recent|length }}</span>
+      </div>
+      <div class="list-group list-group-flush">
+        {% for a in recent %}
+        <div class="list-group-item d-flex align-items-center gap-2 py-2 px-3">
+          <span class="avatar avatar-sm" style="background:var(--success);">{{ (current_user.name or current_user.username)[0]|upper }}</span>
+          <div class="flex-grow-1" style="min-width:0;">
+            <div style="font-size:.85rem;font-weight:500;" class="text-truncate">{{ a.task.title }}</div>
+            <small class="text-muted" style="font-size:.72rem;">{{ a.completed_at.strftime('%m-%d %H:%M') }}</small>
+          </div>
+          <span class="status-badge status-completed" style="font-size:.68rem;padding:2px 10px;">完成</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if is_admin and user_stats %}
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
+        <span><i class="bi bi-people" style="color:var(--primary);"></i> 全员负载</span>
+        <a href="{{ url_for('admin_users') }}" class="btn btn-sm btn-outline-primary" style="padding:2px 8px;font-size:.68rem;">详情</a>
+      </div>
+      <div class="card-body py-2 px-3">
+        {% for us in user_stats %}
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span class="avatar avatar-sm">{{ (us.user.name or us.user.username)[0]|upper }}</span>
+          <div class="flex-grow-1" style="min-width:0;">
+            <div class="d-flex justify-content-between" style="font-size:.8rem;">
+              <span class="text-truncate">{{ us.user.name or us.user.username }}</span>
+              <span style="color:{{ 'var(--danger)' if us.rate > 100 else 'var(--success)' }};font-weight:600;">{{ us.total }}任务</span>
+            </div>
+            <div class="progress-custom" style="height:4px;margin-top:2px;">
+              <div class="progress-custom-bar" style="width:{{ us.rate }}%;background:{{ 'var(--danger)' if us.rate > 100 else 'var(--warning)' if us.rate > 60 else 'var(--success)' }};"></div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Task Detail Modals -->
+{% for a in all_pending %}
+<div class="modal fade" id="taskModal-{{ a.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:var(--radius);border:none;box-shadow:var(--shadow-lg);">
+      <div class="modal-header" style="border-bottom:1px solid var(--gray-100);">
+        <div class="d-flex align-items-center gap-2 flex-grow-1" style="min-width:0;">
+          <span style="font-size:.95rem;font-weight:700;" class="text-truncate">{{ a.task.title }}</span>
+          <span class="badge" style="background:{{ 'var(--primary)' if a.task.category == '工作' else 'var(--success)' if a.task.category == '个人' else 'var(--warning)' }};font-size:.6rem;">{{ a.task.category }}</span>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-3">
+        {% if a.task.description and a.task.description != a.task.title %}
+        <p style="font-size:.82rem;color:var(--gray-600);margin-bottom:12px;">{{ a.task.description }}</p>
+        {% endif %}
+        <div class="d-flex justify-content-between mb-2" style="font-size:.78rem;">
+          <span><span class="text-muted">开始</span> <strong>{{ a.task.start_time.strftime('%m-%d %H:%M') }}</strong></span>
+          <span><span class="text-muted">截止</span> <strong class="{% if a.task.end_time < now %}text-danger{% endif %}">{{ a.task.end_time.strftime('%m-%d %H:%M') }}{% if a.task.end_time < now %} 逾期{% endif %}</strong></span>
+        </div>
+        <div class="d-flex align-items-center gap-2 mb-3">
+          <span class="text-muted" style="font-size:.75rem;">进度</span>
+          <div class="flex-grow-1">
+            <div class="progress-custom" style="height:6px;">
+              <div class="progress-custom-bar bg-primary" style="width:{{ a.progress }}%"></div>
+            </div>
+          </div>
+          <strong style="font-size:.8rem;color:var(--primary);min-width:2.5em;">{{ a.progress }}%</strong>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          <form action="{{ url_for('user_update_assign_progress', assignment_id=a.id) }}" method="POST" class="d-flex align-items-center gap-2 flex-grow-1">
+            <input type="range" name="progress" value="{{ a.progress }}" min="0" max="100" style="flex:1;height:4px;" oninput="this.nextElementSibling.textContent=this.value+'%'" title="拖动以更新进度">
+            <button class="btn btn-sm btn-primary" style="padding:2px 10px;font-size:.7rem;">更新</button>
+          </form>
+          <small class="text-muted" style="font-size:.6rem;"><i class="bi bi-arrow-left-right"></i> 拖动滑块以更新进度</small>
+          <form action="{{ url_for('user_complete_task', assignment_id=a.id) }}" method="POST">
+            <button class="btn btn-sm btn-success" style="padding:2px 10px;font-size:.7rem;"><i class="bi bi-check-lg"></i> 完成</button>
+          </form>
+          <form action="{{ url_for('user_abandon_task', assignment_id=a.id) }}" method="POST" onsubmit="return confirm('确认废弃此任务？')">
+            <button class="btn btn-sm btn-outline-danger" style="padding:2px 10px;font-size:.7rem;"><i class="bi bi-x-circle"></i> 废弃</button>
+          </form>
+        </div>
+        {% if a.note %}
+        <div class="mt-3 p-2 rounded" style="background:var(--gray-50);font-size:.78rem;">
+          <span class="text-muted">备注：</span>{{ a.note }}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

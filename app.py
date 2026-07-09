@@ -1,0 +1,1345 @@
+import re
+import logging
+from datetime import datetime, timedelta, date
+from flask import (Flask, render_template, request, redirect, url_for,
+                   flash, jsonify, send_from_directory)
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import (LoginManager, UserMixin, login_user,
+                         login_required, logout_user, current_user)
+from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
+import os
+
+VERSION = 'v0.7.0'
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s [%(levelname)s] %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'task-manager-secret-2024'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tasks.db'
+app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads')
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+db = SQLAlchemy(app)
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+
+@app.context_processor
+def inject_globals():
+    if current_user.is_authenticated:
+        unread_count = Notification.query.filter_by(
+            user_id=current_user.id, is_read=False).count()
+        recent_notifications = Notification.query.filter_by(
+            user_id=current_user.id).order_by(
+            Notification.created_at.desc()).limit(10).all()
+        return {'now': datetime.now, 'timedelta': timedelta,
+                'VERSION': VERSION,
+                'unread_notifications': unread_count,
+                'recent_notifications': recent_notifications}
+    return {'now': datetime.now, 'timedelta': timedelta, 'VERSION': VERSION}
+
+
+class User(UserMixin, db.Model):
+    __tablename__ = 'user'
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    name = db.Column(db.String(80), default='')
+    password_hash = db.Column(db.String(256), nullable=False)
+    role = db.Column(db.String(20), default='user')
+    is_disabled = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+
+class Task(db.Model):
+    __tablename__ = 'task'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    category = db.Column(db.String(50), default='工作')
+    start_time = db.Column(db.DateTime, nullable=False)
+    end_time = db.Column(db.DateTime, nullable=False)
+    creator_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    is_all = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    creator = db.relationship('User', backref='created_tasks')
+    assignments = db.relationship('TaskAssignment', backref='task',
+                                  lazy='dynamic', cascade='all, delete-orphan')
+
+
+class TaskAssignment(db.Model):
+    __tablename__ = 'task_assignment'
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    status = db.Column(db.String(20), default='pending')
+    progress = db.Column(db.Integer, default=0)
+    note = db.Column(db.Text)
+    completed_at = db.Column(db.DateTime)
+    abandoned_at = db.Column(db.DateTime)
+    rejection_reason = db.Column(db.Text)
+    attachment = db.Column(db.String(500))
+
+    user = db.relationship('User', backref='task_assignments')
+
+
+class Notification(db.Model):
+    __tablename__ = 'notification'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=True)
+    type = db.Column(db.String(50), default='task_assigned')
+    message = db.Column(db.String(500), nullable=False)
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref='notifications')
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    return db.session.get(User, int(user_id))
+
+
+TASK_COMPLETION_DAYS = 30
+
+ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx',
+                      'xls', 'xlsx', 'zip', 'rar', 'txt'}
+
+
+def allowed_file(filename):
+    return '.' in filename and \
+        filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def create_notification(user_id, type, message, task_id=None):
+    note = Notification(user_id=user_id, type=type, message=message, task_id=task_id)
+    db.session.add(note)
+
+
+def init_db():
+    import sqlite3
+    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance', 'tasks.db')
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    try:
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+        c.execute('PRAGMA table_info(user)')
+        cols = [r[1] for r in c.fetchall()]
+        if 'name' not in cols:
+            c.execute('ALTER TABLE user ADD COLUMN name TEXT DEFAULT ""')
+        c.execute('PRAGMA table_info(task)')
+        cols = [r[1] for r in c.fetchall()]
+        if 'category' not in cols:
+            c.execute('ALTER TABLE task ADD COLUMN category TEXT DEFAULT "工作"')
+        c.execute('PRAGMA table_info(task_assignment)')
+        cols = [r[1] for r in c.fetchall()]
+        if 'abandoned_at' not in cols:
+            c.execute('ALTER TABLE task_assignment ADD COLUMN abandoned_at DATETIME')
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f'Migration note: {e}')
+
+    db.create_all()
+    if not User.query.filter_by(username='bright').first():
+        admin = User(username='bright', role='admin')
+        admin.set_password('Bright@wangzhan')
+        db.session.add(admin)
+        db.session.commit()
+    seed_demo_data()
+
+
+def seed_demo_data():
+    if User.query.filter_by(username='guest').first():
+        return
+    print('Seeding demo data...')
+    guest = User(username='guest', name='体验用户', role='user')
+    guest.set_password('guest123')
+    db.session.add(guest)
+
+    users_data = [
+        ('zhangsan', '张三'), ('lisi', '李四'), ('wangwu', '王五'),
+        ('zhaoliu', '赵六'), ('sunqi', '孙七'),
+    ]
+    users = []
+    for uname, name in users_data:
+        u = User(username=uname, name=name, role='user')
+        u.set_password('123456')
+        db.session.add(u)
+        users.append(u)
+    users.append(guest)
+    db.session.flush()
+
+    now = datetime.now()
+    today_start = now.replace(hour=9, minute=0, second=0, microsecond=0)
+
+    demo_tasks = [
+        {'title': '完成Q2项目汇报PPT', 'category': '工作', 'assign': 'all',
+         'start': today_start - timedelta(days=2), 'end': today_start + timedelta(days=3, hours=9),
+         'desc': '请各处室准备Q2项目汇报材料，周五前提交PPT'},
+        {'title': '学习Python异步编程', 'category': '个人', 'assign': 'guest',
+         'start': today_start, 'end': today_start + timedelta(days=5, hours=8)},
+        {'title': '整理部门周报', 'category': '工作', 'assign': 'zhangsan',
+         'start': today_start - timedelta(days=1), 'end': today_start + timedelta(hours=3)},
+        {'title': '健身计划-每周3次跑步', 'category': '个人', 'assign': 'lisi',
+         'start': today_start - timedelta(days=3), 'end': today_start + timedelta(days=20)},
+        {'title': '阅读《系统设计面试》', 'category': '个人', 'assign': 'guest',
+         'start': today_start, 'end': today_start + timedelta(days=14)},
+        {'title': '开发登录模块', 'category': '工作', 'assign': 'wangwu',
+         'start': today_start - timedelta(days=5), 'end': today_start - timedelta(days=1)},
+        {'title': '生日聚会筹备', 'category': '个人', 'assign': 'zhaoliu',
+         'start': today_start + timedelta(days=3), 'end': today_start + timedelta(days=4, hours=6)},
+        {'title': '数据库备份脚本优化', 'category': '工作', 'assign': 'sunqi',
+         'start': today_start - timedelta(days=1), 'end': today_start + timedelta(days=2)},
+        {'title': '在线课程-数据结构', 'category': '个人', 'assign': 'guest',
+         'start': today_start, 'end': today_start + timedelta(days=30)},
+        {'title': '客户需求评审会议', 'category': '工作', 'assign': 'all',
+         'start': today_start + timedelta(hours=2), 'end': today_start + timedelta(hours=4)},
+        {'title': '周末短途旅行计划', 'category': '个人', 'assign': 'wangwu',
+         'start': today_start + timedelta(days=4), 'end': today_start + timedelta(days=5, hours=12)},
+        {'title': 'API接口文档编写', 'category': '工作', 'assign': 'zhangsan',
+         'start': today_start - timedelta(days=4), 'end': today_start + timedelta(days=1)},
+        {'title': '每月读书总结', 'category': '个人', 'assign': 'lisi',
+         'start': today_start - timedelta(days=10), 'end': today_start - timedelta(days=3)},
+        {'title': '服务器安全加固', 'category': '工作', 'assign': 'guest',
+         'start': today_start + timedelta(days=1), 'end': today_start + timedelta(days=4)},
+    ]
+
+    for td in demo_tasks:
+        task = Task(title=td['title'], description=td.get('desc', ''),
+                    category=td['category'],
+                    start_time=td['start'], end_time=td['end'],
+                    creator_id=guest.id, is_all=(td['assign'] == 'all'))
+        db.session.add(task)
+        db.session.flush()
+        if td['assign'] == 'all':
+            target_users = [guest] + users
+        elif td['assign'] == 'guest':
+            target_users = [guest]
+        else:
+            target_users = [u for u in users if u.username == td['assign']]
+        for u in target_users:
+            db.session.add(TaskAssignment(task_id=task.id, user_id=u.id))
+            create_notification(u.id, 'task_assigned',
+                                f'你收到一个新任务：「{td["title"]}」', task.id)
+
+    # Mark some as completed with varying progress
+    completed_tasks_data = [
+        {'title': '开发登录模块', 'user': 'wangwu', 'progress': 100},
+        {'title': '每月读书总结', 'user': 'lisi', 'progress': 100},
+        {'title': '完成Q2项目汇报PPT', 'user': 'guest', 'progress': 60},
+        {'title': '学习Python异步编程', 'user': 'guest', 'progress': 30},
+    ]
+    for ctd in completed_tasks_data:
+        task = Task.query.filter_by(title=ctd['title']).first()
+        if task:
+            u = User.query.filter_by(username=ctd['user']).first()
+            if u:
+                a = TaskAssignment.query.filter_by(task_id=task.id, user_id=u.id).first()
+                if a:
+                    a.progress = ctd['progress']
+                    if ctd['progress'] == 100:
+                        a.status = 'completed'
+                        a.completed_at = now - timedelta(hours=2)
+
+    db.session.commit()
+    print('Demo data seeded successfully')
+
+
+WEEKDAY_MAP = {
+    '一': 0, '二': 1, '三': 2, '四': 3, '五': 4, '六': 5, '日': 6, '天': 6
+}
+
+
+def parse_chinese_datetime(text):
+    now = datetime.now()
+    result_date = now
+    result_time = None
+
+    hour = None
+    minute = 0
+    is_pm = None
+
+    def set_time_from_text(t):
+        nonlocal hour, minute, is_pm
+        m = re.search(r'(上午|早上|早晨|凌晨)?(\d+)[:：](\d+)', t)
+        if m:
+            is_pm = True if m.group(1) in ['下午', '晚上'] else False
+            hour = int(m.group(2))
+            minute = int(m.group(3))
+            if is_pm and hour < 12:
+                hour += 12
+            return
+        m = re.search(r'(上午|早上|早晨|凌晨|下午|晚上)?(\d+)[点时](\d+)?[分]?', t)
+        if m:
+            if m.group(1) in ['下午', '晚上']:
+                is_pm = True
+            elif m.group(1) in ['上午', '早上', '早晨', '凌晨']:
+                is_pm = False
+            hour = int(m.group(2))
+            if m.group(3):
+                minute = int(m.group(3))
+            else:
+                minute = 0
+            if is_pm and hour < 12:
+                hour += 12
+            return
+        m = re.search(r'(\d+)[:：](\d+)', t)
+        if m:
+            hour = int(m.group(1))
+            minute = int(m.group(2))
+            return
+
+    if '大后天' in text:
+        result_date = now + timedelta(days=3)
+    elif '后天' in text:
+        result_date = now + timedelta(days=2)
+    elif '明天' in text:
+        result_date = now + timedelta(days=1)
+    elif '今天' in text:
+        result_date = now
+    elif '下下' in text:
+        m = re.search(r'下下[周星期]([一二三四五六日天])', text)
+        if m:
+            target = WEEKDAY_MAP.get(m.group(1), 0)
+            days_ahead = target - now.weekday()
+            if days_ahead <= 0:
+                days_ahead += 14
+            else:
+                days_ahead += 7
+            result_date = now + timedelta(days=days_ahead)
+    elif '下' in text:
+        m = re.search(r'下[周星期]([一二三四五六日天])', text)
+        if m:
+            target = WEEKDAY_MAP.get(m.group(1), 0)
+            days_ahead = target - now.weekday() + 7
+            result_date = now + timedelta(days=days_ahead)
+    elif '这' in text or '本' in text:
+        m = re.search(r'(这|本)[周星期]([一二三四五六日天])', text)
+        if m:
+            target = WEEKDAY_MAP.get(m.group(2), 0)
+            days_ahead = target - now.weekday()
+            if days_ahead < 0:
+                days_ahead += 7
+            result_date = now + timedelta(days=days_ahead)
+    else:
+        m = re.search(r'(\d{4})[年-](\d{1,2})[月-](\d{1,2})[日号]?', text)
+        if m:
+            try:
+                y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+                result_date = datetime(y, mo, d)
+            except (ValueError, OverflowError):
+                pass
+        else:
+            m = re.search(r'(\d{1,2})月(\d{1,2})[日号]?', text)
+            if m:
+                try:
+                    mo, d = int(m.group(1)), int(m.group(2))
+                    y = now.year
+                    result_date = datetime(y, mo, d)
+                    if result_date < datetime(y, now.month, now.day):
+                        result_date = datetime(y + 1, mo, d)
+                except (ValueError, OverflowError):
+                    pass
+
+    set_time_from_text(text)
+
+    try:
+        if hour is not None:
+            h = max(0, min(23, hour))
+            m = max(0, min(59, minute))
+            result_date = result_date.replace(hour=h, minute=m,
+                                              second=0, microsecond=0)
+        else:
+            result_date = result_date.replace(hour=9, minute=0,
+                                              second=0, microsecond=0)
+    except (ValueError, OverflowError):
+        result_date = datetime.now().replace(hour=9, minute=0,
+                                             second=0, microsecond=0)
+
+    return result_date
+
+
+WEEK_KEYS = ['本周', '这周', '本星期', '这个星期']
+NEXT_WEEK_KEYS = ['下周', '下星期']
+
+
+def detect_deadline_from_text(text):
+    now = datetime.now()
+    text_lower = text
+
+    if re.search(r'本[周星期]|这[周星期]', text):
+        end_of_week = now + timedelta(days=(6 - now.weekday()))
+        return end_of_week.replace(hour=18, minute=0, second=0)
+
+    if re.search(r'下[周星期]', text):
+        end_of_next = now + timedelta(days=(13 - now.weekday()))
+        return end_of_next.replace(hour=18, minute=0, second=0)
+
+    m = re.search(r'(\d+)月(\d+)日', text)
+    if m:
+        try:
+            mo, d = int(m.group(1)), int(m.group(2))
+            y = now.year
+            dt = datetime(y, mo, d, 18, 0)
+            if dt < now:
+                dt = dt.replace(year=y + 1)
+            return dt
+        except Exception:
+            pass
+
+    m = re.search(r'(\d{4})[年-](\d{1,2})[月-](\d{1,2})', text)
+    if m:
+        try:
+            y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            return datetime(y, mo, d, 18, 0)
+        except Exception:
+            pass
+
+    return None
+
+
+def extract_assignees_from_text(text):
+    result = {'assignees': [], 'is_all': False}
+
+    if any(kw in text for kw in ['@所有人', '@all', '@All', '@ALL',
+                                  '全员', '所有人', '全部人']):
+        result['is_all'] = True
+        return result
+
+    at_mentions = re.findall(r'@([\w\u4e00-\u9fff]+)', text)
+    if at_mentions:
+        result['assignees'] = [n for n in at_mentions if n not in ['所有人', 'all', 'All', 'ALL']]
+
+    assignee_match = re.search(
+        r'(?:发给|分配给|给|指派给)[：:]?\s*'
+        r'([\w\u4e00-\u9fff]+(?:[、,，\s]+[\w\u4e00-\u9fff]+)*)',
+        text
+    )
+    if assignee_match:
+        names = [n.strip() for n in re.split(r'[、,，\s]+', assignee_match.group(1)) if n.strip()]
+        result['assignees'] = [n for n in names if n not in ['全员', '所有人', '全部人']]
+
+    return result
+
+
+TITLE_BLOCK_WORDS = ['反馈', '链接', '腾讯文档', 'https', 'http',
+                      '通知', '请各位', '请各处室', '请提醒',
+                      '请传达到位', '请确认', '请各部门', '请各单位']
+
+TITLE_CLEAN_PREFIX = re.compile(r'^请[各全].{1,10}[，,。]')
+
+def extract_title_from_text(text):
+    lines = [l.strip() for l in text.split('\n') if l.strip()]
+    if not lines:
+        lines = [text]
+
+    QUOTE_CHARS = '\u201c\u201d\u300c\u300d"'
+    QUOTE_PAT = re.compile(r'[' + QUOTE_CHARS + r']([^' + QUOTE_CHARS + r']{4,60})[' + QUOTE_CHARS + r']')
+
+    considered = []
+    for line in lines:
+        clean = re.sub(r'https?://\S+', '', line).strip()
+        clean = re.sub(r'【[^】]*】', '', clean).strip()
+        clean = re.sub(r'@所有人|@all|@All|@all', '', clean).strip()
+        clean = re.sub(r'[：:].*$', '', clean).strip()
+        if clean:
+            considered.append(clean)
+
+    for c in considered:
+        quoted = QUOTE_PAT.findall(c)
+        for q in quoted:
+            if not any(kw in q for kw in TITLE_BLOCK_WORDS):
+                return q[:80]
+
+    for c in considered:
+        for sep in ['。', '！', '，', ',', '；', ';', '——', '—', '\n']:
+            if sep in c:
+                parts = [p.strip() for p in c.split(sep) if p.strip()]
+                for part in parts:
+                    part_clean = re.sub(r'https?://\S+', '', part).strip()
+                    part_clean = re.sub(r'【[^】]*】', '', part_clean).strip()
+                    part_clean = re.sub(r'@\S+', '', part_clean).strip()
+                    part_clean = re.sub(r'[「」""]', '', part_clean).strip()
+                    part_clean = TITLE_CLEAN_PREFIX.sub('', part_clean).strip()
+                    if 4 <= len(part_clean) <= 60 and \
+                       not any(kw in part_clean for kw in TITLE_BLOCK_WORDS):
+                        return part_clean[:80]
+
+    for c in considered:
+        cleaned = re.sub(r'(从|到|截止|提交|发给|给|指派给|分配[给到]|完成[于截至]).*', '', c).strip()
+        cleaned = re.sub(r'[，,。！？\s]{2,}', '', cleaned).strip()
+        cleaned = TITLE_CLEAN_PREFIX.sub('', cleaned).strip()
+        if 4 <= len(cleaned) <= 60 and \
+           not any(kw in cleaned for kw in TITLE_BLOCK_WORDS):
+            return cleaned[:80]
+
+    for c in considered:
+        cleaned = TITLE_CLEAN_PREFIX.sub('', c).strip()
+        if len(cleaned) >= 5 and not any(kw in cleaned for kw in TITLE_BLOCK_WORDS):
+            return cleaned[:80]
+
+    for c in considered:
+        if len(c) >= 5 and not any(kw in c for kw in TITLE_BLOCK_WORDS):
+            return c[:80]
+
+    for c in considered:
+        if c and len(c) >= 3 and not any(kw in c for kw in TITLE_BLOCK_WORDS):
+            return c[:80]
+
+    return '未命名任务'
+
+
+def parse_task_from_text(text):
+    now = datetime.now()
+
+    result = {
+        'title': extract_title_from_text(text),
+        'description': text,
+        'category': '工作',
+        'start_time': now,
+        'end_time': None,
+        'assignees': [],
+        'is_all': False
+    }
+
+    # auto-detect category
+    category_keywords = {
+        '工作': ['工作', '项目', '任务', '报告', '会议', '汇报', '方案', '开发', '测试', '上线', '需求', '周报', '月报'],
+        '个人': ['个人', '学习', '读书', '运动', '健身', '购物', '家务', '休息', '娱乐', '游戏', '电影', '旅游'],
+    }
+    for cat, keywords in category_keywords.items():
+        if any(kw in text for kw in keywords):
+            result['category'] = cat
+            break
+
+    assign_info = extract_assignees_from_text(text)
+    result['assignees'] = assign_info['assignees']
+    result['is_all'] = assign_info['is_all']
+
+    deadline = detect_deadline_from_text(text)
+    if deadline:
+        result['end_time'] = deadline
+    else:
+        m = re.search(r'(\d+)([天周])', text)
+        if m:
+            num = int(m.group(1))
+            unit = m.group(2)
+            if unit == '天':
+                result['end_time'] = now + timedelta(days=num)
+            elif unit == '周':
+                result['end_time'] = now + timedelta(weeks=num)
+        else:
+            result['end_time'] = now + timedelta(days=7)
+
+    return result
+
+
+@app.route('/')
+def index():
+    if current_user.is_authenticated:
+        if current_user.role == 'admin':
+            return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('user_dashboard'))
+    return redirect(url_for('login'))
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        user = User.query.filter_by(username=username).first()
+        if user and user.check_password(password):
+            if user.is_disabled:
+                flash('该账号已被禁用，请联系管理员', 'danger')
+                return render_template('login.html')
+            login_user(user)
+            flash('登录成功！', 'success')
+            next_page = request.args.get('next')
+            return redirect(next_page or url_for('index'))
+        flash('用户名或密码错误！', 'danger')
+    return render_template('login.html')
+
+
+@app.route('/login-guest')
+def login_guest():
+    guest = User.query.filter_by(username='guest').first()
+    if guest:
+        login_user(guest)
+        flash('您已使用体验账号登录，数据仅供展示', 'info')
+        return redirect(url_for('index'))
+    flash('体验账号不存在，请先创建', 'danger')
+    return redirect(url_for('login'))
+
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash('已退出登录', 'info')
+    return redirect(url_for('login'))
+
+
+def admin_required(f):
+    from functools import wraps
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash('需要管理员权限', 'danger')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated
+
+
+def get_completion_rate(task):
+    total = task.assignments.count()
+    if total == 0:
+        return 0
+    completed = task.assignments.filter_by(status='completed').count()
+    return round(completed / total * 100, 1)
+
+
+def get_overall_stats():
+    total_tasks = Task.query.count()
+    total_users = User.query.count()
+    total_assignments = TaskAssignment.query.count()
+    completed_assignments = TaskAssignment.query.filter_by(status='completed').count()
+    pending_assignments = TaskAssignment.query.filter_by(status='pending').count()
+    rejected_assignments = TaskAssignment.query.filter_by(status='rejected').count()
+    rate = round(completed_assignments / total_assignments * 100, 1) if total_assignments > 0 else 0
+    return {
+        'total_tasks': total_tasks,
+        'total_users': total_users,
+        'total_assignments': total_assignments,
+        'completed': completed_assignments,
+        'pending': pending_assignments,
+        'rejected': rejected_assignments,
+        'rate': rate
+    }
+
+
+
+@app.route('/admin/dashboard')
+@login_required
+@admin_required
+def admin_dashboard():
+    stats = get_overall_stats()
+    users = User.query.all()
+    user_stats = []
+    now = datetime.now()
+    for u in users:
+        total = TaskAssignment.query.filter_by(user_id=u.id).count()
+        completed = TaskAssignment.query.filter_by(user_id=u.id, status='completed').count()
+        rate = round(completed / total * 100, 1) if total > 0 else 0
+        urgent_tasks = TaskAssignment.query.join(Task).filter(
+            TaskAssignment.user_id == u.id,
+            TaskAssignment.status == 'pending',
+            Task.end_time <= now + timedelta(days=3),
+            Task.end_time >= now
+        ).count()
+        overdue_tasks = TaskAssignment.query.join(Task).filter(
+            TaskAssignment.user_id == u.id,
+            TaskAssignment.status == 'pending',
+            Task.end_time < now
+        ).count()
+        user_stats.append({
+            'user': u, 'total': total, 'completed': completed,
+            'rate': rate, 'urgent': urgent_tasks, 'overdue': overdue_tasks
+        })
+
+    uid = current_user.id
+    total = TaskAssignment.query.filter_by(user_id=uid).count()
+    completed = TaskAssignment.query.filter_by(user_id=uid, status='completed').count()
+    pending = TaskAssignment.query.filter_by(user_id=uid, status='pending').count()
+    rejected = TaskAssignment.query.filter_by(user_id=uid, status='rejected').count()
+    rate = round(completed / total * 100, 1) if total > 0 else 0
+    upcoming = TaskAssignment.query.join(Task).filter(
+        TaskAssignment.user_id == uid,
+        TaskAssignment.status == 'pending',
+        Task.end_time >= now,
+        Task.end_time <= now + timedelta(days=7)
+    ).order_by(Task.end_time).all()
+    overdue = TaskAssignment.query.join(Task).filter(
+        TaskAssignment.user_id == uid,
+        TaskAssignment.status == 'pending',
+        Task.end_time < now
+    ).order_by(Task.end_time).all()
+    recent = TaskAssignment.query.filter(
+        TaskAssignment.user_id == uid,
+        TaskAssignment.completed_at.isnot(None)
+    ).order_by(TaskAssignment.completed_at.desc()).limit(5).all()
+    recent_tasks = Task.query.order_by(Task.created_at.desc()).limit(10).all()
+
+    now_dt = datetime.now()
+    week_start = now_dt - timedelta(days=now_dt.weekday())
+    week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
+    today_start = now_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = now_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+    today_tasks = TaskAssignment.query.join(Task).filter(
+        TaskAssignment.user_id == uid, TaskAssignment.status == 'pending',
+        Task.end_time >= today_start, Task.end_time <= today_end
+    ).order_by(Task.end_time).all()
+    week_tasks = TaskAssignment.query.join(Task).filter(
+        TaskAssignment.user_id == uid, TaskAssignment.status == 'pending',
+        Task.end_time >= week_start, Task.end_time <= week_end
+    ).order_by(Task.end_time).all()
+    all_pending = TaskAssignment.query.join(Task).filter(
+        TaskAssignment.user_id == uid, TaskAssignment.status == 'pending'
+    ).order_by(Task.end_time).all()
+
+    return render_template('dashboard.html', stats=stats, user_stats=user_stats,
+                           total=total, completed=completed, pending=pending,
+                           rejected=rejected, rate=rate, upcoming=upcoming,
+                           overdue=overdue,
+                           recent=recent, recent_tasks=recent_tasks,
+                           today_tasks=today_tasks, week_tasks=week_tasks,
+                           all_pending=all_pending,
+                           now=now_dt,
+                           is_admin=True)
+
+
+@app.route('/admin/users', methods=['GET'])
+@login_required
+@admin_required
+def admin_users():
+    users = User.query.all()
+    return render_template('admin/users.html', users=users, is_admin=True)
+
+
+@app.route('/admin/users/add', methods=['POST'])
+@login_required
+@admin_required
+def admin_add_user():
+    username = request.form.get('username', '').strip()
+    name = request.form.get('name', '').strip()
+    password = request.form.get('password', '').strip()
+    role = request.form.get('role', 'user')
+    if not username or not password:
+        flash('用户名和密码不能为空', 'danger')
+        return redirect(url_for('admin_users'))
+    if User.query.filter_by(username=username).first():
+        flash('用户名已存在', 'danger')
+        return redirect(url_for('admin_users'))
+    user = User(username=username, name=name, role=role)
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+    flash(f'用户 {username} 添加成功', 'success')
+    return redirect(url_for('admin_users'))
+
+
+@app.route('/admin/users/delete/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_user(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        flash('用户不存在', 'danger')
+        return redirect(url_for('admin_users'))
+    if user.username == 'bright':
+        flash('不能删除管理员账号', 'danger')
+        return redirect(url_for('admin_users'))
+    TaskAssignment.query.filter_by(user_id=user.id).delete()
+    db.session.delete(user)
+    db.session.commit()
+    flash(f'用户 {user.username} 已删除', 'success')
+    return redirect(url_for('admin_users'))
+
+
+@app.route('/admin/users/reset-password/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def admin_reset_password(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        flash('用户不存在', 'danger')
+        return redirect(url_for('admin_users'))
+    password = request.form.get('password', '').strip()
+    if not password:
+        flash('密码不能为空', 'danger')
+        return redirect(url_for('admin_users'))
+    user.set_password(password)
+    db.session.commit()
+    flash(f'用户 {user.username} 密码已重置', 'success')
+    return redirect(url_for('admin_users'))
+
+
+@app.route('/admin/users/edit/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def admin_edit_user(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        flash('用户不存在', 'danger')
+        return redirect(url_for('admin_users'))
+    username = request.form.get('username', '').strip()
+    name = request.form.get('name', '').strip()
+    if not username:
+        flash('用户名不能为空', 'danger')
+        return redirect(url_for('admin_users'))
+    existing = User.query.filter(User.username == username, User.id != user_id).first()
+    if existing:
+        flash(f'用户名 "{username}" 已被使用', 'danger')
+        return redirect(url_for('admin_users'))
+    user.username = username
+    user.name = name
+    db.session.commit()
+    flash(f'用户信息已更新', 'success')
+    return redirect(url_for('admin_users'))
+
+
+@app.route('/admin/users/set-role/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def admin_set_role(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        flash('用户不存在', 'danger')
+        return redirect(url_for('admin_users'))
+    role = request.form.get('role', 'user')
+    if role not in ['admin', 'user']:
+        flash('无效角色', 'danger')
+        return redirect(url_for('admin_users'))
+    user.role = role
+    db.session.commit()
+    flash(f'用户 {user.username} 角色已设置为 {role}', 'success')
+    return redirect(url_for('admin_users'))
+
+
+@app.route('/admin/users/disable/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def admin_disable_user(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        flash('用户不存在', 'danger')
+        return redirect(url_for('admin_users'))
+    if user.username == 'bright':
+        flash('不能禁用管理员账号', 'danger')
+        return redirect(url_for('admin_users'))
+    user.is_disabled = not user.is_disabled
+    db.session.commit()
+    status = '已禁用' if user.is_disabled else '已启用'
+    flash(f'用户 {user.username} {status}', 'success')
+    return redirect(url_for('admin_users'))
+
+
+@app.route('/admin/tasks', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_tasks():
+    return redirect(url_for('user_tasks'))
+
+
+@app.route('/admin/tasks/<int:task_id>')
+@login_required
+@admin_required
+def admin_task_detail(task_id):
+    task = db.session.get(Task, task_id)
+    if not task:
+        flash('任务不存在', 'danger')
+        return redirect(url_for('user_tasks'))
+    assignments = task.assignments.order_by(TaskAssignment.status).all()
+    rate = get_completion_rate(task)
+    remaining = task.assignments.filter(
+        TaskAssignment.status.in_(['pending', 'rejected'])
+    ).all()
+    pending_assignments = task.assignments.filter_by(status='pending').all()
+    assignment = TaskAssignment.query.filter_by(
+        user_id=current_user.id, task_id=task_id).first()
+    return render_template('task_detail.html', task=task,
+                           assignments=assignments, rate=rate,
+                           remaining=remaining,
+                           pending_assignments=pending_assignments,
+                           assignment=assignment,
+                           TaskAssignment=TaskAssignment,
+                           is_admin=True)
+
+
+@app.route('/admin/tasks/<int:task_id>/edit', methods=['POST'])
+@login_required
+@admin_required
+def admin_edit_task(task_id):
+    task = db.session.get(Task, task_id)
+    if not task:
+        flash('任务不存在', 'danger')
+        return redirect(url_for('user_tasks'))
+    if task.creator_id != current_user.id and current_user.role != 'admin':
+        flash('只有任务创建者或管理员可以编辑', 'danger')
+        return redirect(request.referrer or url_for('user_tasks'))
+    title = request.form.get('title', '').strip()
+    category = request.form.get('category', '').strip() or '工作'
+    start_str = request.form.get('start_time', '').strip()
+    end_str = request.form.get('end_time', '').strip()
+    if not title:
+        flash('任务标题不能为空', 'danger')
+        return redirect(request.referrer or url_for('user_tasks'))
+    try:
+        task.title = title
+        task.category = category
+        if start_str:
+            task.start_time = datetime.strptime(start_str, '%Y-%m-%d %H:%M')
+        if end_str:
+            task.end_time = datetime.strptime(end_str, '%Y-%m-%d %H:%M')
+        db.session.commit()
+        flash(f'任务 "{title}" 已更新', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'更新失败：{str(e)}', 'danger')
+    return redirect(request.referrer or url_for('admin_task_detail', task_id=task_id))
+
+
+@app.route('/admin/tasks/<int:task_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_task(task_id):
+    task = db.session.get(Task, task_id)
+    if not task:
+        flash('任务不存在', 'danger')
+        return redirect(url_for('user_tasks'))
+    title = task.title
+    db.session.delete(task)
+    db.session.commit()
+    flash(f'任务 "{title}" 已删除', 'success')
+    return redirect(url_for('user_tasks'))
+
+
+@app.route('/admin/tasks/<int:task_id>/assignment/<int:assignment_id>/reject',
+           methods=['POST'])
+@login_required
+@admin_required
+def admin_reject_assignment(task_id, assignment_id):
+    assignment = db.session.get(TaskAssignment, assignment_id)
+    if not assignment or assignment.task_id != task_id:
+        flash('任务分配不存在', 'danger')
+        return redirect(url_for('admin_task_detail', task_id=task_id))
+    reason = request.form.get('reason', '').strip()
+    if not reason:
+        flash('请填写驳回原因', 'danger')
+        return redirect(url_for('admin_task_detail', task_id=task_id))
+    assignment.status = 'rejected'
+    assignment.rejection_reason = reason
+    assignment.completed_at = None
+    assignment.attachment = None
+    db.session.commit()
+    flash(f'已驳回 {assignment.user.username} 的完成，原因：{reason}', 'success')
+    return redirect(url_for('admin_task_detail', task_id=task_id))
+
+
+@app.route('/admin/tasks/<int:task_id>/assignment/<int:assignment_id>/approve',
+           methods=['POST'])
+@login_required
+@admin_required
+def admin_approve_assignment(task_id, assignment_id):
+    assignment = db.session.get(TaskAssignment, assignment_id)
+    if not assignment or assignment.task_id != task_id:
+        flash('任务分配不存在', 'danger')
+        return redirect(url_for('admin_task_detail', task_id=task_id))
+    if assignment.status == 'completed':
+        assignment.status = 'approved'
+        db.session.commit()
+        flash(f'已确认 {assignment.user.username} 的完成', 'success')
+    return redirect(url_for('admin_task_detail', task_id=task_id))
+
+
+@app.route('/tasks/<int:task_id>/abandon', methods=['POST'])
+@login_required
+def abandon_task_all(task_id):
+    task = db.session.get(Task, task_id)
+    if not task:
+        flash('任务不存在', 'danger')
+        return redirect(request.referrer or url_for('user_dashboard'))
+    if task.creator_id != current_user.id and current_user.role != 'admin':
+        flash('只有任务创建者或管理员可以废弃整个任务', 'danger')
+        return redirect(request.referrer or url_for('user_dashboard'))
+    now = datetime.now()
+    for a in task.assignments:
+        if a.status not in ('abandoned',):
+            a.status = 'abandoned'
+            a.abandoned_at = now
+    db.session.commit()
+    flash(f'任务 "{task.title}" 已废弃（共 {task.assignments.count()} 人）', 'info')
+    return redirect(request.referrer or url_for('user_dashboard'))
+
+
+@app.route('/user/dashboard')
+@login_required
+def user_dashboard():
+    now = datetime.now()
+    total = TaskAssignment.query.filter_by(user_id=current_user.id).count()
+    completed = TaskAssignment.query.filter_by(
+        user_id=current_user.id, status='completed'
+    ).count()
+    pending = TaskAssignment.query.filter_by(
+        user_id=current_user.id, status='pending'
+    ).count()
+    rejected = TaskAssignment.query.filter_by(
+        user_id=current_user.id, status='rejected'
+    ).count()
+    rate = round(completed / total * 100, 1) if total > 0 else 0
+
+    upcoming = TaskAssignment.query.join(Task).filter(
+        TaskAssignment.user_id == current_user.id,
+        TaskAssignment.status == 'pending',
+        Task.end_time >= now,
+        Task.end_time <= now + timedelta(days=7)
+    ).order_by(Task.end_time).all()
+
+    overdue = TaskAssignment.query.join(Task).filter(
+        TaskAssignment.user_id == current_user.id,
+        TaskAssignment.status == 'pending',
+        Task.end_time < now
+    ).order_by(Task.end_time).all()
+
+    recent = TaskAssignment.query.filter(
+        TaskAssignment.user_id == current_user.id,
+        TaskAssignment.completed_at.isnot(None)
+    ).order_by(TaskAssignment.completed_at.desc()).limit(5).all()
+
+    week_start = now - timedelta(days=now.weekday())
+    week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+    today_tasks = TaskAssignment.query.join(Task).filter(
+        TaskAssignment.user_id == current_user.id, TaskAssignment.status == 'pending',
+        Task.end_time >= today_start, Task.end_time <= today_end
+    ).order_by(Task.end_time).all()
+    week_tasks = TaskAssignment.query.join(Task).filter(
+        TaskAssignment.user_id == current_user.id, TaskAssignment.status == 'pending',
+        Task.end_time >= week_start, Task.end_time <= week_end
+    ).order_by(Task.end_time).all()
+    all_pending = TaskAssignment.query.join(Task).filter(
+        TaskAssignment.user_id == current_user.id, TaskAssignment.status == 'pending'
+    ).order_by(Task.end_time).all()
+
+    return render_template('dashboard.html', total=total,
+                           completed=completed, pending=pending,
+                           rejected=rejected, rate=rate,
+                           upcoming=upcoming, overdue=overdue,
+                           recent=recent,
+                           today_tasks=today_tasks, week_tasks=week_tasks,
+                           all_pending=all_pending,
+                           now=now,
+                           is_admin=False)
+
+
+@app.route('/user/tasks', methods=['GET', 'POST'])
+@login_required
+def user_tasks():
+    if request.method == 'POST':
+        text = request.form.get('text', '').strip()
+        action = request.form.get('action', '')
+        if action == 'save':
+            try:
+                title = request.form.get('title', '').strip()
+                category = request.form.get('category', '').strip() or '工作'
+                start_str = request.form.get('start_time', '').strip()
+                end_str = request.form.get('end_time', '').strip()
+                description = request.form.get('description', '').strip()
+                is_all = request.form.get('is_all') == '1'
+                assignee_ids = request.form.getlist('assignee_ids')
+                if not title:
+                    flash('任务标题不能为空', 'danger')
+                    return redirect(url_for('user_tasks'))
+                start_time = datetime.strptime(start_str, '%Y-%m-%d %H:%M')
+                end_time = datetime.strptime(end_str, '%Y-%m-%d %H:%M')
+                task = Task(title=title, description=description,
+                            category=category, start_time=start_time,
+                            end_time=end_time, creator_id=current_user.id,
+                            is_all=is_all)
+                db.session.add(task)
+                db.session.flush()
+                if is_all:
+                    target_users = User.query.all()
+                    for u in target_users:
+                        db.session.add(TaskAssignment(task_id=task.id, user_id=u.id))
+                        create_notification(u.id, 'task_assigned',
+                                            f'你收到一个新任务：「{title}」', task.id)
+                else:
+                    uid_set = set(int(x) for x in assignee_ids) if assignee_ids else set()
+                    if current_user.role != 'admin' or current_user.id in uid_set:
+                        uid_set.add(current_user.id)
+                    for uid in uid_set:
+                        db.session.add(TaskAssignment(task_id=task.id, user_id=uid))
+                        create_notification(uid, 'task_assigned',
+                                            f'你收到一个新任务：「{title}」', task.id)
+                db.session.commit()
+                flash(f'任务 "{title}" 创建成功！', 'success')
+            except Exception as e:
+                db.session.rollback()
+                logger.error('User task creation failed: %s', e, exc_info=True)
+                flash('创建任务失败', 'danger')
+            return redirect(url_for('user_tasks'))
+        try:
+            parsed = parse_task_from_text(text)
+            if not parsed.get('title') or parsed['title'] == '未命名任务' or len(parsed.get('title', '')) < 2:
+                flash('无法从描述中提取任务标题，请确保包含明确的任务名称（至少2个字）', 'danger')
+                return redirect(url_for('user_tasks'))
+            parsed['raw_text'] = text
+            users = User.query.order_by(User.username).all()
+            rejected_tasks = TaskAssignment.query.join(Task).filter(
+                TaskAssignment.user_id == current_user.id,
+                TaskAssignment.status == 'rejected'
+            ).order_by(Task.end_time).all()
+            my_tasks = Task.query.filter_by(creator_id=current_user.id, is_all=False).order_by(Task.created_at.desc()).all()
+            is_admin_user = current_user.role == 'admin'
+            template_data = {
+                'rejected_tasks': rejected_tasks,
+                'preview': parsed, 'users': users,
+                'my_tasks': my_tasks,
+                'TaskAssignment': TaskAssignment,
+                'now': datetime.now(),
+                'is_admin': is_admin_user,
+            }
+            if is_admin_user:
+                tasks = Task.query.order_by(Task.created_at.desc()).all()
+                my_task_ids = {t.id for t in my_tasks}
+                other_tasks = [t for t in tasks if t.id not in my_task_ids]
+                template_data['all_tasks'] = tasks
+                template_data['other_tasks'] = other_tasks
+            return render_template('tasks.html', **template_data)
+        except Exception as e:
+            db.session.rollback()
+            logger.error('User task parsing failed: %s', e, exc_info=True)
+            flash('解析任务失败：请检查输入格式', 'danger')
+            return redirect(url_for('user_tasks'))
+
+    parsed = None
+    users = User.query.order_by(User.username).all()
+    rejected_tasks = TaskAssignment.query.join(Task).filter(
+        TaskAssignment.user_id == current_user.id,
+        TaskAssignment.status == 'rejected'
+    ).order_by(Task.end_time).all()
+    my_tasks = Task.query.filter_by(creator_id=current_user.id, is_all=False).order_by(Task.created_at.desc()).all()
+
+    is_admin_user = current_user.role == 'admin'
+    template_data = {
+        'rejected_tasks': rejected_tasks,
+        'preview': parsed, 'users': users,
+        'my_tasks': my_tasks,
+        'TaskAssignment': TaskAssignment,
+        'now': datetime.now(),
+        'is_admin': is_admin_user,
+    }
+    if is_admin_user:
+        tasks = Task.query.order_by(Task.created_at.desc()).all()
+        my_task_ids = {t.id for t in my_tasks}
+        other_tasks = [t for t in tasks if t.id not in my_task_ids]
+        template_data['all_tasks'] = tasks
+        template_data['other_tasks'] = other_tasks
+        _now = datetime.now()
+        user_stats = []
+        for u in users:
+            urgent_tasks = TaskAssignment.query.join(Task).filter(
+                TaskAssignment.user_id == u.id,
+                TaskAssignment.status == 'pending',
+                Task.end_time <= _now
+            ).count()
+            overdue_tasks = TaskAssignment.query.join(Task).filter(
+                TaskAssignment.user_id == u.id,
+                TaskAssignment.status == 'pending',
+                Task.end_time < _now
+            ).count()
+            total = TaskAssignment.query.filter_by(user_id=u.id).count()
+            completed = TaskAssignment.query.filter_by(user_id=u.id, status='completed').count()
+            approved = TaskAssignment.query.filter_by(user_id=u.id, status='approved').count()
+            completed_count = completed + approved
+            rate = round(completed_count / total * 100, 1) if total > 0 else 0
+            user_stats.append({
+                'user': u, 'total': total, 'completed': completed_count,
+                'rate': rate, 'urgent': urgent_tasks, 'overdue': overdue_tasks
+            })
+        template_data['user_stats'] = user_stats
+
+    return render_template('tasks.html', **template_data)
+
+
+@app.route('/user/todo')
+@login_required
+def user_todo():
+    return redirect(url_for('user_dashboard'))
+
+
+@app.route('/user/tasks/<int:assignment_id>/complete', methods=['POST'])
+@login_required
+def user_complete_task(assignment_id):
+    assignment = db.session.get(TaskAssignment, assignment_id)
+    if not assignment or assignment.user_id != current_user.id:
+        flash('任务不存在', 'danger')
+        return redirect(request.referrer or url_for('user_dashboard'))
+    assignment.status = 'completed'
+    assignment.completed_at = datetime.now()
+    assignment.rejection_reason = None
+    assignment.progress = 100
+    db.session.commit()
+    flash('任务已标记完成！', 'success')
+    return redirect(request.referrer or url_for('user_dashboard'))
+
+
+@app.route('/user/tasks/<int:assignment_id>/abandon', methods=['POST'])
+@login_required
+def user_abandon_task(assignment_id):
+    assignment = db.session.get(TaskAssignment, assignment_id)
+    if not assignment or assignment.user_id != current_user.id:
+        flash('任务不存在', 'danger')
+        return redirect(request.referrer or url_for('user_dashboard'))
+    assignment.status = 'abandoned'
+    assignment.abandoned_at = datetime.now()
+    assignment.rejection_reason = None
+    db.session.commit()
+    flash('任务已标记为废弃', 'info')
+    return redirect(request.referrer or url_for('user_dashboard'))
+
+
+@app.route('/user/tasks/<int:assignment_id>/upload', methods=['POST'])
+@login_required
+def user_upload_attachment(assignment_id):
+    assignment = db.session.get(TaskAssignment, assignment_id)
+    if not assignment or assignment.user_id != current_user.id:
+        flash('任务不存在', 'danger')
+        return redirect(request.referrer or url_for('user_dashboard'))
+    if 'file' not in request.files:
+        flash('请选择文件', 'danger')
+        return redirect(request.referrer or url_for('user_dashboard'))
+    file = request.files['file']
+    if file.filename == '':
+        flash('请选择文件', 'danger')
+        return redirect(request.referrer or url_for('user_dashboard'))
+    if file and allowed_file(file.filename):
+        filename = secure_filename(
+            f"{current_user.id}_{assignment.id}_{file.filename}"
+        )
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+        assignment.attachment = filename
+        db.session.commit()
+        flash('附件上传成功！', 'success')
+    else:
+        flash('不支持的文件类型', 'danger')
+    return redirect(request.referrer or url_for('user_dashboard'))
+
+
+@app.route('/user/tasks/<int:task_id>')
+@login_required
+def user_task_detail(task_id):
+    task = db.session.get(Task, task_id)
+    if not task:
+        flash('任务不存在', 'danger')
+        return redirect(url_for('user_dashboard'))
+    assignment = TaskAssignment.query.filter_by(
+        user_id=current_user.id, task_id=task_id).first()
+    pending_assignments = TaskAssignment.query.filter(
+        TaskAssignment.task_id == task_id,
+        TaskAssignment.status == 'pending'
+    ).all()
+    return render_template('task_detail.html', task=task,
+                           assignment=assignment,
+                           pending_assignments=pending_assignments,
+                           is_admin=False)
+
+
+@app.route('/user/assignments/<int:assignment_id>/update_progress', methods=['POST'])
+@login_required
+def user_update_assign_progress(assignment_id):
+    assignment = db.session.get(TaskAssignment, assignment_id)
+    if not assignment or assignment.user_id != current_user.id:
+        flash('任务不存在', 'danger')
+        return redirect(request.referrer or url_for('user_dashboard'))
+    progress = request.form.get('progress', type=int)
+    note = request.form.get('note', '').strip()
+    if progress is not None and 0 <= progress <= 100:
+        assignment.progress = progress
+    if note:
+        assignment.note = note
+    if progress == 100 and assignment.status == 'pending':
+        assignment.status = 'completed'
+        assignment.completed_at = datetime.now()
+        assignment.rejection_reason = None
+        flash('恭喜，任务已完成！', 'success')
+    elif progress is not None and progress < 100 and assignment.status == 'completed':
+        assignment.status = 'pending'
+        assignment.completed_at = None
+        assignment.rejection_reason = None
+    db.session.commit()
+    flash('进度已更新', 'success')
+    return redirect(request.referrer or url_for('user_tasks'))
+
+
+@app.route('/notifications')
+@login_required
+def notifications():
+    notes = Notification.query.filter_by(
+        user_id=current_user.id).order_by(
+        Notification.created_at.desc()).all()
+    return render_template('notifications.html', notifications=notes)
+
+
+@app.route('/notifications/<int:note_id>/read', methods=['GET', 'POST'])
+@login_required
+def read_notification(note_id):
+    note = db.session.get(Notification, note_id)
+    if note and note.user_id == current_user.id:
+        note.is_read = True
+        db.session.commit()
+        if note.task_id:
+            return redirect(url_for('user_task_detail', task_id=note.task_id))
+    return redirect(url_for('notifications'))
+
+
+@app.route('/notifications/read-all', methods=['POST'])
+@login_required
+def read_all_notifications():
+    Notification.query.filter_by(
+        user_id=current_user.id, is_read=False).update({'is_read': True})
+    db.session.commit()
+    flash('所有通知已标记为已读', 'info')
+    return redirect(request.referrer or url_for('notifications'))
+
+
+@app.route('/uploads/<filename>')
+@login_required
+def download_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+
+@app.route('/admin/clear-data', methods=['POST'])
+@login_required
+@admin_required
+def admin_clear_data():
+    Notification.query.delete()
+    TaskAssignment.query.delete()
+    Task.query.delete()
+    demo_users = User.query.filter(
+        User.username.in_(['guest', 'zhangsan', 'lisi', 'wangwu', 'zhaoliu', 'sunqi'])
+    ).all()
+    for u in demo_users:
+        db.session.delete(u)
+    db.session.commit()
+    init_db()
+    flash('所有数据已清空并重新初始化', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+
+with app.app_context():
+    init_db()
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)

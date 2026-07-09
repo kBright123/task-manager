@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% block title %}{{ task.title }}{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <a href="{{ url_for('user_dashboard') }}" class="text-muted text-decoration-none" style="font-size:.85rem;">
+    <i class="bi bi-arrow-left"></i> 返回
+  </a>
+</div>
+
+<div class="d-flex align-items-center gap-3 mb-4">
+  <h1 style="font-size:1.3rem;font-weight:700;color:var(--gray-900);margin:0;" class="flex-grow-1 text-truncate">{{ task.title }}</h1>
+  <span class="status-badge
+    {% if assignment and assignment.status == 'approved' %}status-approved
+    {% elif assignment and assignment.status == 'completed' %}status-completed
+    {% elif assignment and assignment.status == 'rejected' %}status-rejected
+    {% else %}status-pending{% endif %}">
+    {% if assignment and assignment.status == 'approved' %}已确认
+    {% elif assignment and assignment.status == 'completed' %}已完成
+    {% elif assignment and assignment.status == 'rejected' %}已驳回
+    {% else %}进行中{% endif %}
+  </span>
+  <span class="badge" style="background:{{ 'var(--primary)' if task.category == '工作' else 'var(--success)' if task.category == '个人' else 'var(--warning)' }};font-size:.72rem;">{{ task.category }}</span>
+  {% if is_admin %}
+  <span class="badge bg-info" style="font-size:.7rem;">完成率 {{ rate }}%</span>
+  {% if task.creator_id == current_user.id or task.is_all %}
+  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openEditModal()"><i class="bi bi-pencil"></i></button>
+  <form method="POST" action="{{ url_for('admin_delete_task', task_id=task.id) }}" onsubmit="return confirm('确定删除任务「{{ task.title }}」吗？')">
+    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+  </form>
+  {% endif %}
+  {% endif %}
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <!-- Basic Info Card -->
+    <div class="card mb-3">
+      <div class="card-header py-2 px-3"><i class="bi bi-info-circle"></i> 任务信息</div>
+      <div class="card-body p-3">
+        {% if task.description and task.description != task.title %}
+        <p style="font-size:.88rem;color:var(--gray-600);margin-bottom:16px;">{{ task.description }}</p>
+        {% endif %}
+        <div class="row g-3">
+          <div class="col-6">
+            <small class="text-muted d-block" style="font-size:.72rem;">开始时间</small>
+            <strong style="font-size:.85rem;">{{ task.start_time.strftime('%Y-%m-%d %H:%M') }}</strong>
+          </div>
+          <div class="col-6">
+            <small class="text-muted d-block" style="font-size:.72rem;">截止时间</small>
+            <strong style="font-size:.85rem;{% if task.end_time < now() and assignment and assignment.status == 'pending' %}color:var(--danger){% endif %}">
+              {{ task.end_time.strftime('%Y-%m-%d %H:%M') }}
+              {% if task.end_time < now() and assignment and assignment.status == 'pending' %}
+              <span class="badge bg-danger" style="font-size:.6rem;">已逾期</span>
+              {% endif %}
+            </strong>
+          </div>
+          <div class="col-6">
+            <small class="text-muted d-block" style="font-size:.72rem;">发布人</small>
+            <strong style="font-size:.85rem;">{{ task.creator.name or task.creator.username }}</strong>
+          </div>
+          <div class="col-6">
+            <small class="text-muted d-block" style="font-size:.72rem;">创建时间</small>
+            <strong style="font-size:.85rem;">{{ task.created_at.strftime('%Y-%m-%d %H:%M') }}</strong>
+          </div>
+          {% if pending_assignments %}
+          <div class="col-12">
+            <small class="text-muted d-block" style="font-size:.72rem;">未完成人员</small>
+            <div style="font-size:.85rem;color:var(--danger);">
+              {% for pa in pending_assignments %}<span class="badge bg-danger me-1" style="font-size:.7rem;">{{ pa.user.name or pa.user.username }}</span>{% endfor %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress Card with Timeline -->
+    {% if assignment and assignment.status in ('pending', 'rejected') %}
+    <div class="card mb-3">
+      <div class="card-header py-2 px-3"><i class="bi bi-sliders"></i> 更新进度</div>
+      <div class="card-body p-3">
+        <form method="POST" action="{{ url_for('user_update_assign_progress', assignment_id=assignment.id) }}">
+          <div class="d-flex align-items-center gap-3 mb-2">
+            <input type="range" class="flex-grow-1" name="progress" min="0" max="100" value="{{ assignment.progress }}" style="height:4px;" oninput="document.getElementById('progressVal').textContent=this.value+'%'" title="拖动以更新进度">
+            <span class="fw-bold" id="progressVal" style="min-width:3em;font-size:.9rem;color:var(--primary);">{{ assignment.progress }}%</span>
+          </div>
+          <small class="text-muted d-block mb-2" style="font-size:.65rem;"><i class="bi bi-arrow-left-right"></i> 拖动滑块以更新进度</small>
+          <div class="d-flex gap-2">
+            <input type="text" name="note" class="form-control form-control-sm" placeholder="备注本次进度..." value="{{ assignment.note or '' }}" style="font-size:.8rem;height:32px;">
+            <button type="submit" class="btn btn-primary btn-sm" style="white-space:nowrap;"><i class="bi bi-save"></i> 更新</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if assignment and assignment.completed_at %}
+    <div class="card mb-3">
+      <div class="card-header py-2 px-3"><i class="bi bi-check-circle" style="color:var(--success);"></i> 完成信息</div>
+      <div class="card-body p-3">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-check-circle-fill" style="color:var(--success);font-size:1.2rem;"></i>
+          <div>
+            <strong style="font-size:.88rem;">已于 {{ assignment.completed_at.strftime('%Y-%m-%d %H:%M') }} 完成</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if assignment and assignment.rejection_reason %}
+    <div class="card mb-3" style="border-left:4px solid var(--danger);">
+      <div class="card-header py-2 px-3" style="color:var(--danger);"><i class="bi bi-x-circle"></i> 驳回原因</div>
+      <div class="card-body p-3">
+        <p class="mb-0" style="color:var(--danger);font-size:.88rem;">{{ assignment.rejection_reason }}</p>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Attachments -->
+    <div class="card mb-3">
+      <div class="card-header py-2 px-3"><i class="bi bi-paperclip"></i> 附件</div>
+      <div class="card-body p-3">
+        {% if assignment %}
+        <form method="POST" action="{{ url_for('user_upload_attachment', assignment_id=assignment.id) }}" enctype="multipart/form-data" class="mb-3">
+          <div class="d-flex align-items-center gap-2 p-3 rounded" style="border:2px dashed var(--gray-300);background:var(--gray-50);cursor:pointer;" onclick="this.querySelector('input[type=file]').click()">
+            <i class="bi bi-cloud-arrow-up" style="font-size:1.3rem;color:var(--gray-400);"></i>
+            <div>
+              <div style="font-size:.82rem;font-weight:500;color:var(--gray-500);">点击或拖拽上传文件</div>
+              <small class="text-muted" style="font-size:.7rem;">支持 PDF, Word, 图片等常见格式</small>
+            </div>
+            <input type="file" name="file" class="d-none" onchange="this.form.submit()">
+          </div>
+        </form>
+        {% endif %}
+        {% if assignment and assignment.attachment %}
+        <div class="d-flex align-items-center gap-2 p-2 rounded" style="background:var(--gray-50);">
+          <i class="bi bi-file-earmark" style="color:var(--primary);"></i>
+          <span class="flex-grow-1 text-truncate" style="font-size:.82rem;">{{ assignment.attachment }}</span>
+          <a href="{{ url_for('download_file', filename=assignment.attachment) }}" class="btn btn-sm btn-outline-primary" style="padding:2px 8px;font-size:.7rem;" target="_blank"><i class="bi bi-download"></i></a>
+        </div>
+        {% endif %}
+        {% if not assignment or not assignment.attachment %}
+        <div class="text-center py-3" style="color:var(--gray-400);font-size:.82rem;">
+          <i class="bi bi-paperclip"></i> 暂无附件
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    {% if assignment and assignment.note %}
+    <div class="card mb-3">
+      <div class="card-header py-2 px-3"><i class="bi bi-card-text"></i> 备注</div>
+      <div class="card-body p-3">
+        <p class="mb-0" style="font-size:.85rem;color:var(--gray-600);">{{ assignment.note }}</p>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if is_admin and task.creator_id == current_user.id %}
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
+        <span><i class="bi bi-people"></i> 人员完成情况</span>
+        {% if remaining %}<span class="badge bg-warning" style="font-size:.65rem;">未完成 {{ remaining|length }}</span>{% endif %}
+      </div>
+      <div class="list-group list-group-flush">
+        {% for a in assignments %}
+        <div class="list-group-item d-flex align-items-center gap-2 py-2 px-3">
+          <span class="avatar" style="width:28px;height:28px;font-size:.65rem;">{{ a.user.username[0]|upper }}</span>
+          <div class="flex-grow-1" style="min-width:0;">
+            <div style="font-size:.82rem;font-weight:500;">{{ a.user.name or a.user.username }}</div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="status-badge" style="font-size:.6rem;padding:1px 8px;
+                {% if a.status == 'pending' %}background:#fff7ed;color:#c2410c;
+                {% elif a.status == 'completed' %}background:#d1fae5;color:#065f46;
+                {% elif a.status == 'approved' %}background:#eef2ff;color:var(--primary);
+                {% elif a.status == 'rejected' %}background:#fef2f2;color:var(--danger);{% endif %}">
+                {{ {'pending':'进行中','completed':'已完成','approved':'已确认','rejected':'已驳回'}[a.status] }}
+              </span>
+              {% if a.progress > 0 %}
+              <small class="text-muted" style="font-size:.65rem;">{{ a.progress }}%</small>
+              {% endif %}
+            </div>
+          </div>
+          <div class="d-flex gap-1 flex-shrink-0">
+            {% if a.status == 'completed' %}
+            <form method="POST" action="{{ url_for('admin_approve_assignment', task_id=task.id, assignment_id=a.id) }}">
+              <button class="btn btn-sm btn-outline-success" style="padding:2px 8px;font-size:.65rem;" title="确认完成"><i class="bi bi-check-lg"></i></button>
+            </form>
+            {% endif %}
+            {% if a.status in ('pending', 'completed') %}
+            <button type="button" class="btn btn-sm btn-outline-danger" style="padding:2px 8px;font-size:.65rem;" onclick="showReject({{ a.id }},'{{ a.user.username }}')" title="驳回"><i class="bi bi-x-lg"></i></button>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% for a in assignments %}
+<div class="modal fade" id="rejectModal{{ a.id }}" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="border-radius:var(--radius);border:none;box-shadow:var(--shadow-lg);">
+      <form method="POST" action="{{ url_for('admin_reject_assignment', task_id=task.id, assignment_id=a.id) }}">
+        <div class="modal-header" style="border-bottom:1px solid var(--gray-100);">
+          <h5 class="modal-title" style="font-size:.95rem;font-weight:600;">驳回 {{ a.user.name or a.user.username }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label" style="font-size:.85rem;">驳回原因</label>
+          <textarea name="reason" class="form-control" rows="3" required placeholder="请填写驳回原因..."></textarea>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid var(--gray-100);">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-sm btn-danger">确认驳回</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+<script>
+function showReject(id, name) {
+  var modal = new bootstrap.Modal(document.getElementById('rejectModal' + id));
+  modal.show();
+}
+function openEditModal() {
+  new bootstrap.Modal(document.getElementById('editTaskModal')).show();
+}
+</script>
+
+{% if is_admin and (task.creator_id == current_user.id or task.is_all) %}
+<div class="modal fade" id="editTaskModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="border-radius:var(--radius);border:none;box-shadow:var(--shadow-lg);">
+      <form method="POST" action="{{ url_for('admin_edit_task', task_id=task.id) }}">
+        <div class="modal-header" style="border-bottom:1px solid var(--gray-100);">
+          <h5 class="modal-title" style="font-size:.95rem;font-weight:600;"><i class="bi bi-pencil"></i> 编辑任务</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label" style="font-size:.85rem;font-weight:500;">任务标题</label>
+            <input type="text" name="title" class="form-control" value="{{ task.title }}" required style="font-size:.9rem;">
+          </div>
+          <div class="mb-3">
+            <label class="form-label" style="font-size:.85rem;font-weight:500;">分类</label>
+            <input type="text" name="category" class="form-control" value="{{ task.category }}" style="max-width:200px;font-size:.85rem;">
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-6">
+              <label class="form-label" style="font-size:.85rem;font-weight:500;">开始时间</label>
+              <input type="text" name="start_time" class="form-control" value="{{ task.start_time.strftime('%Y-%m-%d %H:%M') }}">
+              <small class="text-muted" style="font-size:.7rem;">YYYY-MM-DD HH:MM</small>
+            </div>
+            <div class="col-6">
+              <label class="form-label" style="font-size:.85rem;font-weight:500;">截止时间</label>
+              <input type="text" name="end_time" class="form-control" value="{{ task.end_time.strftime('%Y-%m-%d %H:%M') }}">
+              <small class="text-muted" style="font-size:.7rem;">YYYY-MM-DD HH:MM</small>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid var(--gray-100);">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-check-lg"></i> 保存修改</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

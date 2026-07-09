@@ -1,0 +1,25 @@
+services:
+  app:
+    build: .
+    container_name: task-manager
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./app.py:/app/app.py
+      - ./templates:/app/templates
+      - ./static:/app/static
+      - task-data:/app/instance
+      - task-uploads:/app/static/uploads
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+    networks:
+      - vscode_vscode_default
+
+volumes:
+  task-data:
+  task-uploads:
+
+networks:
+  vscode_vscode_default:
+    external: true

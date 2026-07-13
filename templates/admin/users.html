@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
   <h1 style="font-size:1.5rem;font-weight:700;color:var(--gray-900);margin:0;">用户管理</h1>
-  <button class="btn btn-primary btn-sm" onclick="openDrawer()"><i class="bi bi-person-plus"></i> 添加用户</button>
+  <button class="btn btn-primary btn-sm" onclick="new bootstrap.Modal(document.getElementById('addUserModal')).show()"><i class="bi bi-person-plus"></i> 添加用户</button>
 </div>
 
 <div class="card">
@@ -117,35 +117,43 @@
   </div>
 </div>
 
-<!-- Add User Drawer -->
-<div class="drawer-overlay d-none" id="drawerOverlay" onclick="closeDrawer()"></div>
-<div class="drawer d-none" id="addUserDrawer">
-  <div class="d-flex justify-content-between align-items-center p-4" style="border-bottom:1px solid var(--gray-100);">
-    <h5 style="font-weight:700;margin:0;"><i class="bi bi-person-plus" style="color:var(--primary);"></i> 添加用户</h5>
-    <button class="btn btn-sm btn-outline-secondary" style="border:none;font-size:1.2rem;" onclick="closeDrawer()"><i class="bi bi-x"></i></button>
+<!-- Add User Modal -->
+<div class="modal fade" id="addUserModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:var(--radius);border:none;box-shadow:var(--shadow-lg);">
+      <div class="modal-header" style="border-bottom:1px solid var(--gray-100);">
+        <h5 class="modal-title" style="font-size:.95rem;font-weight:600;"><i class="bi bi-person-plus" style="color:var(--primary);"></i> 添加用户</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('admin_add_user') }}">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label" style="font-size:.85rem;font-weight:500;">用户名</label>
+            <input type="text" name="username" class="form-control" placeholder="请输入用户名" required style="font-size:.9rem;">
+          </div>
+          <div class="mb-3">
+            <label class="form-label" style="font-size:.85rem;font-weight:500;">姓名</label>
+            <input type="text" name="name" class="form-control" placeholder="请输入姓名" style="font-size:.9rem;">
+          </div>
+          <div class="mb-3">
+            <label class="form-label" style="font-size:.85rem;font-weight:500;">密码</label>
+            <input type="password" name="password" class="form-control" placeholder="请输入密码" required style="font-size:.9rem;">
+          </div>
+          <div class="mb-3">
+            <label class="form-label" style="font-size:.85rem;font-weight:500;">角色</label>
+            <select name="role" class="form-select" style="font-size:.9rem;">
+              <option value="user" selected>用户</option>
+              <option value="admin">管理员</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid var(--gray-100);">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-check-lg"></i> 确认添加</button>
+        </div>
+      </form>
+    </div>
   </div>
-  <form method="POST" action="{{ url_for('admin_add_user') }}" style="padding:24px;">
-    <div class="mb-3">
-      <label class="form-label" style="font-size:.85rem;font-weight:500;">用户名</label>
-      <input type="text" name="username" class="form-control" placeholder="请输入用户名" required style="font-size:.9rem;">
-    </div>
-    <div class="mb-3">
-      <label class="form-label" style="font-size:.85rem;font-weight:500;">姓名</label>
-      <input type="text" name="name" class="form-control" placeholder="请输入姓名" style="font-size:.9rem;">
-    </div>
-    <div class="mb-3">
-      <label class="form-label" style="font-size:.85rem;font-weight:500;">密码</label>
-      <input type="password" name="password" class="form-control" placeholder="请输入密码" required style="font-size:.9rem;">
-    </div>
-    <div class="mb-4">
-      <label class="form-label" style="font-size:.85rem;font-weight:500;">角色</label>
-      <select name="role" class="form-select" style="font-size:.9rem;">
-        <option value="user" selected>用户</option>
-        <option value="admin">管理员</option>
-      </select>
-    </div>
-    <button type="submit" class="btn btn-primary w-100" style="height:44px;font-size:.9rem;"><i class="bi bi-check-lg"></i> 确认添加</button>
-  </form>
 </div>
 
 <!-- Role Modal -->
@@ -236,14 +244,6 @@
 </div>
 
 <script>
-function openDrawer() {
-  document.getElementById('addUserDrawer').classList.remove('d-none');
-  document.getElementById('drawerOverlay').classList.remove('d-none');
-}
-function closeDrawer() {
-  document.getElementById('addUserDrawer').classList.add('d-none');
-  document.getElementById('drawerOverlay').classList.add('d-none');
-}
 function openRoleModal(id, username, role) {
   document.getElementById('roleForm').action = '/admin/users/' + id + '/set_role';
   document.getElementById('roleUsername').value = username;

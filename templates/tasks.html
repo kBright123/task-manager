@@ -6,78 +6,148 @@
   <h1 style="font-size:1.5rem;font-weight:700;color:var(--gray-900);margin:0;">发布任务</h1>
 </div>
 
-<div class="card mb-4">
-  <div class="card-body">
-    {% if preview %}
-    <div class="preview-card p-4 rounded">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <span class="fw-bold" style="font-size:.95rem;color:var(--primary);"><i class="bi bi-eye"></i> 解析结果 — 可编辑修改</span>
-        <span class="badge bg-primary">待确认</span>
-      </div>
-      <form method="POST">
-        <input type="hidden" name="action" value="save">
-        <input type="hidden" name="description" value="{{ preview.raw_text }}">
-        <div class="mb-3">
-          <label class="form-label" style="font-size:.82rem;font-weight:500;">任务标题</label>
-          <input type="text" name="title" class="form-control" value="{{ preview.title }}" required style="font-size:.9rem;">
+{% if preview %}
+<div class="preview-card p-3 rounded mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-3 pb-2" style="border-bottom:1px solid var(--gray-200);">
+    <span class="fw-bold" style="font-size:.95rem;color:var(--primary);"><i class="bi bi-eye"></i> 解析结果 — 可编辑修改</span>
+    <span class="badge bg-primary" style="font-size:.7rem;">待确认</span>
+  </div>
+  <form method="POST">
+    <input type="hidden" name="action" value="save">
+    <div class="row g-3">
+      <div class="col-md-6 d-flex flex-column">
+        <div class="mb-2">
+          <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">任务标题</label>
+          <input type="text" name="title" class="form-control" value="{{ preview.title }}" required style="font-size:.88rem;padding:6px 10px;">
         </div>
-        <div class="mb-3">
-          <label class="form-label" style="font-size:.82rem;font-weight:500;">类型</label>
-          <input type="text" name="category" class="form-control" value="{{ preview.category or '工作' }}" style="max-width:200px;font-size:.85rem;" placeholder="工作 / 个人 / 自定义">
-        </div>
-        <div class="mb-3">
-          <label class="form-label" style="font-size:.82rem;font-weight:500;">原始描述</label>
-          <div class="p-3 bg-white rounded border" style="font-size:.85rem;white-space:pre-wrap;">{{ preview.raw_text }}</div>
-        </div>
-        <div class="row g-3 mb-3">
+        <div class="row g-2 mb-2">
           <div class="col-6">
-            <label class="form-label" style="font-size:.82rem;font-weight:500;">开始时间</label>
-            <input type="text" name="start_time" class="form-control" value="{{ preview.start_time.strftime('%Y-%m-%d %H:%M') if preview.start_time else '' }}" required>
-            <small class="text-muted" style="font-size:.7rem;">格式 YYYY-MM-DD HH:MM</small>
+            <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">开始时间</label>
+            <input type="datetime-local" name="start_time" class="form-control" value="{{ preview.start_time.strftime('%Y-%m-%dT%H:%M') if preview.start_time else '' }}" required style="font-size:.84rem;padding:4px 8px;">
           </div>
           <div class="col-6">
-            <label class="form-label" style="font-size:.82rem;font-weight:500;">结束时间</label>
-            <input type="text" name="end_time" class="form-control" value="{{ preview.end_time.strftime('%Y-%m-%d %H:%M') if preview.end_time else '' }}" required>
-            <small class="text-muted" style="font-size:.7rem;">格式 YYYY-MM-DD HH:MM</small>
+            <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">结束时间</label>
+            <input type="datetime-local" name="end_time" class="form-control" value="{{ preview.end_time.strftime('%Y-%m-%dT%H:%M') if preview.end_time else '' }}" required style="font-size:.84rem;padding:4px 8px;">
           </div>
         </div>
-        <div class="mb-3">
-          <label class="form-label" style="font-size:.82rem;font-weight:500;">分配对象</label>
-          <div class="form-check mb-2">
-            <input type="checkbox" class="form-check-input" name="is_all" value="1" id="isAllCheck"
-                   onchange="document.getElementById('assigneeGroup').classList.toggle('d-none')"
-                   {% if preview.is_all %}checked{% endif %}>
-            <label class="form-check-label" style="font-size:.85rem;" for="isAllCheck">@所有人</label>
+        <div class="row g-2 mb-2">
+          <div class="col-5">
+            <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">类型</label>
+            <input type="text" name="category" class="form-control" value="{{ preview.category or '工作' }}" style="font-size:.84rem;padding:4px 8px;" placeholder="工作 / 个人">
           </div>
-          <div id="assigneeGroup" class="d-flex flex-wrap gap-2 {% if preview.is_all %}d-none{% endif %}">
+          <div class="col-7">
+            <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">周期</label>
+            <select class="form-select" id="recurrenceSelect" style="font-size:.84rem;padding:4px 8px;" onchange="updateRecurrence()">
+              <option value="" data-count="0" data-interval="0">不重复</option>
+              <option value="weekly" data-count="4" data-interval="7" {% if preview.recurrence == 'weekly' %}selected{% endif %}>每周（4期）</option>
+              <option value="monthly" data-count="3" data-interval="30" {% if preview.recurrence == 'monthly' %}selected{% endif %}>每月（3期）</option>
+              <option value="yearly" data-count="2" data-interval="365" {% if preview.recurrence == 'yearly' %}selected{% endif %}>每年（2期）</option>
+              <option value="custom" data-count="0" data-interval="0">自定义</option>
+            </select>
+            <span id="recurrenceCustom" class="d-none mt-1" style="display:flex;gap:4px;">
+              <input type="number" id="customInterval" class="form-control" style="width:70px;font-size:.78rem;padding:2px 6px;" placeholder="天数" min="1" value="7">
+              <input type="number" id="customCount" class="form-control" style="width:60px;font-size:.78rem;padding:2px 6px;" placeholder="期数" min="1" value="3">
+              <button type="button" class="btn btn-sm btn-outline-primary" style="font-size:.7rem;padding:2px 8px;" onclick="applyCustomRecurrence()">应用</button>
+            </span>
+            <span id="recurrenceHint" class="text-info" style="font-size:.75rem;">
+              {% if preview.recurrence %}<i class="bi bi-arrow-repeat"></i> {{ preview.recurrence_text }}，共 {{ preview.recurrence_count }} 期{% endif %}
+            </span>
+          </div>
+        </div>
+        <input type="hidden" name="recurrence" id="recurrenceInput" value="{{ preview.recurrence or '' }}">
+        <input type="hidden" name="recurrence_count" id="recurrenceCountInput" value="{{ preview.recurrence_count or '0' }}">
+        <input type="hidden" name="recurrence_interval_days" id="recurrenceIntervalInput" value="{{ preview.recurrence_interval_days or '0' }}">
+        <div class="flex-grow-1 mb-2">
+          <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">分配对象</label>
+          <div class="d-flex flex-wrap gap-1">
+            {% if is_admin %}
+            <label class="form-check form-check-inline" style="font-size:.8rem;cursor:pointer;margin-right:6px;">
+              <input type="checkbox" class="form-check-input" name="is_all" value="1" id="isAllCheck" style="margin-top:2px;"
+                     onchange="document.getElementById('userCheckboxes').classList.toggle('d-none')"
+                     {% if preview.is_all %}checked{% endif %}>
+              @所有人
+            </label>
+            {% endif %}
+            <span id="userCheckboxes" class="d-flex flex-wrap gap-1 {% if preview.is_all %}d-none{% endif %}">
             {% for u in users %}
-            {% set matched = u.name in preview.assignees or u.username in preview.assignees %}
-            <label class="form-check form-check-inline" style="font-size:.85rem;cursor:pointer;">
-              <input class="form-check-input" type="checkbox" name="assignee_ids" value="{{ u.id }}"{% if matched %} checked{% endif %}{% if u.id == current_user.id %} data-self="1"{% endif %}>
-              {{ u.name or u.username }}{% if u.id == current_user.id %} <small style="color:var(--gray-400);font-size:.7rem;">(自己)</small>{% endif %}
+            {% set checked_self = u.id == current_user.id %}
+            {% set matched = preview.assignees and (u.name in preview.assignees or u.username in preview.assignees) %}
+            <label class="form-check form-check-inline" style="font-size:.8rem;cursor:pointer;margin-right:6px;">
+              <input class="form-check-input" type="checkbox" name="assignee_ids" value="{{ u.id }}" style="margin-top:2px;"{% if matched or checked_self %} checked{% endif %}{% if u.id == current_user.id %} data-self="1"{% endif %}>
+              {{ u.name or u.username }}{% if u.id == current_user.id %} <small style="color:var(--gray-400);font-size:.68rem;">(自己)</small>{% endif %}
             </label>
             {% endfor %}
+            </span>
           </div>
         </div>
-        <div class="d-flex gap-2">
+      </div>
+      <div class="col-md-6 d-flex flex-column">
+        <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">任务描述</label>
+        <textarea name="description" class="form-control flex-grow-1" style="font-size:.84rem;padding:6px 10px;resize:none;min-height:240px;">{{ preview.raw_text }}</textarea>
+        <div class="d-flex gap-2 pt-2 justify-content-end">
           <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg"></i> 确认发布</button>
           <a href="{{ url_for('user_tasks') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-x"></i> 取消</a>
         </div>
-      </form>
+      </div>
     </div>
-    {% elif is_admin %}
+  </form>
+</div>
+<script>
+function updateRecurrence() {
+  var sel = document.getElementById('recurrenceSelect');
+  var opt = sel.options[sel.selectedIndex];
+  var custom = document.getElementById('recurrenceCustom');
+  if (opt.value === 'custom') {
+    custom.classList.remove('d-none');
+    document.getElementById('recurrenceInput').value = '';
+    document.getElementById('recurrenceCountInput').value = '0';
+    document.getElementById('recurrenceIntervalInput').value = '0';
+    document.getElementById('recurrenceHint').innerHTML = '';
+    return;
+  }
+  custom.classList.add('d-none');
+  document.getElementById('recurrenceInput').value = opt.value;
+  document.getElementById('recurrenceCountInput').value = opt.dataset.count;
+  document.getElementById('recurrenceIntervalInput').value = opt.dataset.interval;
+  var hint = document.getElementById('recurrenceHint');
+  if (opt.value) {
+    hint.innerHTML = '<i class="bi bi-arrow-repeat"></i> ' + opt.text;
+  } else {
+    hint.innerHTML = '';
+  }
+}
+function applyCustomRecurrence() {
+  var interval = parseInt(document.getElementById('customInterval').value) || 7;
+  var count = parseInt(document.getElementById('customCount').value) || 3;
+  document.getElementById('recurrenceInput').value = 'custom';
+  document.getElementById('recurrenceCountInput').value = count;
+  document.getElementById('recurrenceIntervalInput').value = interval;
+  document.getElementById('recurrenceHint').innerHTML = '<i class="bi bi-arrow-repeat"></i> 每' + interval + '天，共' + count + '期';
+}
+</script>
+    {% else %}
+    <div class="card mb-4">
+      <div class="card-body">
+    {% if is_admin %}
+    {% if sensitive_words %}
+    <div class="alert alert-danger py-2 px-3 mb-3" style="font-size:.82rem;border-left:4px solid var(--danger);">
+      <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle"></i> 输入内容包含敏感词，请修改后重试</div>
+      <div>涉及词汇：{% for w in sensitive_words %}<span class="badge bg-danger me-1" style="font-size:.7rem;">{{ w }}</span>{% endfor %}</div>
+      {% if sensitive_text %}<div class="mt-2 p-2 rounded" style="background:#fff;font-size:.82rem;word-break:break-all;">{{ sensitive_text|safe }}</div>{% endif %}
+    </div>
+    {% endif %}
     <div class="d-flex align-items-start gap-2" style="position:relative;">
       <form method="POST" class="flex-grow-1 d-flex gap-2">
         <input type="hidden" name="action" value="preview">
         <div style="position:relative;flex-grow:1;">
-          <textarea name="text" class="form-control" rows="2" id="adminTaskText" placeholder="例：开发登录功能 从明天上午9点开始 到下周五下午6点结束 发给张三、李四" required style="font-size:.9rem;"></textarea>
+          <textarea name="text" class="form-control" rows="2" id="adminTaskText" placeholder="例：开发登录功能 从明天上午9点开始 到下周五下午6点结束 发给张三、李四。支持每周/每月/每年周期任务" required style="font-size:.9rem;">{% if original_text %}{{ original_text }}{% endif %}</textarea>
           <div id="mentionDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:180px;overflow-y:auto;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:1000;margin-top:2px;"></div>
         </div>
         <button type="submit" class="btn btn-primary" style="height:44px;white-space:nowrap;flex-shrink:0;"><i class="bi bi-send"></i> 解析</button>
       </form>
     </div>
     <div class="mt-2">
-      <small class="text-muted" style="font-size:.75rem;"><i class="bi bi-info-circle"></i> 输入自然语言描述，系统自动解析标题、时间和分配对象。输入 @ 可快速选择人员</small>
+      <small class="text-muted" style="font-size:.75rem;"><i class="bi bi-info-circle"></i> 输入自然语言描述，系统自动解析标题、时间和分配对象。输入 @ 可快速选择人员。支持每周/每月/每年周期任务</small>
     </div>
     <script>
     var mentionUsers = [
@@ -104,6 +174,13 @@
           return '<div class="mention-item" data-idx="' + i + '" style="padding:6px 12px;cursor:pointer;font-size:.82rem;' + (i===0?'background:var(--gray-50);':'') + '">' + label + '</div>';
         }).join('');
         dd.style.display = 'block';
+        // reposition: flip above if not enough space below
+        var rect = ta.getBoundingClientRect();
+        var spaceBelow = window.innerHeight - rect.bottom;
+        var ddHeight = Math.min(180, items.length * 32 + 10);
+        dd.style.top = spaceBelow < ddHeight + 10 ? 'auto' : '100%';
+        dd.style.bottom = spaceBelow < ddHeight + 10 ? (rect.height + 4 + 'px') : 'auto';
+        dd.style.marginTop = spaceBelow < ddHeight + 10 ? '0' : '2px';
         dd.querySelectorAll('.mention-item').forEach(function(el){
           el.onclick = function(){
             var idx = parseInt(el.dataset.idx);
@@ -170,19 +247,26 @@
     })();
     </script>
     {% else %}
+    {% if sensitive_words %}
+    <div class="alert alert-danger py-2 px-3 mb-3" style="font-size:.82rem;border-left:4px solid var(--danger);">
+      <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle"></i> 输入内容包含敏感词，请修改后重试</div>
+      <div>涉及词汇：{% for w in sensitive_words %}<span class="badge bg-danger me-1" style="font-size:.7rem;">{{ w }}</span>{% endfor %}</div>
+      {% if sensitive_text %}<div class="mt-2 p-2 rounded" style="background:#fff;font-size:.82rem;word-break:break-all;">{{ sensitive_text|safe }}</div>{% endif %}
+    </div>
+    {% endif %}
     <div class="d-flex align-items-start gap-2">
       <form method="POST" class="flex-grow-1 d-flex gap-2">
-        <textarea name="text" class="form-control" rows="2" placeholder="学习Python 从今天下午2点到5点" required style="font-size:.9rem;"></textarea>
+        <textarea name="text" class="form-control" rows="2" placeholder="学习Python 从今天下午2点到5点。支持每周/每月周期任务" required style="font-size:.9rem;">{% if original_text %}{{ original_text }}{% endif %}</textarea>
         <button type="submit" class="btn btn-primary" style="height:44px;white-space:nowrap;flex-shrink:0;"><i class="bi bi-plus-circle"></i> 创建</button>
       </form>
     </div>
     <div class="mt-2">
-      <small class="text-muted" style="font-size:.75rem;"><i class="bi bi-info-circle"></i> 输入自然语言创建个人任务，如「完成项目报告 从明天上午9点到后天下午6点」</small>
+      <small class="text-muted" style="font-size:.75rem;"><i class="bi bi-info-circle"></i> 输入自然语言创建个人任务，如「完成项目报告 从明天上午9点到后天下午6点」。支持每周/每月周期任务</small>
     </div>
     {% endif %}
-    {% if not preview %}{% endif %}
-  </div>
-</div>
+      </div>
+    </div>
+    {% endif %}
 
 {% if rejected_tasks %}
 <div class="card mb-4 border-warning" style="border-left:4px solid var(--danger) !important;">

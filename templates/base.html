@@ -73,8 +73,9 @@
     .bottom-nav a .dot { position: absolute; top: 4px; right: 50%; transform: translateX(16px); width: 7px; height: 7px; border-radius: 50%; background: var(--danger); border: 2px solid #fff; }
 
     /* Cards */
-    .card { background: #fff; border: none; border-radius: var(--radius); box-shadow: var(--shadow); transition: box-shadow .2s, transform .2s; }
-    .card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+    .card { background: #fff; border: none; border-radius: var(--radius); box-shadow: var(--shadow); transition: box-shadow .2s; }
+    .card:hover { box-shadow: var(--shadow-lg); }
+    .card-lift:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); transition: box-shadow .2s, transform .2s; }
     .card-header { background: transparent; border-bottom: 1px solid var(--gray-100); padding: 14px 20px; font-weight: 600; font-size: .88rem; color: var(--gray-700); border-radius: var(--radius) var(--radius) 0 0 !important; }
     .card-body { padding: 20px; }
 
@@ -146,7 +147,7 @@
     @keyframes rippleAnim { to { transform: scale(4); opacity: 0; } }
 
     /* Utilities */
-    .text-muted { color: var(--gray-400) !important; }
+    .text-muted { color: var(--gray-500) !important; }
     .table { margin-bottom: 0; }
     .table th { font-weight: 600; color: var(--gray-500); border-bottom: 1px solid var(--gray-100); }
     .table td { border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
@@ -186,7 +187,7 @@
         <span>TaskFlow</span>
       </a>
       <div class="top-nav-links">
-        <a href="{{ url_for('user_dashboard') }}" class="{% if request.endpoint in ('user_dashboard', 'admin_dashboard') %}active{% endif %}">
+        <a href="{{ url_for('user_dashboard') }}" class="{% if request.endpoint == 'user_dashboard' %}active{% endif %}">
           <i class="bi bi-house"></i> 首页
         </a>
         <a href="{{ url_for('user_tasks') }}" class="{% if request.endpoint in ('user_tasks', 'user_task_detail', 'admin_task_detail') %}active{% endif %}">
@@ -214,7 +215,7 @@
             <div>
               {% if recent_notifications %}
                 {% for note in recent_notifications %}
-                <a href="{{ url_for('read_notification', note_id=note.id) }}" style="display:flex;align-items:flex-start;gap:10px;padding:10px 16px;text-decoration:none;border-bottom:1px solid var(--gray-100);{% if not note.is_read %}background:var(--primary-light){% endif %}">
+                <a href="{{ url_for('read_notification', note_id=note.id) }}" onclick="document.getElementById('notificationDropdown').classList.add('d-none')" style="display:flex;align-items:flex-start;gap:10px;padding:10px 16px;text-decoration:none;border-bottom:1px solid var(--gray-100);{% if not note.is_read %}background:var(--primary-light){% endif %}">
                   <i class="bi bi-info-circle" style="color:var(--primary);font-size:1rem;margin-top:2px;"></i>
                   <div style="flex:1;min-width:0;">
                     <div style="font-size:.8rem;color:var(--gray-700);">{{ note.message }}</div>
@@ -261,7 +262,7 @@
 
   <!-- Mobile Bottom Nav -->
   <nav class="bottom-nav">
-    <a href="{{ url_for('user_dashboard') }}" class="{% if request.endpoint in ('user_dashboard', 'admin_dashboard') %}active{% endif %}">
+    <a href="{{ url_for('user_dashboard') }}" class="{% if request.endpoint == 'user_dashboard' %}active{% endif %}">
       <i class="bi bi-house"></i><span>首页</span>
     </a>
     <a href="{{ url_for('user_tasks') }}" class="{% if request.endpoint in ('user_tasks', 'user_task_detail', 'admin_task_detail') %}active{% endif %}">

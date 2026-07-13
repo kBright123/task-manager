@@ -375,31 +375,75 @@ def parse_chinese_datetime(text):
     return result_date
 
 
+SENSITIVE_WORDS = ['法轮功', '六四', '天安门事件', '台独', '藏独', '疆独', '邪教',
+                   '敏感词示例1', '敏感词示例2']
+
+def check_sensitive_words(text):
+    found = []
+    for w in SENSITIVE_WORDS:
+        if w in text:
+            found.append(w)
+    return found
+
+def highlight_sensitive_words(text):
+    for w in SENSITIVE_WORDS:
+        text = text.replace(w, f'<mark style="color:var(--danger);background:#fecaca;padding:0 2px;border-radius:2px;">{w}</mark>')
+    return text
+
 WEEK_KEYS = ['本周', '这周', '本星期', '这个星期']
 NEXT_WEEK_KEYS = ['下周', '下星期']
 
 
 def detect_deadline_from_text(text):
     now = datetime.now()
-    text_lower = text
+
+    # find time that appears AFTER deadline keywords (到/截止/至/-)
+    end_text = text
+    for kw in ['到', '截止', '至', '—', '~']:
+        idx = text.find(kw)
+        if idx >= 0:
+            after = text[idx+1:]
+            if after.strip():
+                end_text = after
+                break
+
+    hour, minute = 18, 0
+    time_m = re.search(r'(上[午]|下[午]|晚[上])?(\d{1,2})[：:点](\d{2})?(?:分)?', end_text)
+    if time_m:
+        period = time_m.group(1)
+        h = int(time_m.group(2))
+        m = int(time_m.group(3)) if time_m.group(3) else 0
+        if period and period in ('下午', '晚上'):
+            h = h if h >= 12 else h + 12
+        elif period and period == '上午':
+            h = h if h < 12 else h - 12
+        elif h < 7:
+            h += 12
+        hour, minute = h, m
+    else:
+        colon_m = re.search(r'(\d{1,2}):(\d{2})', end_text)
+        if colon_m:
+            h, m = int(colon_m.group(1)), int(colon_m.group(2))
+            if h < 24 and m < 60:
+                hour, minute = h, m
 
     if re.search(r'本[周星期]|这[周星期]', text):
         end_of_week = now + timedelta(days=(6 - now.weekday()))
-        return end_of_week.replace(hour=18, minute=0, second=0)
+        return (end_of_week.replace(hour=hour, minute=minute, second=0), hour, minute)
 
     if re.search(r'下[周星期]', text):
         end_of_next = now + timedelta(days=(13 - now.weekday()))
-        return end_of_next.replace(hour=18, minute=0, second=0)
+        return (end_of_next.replace(hour=hour, minute=minute, second=0), hour, minute)
 
-    m = re.search(r'(\d+)月(\d+)日', text)
+    m = re.search(r'(\d+)月(\d+)日', end_text)
     if m:
         try:
             mo, d = int(m.group(1)), int(m.group(2))
             y = now.year
-            dt = datetime(y, mo, d, 18, 0)
+            dt = datetime(y, mo, d, hour, minute, 0)
             if dt < now:
                 dt = dt.replace(year=y + 1)
-            return dt
+            return (dt, hour, minute)
         except Exception:
             pass
 
@@ -407,11 +451,12 @@ def detect_deadline_from_text(text):
     if m:
         try:
             y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
-            return datetime(y, mo, d, 18, 0)
+            return (datetime(y, mo, d, hour, minute, 0), hour, minute)
         except Exception:
             pass
 
-    return None
+    # no date found, but return the extracted time for downstream use
+    return (None, hour, minute)
 
 
 def extract_assignees_from_text(text):
@@ -532,20 +577,102 @@ def parse_task_from_text(text):
     result['assignees'] = assign_info['assignees']
     result['is_all'] = assign_info['is_all']
 
-    deadline = detect_deadline_from_text(text)
-    if deadline:
-        result['end_time'] = deadline
+    # detect start time — find text after "从" but before "到/截止/至"
+    start_text = text
+    for kw in ['从']:
+        idx = text.find(kw)
+        if idx >= 0:
+            after = text[idx+1:]
+            parts = re.split(r'到|截止|至', after, maxsplit=1)
+            if parts[0].strip():
+                start_text = parts[0].strip()
+
+    hour, minute = 9, 0
+    time_m = re.search(r'(上[午]|下[午]|晚[上])?(\d{1,2})[：:点](\d{2})?(?:分)?', start_text)
+    if time_m:
+        period = time_m.group(1)
+        h = int(time_m.group(2))
+        m = int(time_m.group(3)) if time_m.group(3) else 0
+        if period and period in ('下午', '晚上'):
+            h = h if h >= 12 else h + 12
+        elif period and period == '上午':
+            h = h if h < 12 else h - 12
+        elif h < 7:
+            h += 12
+        hour, minute = h, m
     else:
-        m = re.search(r'(\d+)([天周])', text)
-        if m:
-            num = int(m.group(1))
-            unit = m.group(2)
-            if unit == '天':
-                result['end_time'] = now + timedelta(days=num)
-            elif unit == '周':
-                result['end_time'] = now + timedelta(weeks=num)
-        else:
-            result['end_time'] = now + timedelta(days=7)
+        colon_m = re.search(r'(\d{1,2}):(\d{2})', start_text)
+        if colon_m:
+            c_h, c_m = int(colon_m.group(1)), int(colon_m.group(2))
+            if c_h < 24 and c_m < 60:
+                hour, minute = c_h, c_m
+
+    if re.search(r'明[天日]', start_text):
+        result['start_time'] = (now + timedelta(days=1)).replace(hour=hour, minute=minute, second=0)
+    elif re.search(r'后[天日]', start_text):
+        result['start_time'] = (now + timedelta(days=2)).replace(hour=hour, minute=minute, second=0)
+    elif re.search(r'今[天日]', start_text):
+        start = now.replace(hour=hour, minute=minute, second=0)
+        if start < now:
+            start = now
+        result['start_time'] = start
+    else:
+        sm = re.search(r'(\d+)月(\d+)日', start_text)
+        if sm:
+            try:
+                mo, d = int(sm.group(1)), int(sm.group(2))
+                y = now.year
+                dt = datetime(y, mo, d, hour, minute, 0)
+                if dt < now:
+                    dt = dt.replace(year=y + 1)
+                result['start_time'] = dt
+            except Exception:
+                pass
+
+    deadline_dt, dl_hour, dl_minute = detect_deadline_from_text(text)
+    if deadline_dt:
+        result['end_time'] = deadline_dt
+    elif result['start_time']:
+        # use the start date + extracted deadline time
+        result['end_time'] = result['start_time'].replace(hour=dl_hour, minute=dl_minute, second=0)
+    else:
+            m = re.search(r'(\d+)([天周])', text)
+            if m:
+                num = int(m.group(1))
+                unit = m.group(2)
+                if unit == '天':
+                    result['end_time'] = now + timedelta(days=num)
+                elif unit == '周':
+                    result['end_time'] = now + timedelta(weeks=num)
+            else:
+                result['end_time'] = (now + timedelta(days=7)).replace(hour=18, minute=0, second=0)
+
+    # detect recurring pattern
+    result['recurrence'] = None
+    result['recurrence_text'] = ''
+    result['recurrence_count'] = 0
+    result['recurrence_interval_days'] = 0
+    rec_text = text.replace('两', '2')
+    rec_m = re.search(r'每(\d*)(周|个?月|年)', rec_text)
+    if rec_m:
+        num_str = rec_m.group(1)
+        unit = rec_m.group(2)
+        num = int(num_str) if num_str else 1
+        if unit == '周':
+            result['recurrence'] = 'weekly'
+            result['recurrence_interval_days'] = num * 7
+            result['recurrence_count'] = 4
+            result['recurrence_text'] = f'每{num}周' if num > 1 else '每周'
+        elif '月' in unit:
+            result['recurrence'] = 'monthly'
+            result['recurrence_interval_days'] = num * 30
+            result['recurrence_count'] = 3
+            result['recurrence_text'] = f'每{num}个月' if num > 1 else '每月'
+        elif '年' in unit:
+            result['recurrence'] = 'yearly'
+            result['recurrence_interval_days'] = num * 365
+            result['recurrence_count'] = 2
+            result['recurrence_text'] = f'每{num}年' if num > 1 else '每年'
 
     return result
 
@@ -553,8 +680,6 @@ def parse_task_from_text(text):
 @app.route('/')
 def index():
     if current_user.is_authenticated:
-        if current_user.role == 'admin':
-            return redirect(url_for('admin_dashboard'))
         return redirect(url_for('user_dashboard'))
     return redirect(url_for('login'))
 
@@ -896,9 +1021,9 @@ def admin_edit_task(task_id):
         task.title = title
         task.category = category
         if start_str:
-            task.start_time = datetime.strptime(start_str, '%Y-%m-%d %H:%M')
+            task.start_time = datetime.strptime(start_str.replace('T', ' '), '%Y-%m-%d %H:%M')
         if end_str:
-            task.end_time = datetime.strptime(end_str, '%Y-%m-%d %H:%M')
+            task.end_time = datetime.strptime(end_str.replace('T', ' '), '%Y-%m-%d %H:%M')
         db.session.commit()
         flash(f'任务 "{title}" 已更新', 'success')
     except Exception as e:
@@ -1044,9 +1169,28 @@ def user_dashboard():
 @app.route('/user/tasks', methods=['GET', 'POST'])
 @login_required
 def user_tasks():
+    users = User.query.order_by(User.username).all()
+    rejected_tasks = TaskAssignment.query.join(Task).filter(
+        TaskAssignment.user_id == current_user.id,
+        TaskAssignment.status == 'rejected'
+    ).order_by(Task.end_time).all()
+    my_tasks = Task.query.filter_by(creator_id=current_user.id, is_all=False).order_by(Task.created_at.desc()).all()
+
     if request.method == 'POST':
         text = request.form.get('text', '').strip()
         action = request.form.get('action', '')
+        sensitive = check_sensitive_words(text) if text else []
+        if sensitive:
+            return render_template('tasks.html',
+                                   rejected_tasks=rejected_tasks,
+                                   preview=None, users=users,
+                                   my_tasks=my_tasks,
+                                   TaskAssignment=TaskAssignment,
+                                   now=datetime.now(),
+                                   is_admin=current_user.role == 'admin',
+                                   sensitive_words=sensitive,
+                                   sensitive_text=highlight_sensitive_words(text),
+                                   original_text=text)
         if action == 'save':
             try:
                 title = request.form.get('title', '').strip()
@@ -1055,34 +1199,51 @@ def user_tasks():
                 end_str = request.form.get('end_time', '').strip()
                 description = request.form.get('description', '').strip()
                 is_all = request.form.get('is_all') == '1'
+                if current_user.role != 'admin':
+                    is_all = False
                 assignee_ids = request.form.getlist('assignee_ids')
                 if not title:
                     flash('任务标题不能为空', 'danger')
                     return redirect(url_for('user_tasks'))
-                start_time = datetime.strptime(start_str, '%Y-%m-%d %H:%M')
-                end_time = datetime.strptime(end_str, '%Y-%m-%d %H:%M')
-                task = Task(title=title, description=description,
-                            category=category, start_time=start_time,
-                            end_time=end_time, creator_id=current_user.id,
-                            is_all=is_all)
-                db.session.add(task)
-                db.session.flush()
-                if is_all:
-                    target_users = User.query.all()
-                    for u in target_users:
-                        db.session.add(TaskAssignment(task_id=task.id, user_id=u.id))
-                        create_notification(u.id, 'task_assigned',
-                                            f'你收到一个新任务：「{title}」', task.id)
-                else:
-                    uid_set = set(int(x) for x in assignee_ids) if assignee_ids else set()
-                    if current_user.role != 'admin' or current_user.id in uid_set:
-                        uid_set.add(current_user.id)
-                    for uid in uid_set:
-                        db.session.add(TaskAssignment(task_id=task.id, user_id=uid))
-                        create_notification(uid, 'task_assigned',
-                                            f'你收到一个新任务：「{title}」', task.id)
+                start_time = datetime.strptime(start_str.replace('T', ' '), '%Y-%m-%d %H:%M')
+                end_time = datetime.strptime(end_str.replace('T', ' '), '%Y-%m-%d %H:%M')
+                recurrence = request.form.get('recurrence', '')
+                recurrence_count = int(request.form.get('recurrence_count', '0') or '0')
+                recurrence_interval_days = int(request.form.get('recurrence_interval_days', '0') or '0')
+                duration = end_time - start_time
+                total = recurrence_count if recurrence and recurrence_count > 0 else 1
+                created_titles = []
+                for i in range(total):
+                    offset = timedelta(days=recurrence_interval_days * i)
+                    t_start = start_time + offset
+                    t_end = end_time + offset
+                    t_title = f'{title} (第{i+1}期/共{total}期)' if total > 1 else title
+                    task = Task(title=t_title, description=description,
+                                category=category, start_time=t_start,
+                                end_time=t_end, creator_id=current_user.id,
+                                is_all=is_all)
+                    db.session.add(task)
+                    db.session.flush()
+                    if is_all:
+                        target_users = User.query.all()
+                        for u in target_users:
+                            db.session.add(TaskAssignment(task_id=task.id, user_id=u.id))
+                            create_notification(u.id, 'task_assigned',
+                                                f'你收到一个新任务：「{t_title}」', task.id)
+                    else:
+                        uid_set = set(int(x) for x in assignee_ids) if assignee_ids else set()
+                        if current_user.role != 'admin' or current_user.id in uid_set:
+                            uid_set.add(current_user.id)
+                        for uid in uid_set:
+                            db.session.add(TaskAssignment(task_id=task.id, user_id=uid))
+                            create_notification(uid, 'task_assigned',
+                                                f'你收到一个新任务：「{t_title}」', task.id)
+                    created_titles.append(t_title)
                 db.session.commit()
-                flash(f'任务 "{title}" 创建成功！', 'success')
+                if total > 1:
+                    flash(f'周期任务创建成功！共创建 {total} 个任务', 'success')
+                else:
+                    flash(f'任务 "{title}" 创建成功！', 'success')
             except Exception as e:
                 db.session.rollback()
                 logger.error('User task creation failed: %s', e, exc_info=True)
@@ -1094,13 +1255,10 @@ def user_tasks():
                 flash('无法从描述中提取任务标题，请确保包含明确的任务名称（至少2个字）', 'danger')
                 return redirect(url_for('user_tasks'))
             parsed['raw_text'] = text
-            users = User.query.order_by(User.username).all()
-            rejected_tasks = TaskAssignment.query.join(Task).filter(
-                TaskAssignment.user_id == current_user.id,
-                TaskAssignment.status == 'rejected'
-            ).order_by(Task.end_time).all()
-            my_tasks = Task.query.filter_by(creator_id=current_user.id, is_all=False).order_by(Task.created_at.desc()).all()
             is_admin_user = current_user.role == 'admin'
+            if not is_admin_user:
+                parsed['is_all'] = False
+                parsed['assignees'] = [a for a in parsed['assignees'] if a not in ('@所有人', '所有人')]
             template_data = {
                 'rejected_tasks': rejected_tasks,
                 'preview': parsed, 'users': users,
@@ -1123,13 +1281,6 @@ def user_tasks():
             return redirect(url_for('user_tasks'))
 
     parsed = None
-    users = User.query.order_by(User.username).all()
-    rejected_tasks = TaskAssignment.query.join(Task).filter(
-        TaskAssignment.user_id == current_user.id,
-        TaskAssignment.status == 'rejected'
-    ).order_by(Task.end_time).all()
-    my_tasks = Task.query.filter_by(creator_id=current_user.id, is_all=False).order_by(Task.created_at.desc()).all()
-
     is_admin_user = current_user.role == 'admin'
     template_data = {
         'rejected_tasks': rejected_tasks,

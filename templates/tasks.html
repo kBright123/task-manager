@@ -320,9 +320,10 @@ function applyCustomRecurrence() {
         {% set completed_count = task.assignments.filter(TaskAssignment.status.in_(['completed','approved'])).count() %}
         {% set abandoned_count = task.assignments.filter_by(status='abandoned').count() %}
         {% set abandoned_all = abandoned_count == total_count if total_count > 0 else False %}
+        {% set my_pending = task.assignments.filter_by(user_id=current_user.id, status='pending').first() %}
         <tr{% if abandoned_all %} style="opacity:.5;"{% endif %}>
-          <td style="padding:4px 10px;">
-            <a href="{{ url_for('admin_task_detail' if is_admin else 'user_task_detail', task_id=task.id) }}" style="font-weight:600;font-size:.8rem;color:var(--gray-800);text-decoration:none;">{{ task.title }}</a>
+          <td style="padding:4px 10px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            <a href="{{ url_for('admin_task_detail' if is_admin else 'user_task_detail', task_id=task.id) }}" style="font-weight:600;font-size:.8rem;color:var(--gray-800);text-decoration:none;" title="{{ task.title }}">{{ task.title[:20] }}{% if task.title|length > 20 %}…{% endif %}</a>
             <div><span class="badge" style="background:{{ 'var(--primary)' if task.category == '工作' else 'var(--success)' if task.category == '个人' else 'var(--warning)' }};font-size:.5rem;">{{ task.category }}</span></div>
           </td>
           <td style="padding:4px 8px;font-weight:600;" class="text-center">{{ total_count }}</td>
@@ -333,7 +334,14 @@ function applyCustomRecurrence() {
             {% if task.end_time < now and not abandoned_all %}<span class="badge bg-danger" style="font-size:.5rem;">逾期</span>{% endif %}
           </td>
           <td style="padding:4px 8px;">
-            <a href="{{ url_for('admin_task_detail' if is_admin else 'user_task_detail', task_id=task.id) }}" class="btn btn-sm btn-outline-primary" style="padding:1px 5px;font-size:.6rem;"><i class="bi bi-eye"></i></a>
+            <div class="d-flex gap-1">
+            <a href="{{ url_for('admin_task_detail' if is_admin else 'user_task_detail', task_id=task.id) }}" class="btn btn-sm btn-outline-primary" style="padding:1px 5px;font-size:.6rem;" title="详情"><i class="bi bi-eye"></i></a>
+            {% if my_pending %}
+            <form method="POST" action="{{ url_for('user_complete_task', assignment_id=my_pending.id) }}">
+              <button type="submit" class="btn btn-sm btn-outline-success" style="padding:1px 6px;font-size:.6rem;">完成</button>
+            </form>
+            {% endif %}
+            </div>
           </td>
         </tr>
         {% endfor %}
@@ -345,9 +353,10 @@ function applyCustomRecurrence() {
         {% set completed_count = task.assignments.filter(TaskAssignment.status.in_(['completed','approved'])).count() %}
         {% set abandoned_count = task.assignments.filter_by(status='abandoned').count() %}
         {% set abandoned_all = abandoned_count == total_count if total_count > 0 else False %}
+        {% set my_pending = task.assignments.filter_by(user_id=current_user.id, status='pending').first() %}
         <tr{% if abandoned_all %} style="opacity:.5;"{% endif %}>
-          <td style="padding:4px 10px;">
-            <a href="{{ url_for('admin_task_detail' if is_admin else 'user_task_detail', task_id=task.id) }}" style="font-weight:600;font-size:.8rem;color:var(--gray-800);text-decoration:none;">{{ task.title }}</a>
+          <td style="padding:4px 10px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            <a href="{{ url_for('admin_task_detail' if is_admin else 'user_task_detail', task_id=task.id) }}" style="font-weight:600;font-size:.8rem;color:var(--gray-800);text-decoration:none;" title="{{ task.title }}">{{ task.title[:20] }}{% if task.title|length > 20 %}…{% endif %}</a>
             <div><span class="badge" style="background:{{ 'var(--primary)' if task.category == '工作' else 'var(--success)' if task.category == '个人' else 'var(--warning)' }};font-size:.5rem;">{{ task.category }}</span></div>
           </td>
           <td style="padding:4px 8px;font-weight:600;" class="text-center">{{ total_count }}</td>
@@ -358,7 +367,14 @@ function applyCustomRecurrence() {
             {% if task.end_time < now and not abandoned_all %}<span class="badge bg-danger" style="font-size:.5rem;">逾期</span>{% endif %}
           </td>
           <td style="padding:4px 8px;">
-            <a href="{{ url_for('admin_task_detail' if is_admin else 'user_task_detail', task_id=task.id) }}" class="btn btn-sm btn-outline-primary" style="padding:1px 5px;font-size:.6rem;"><i class="bi bi-eye"></i></a>
+            <div class="d-flex gap-1">
+            <a href="{{ url_for('admin_task_detail' if is_admin else 'user_task_detail', task_id=task.id) }}" class="btn btn-sm btn-outline-primary" style="padding:1px 5px;font-size:.6rem;" title="详情"><i class="bi bi-eye"></i></a>
+            {% if my_pending %}
+            <form method="POST" action="{{ url_for('user_complete_task', assignment_id=my_pending.id) }}">
+              <button type="submit" class="btn btn-sm btn-outline-success" style="padding:1px 6px;font-size:.6rem;">完成</button>
+            </form>
+            {% endif %}
+            </div>
           </td>
         </tr>
         {% endfor %}
@@ -434,9 +450,10 @@ function applyCustomRecurrence() {
         {% set completed_count = task.assignments.filter(TaskAssignment.status.in_(['completed','approved'])).count() %}
         {% set abandoned_count = task.assignments.filter_by(status='abandoned').count() %}
         {% set abandoned_all = abandoned_count == total_count if total_count > 0 else False %}
+        {% set my_pending = task.assignments.filter_by(user_id=current_user.id, status='pending').first() %}
         <tr{% if abandoned_all %} style="opacity:.5;"{% endif %}>
-          <td style="padding:4px 10px;">
-            <a href="{{ url_for('admin_task_detail', task_id=task.id) }}" style="font-weight:600;font-size:.8rem;color:var(--gray-800);text-decoration:none;">{{ task.title }}</a>
+          <td style="padding:4px 10px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            <a href="{{ url_for('admin_task_detail', task_id=task.id) }}" style="font-weight:600;font-size:.8rem;color:var(--gray-800);text-decoration:none;" title="{{ task.title }}">{{ task.title[:20] }}{% if task.title|length > 20 %}…{% endif %}</a>
             <div><span class="badge" style="background:{{ 'var(--primary)' if task.category == '工作' else 'var(--success)' if task.category == '个人' else 'var(--warning)' }};font-size:.5rem;">{{ task.category }}</span></div>
           </td>
           <td style="padding:4px 8px;font-weight:600;" class="text-center">{{ total_count }}</td>
@@ -447,7 +464,14 @@ function applyCustomRecurrence() {
             {% if task.end_time < now %}<span class="badge bg-danger" style="font-size:.5rem;">逾期</span>{% endif %}
           </td>
           <td style="padding:4px 8px;">
-            <a href="{{ url_for('admin_task_detail', task_id=task.id) }}" class="btn btn-sm btn-outline-primary" style="padding:1px 5px;font-size:.6rem;"><i class="bi bi-eye"></i></a>
+            <div class="d-flex gap-1">
+            <a href="{{ url_for('admin_task_detail', task_id=task.id) }}" class="btn btn-sm btn-outline-primary" style="padding:1px 5px;font-size:.6rem;" title="详情"><i class="bi bi-eye"></i></a>
+            {% if my_pending %}
+            <form method="POST" action="{{ url_for('user_complete_task', assignment_id=my_pending.id) }}">
+              <button type="submit" class="btn btn-sm btn-outline-success" style="padding:1px 6px;font-size:.6rem;">完成</button>
+            </form>
+            {% endif %}
+            </div>
           </td>
         </tr>
         {% endfor %}

@@ -394,6 +394,120 @@ WEEK_KEYS = ['本周', '这周', '本星期', '这个星期']
 NEXT_WEEK_KEYS = ['下周', '下星期']
 
 
+def _parse_time(text):
+    """Extract (hour, minute) from a time expression in text. Returns None if no match."""
+    m = re.search(r'(上[午]|下[午]|晚[上])?(\d{1,2})[：:点](\d{2})?(?:分)?', text)
+    if m:
+        period = m.group(1)
+        h = int(m.group(2))
+        minute = int(m.group(3)) if m.group(3) else 0
+        if period and period in ('下午', '晚上'):
+            h = h if h >= 12 else h + 12
+        elif period and period == '上午':
+            h = h if h < 12 else h - 12
+        elif h < 7:
+            h += 12
+        return (h, minute)
+    cm = re.search(r'(\d{1,2}):(\d{2})', text)
+    if cm:
+        h, m = int(cm.group(1)), int(cm.group(2))
+        if h < 24 and m < 60:
+            return (h, m)
+    return None
+
+
+def _find_all_datetime_candidates(text):
+    """Find all (datetime, date_text) candidates from time expressions in text.
+    Returns list sorted by datetime ascending."""
+    now = datetime.now()
+    candidates = []
+
+    # find all date references and their positions
+    date_refs = []
+
+    # 明天/后天/今天
+    for rel, delta in [('今天', 0), ('今[天日]', 0), ('明天', 1), ('明[天日]', 1), ('后天', 2), ('后[天日]', 2)]:
+        for m in re.finditer(rel, text):
+            date_refs.append((m.start(), 'relative', delta))
+
+    # X月X日
+    for m in re.finditer(r'(\d+)月(\d+)日', text):
+        try:
+            mo, d = int(m.group(1)), int(m.group(2))
+            date_refs.append((m.start(), 'date', (mo, d)))
+        except Exception:
+            pass
+
+    # 本周/下周
+    if re.search(r'本[周星期]|这[周星期]', text):
+        next_weekday = now + timedelta(days=(6 - now.weekday()))
+        # generate candidates for each time in the remaining text
+        for tm in re.finditer(r'(上[午]|下[午]|晚[上])?(\d{1,2})[：:点](\d{2})?(?:分)?', text):
+            t = _parse_time(tm.group())
+            if t:
+                dt = next_weekday.replace(hour=t[0], minute=t[1], second=0)
+                if dt < now:
+                    dt += timedelta(weeks=1)
+                candidates.append(dt)
+
+    if re.search(r'下[周星期]', text):
+        next_weekday = now + timedelta(days=(13 - now.weekday()))
+        for tm in re.finditer(r'(上[午]|下[午]|晚[上])?(\d{1,2})[：:点](\d{2})?(?:分)?', text):
+            t = _parse_time(tm.group())
+            if t:
+                dt = next_weekday.replace(hour=t[0], minute=t[1], second=0)
+                if dt < now:
+                    dt += timedelta(weeks=1)
+                candidates.append(dt)
+
+    # find all time expressions with their positions
+    time_exprs = []
+    for m in re.finditer(r'(上[午]|下[午]|晚[上])?(\d{1,2})[：:点](\d{2})?(?:分)?', text):
+        t = _parse_time(m.group())
+        if t:
+            time_exprs.append((m.start(), t))
+    for m in re.finditer(r'(\d{1,2}):(\d{2})', text):
+        t = _parse_time(m.group())
+        if t:
+            time_exprs.append((m.start(), t))
+
+    if not time_exprs:
+        return candidates
+
+    # for each date ref, pair with each time expression that comes after it (or all if no clear split)
+    # if there's a "到" keyword, split text into before/after
+    split_pos = None
+    for kw in ['到', '截止', '至', '—', '~']:
+        pos = text.find(kw)
+        if pos >= 0:
+            split_pos = pos
+            break
+
+    for date_pos, date_type, date_val in date_refs:
+        # determine which times pair with this date
+        for time_pos, (h, m) in time_exprs:
+            if date_pos < time_pos:
+                if date_type == 'relative':
+                    dt = (now + timedelta(days=date_val)).replace(hour=h, minute=m, second=0)
+                else:
+                    mo, d = date_val
+                    y = now.year
+                    dt = datetime(y, mo, d, h, m, 0)
+                    if dt < now:
+                        dt = dt.replace(year=y + 1)
+                if dt > now:
+                    candidates.append(dt)
+
+    # also generate candidates from time expressions alone (no date) paired with today
+    for _, (h, m) in time_exprs:
+        dt = now.replace(hour=h, minute=m, second=0)
+        if dt <= now:
+            dt = now.replace(hour=h, minute=m, second=0) + timedelta(days=1)
+        candidates.append(dt)
+
+    return sorted(set(candidates))
+
+
 def detect_deadline_from_text(text):
     now = datetime.now()
 
@@ -577,75 +691,31 @@ def parse_task_from_text(text):
     result['assignees'] = assign_info['assignees']
     result['is_all'] = assign_info['is_all']
 
-    # detect start time — find text after "从" but before "到/截止/至"
-    start_text = text
-    for kw in ['从']:
-        idx = text.find(kw)
-        if idx >= 0:
-            after = text[idx+1:]
-            parts = re.split(r'到|截止|至', after, maxsplit=1)
-            if parts[0].strip():
-                start_text = parts[0].strip()
+    # start_time is always now
+    result['start_time'] = now
 
-    hour, minute = 9, 0
-    time_m = re.search(r'(上[午]|下[午]|晚[上])?(\d{1,2})[：:点](\d{2})?(?:分)?', start_text)
-    if time_m:
-        period = time_m.group(1)
-        h = int(time_m.group(2))
-        m = int(time_m.group(3)) if time_m.group(3) else 0
-        if period and period in ('下午', '晚上'):
-            h = h if h >= 12 else h + 12
-        elif period and period == '上午':
-            h = h if h < 12 else h - 12
-        elif h < 7:
-            h += 12
-        hour, minute = h, m
+    # end_time: find all datetime candidates, pick the farthest future one
+    candidates = _find_all_datetime_candidates(text)
+    if candidates:
+        best = candidates[-1]
     else:
-        colon_m = re.search(r'(\d{1,2}):(\d{2})', start_text)
-        if colon_m:
-            c_h, c_m = int(colon_m.group(1)), int(colon_m.group(2))
-            if c_h < 24 and c_m < 60:
-                hour, minute = c_h, c_m
-
-    if re.search(r'明[天日]', start_text):
-        result['start_time'] = (now + timedelta(days=1)).replace(hour=hour, minute=minute, second=0)
-    elif re.search(r'后[天日]', start_text):
-        result['start_time'] = (now + timedelta(days=2)).replace(hour=hour, minute=minute, second=0)
-    elif re.search(r'今[天日]', start_text):
-        start = now.replace(hour=hour, minute=minute, second=0)
-        if start < now:
-            start = now
-        result['start_time'] = start
-    else:
-        sm = re.search(r'(\d+)月(\d+)日', start_text)
-        if sm:
-            try:
-                mo, d = int(sm.group(1)), int(sm.group(2))
-                y = now.year
-                dt = datetime(y, mo, d, hour, minute, 0)
-                if dt < now:
-                    dt = dt.replace(year=y + 1)
-                result['start_time'] = dt
-            except Exception:
-                pass
-
-    deadline_dt, dl_hour, dl_minute = detect_deadline_from_text(text)
-    if deadline_dt:
-        result['end_time'] = deadline_dt
-    elif result['start_time']:
-        # use the start date + extracted deadline time
-        result['end_time'] = result['start_time'].replace(hour=dl_hour, minute=dl_minute, second=0)
-    else:
+        # fallback to detect_deadline_from_text
+        deadline_dt, dl_hour, dl_minute = detect_deadline_from_text(text)
+        if deadline_dt:
+            best = deadline_dt
+        else:
             m = re.search(r'(\d+)([天周])', text)
             if m:
                 num = int(m.group(1))
                 unit = m.group(2)
                 if unit == '天':
-                    result['end_time'] = now + timedelta(days=num)
+                    best = now + timedelta(days=num)
                 elif unit == '周':
-                    result['end_time'] = now + timedelta(weeks=num)
+                    best = now + timedelta(weeks=num)
             else:
-                result['end_time'] = (now + timedelta(days=7)).replace(hour=18, minute=0, second=0)
+                best = (now + timedelta(days=7)).replace(hour=18, minute=0, second=0)
+
+    result['end_time'] = best
 
     # detect recurring pattern
     result['recurrence'] = None

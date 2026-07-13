@@ -126,9 +126,9 @@ function applyCustomRecurrence() {
 }
 </script>
     {% else %}
-    <div class="card mb-4">
-      <div class="card-body">
     {% if is_admin %}
+    <div class="row g-4">
+      <div class="col-md-7">
     {% if sensitive_words %}
     <div class="alert alert-danger py-2 px-3 mb-3" style="font-size:.82rem;border-left:4px solid var(--danger);">
       <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle"></i> 输入内容包含敏感词，请修改后重试</div>
@@ -136,18 +136,41 @@ function applyCustomRecurrence() {
       {% if sensitive_text %}<div class="mt-2 p-2 rounded" style="background:#fff;font-size:.82rem;word-break:break-all;">{{ sensitive_text|safe }}</div>{% endif %}
     </div>
     {% endif %}
-    <div class="d-flex align-items-start gap-2" style="position:relative;">
-      <form method="POST" class="flex-grow-1 d-flex gap-2">
-        <input type="hidden" name="action" value="preview">
-        <div style="position:relative;flex-grow:1;">
-          <textarea name="text" class="form-control" rows="2" id="adminTaskText" placeholder="例：开发登录功能 从明天上午9点开始 到下周五下午6点结束 发给张三、李四。支持每周/每月/每年周期任务" required style="font-size:.9rem;">{% if original_text %}{{ original_text }}{% endif %}</textarea>
-          <div id="mentionDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:180px;overflow-y:auto;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:1000;margin-top:2px;"></div>
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex align-items-start gap-2" style="position:relative;">
+          <form method="POST" class="flex-grow-1 d-flex gap-2">
+            <input type="hidden" name="action" value="preview">
+            <div style="position:relative;flex-grow:1;">
+              <textarea name="text" class="form-control" rows="3" id="adminTaskText" placeholder="例：开发登录功能 从明天上午9点开始 到下周五下午6点结束 发给张三、李四。支持每周/每月/每年周期任务" required style="font-size:.9rem;">{% if original_text %}{{ original_text }}{% endif %}</textarea>
+              <div id="mentionDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:180px;overflow-y:auto;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:1000;margin-top:2px;"></div>
+            </div>
+            <button type="submit" class="btn btn-primary" style="height:44px;white-space:nowrap;flex-shrink:0;"><i class="bi bi-send"></i> 解析</button>
+          </form>
         </div>
-        <button type="submit" class="btn btn-primary" style="height:44px;white-space:nowrap;flex-shrink:0;"><i class="bi bi-send"></i> 解析</button>
-      </form>
+      </div>
     </div>
-    <div class="mt-2">
-      <small class="text-muted" style="font-size:.75rem;"><i class="bi bi-info-circle"></i> 输入自然语言描述，系统自动解析标题、时间和分配对象。输入 @ 可快速选择人员。支持每周/每月/每年周期任务</small>
+    </div>
+      <div class="col-md-5">
+        <div class="card">
+          <div class="card-body">
+            <h6 style="font-size:.85rem;font-weight:600;color:var(--gray-700);margin-bottom:8px;"><i class="bi bi-lightbulb"></i> 使用说明</h6>
+            <ul style="font-size:.8rem;color:var(--gray-600);padding-left:16px;margin-bottom:0;line-height:1.7;">
+              <li>输入<b>自然语言</b>描述，系统自动解析任务信息</li>
+              <li><b>时间</b>：明天/后天、X月X日、上午/下午X点、X点前</li>
+              <li><b>跨度</b>：从…到…、…之前、X天/周内</li>
+              <li><b>分配</b>：输入 <code>@</code> 选择人员，或用「发给张三、李四」</li>
+              <li><b>周期</b>：每周/每月/每年、每X周/个月/年</li>
+              <li>解析后可<b>编辑修改</b>所有字段再确认发布</li>
+            </ul>
+            <hr style="margin:10px 0;">
+            <div style="font-size:.78rem;color:var(--gray-500);">
+              <i class="bi bi-chat-quote"></i> 示例：<br>
+              <span style="color:var(--gray-600);">"开发登录功能 从明天上午9点到下午5点 发给张三、李四 每周"</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     <script>
     var mentionUsers = [
@@ -247,6 +270,8 @@ function applyCustomRecurrence() {
     })();
     </script>
     {% else %}
+    <div class="row g-4">
+      <div class="col-md-7">
     {% if sensitive_words %}
     <div class="alert alert-danger py-2 px-3 mb-3" style="font-size:.82rem;border-left:4px solid var(--danger);">
       <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle"></i> 输入内容包含敏感词，请修改后重试</div>
@@ -254,18 +279,33 @@ function applyCustomRecurrence() {
       {% if sensitive_text %}<div class="mt-2 p-2 rounded" style="background:#fff;font-size:.82rem;word-break:break-all;">{{ sensitive_text|safe }}</div>{% endif %}
     </div>
     {% endif %}
-    <div class="d-flex align-items-start gap-2">
-      <form method="POST" class="flex-grow-1 d-flex gap-2">
-        <textarea name="text" class="form-control" rows="2" placeholder="学习Python 从今天下午2点到5点。支持每周/每月周期任务" required style="font-size:.9rem;">{% if original_text %}{{ original_text }}{% endif %}</textarea>
-        <button type="submit" class="btn btn-primary" style="height:44px;white-space:nowrap;flex-shrink:0;"><i class="bi bi-plus-circle"></i> 创建</button>
-      </form>
-    </div>
-    <div class="mt-2">
-      <small class="text-muted" style="font-size:.75rem;"><i class="bi bi-info-circle"></i> 输入自然语言创建个人任务，如「完成项目报告 从明天上午9点到后天下午6点」。支持每周/每月周期任务</small>
-    </div>
-    {% endif %}
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex align-items-start gap-2">
+          <form method="POST" class="flex-grow-1 d-flex gap-2">
+            <textarea name="text" class="form-control" rows="3" placeholder="学习Python 从今天下午2点到5点。支持每周/每月周期任务" required style="font-size:.9rem;">{% if original_text %}{{ original_text }}{% endif %}</textarea>
+            <button type="submit" class="btn btn-primary" style="height:44px;white-space:nowrap;flex-shrink:0;"><i class="bi bi-plus-circle"></i> 创建</button>
+          </form>
+        </div>
       </div>
     </div>
+      </div>
+      <div class="col-md-5">
+        <div class="card">
+          <div class="card-body">
+            <h6 style="font-size:.85rem;font-weight:600;color:var(--gray-700);margin-bottom:8px;"><i class="bi bi-lightbulb"></i> 使用说明</h6>
+            <ul style="font-size:.8rem;color:var(--gray-600);padding-left:16px;margin-bottom:0;line-height:1.7;">
+              <li>输入<b>自然语言</b>描述，系统自动解析任务信息</li>
+              <li><b>时间</b>：明天/后天、X月X日、上午/下午X点</li>
+              <li><b>跨度</b>：从…到…、X天/周内</li>
+              <li><b>周期</b>：每周/每月、每X周/个月</li>
+              <li>解析后可<b>编辑修改</b>所有字段再确认发布</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
     {% endif %}
 
 {% if rejected_tasks %}

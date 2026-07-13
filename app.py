@@ -1337,12 +1337,19 @@ def user_tasks():
                 'now': datetime.now(),
                 'is_admin': is_admin_user,
             }
+            # tasks assigned to me by others
+            my_assigned_ids = {a.task_id for a in TaskAssignment.query.filter_by(user_id=current_user.id).all()}
+            other_assigned = Task.query.filter(Task.id.in_(my_assigned_ids), Task.creator_id != current_user.id).order_by(Task.created_at.desc()).all() if my_assigned_ids else []
+            template_data.update({
+                'my_tasks': my_tasks,
+                'other_assigned': other_assigned,
+                'TaskAssignment': TaskAssignment,
+                'now': datetime.now(),
+                'is_admin': is_admin_user,
+            })
             if is_admin_user:
                 tasks = Task.query.order_by(Task.created_at.desc()).all()
-                my_task_ids = {t.id for t in my_tasks}
-                other_tasks = [t for t in tasks if t.id not in my_task_ids]
                 template_data['all_tasks'] = tasks
-                template_data['other_tasks'] = other_tasks
             return render_template('tasks.html', **template_data)
         except Exception as e:
             db.session.rollback()
@@ -1352,20 +1359,20 @@ def user_tasks():
 
     parsed = None
     is_admin_user = current_user.role == 'admin'
+    my_assigned_ids = {a.task_id for a in TaskAssignment.query.filter_by(user_id=current_user.id).all()}
+    other_assigned = Task.query.filter(Task.id.in_(my_assigned_ids), Task.creator_id != current_user.id).order_by(Task.created_at.desc()).all() if my_assigned_ids else []
     template_data = {
         'rejected_tasks': rejected_tasks,
         'preview': parsed, 'users': users,
         'my_tasks': my_tasks,
+        'other_assigned': other_assigned,
         'TaskAssignment': TaskAssignment,
         'now': datetime.now(),
         'is_admin': is_admin_user,
     }
     if is_admin_user:
         tasks = Task.query.order_by(Task.created_at.desc()).all()
-        my_task_ids = {t.id for t in my_tasks}
-        other_tasks = [t for t in tasks if t.id not in my_task_ids]
         template_data['all_tasks'] = tasks
-        template_data['other_tasks'] = other_tasks
         _now = datetime.now()
         user_stats = []
         for u in users:

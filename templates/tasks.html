@@ -295,12 +295,11 @@ function applyCustomRecurrence() {
 </div>
 {% endif %}
 
-{% with task_list = all_tasks if is_admin else my_tasks %}
-{% if task_list %}
+{% if my_tasks %}
 <div class="card mb-3">
   <div class="card-header d-flex justify-content-between align-items-center py-2 px-3" style="background:var(--gray-50);">
-    <span style="font-size:.82rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-inbox"></i> {% if is_admin %}所有任务{% else %}我的任务{% endif %}</span>
-    <span class="badge bg-secondary" style="font-size:.6rem;">{{ task_list|length }}</span>
+    <span style="font-size:.82rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-inbox"></i> 我创建的任务</span>
+    <span class="badge bg-secondary" style="font-size:.6rem;">{{ my_tasks|length }}</span>
   </div>
   <div class="table-responsive">
     <table class="table table-hover" style="font-size:.78rem;">
@@ -313,7 +312,7 @@ function applyCustomRecurrence() {
         </tr>
       </thead>
       <tbody id="taskTableBody">
-        {% for task in task_list[:5] %}
+        {% for task in my_tasks[:5] %}
         {% set total_count = task.assignments.count() %}
         {% set completed_count = task.assignments.filter(TaskAssignment.status.in_(['completed','approved'])).count() %}
         {% set abandoned_count = task.assignments.filter_by(status='abandoned').count() %}
@@ -350,9 +349,9 @@ function applyCustomRecurrence() {
         </tr>
         {% endfor %}
       </tbody>
-      {% if task_list|length > 5 %}
+      {% if my_tasks|length > 5 %}
       <tbody id="taskTableExtra" style="display:none;">
-        {% for task in task_list[5:] %}
+        {% for task in my_tasks[5:] %}
         {% set total_count = task.assignments.count() %}
         {% set completed_count = task.assignments.filter(TaskAssignment.status.in_(['completed','approved'])).count() %}
         {% set abandoned_count = task.assignments.filter_by(status='abandoned').count() %}
@@ -392,7 +391,7 @@ function applyCustomRecurrence() {
       <tfoot>
         <tr>
           <td colspan="4" class="text-center py-1">
-            <button class="btn btn-sm btn-link" style="font-size:.75rem;color:var(--primary);text-decoration:none;" data-total="{{ task_list|length }}" onclick="toggleAllTasks(this)">展开全部 ({{ task_list|length }}条)</button>
+            <button class="btn btn-sm btn-link" style="font-size:.75rem;color:var(--primary);text-decoration:none;" data-total="{{ my_tasks|length }}" onclick="toggleAllTasks(this)">展开全部 ({{ my_tasks|length }}条)</button>
           </td>
         </tr>
       </tfoot>
@@ -401,7 +400,6 @@ function applyCustomRecurrence() {
   </div>
 </div>
 {% endif %}
-{% endwith %}
 
 {% if is_admin and all_tasks %}
 <div class="card mb-3">
@@ -436,11 +434,11 @@ function applyCustomRecurrence() {
 </div>
 {% endif %}
 
-{% if is_admin and other_tasks %}
+{% if other_assigned %}
 <div class="card mb-3">
   <div class="card-header d-flex justify-content-between align-items-center py-2 px-3" style="background:var(--gray-50);">
-    <span style="font-size:.82rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-people"></i> 其他任务</span>
-    <span class="badge bg-secondary" style="font-size:.6rem;">{{ other_tasks|length }}</span>
+    <span style="font-size:.82rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-people"></i> 别人分配的任务</span>
+    <span class="badge bg-secondary" style="font-size:.6rem;">{{ other_assigned|length }}</span>
   </div>
   <div class="table-responsive">
     <table class="table table-hover" style="font-size:.78rem;">
@@ -453,7 +451,7 @@ function applyCustomRecurrence() {
         </tr>
       </thead>
       <tbody>
-        {% for task in other_tasks %}
+        {% for task in other_assigned %}
         {% set total_count = task.assignments.count() %}
         {% set completed_count = task.assignments.filter(TaskAssignment.status.in_(['completed','approved'])).count() %}
         {% set abandoned_count = task.assignments.filter_by(status='abandoned').count() %}

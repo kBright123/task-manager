@@ -10,11 +10,12 @@
 </div>
 
 {% if preview %}
-<div class="preview-card p-3 rounded mb-4">
-  <div class="d-flex justify-content-between align-items-center mb-3 pb-2" style="border-bottom:1px solid var(--gray-200);">
-    <span class="fw-bold" style="font-size:.95rem;color:var(--primary);"><i class="bi bi-eye"></i> 解析结果 — 可编辑修改</span>
-    <span class="badge bg-primary" style="font-size:.7rem;">待确认</span>
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center py-2 px-3" style="background:var(--primary);color:#fff;">
+    <span style="font-weight:600;font-size:.9rem;"><i class="bi bi-eye"></i> 解析结果 — 可编辑修改</span>
+    <span class="badge bg-light text-primary" style="font-size:.68rem;">待确认</span>
   </div>
+  <div class="card-body py-3 px-3">
   <form method="POST">
     <input type="hidden" name="action" value="save">
     <div class="row g-3">
@@ -94,6 +95,7 @@
       </div>
     </div>
   </form>
+  </div>
 </div>
 <script>
 function updateRecurrence() {
@@ -138,16 +140,20 @@ function applyCustomRecurrence() {
     {% endif %}
     {% if is_admin %}
     <div class="card">
-      <div class="card-body">
-        <div class="d-flex align-items-start gap-2" style="position:relative;">
-          <form method="POST" class="flex-grow-1 d-flex gap-2">
-            <input type="hidden" name="action" value="preview">
-            <div style="position:relative;flex-grow:1;">
-              <textarea name="text" class="form-control" rows="3" id="adminTaskText" placeholder="例：开发登录功能 从明天上午9点开始 到下周五下午6点结束 发给张三、李四。支持每周/每月/每年周期任务" required style="font-size:.9rem;">{% if original_text %}{{ original_text }}{% endif %}</textarea>
-              <div id="mentionDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:180px;overflow-y:auto;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:1000;margin-top:2px;"></div>
-            </div>
-            <button type="submit" class="btn btn-primary" style="height:44px;white-space:nowrap;flex-shrink:0;"><i class="bi bi-send"></i> 解析</button>
-          </form>
+      <div class="card-header py-2 px-3" style="background:var(--gray-50);">
+        <span style="font-size:.85rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-chat-dots"></i> 自然语言创建</span>
+      </div>
+      <div class="card-body py-3 px-3">
+        <form method="POST" class="d-flex gap-2">
+          <input type="hidden" name="action" value="preview">
+          <div style="position:relative;flex-grow:1;">
+            <textarea name="text" class="form-control" rows="4" id="adminTaskText" placeholder="例：开发登录功能 从明天上午9点开始 到下周五下午6点结束 发给张三、李四。支持每周/每月/每年周期任务" required style="font-size:.9rem;resize:none;">{% if original_text %}{{ original_text }}{% endif %}</textarea>
+            <div id="mentionDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:180px;overflow-y:auto;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:1000;margin-top:2px;"></div>
+          </div>
+          <button type="submit" class="btn btn-primary align-self-start" style="height:44px;white-space:nowrap;flex-shrink:0;padding:6px 18px;"><i class="bi bi-send"></i> 解析</button>
+        </form>
+        <div class="mt-2">
+          <small style="color:var(--gray-500);font-size:.72rem;"><i class="bi bi-info-circle"></i> 输入 @ 选择人员，支持自然语言时间/周期</small>
         </div>
       </div>
     </div>
@@ -248,12 +254,16 @@ function applyCustomRecurrence() {
     </script>
     {% else %}
     <div class="card">
-      <div class="card-body">
-        <div class="d-flex align-items-start gap-2">
-          <form method="POST" class="flex-grow-1 d-flex gap-2">
-            <textarea name="text" class="form-control" rows="3" placeholder="学习Python 从今天下午2点到5点。支持每周/每月周期任务" required style="font-size:.9rem;">{% if original_text %}{{ original_text }}{% endif %}</textarea>
-            <button type="submit" class="btn btn-primary" style="height:44px;white-space:nowrap;flex-shrink:0;"><i class="bi bi-plus-circle"></i> 创建</button>
-          </form>
+      <div class="card-header py-2 px-3" style="background:var(--gray-50);">
+        <span style="font-size:.85rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-chat-dots"></i> 快速创建</span>
+      </div>
+      <div class="card-body py-3 px-3">
+        <form method="POST" class="d-flex gap-2">
+          <textarea name="text" class="form-control" rows="4" placeholder="学习Python 从今天下午2点到5点。支持每周/每月周期任务" required style="font-size:.9rem;resize:none;">{% if original_text %}{{ original_text }}{% endif %}</textarea>
+          <button type="submit" class="btn btn-primary align-self-start" style="height:44px;white-space:nowrap;flex-shrink:0;padding:6px 18px;"><i class="bi bi-plus-circle"></i> 创建</button>
+        </form>
+        <div class="mt-2">
+          <small style="color:var(--gray-500);font-size:.72rem;"><i class="bi bi-info-circle"></i> 输入自然语言，自动解析标题、时间、分配</small>
         </div>
       </div>
     </div>
@@ -264,21 +274,21 @@ function applyCustomRecurrence() {
   <div class="col-lg-5">
 
 {% if rejected_tasks %}
-<div class="card mb-3 border-warning" style="border-left:4px solid var(--danger) !important;">
-  <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
-    <span style="color:var(--danger);font-weight:600;"><i class="bi bi-exclamation-triangle"></i> 被驳回的任务</span>
-    <span class="badge bg-danger" style="font-size:.65rem;">{{ rejected_tasks|length }}</span>
+<div class="card mb-3 border-danger">
+  <div class="card-header d-flex justify-content-between align-items-center py-2 px-3" style="background:#fef2f2;">
+    <span style="color:var(--danger);font-weight:600;font-size:.82rem;"><i class="bi bi-exclamation-triangle"></i> 被驳回</span>
+    <span class="badge bg-danger" style="font-size:.6rem;">{{ rejected_tasks|length }}</span>
   </div>
-  <div class="card-body p-3">
+  <div class="card-body py-2 px-3">
     {% for a in rejected_tasks %}
-    <div class="d-flex flex-column p-2 rounded mb-2" style="background:#fef2f2;border:1px solid #fecaca;">
-      <div class="d-flex justify-content-between align-items-start">
-        <span style="font-size:.82rem;font-weight:600;">{{ a.task.title }}</span>
-        <form method="POST" action="{{ url_for('user_complete_task', assignment_id=a.id) }}">
-          <button type="submit" class="btn btn-sm btn-success" style="padding:1px 8px;font-size:.68rem;">重交</button>
-        </form>
+    <div class="d-flex justify-content-between align-items-center py-1 {% if not loop.last %}border-bottom{% endif %}" style="border-color:var(--gray-100)!important;">
+      <div>
+        <span style="font-size:.8rem;font-weight:600;">{{ a.task.title }}</span>
+        <small class="d-block text-danger" style="font-size:.68rem;"><i class="bi bi-x-circle"></i> {{ a.rejection_reason }}</small>
       </div>
-      <small class="text-danger mt-1" style="font-size:.7rem;"><i class="bi bi-x-circle"></i> {{ a.rejection_reason }}</small>
+      <form method="POST" action="{{ url_for('user_complete_task', assignment_id=a.id) }}">
+        <button type="submit" class="btn btn-sm btn-outline-success" style="padding:1px 8px;font-size:.65rem;">重交</button>
+      </form>
     </div>
     {% endfor %}
   </div>
@@ -288,9 +298,9 @@ function applyCustomRecurrence() {
 {% with task_list = all_tasks if is_admin else my_tasks %}
 {% if task_list %}
 <div class="card mb-3">
-  <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
-    <span><i class="bi bi-inbox"></i> {% if is_admin %}所有任务{% else %}我的任务{% endif %}</span>
-    <span class="badge bg-secondary" style="font-size:.65rem;">{{ task_list|length }}</span>
+  <div class="card-header d-flex justify-content-between align-items-center py-2 px-3" style="background:var(--gray-50);">
+    <span style="font-size:.82rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-inbox"></i> {% if is_admin %}所有任务{% else %}我的任务{% endif %}</span>
+    <span class="badge bg-secondary" style="font-size:.6rem;">{{ task_list|length }}</span>
   </div>
   <div class="table-responsive">
     <table class="table table-hover" style="font-size:.78rem;">
@@ -369,8 +379,8 @@ function applyCustomRecurrence() {
 
 {% if is_admin and all_tasks %}
 <div class="card mb-3">
-  <div class="card-header py-2 px-3">
-    <span><i class="bi bi-pie-chart"></i> 分配概览</span>
+  <div class="card-header py-2 px-3" style="background:var(--gray-50);">
+    <span style="font-size:.82rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-pie-chart"></i> 分配概览</span>
   </div>
   <div class="card-body py-2 px-3">
     {% set user_task_counts = {} %}
@@ -402,9 +412,9 @@ function applyCustomRecurrence() {
 
 {% if is_admin and other_tasks %}
 <div class="card mb-3">
-  <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
-    <span><i class="bi bi-people"></i> 其他任务</span>
-    <span class="badge bg-secondary" style="font-size:.65rem;">{{ other_tasks|length }}</span>
+  <div class="card-header d-flex justify-content-between align-items-center py-2 px-3" style="background:var(--gray-50);">
+    <span style="font-size:.82rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-people"></i> 其他任务</span>
+    <span class="badge bg-secondary" style="font-size:.6rem;">{{ other_tasks|length }}</span>
   </div>
   <div class="table-responsive">
     <table class="table table-hover" style="font-size:.78rem;">

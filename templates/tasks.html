@@ -10,6 +10,34 @@
 </div>
 
 {% if preview %}
+{% if duplicate_tasks %}
+<div class="alert alert-warning py-2 px-3 mb-3" style="font-size:.82rem;border-left:4px solid #f59e0b;">
+  <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle"></i> 检测到相似任务（相似度 ≥ 85%），请确认是否继续发布</div>
+  {% for d in duplicate_tasks %}
+  <div class="py-1 {% if not loop.last %}border-bottom{% endif %}" style="border-color:rgba(0,0,0,.06)!important;">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <span style="font-size:.82rem;font-weight:600;">{{ d.task.title }}</span>
+        <small class="text-muted" style="font-size:.68rem;"> — {{ d.task.creator.name or d.task.creator.username }}</small>
+      </div>
+      <span class="badge" style="background:{% if d.similarity >= 90 %}var(--danger){% else %}var(--warning){% endif %};font-size:.6rem;">相似度 {{ d.similarity }}%</span>
+    </div>
+    <div class="mt-1" style="font-size:.72rem;color:var(--gray-500);">
+      <span><i class="bi bi-tag"></i> {{ d.task.category }}</span>
+      <span class="mx-1">·</span>
+      <span><i class="bi bi-clock"></i> {{ d.task.start_time.strftime('%m-%d %H:%M') }}~{{ d.task.end_time.strftime('%m-%d %H:%M') }}</span>
+      <span class="mx-1">·</span>
+      <span>匹配：<span style="color:var(--primary);font-weight:500;">{{ d.match_type }}</span></span>
+      {% if d.title_sim >= 85 %}<span class="mx-1">·</span><span>标题 {{ d.title_sim }}%</span>{% endif %}
+      {% if d.desc_sim >= 70 %}<span class="mx-1">·</span><span>描述 {{ d.desc_sim }}%</span>{% endif %}
+    </div>
+    {% if d.task.description %}
+    <div class="mt-1 p-1 rounded" style="background:rgba(0,0,0,.03);font-size:.7rem;color:var(--gray-600);max-height:40px;overflow:hidden;">{{ d.task.description[:100] }}{% if d.task.description|length > 100 %}…{% endif %}</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 <div class="card mb-4">
   <div class="card-header d-flex justify-content-between align-items-center py-2 px-3" style="background:var(--primary);color:#fff;">
     <span style="font-weight:600;font-size:.9rem;"><i class="bi bi-eye"></i> 解析结果 — 可编辑修改</span>
@@ -18,6 +46,7 @@
   <div class="card-body py-3 px-3">
   <form method="POST">
     <input type="hidden" name="action" value="save">
+    {% if duplicate_tasks %}<input type="hidden" name="confirm_duplicate" value="1">{% endif %}
     <div class="row g-3">
       <div class="col-md-6 d-flex flex-column">
         <div class="mb-2">
@@ -62,6 +91,19 @@
         <input type="hidden" name="recurrence_count" id="recurrenceCountInput" value="{{ preview.recurrence_count or '0' }}">
         <input type="hidden" name="recurrence_interval_days" id="recurrenceIntervalInput" value="{{ preview.recurrence_interval_days or '0' }}">
         <div class="flex-grow-1 mb-2">
+          {% if user_groups %}
+          <div class="mb-2">
+            <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">按群组分配</label>
+            <div class="d-flex flex-wrap gap-1">
+              {% for g in user_groups %}
+              <label class="form-check form-check-inline" style="font-size:.8rem;cursor:pointer;margin-right:6px;">
+                <input class="form-check-input" type="checkbox" name="group_ids" value="{{ g.id }}" style="margin-top:2px;">
+                {{ g.name }} <small style="color:var(--gray-400);font-size:.68rem;">({{ g.members|length }}人)</small>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
           <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">分配对象</label>
           <div class="d-flex flex-wrap gap-1">
             {% if is_admin %}

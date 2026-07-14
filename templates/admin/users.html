@@ -3,7 +3,10 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
   <h1 style="font-size:1.5rem;font-weight:700;color:var(--gray-900);margin:0;">用户管理</h1>
-  <button class="btn btn-primary btn-sm" onclick="new bootstrap.Modal(document.getElementById('addUserModal')).show()"><i class="bi bi-person-plus"></i> 添加用户</button>
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-primary btn-sm" onclick="openGroupManager()"><i class="bi bi-diagram-3"></i> 群组管理</button>
+    <button class="btn btn-primary btn-sm" onclick="new bootstrap.Modal(document.getElementById('addUserModal')).show()"><i class="bi bi-person-plus"></i> 添加用户</button>
+  </div>
 </div>
 
 <div class="card">
@@ -29,9 +32,9 @@
         <tr>
           <th style="padding:10px 16px;">用户</th>
           <th style="padding:10px 16px;">角色</th>
-          <th style="padding:10px 16px;">状态</th>
+          <th style="padding:10px 16px;">群组</th>
           <th style="padding:10px 16px;">创建时间</th>
-          <th style="padding:10px 16px;width:160px;">操作</th>
+          <th style="padding:10px 16px;width:200px;">操作</th>
         </tr>
       </thead>
       <tbody id="userTableBody">
@@ -52,25 +55,27 @@
             </span>
           </td>
           <td style="padding:8px 16px;">
-            <form method="POST" action="{{ url_for('admin_disable_user', user_id=user.id) }}" style="display:inline;">
-              <button class="btn btn-sm" style="padding:2px 10px;font-size:.68rem;border-radius:20px;background:{{ 'var(--gray-200)' if user.is_disabled else '#d1fae5' }};color:{{ 'var(--gray-500)' if user.is_disabled else '#065f46' }};border:none;">
-                {{ '已禁用' if user.is_disabled else '已启用' }}
-              </button>
-            </form>
+            {% for g in user.groups %}
+            <span class="badge" style="background:#dbeafe;color:#1e40af;font-size:.62rem;margin:1px;">{{ g.name }}</span>
+            {% endfor %}
+            {% if not user.groups %}<small class="text-muted" style="font-size:.7rem;">未分配</small>{% endif %}
           </td>
           <td style="padding:8px 16px;">
             <small class="text-muted" style="font-size:.72rem;">{{ user.created_at.strftime('%Y-%m-%d %H:%M') if user.created_at else '-' }}</small>
           </td>
           <td style="padding:8px 16px;">
-            <div class="d-flex gap-1">
+            <div class="d-flex gap-1 align-items-center flex-wrap">
+              <button class="btn btn-sm btn-outline-secondary" style="padding:2px 8px;font-size:.7rem;" onclick="openEditModal({{ user.id }},'{{ user.username }}','{{ user.name or '' }}',{{ user.groups|map(attribute='id')|list }},'{{ user.role }}')" title="编辑"><i class="bi bi-pencil"></i></button>
+              <form method="POST" action="{{ url_for('admin_disable_user', user_id=user.id) }}" style="display:inline;">
+                <button class="btn btn-sm" style="padding:2px 10px;font-size:.68rem;border-radius:20px;background:{{ 'var(--gray-200)' if user.is_disabled else '#d1fae5' }};color:{{ 'var(--gray-500)' if user.is_disabled else '#065f46' }};border:none;" title="切换启用状态">
+                  {{ '已禁用' if user.is_disabled else '已启用' }}
+                </button>
+              </form>
               {% if user.username != 'bright' %}
-              <button class="btn btn-sm btn-outline-secondary" style="padding:2px 8px;font-size:.7rem;" onclick="openRoleModal({{ user.id }},'{{ user.username }}','{{ user.role }}')" title="修改角色"><i class="bi bi-shield"></i></button>
-              <button class="btn btn-sm btn-outline-secondary" style="padding:2px 8px;font-size:.7rem;" onclick="openPwdModal({{ user.id }},'{{ user.username }}')" title="重置密码"><i class="bi bi-key"></i></button>
               <form method="POST" action="{{ url_for('admin_delete_user', user_id=user.id) }}" style="display:inline;" onsubmit="return confirm('确定要删除用户「{{ user.username }}」吗？');">
                 <button class="btn btn-sm btn-outline-danger" style="padding:2px 8px;font-size:.7rem;" title="删除"><i class="bi bi-trash"></i></button>
               </form>
               {% endif %}
-              <button class="btn btn-sm btn-outline-secondary" style="padding:2px 8px;font-size:.7rem;" onclick="openEditModal({{ user.id }},'{{ user.username }}','{{ user.name or '' }}')" title="编辑"><i class="bi bi-pencil"></i></button>
             </div>
           </td>
         </tr>
@@ -94,22 +99,24 @@
             {{ '管理员' if user.role == 'admin' else '用户' }}
           </span>
         </div>
-        <div class="d-flex justify-content-between align-items-center">
+        <div class="mb-2">
+          {% for g in user.groups %}
+          <span class="badge" style="background:#dbeafe;color:#1e40af;font-size:.6rem;margin:1px;">{{ g.name }}</span>
+          {% endfor %}
+          {% if not user.groups %}<small class="text-muted" style="font-size:.68rem;">未分配群组</small>{% endif %}
+        </div>
+        <div class="d-flex justify-content-end align-items-center gap-1">
+          <button class="btn btn-sm btn-outline-secondary" style="padding:2px 8px;font-size:.65rem;" onclick="openEditModal({{ user.id }},'{{ user.username }}','{{ user.name or '' }}',{{ user.groups|map(attribute='id')|list }},'{{ user.role }}')"><i class="bi bi-pencil"></i></button>
           <form method="POST" action="{{ url_for('admin_disable_user', user_id=user.id) }}" style="display:inline;">
             <button class="btn btn-sm" style="padding:2px 10px;font-size:.65rem;border-radius:20px;background:{{ 'var(--gray-200)' if user.is_disabled else '#d1fae5' }};color:{{ 'var(--gray-500)' if user.is_disabled else '#065f46' }};border:none;">
               {{ '已禁用' if user.is_disabled else '已启用' }}
             </button>
           </form>
-          <div class="d-flex gap-1">
-            {% if user.username != 'bright' %}
-            <button class="btn btn-sm btn-outline-secondary" style="padding:2px 8px;font-size:.65rem;" onclick="openRoleModal({{ user.id }},'{{ user.username }}','{{ user.role }}')"><i class="bi bi-shield"></i></button>
-            <button class="btn btn-sm btn-outline-secondary" style="padding:2px 8px;font-size:.65rem;" onclick="openPwdModal({{ user.id }},'{{ user.username }}')"><i class="bi bi-key"></i></button>
-            <form method="POST" action="{{ url_for('admin_delete_user', user_id=user.id) }}" style="display:inline;" onsubmit="return confirm('确定删除？');">
-              <button class="btn btn-sm btn-outline-danger" style="padding:2px 8px;font-size:.65rem;"><i class="bi bi-trash"></i></button>
-            </form>
-            {% endif %}
-            <button class="btn btn-sm btn-outline-secondary" style="padding:2px 8px;font-size:.65rem;" onclick="openEditModal({{ user.id }},'{{ user.username }}','{{ user.name or '' }}')"><i class="bi bi-pencil"></i></button>
-          </div>
+          {% if user.username != 'bright' %}
+          <form method="POST" action="{{ url_for('admin_delete_user', user_id=user.id) }}" style="display:inline;" onsubmit="return confirm('确定删除？');">
+            <button class="btn btn-sm btn-outline-danger" style="padding:2px 8px;font-size:.65rem;"><i class="bi bi-trash"></i></button>
+          </form>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -156,68 +163,9 @@
   </div>
 </div>
 
-<!-- Role Modal -->
-<div class="modal fade" id="roleModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content" style="border-radius:var(--radius);border:none;box-shadow:var(--shadow-lg);">
-      <div class="modal-header" style="border-bottom:1px solid var(--gray-100);">
-        <h5 class="modal-title" style="font-size:.95rem;font-weight:600;"><i class="bi bi-shield" style="color:var(--primary);"></i> 修改角色</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <form method="POST" id="roleForm">
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label" style="font-size:.85rem;">用户名</label>
-            <input type="text" class="form-control" id="roleUsername" readonly style="font-size:.9rem;">
-          </div>
-          <div class="mb-3">
-            <label class="form-label" style="font-size:.85rem;">角色</label>
-            <select name="role" class="form-select" id="roleSelect" style="font-size:.9rem;">
-              <option value="user">用户</option>
-              <option value="admin">管理员</option>
-            </select>
-          </div>
-        </div>
-        <div class="modal-footer" style="border-top:1px solid var(--gray-100);">
-          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
-          <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-check-lg"></i> 确认修改</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
-<!-- Password Modal -->
-<div class="modal fade" id="pwdModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content" style="border-radius:var(--radius);border:none;box-shadow:var(--shadow-lg);">
-      <div class="modal-header" style="border-bottom:1px solid var(--gray-100);">
-        <h5 class="modal-title" style="font-size:.95rem;font-weight:600;"><i class="bi bi-key" style="color:var(--primary);"></i> 重置密码</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <form method="POST" id="pwdForm">
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label" style="font-size:.85rem;">用户名</label>
-            <input type="text" class="form-control" id="pwdUsername" readonly style="font-size:.9rem;">
-          </div>
-          <div class="mb-3">
-            <label class="form-label" style="font-size:.85rem;">新密码</label>
-            <input type="password" name="password" class="form-control" placeholder="请输入新密码" required minlength="1" style="font-size:.9rem;">
-          </div>
-        </div>
-        <div class="modal-footer" style="border-top:1px solid var(--gray-100);">
-          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
-          <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-check-lg"></i> 确认重置</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
 <!-- Edit User Modal -->
 <div class="modal fade" id="editModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content" style="border-radius:var(--radius);border:none;box-shadow:var(--shadow-lg);">
       <div class="modal-header" style="border-bottom:1px solid var(--gray-100);">
         <h5 class="modal-title" style="font-size:.95rem;font-weight:600;"><i class="bi bi-pencil" style="color:var(--primary);"></i> 编辑用户</h5>
@@ -233,6 +181,21 @@
             <label class="form-label" style="font-size:.85rem;font-weight:500;">姓名</label>
             <input type="text" name="name" class="form-control" id="editName" style="font-size:.9rem;">
           </div>
+          <div class="mb-3">
+            <label class="form-label" style="font-size:.85rem;font-weight:500;">角色</label>
+            <select name="role" class="form-select" id="editRole" style="font-size:.9rem;">
+              <option value="user">用户</option>
+              <option value="admin">管理员</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" style="font-size:.85rem;font-weight:500;">所在群组</label>
+            <div id="editGroupCheckboxes" style="border:1px solid var(--gray-200);border-radius:8px;padding:8px 12px;"></div>
+          </div>
+          <div class="mb-0">
+            <label class="form-label" style="font-size:.85rem;font-weight:500;">重置密码 <small class="text-muted" style="font-weight:400;">（留空不修改）</small></label>
+            <input type="password" name="password" class="form-control" id="editPassword" placeholder="输入新密码" style="font-size:.9rem;">
+          </div>
         </div>
         <div class="modal-footer" style="border-top:1px solid var(--gray-100);">
           <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
@@ -243,22 +206,111 @@
   </div>
 </div>
 
+
+
+<!-- Group Manager Modal -->
+<div class="modal fade" id="groupManagerModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content" style="border-radius:var(--radius);border:none;box-shadow:var(--shadow-lg);">
+      <div class="modal-header" style="border-bottom:1px solid var(--gray-100);">
+        <h5 class="modal-title" style="font-size:.95rem;font-weight:600;"><i class="bi bi-diagram-3" style="color:var(--primary);"></i> 群组管理</h5>
+        <div class="d-flex gap-2 align-items-center">
+          <button class="btn btn-primary btn-sm" style="font-size:.8rem;" onclick="showAddGroupForm()"><i class="bi bi-plus"></i> 新建群组</button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+      </div>
+      <div class="modal-body" style="padding:0;max-height:60vh;overflow-y:auto;">
+        <!-- Add/Edit Group Form (hidden by default) -->
+        <div id="groupFormWrap" class="p-3" style="display:none;border-bottom:1px solid var(--gray-100);background:var(--gray-50);">
+          <form method="POST" id="groupCrudForm" class="d-flex gap-2 align-items-end flex-wrap">
+            <input type="hidden" name="group_id" id="groupFormId" value="">
+            <div class="flex-grow-1" style="min-width:160px;">
+              <label class="form-label" style="font-size:.8rem;font-weight:500;margin-bottom:4px;">群组名称</label>
+              <input type="text" name="name" class="form-control form-control-sm" id="groupFormName" placeholder="群组名称" required style="font-size:.85rem;">
+            </div>
+            <div class="flex-grow-1" style="min-width:200px;">
+              <label class="form-label" style="font-size:.8rem;font-weight:500;margin-bottom:4px;">描述</label>
+              <input type="text" name="description" class="form-control form-control-sm" id="groupFormDesc" placeholder="群组描述（可选）" style="font-size:.85rem;">
+            </div>
+            <div class="d-flex gap-1" style="flex-shrink:0;">
+              <button type="submit" class="btn btn-sm btn-primary" id="groupFormSubmitBtn"><i class="bi bi-check-lg"></i> 保存</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" onclick="hideGroupForm()">取消</button>
+            </div>
+          </form>
+        </div>
+        <!-- Group List -->
+        <div id="groupListArea">
+          <table class="table table-hover mb-0" style="font-size:.82rem;">
+            <thead>
+              <tr>
+                <th style="padding:10px 16px;">群组名称</th>
+                <th style="padding:10px 16px;">描述</th>
+                <th style="padding:10px 16px;width:80px;">成员</th>
+                <th style="padding:10px 16px;width:140px;">操作</th>
+              </tr>
+            </thead>
+            <tbody id="groupMgrBody">
+            </tbody>
+          </table>
+          <div id="groupMgrEmpty" class="text-center py-4" style="display:none;">
+            <small class="text-muted">暂无群组，点击「新建群组」创建</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Group Member Sub-Modal -->
+<div class="modal fade" id="groupMemberModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:var(--radius);border:none;box-shadow:var(--shadow-lg);">
+      <div class="modal-header" style="border-bottom:1px solid var(--gray-100);">
+        <h5 class="modal-title" style="font-size:.95rem;font-weight:600;"><i class="bi bi-people" style="color:var(--primary);"></i> 管理成员 - <span id="gmMemberGroupName"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" id="gmMemberForm">
+        <div class="modal-body">
+          <div id="gmMemberCheckboxes" style="max-height:300px;overflow-y:auto;"></div>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid var(--gray-100);">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-check-lg"></i> 确认保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <script>
-function openRoleModal(id, username, role) {
-  document.getElementById('roleForm').action = '/admin/users/' + id + '/set_role';
-  document.getElementById('roleUsername').value = username;
-  document.getElementById('roleSelect').value = role;
-  new bootstrap.Modal(document.getElementById('roleModal')).show();
-}
-function openPwdModal(id, username) {
-  document.getElementById('pwdForm').action = '/admin/users/' + id + '/reset_password';
-  document.getElementById('pwdUsername').value = username;
-  new bootstrap.Modal(document.getElementById('pwdModal')).show();
-}
-function openEditModal(id, username, name) {
+var allGroupsData = [
+  {% for g in groups %}
+  {id:{{ g.id }}, name:'{{ g.name }}', desc:'{{ g.description or "" }}', memberIds:{{ g.members|map(attribute='id')|list }}, memberCount:{{ g.members|length }}},
+  {% endfor %}
+];
+var allUsersData = [
+  {% for u in users %}
+  {id:{{ u.id }}, name:'{{ u.name or u.username }}', username:'{{ u.username }}'},
+  {% endfor %}
+];
+function openEditModal(id, username, name, groupIds, role) {
   document.getElementById('editForm').action = '/admin/users/edit/' + id;
   document.getElementById('editUsername').value = username;
   document.getElementById('editName').value = name;
+  document.getElementById('editRole').value = role || 'user';
+  document.getElementById('editPassword').value = '';
+  var html = '';
+  allGroupsData.forEach(function(g) {
+    var checked = groupIds.indexOf(g.id) >= 0 ? 'checked' : '';
+    html += '<div class="form-check" style="padding:3px 0;">' +
+      '<input class="form-check-input" type="checkbox" name="groups" value="' + g.id + '" id="editgrp_' + g.id + '" ' + checked + '>' +
+      '<label class="form-check-label" for="editgrp_' + g.id + '" style="font-size:.85rem;">' + g.name + '</label>' +
+      '</div>';
+  });
+  if (!allGroupsData.length) {
+    html = '<small class="text-muted">暂无群组，请先通过群组管理创建</small>';
+  }
+  document.getElementById('editGroupCheckboxes').innerHTML = html;
   new bootstrap.Modal(document.getElementById('editModal')).show();
 }
 function filterUsers() {
@@ -272,5 +324,149 @@ function filterUsers() {
     row.style.display = match ? '' : 'none';
   });
 }
+function renderGroupList() {
+  var tbody = document.getElementById('groupMgrBody');
+  var empty = document.getElementById('groupMgrEmpty');
+  if (!allGroupsData.length) {
+    tbody.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+  var html = '';
+  allGroupsData.forEach(function(g) {
+    html += '<tr>' +
+      '<td style="padding:8px 16px;"><div class="d-flex align-items-center gap-2"><span class="avatar" style="width:28px;height:28px;font-size:.7rem;background:var(--primary-light);color:var(--primary);">' + g.name.charAt(0) + '</span><span style="font-weight:600;font-size:.85rem;">' + g.name + '</span></div></td>' +
+      '<td style="padding:8px 16px;"><small class="text-muted" style="font-size:.75rem;">' + (g.desc || '-') + '</small></td>' +
+      '<td style="padding:8px 16px;"><span class="badge" style="background:var(--gray-100);color:var(--gray-600);font-size:.65rem;">' + g.memberCount + ' 人</span></td>' +
+      '<td style="padding:8px 16px;"><div class="d-flex gap-1">' +
+      '<button class="btn btn-sm btn-outline-secondary" style="padding:2px 8px;font-size:.7rem;" onclick="openGroupMemberModal(' + g.id + ')" title="管理成员"><i class="bi bi-people"></i></button>' +
+      '<button class="btn btn-sm btn-outline-secondary" style="padding:2px 8px;font-size:.7rem;" onclick="editGroup(' + g.id + ')" title="编辑"><i class="bi bi-pencil"></i></button>' +
+      '<button class="btn btn-sm btn-outline-danger" style="padding:2px 8px;font-size:.7rem;" onclick="deleteGroup(' + g.id + ')" title="删除"><i class="bi bi-trash"></i></button>' +
+      '</div></td></tr>';
+  });
+  tbody.innerHTML = html;
+}
+function openGroupManager() {
+  renderGroupList();
+  hideGroupForm();
+  new bootstrap.Modal(document.getElementById('groupManagerModal')).show();
+}
+function showAddGroupForm() {
+  document.getElementById('groupFormId').value = '';
+  document.getElementById('groupFormName').value = '';
+  document.getElementById('groupFormDesc').value = '';
+  document.getElementById('groupFormName').focus();
+  document.getElementById('groupFormWrap').style.display = '';
+  document.getElementById('groupFormSubmitBtn').innerHTML = '<i class="bi bi-plus"></i> 添加';
+}
+function hideGroupForm() {
+  document.getElementById('groupFormWrap').style.display = 'none';
+}
+function editGroup(id) {
+  var g = allGroupsData.find(function(x){return x.id===id;});
+  if(!g) return;
+  document.getElementById('groupFormId').value = g.id;
+  document.getElementById('groupFormName').value = g.name;
+  document.getElementById('groupFormDesc').value = g.desc;
+  document.getElementById('groupFormName').focus();
+  document.getElementById('groupFormWrap').style.display = '';
+  document.getElementById('groupFormSubmitBtn').innerHTML = '<i class="bi bi-check-lg"></i> 更新';
+}
+function deleteGroup(id) {
+  var g = allGroupsData.find(function(x){return x.id===id;});
+  if(!g) return;
+  if(!confirm('确定要删除群组「' + g.name + '」吗？')) return;
+  var form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '/admin/groups/delete/' + id;
+  document.body.appendChild(form);
+  form.submit();
+}
+function openGroupMemberModal(groupId) {
+  var g = allGroupsData.find(function(x){return x.id===groupId;});
+  if(!g) return;
+  document.getElementById('gmMemberForm').action = '/admin/groups/' + groupId + '/members';
+  document.getElementById('gmMemberGroupName').textContent = g.name;
+  var membersHtml = '';
+  var nonMembersHtml = '';
+  allUsersData.forEach(function(u) {
+    var isMember = g.memberIds.indexOf(u.id) >= 0;
+    var checkbox = '<div class="form-check" style="padding:4px 0;">' +
+      '<input class="form-check-input" type="checkbox" name="members" value="' + u.id + '" id="gmm_' + u.id + '" ' + (isMember ? 'checked' : '') + '>' +
+      '<label class="form-check-label" for="gmm_' + u.id + '" style="font-size:.85rem;">' + u.name + ' <small class="text-muted">@' + u.username + '</small></label>' +
+      '</div>';
+    if (isMember) { membersHtml += checkbox; }
+    else { nonMembersHtml += checkbox; }
+  });
+  var html = membersHtml;
+  if (nonMembersHtml) {
+    html += '<div class="mt-2 mb-1"><a href="#" id="gmMemberMoreToggle" onclick="toggleGroupMemberMore(); return false;" style="font-size:.8rem;color:var(--primary);text-decoration:none;">显示更多 <i class="bi bi-chevron-down" id="gmMemberMoreIcon"></i></a></div>';
+    html += '<div id="gmMemberMoreSection" style="display:none;border-top:1px dashed var(--gray-200);padding-top:6px;">' + nonMembersHtml + '</div>';
+  }
+  document.getElementById('gmMemberCheckboxes').innerHTML = html;
+  var parentEl = document.getElementById('groupManagerModal');
+  var parentModal = bootstrap.Modal.getInstance(parentEl);
+  function showMemberModal() {
+    document.getElementById('groupMemberModal').addEventListener('hidden.bs.modal', function handler() {
+      document.getElementById('groupMemberModal').removeEventListener('hidden.bs.modal', handler);
+      openGroupManager();
+    });
+    var mm = new bootstrap.Modal(document.getElementById('groupMemberModal'));
+    mm.show();
+  }
+  if (parentModal) {
+    parentEl.addEventListener('hidden.bs.modal', function onHidden() {
+      parentEl.removeEventListener('hidden.bs.modal', onHidden);
+      showMemberModal();
+    });
+    parentModal.hide();
+  } else {
+    showMemberModal();
+  }
+}
+function toggleGroupMemberMore() {
+  var section = document.getElementById('gmMemberMoreSection');
+  var icon = document.getElementById('gmMemberMoreIcon');
+  var toggle = document.getElementById('gmMemberMoreToggle');
+  if (!section) return;
+  if (section.style.display === 'none') {
+    section.style.display = '';
+    icon.className = 'bi bi-chevron-up';
+    toggle.childNodes[0].textContent = '收起 ';
+  } else {
+    section.style.display = 'none';
+    icon.className = 'bi bi-chevron-down';
+    toggle.childNodes[0].textContent = '显示更多 ';
+  }
+}
+document.getElementById('groupCrudForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  var id = document.getElementById('groupFormId').value;
+  var name = document.getElementById('groupFormName').value.trim();
+  var desc = document.getElementById('groupFormDesc').value.trim();
+  if (!name) return;
+  if (id) {
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/admin/groups/edit/' + id;
+    var nInput = document.createElement('input');
+    nInput.type = 'hidden'; nInput.name = 'name'; nInput.value = name;
+    var dInput = document.createElement('input');
+    dInput.type = 'hidden'; dInput.name = 'description'; dInput.value = desc;
+    form.appendChild(nInput); form.appendChild(dInput);
+    document.body.appendChild(form); form.submit();
+  } else {
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/admin/groups/add';
+    var nInput = document.createElement('input');
+    nInput.type = 'hidden'; nInput.name = 'name'; nInput.value = name;
+    var dInput = document.createElement('input');
+    dInput.type = 'hidden'; dInput.name = 'description'; dInput.value = desc;
+    form.appendChild(nInput); form.appendChild(dInput);
+    document.body.appendChild(form); form.submit();
+  }
+});
 </script>
 {% endblock %}

@@ -81,19 +81,49 @@
     <div class="card mb-3">
       <div class="card-header py-2 px-3"><i class="bi bi-sliders"></i> 更新进度</div>
       <div class="card-body p-3">
-        <form method="POST" action="{{ url_for('user_update_assign_progress', assignment_id=assignment.id) }}">
-          <div class="d-flex align-items-center gap-3 mb-2">
+        <form method="POST" action="{{ url_for('user_update_assign_progress', assignment_id=assignment.id) }}" enctype="multipart/form-data" id="progressForm">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <label class="text-muted" style="font-size:.75rem;white-space:nowrap;">进度</label>
             <input type="range" class="flex-grow-1" name="progress" min="0" max="100" value="{{ assignment.progress }}" style="height:4px;" oninput="document.getElementById('progressVal').textContent=this.value+'%'" title="拖动以更新进度">
-            <span class="fw-bold" id="progressVal" style="min-width:3em;font-size:.9rem;color:var(--primary);">{{ assignment.progress }}%</span>
+            <span class="fw-bold" id="progressVal" style="min-width:2.8em;font-size:.82rem;color:var(--primary);">{{ assignment.progress }}%</span>
+            <input type="text" name="note" class="form-control form-control-sm" placeholder="备注" value="{{ assignment.note or '' }}" style="font-size:.78rem;height:26px;max-width:120px;">
+            <button type="submit" class="btn btn-primary btn-sm" style="padding:3px 10px;font-size:.78rem;white-space:nowrap;"><i class="bi bi-save"></i></button>
           </div>
-          <small class="text-muted d-block mb-2" style="font-size:.65rem;"><i class="bi bi-arrow-left-right"></i> 拖动滑块以更新进度</small>
-          <div class="d-flex gap-2">
-            <input type="text" name="note" class="form-control form-control-sm" placeholder="备注本次进度..." value="{{ assignment.note or '' }}" style="font-size:.8rem;height:32px;">
-            <button type="submit" class="btn btn-primary btn-sm" style="white-space:nowrap;"><i class="bi bi-save"></i> 更新</button>
+          <div class="d-flex align-items-center gap-2">
+            <label class="text-muted" style="font-size:.75rem;white-space:nowrap;">附件</label>
+            <div class="d-flex align-items-center gap-1 flex-grow-1 paste-area" style="border:1px dashed var(--gray-300);border-radius:4px;padding:2px 8px;background:var(--gray-50);cursor:pointer;height:26px;" onclick="this.querySelector('input[type=file]').click()" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--gray-300)'">
+              <i class="bi bi-paperclip" style="color:var(--gray-400);font-size:.7rem;"></i>
+              <span id="fileLabel" style="font-size:.72rem;color:var(--gray-500);">选择文件或粘贴截图</span>
+              <input type="file" name="file" class="d-none" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.txt" onchange="document.getElementById('fileLabel').textContent=this.files[0]?this.files[0].name:'选择文件或粘贴截图'">
+            </div>
           </div>
         </form>
       </div>
     </div>
+    <script>
+    (function(){
+      var form = document.getElementById('progressForm');
+      if(!form) return;
+      form.addEventListener('paste', function(e){
+        var items = e.clipboardData && e.clipboardData.items;
+        if(!items) return;
+        for(var i=0;i<items.length;i++){
+          if(items[i].type.indexOf('image')===0){
+            e.preventDefault();
+            var blob = items[i].getAsFile();
+            var name = 'paste_'+Date.now()+'.png';
+            var file = new File([blob], name, {type:'image/png'});
+            var dt = new DataTransfer();
+            dt.items.add(file);
+            var input = form.querySelector('input[type=file]');
+            input.files = dt.files;
+            document.getElementById('fileLabel').textContent = name;
+            break;
+          }
+        }
+      });
+    })();
+    </script>
     {% endif %}
 
     {% if assignment and assignment.completed_at %}
@@ -123,28 +153,15 @@
     <div class="card mb-3">
       <div class="card-header py-2 px-3"><i class="bi bi-paperclip"></i> 附件</div>
       <div class="card-body p-3">
-        {% if assignment %}
-        <form method="POST" action="{{ url_for('user_upload_attachment', assignment_id=assignment.id) }}" enctype="multipart/form-data" class="mb-3">
-          <div class="d-flex align-items-center gap-2 p-3 rounded" style="border:2px dashed var(--gray-300);background:var(--gray-50);cursor:pointer;transition:background .2s,border-color .2s;" onmouseover="this.style.background='var(--gray-100)';this.style.borderColor='var(--primary)'" onmouseout="this.style.background='var(--gray-50)';this.style.borderColor='var(--gray-300)'" onclick="this.querySelector('input[type=file]').click()">
-            <i class="bi bi-cloud-arrow-up" style="font-size:1.3rem;color:var(--gray-400);"></i>
-            <div>
-              <div style="font-size:.82rem;font-weight:500;color:var(--gray-500);">点击或拖拽上传文件</div>
-              <small class="text-muted" style="font-size:.7rem;">支持 PDF, Word, 图片等常见格式</small>
-            </div>
-            <input type="file" name="file" class="d-none" onchange="this.form.submit()">
-          </div>
-        </form>
-        {% endif %}
         {% if assignment and assignment.attachment %}
         <div class="d-flex align-items-center gap-2 p-2 rounded" style="background:var(--gray-50);">
           <i class="bi bi-file-earmark" style="color:var(--primary);"></i>
-          <span class="flex-grow-1 text-truncate" style="font-size:.82rem;">{{ assignment.attachment }}</span>
+          <span class="flex-grow-1 text-truncate" style="font-size:.82rem;">{{ assignment.attachment.split('_', 2)[-1] if '_' in assignment.attachment else assignment.attachment }}</span>
           <a href="{{ url_for('download_file', filename=assignment.attachment) }}" class="btn btn-sm btn-outline-primary" style="padding:2px 8px;font-size:.7rem;" target="_blank"><i class="bi bi-download"></i></a>
         </div>
-        {% endif %}
-        {% if not assignment or not assignment.attachment %}
+        {% else %}
         <div class="text-center py-3" style="color:var(--gray-400);font-size:.82rem;">
-          <i class="bi bi-paperclip"></i> 暂无附件
+          <i class="bi bi-paperclip"></i> 暂无附件，可在上方更新进度时上传
         </div>
         {% endif %}
       </div>

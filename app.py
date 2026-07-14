@@ -22,7 +22,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'task-manager-secret-2024'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tasks.db'
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads')
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
@@ -79,6 +79,8 @@ class Task(db.Model):
     creator = db.relationship('User', backref='created_tasks')
     assignments = db.relationship('TaskAssignment', backref='task',
                                   lazy='dynamic', cascade='all, delete-orphan')
+    groups = db.relationship('Group', secondary='task_group',
+                             backref=db.backref('tasks', lazy='dynamic'))
 
 
 class TaskAssignment(db.Model):
@@ -95,6 +97,27 @@ class TaskAssignment(db.Model):
     attachment = db.Column(db.String(500))
 
     user = db.relationship('User', backref='task_assignments')
+
+
+user_group = db.Table('user_group',
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
+    db.Column('group_id', db.Integer, db.ForeignKey('group.id'), primary_key=True)
+)
+
+task_group = db.Table('task_group',
+    db.Column('task_id', db.Integer, db.ForeignKey('task.id'), primary_key=True),
+    db.Column('group_id', db.Integer, db.ForeignKey('group.id'), primary_key=True)
+)
+
+
+class Group(db.Model):
+    __tablename__ = 'group'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), unique=True, nullable=False)
+    description = db.Column(db.String(200), default='')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    members = db.relationship('User', secondary=user_group, backref=db.backref('groups', lazy='dynamic'))
 
 
 class Notification(db.Model):
@@ -129,6 +152,19 @@ def allowed_file(filename):
 def create_notification(user_id, type, message, task_id=None):
     note = Notification(user_id=user_id, type=type, message=message, task_id=task_id)
     db.session.add(note)
+
+
+def get_same_group_users(user):
+    if user.role == 'admin':
+        return User.query.filter(User.is_disabled == False, User.id != user.id).all()
+    group_ids = [g.id for g in user.groups]
+    if not group_ids:
+        return []
+    return User.query.filter(
+        User.id != user.id,
+        User.is_disabled == False,
+        User.groups.any(Group.id.in_(group_ids))
+    ).distinct().all()
 
 
 def init_db():
@@ -185,6 +221,22 @@ def seed_demo_data():
     users.append(guest)
     db.session.flush()
 
+    groups_data = [
+        ('技术部', '技术开发团队', ['guest', 'zhangsan', 'wangwu', 'sunqi']),
+        ('产品部', '产品设计团队', ['guest', 'lisi', 'zhaoliu']),
+        ('市场部', '市场营销团队', ['zhangsan', 'lisi']),
+    ]
+    for gname, gdesc, member_names in groups_data:
+        g = Group(name=gname, description=gdesc)
+        db.session.add(g)
+        db.session.flush()
+        for uname in member_names:
+            u = User.query.filter_by(username=uname).first()
+            if u:
+                g.members.append(u)
+
+    db.session.flush()
+
     now = datetime.now()
     today_start = now.replace(hour=9, minute=0, second=0, microsecond=0)
 
@@ -218,25 +270,42 @@ def seed_demo_data():
          'start': today_start - timedelta(days=10), 'end': today_start - timedelta(days=3)},
         {'title': '服务器安全加固', 'category': '工作', 'assign': 'guest',
          'start': today_start + timedelta(days=1), 'end': today_start + timedelta(days=4)},
+        {'title': '技术部Sprint评审', 'category': '工作', 'group': '技术部',
+         'start': today_start, 'end': today_start + timedelta(days=2, hours=8),
+         'desc': '技术部本迭代代码评审与总结'},
+        {'title': '产品部需求评审', 'category': '工作', 'group': '产品部',
+         'start': today_start + timedelta(days=1), 'end': today_start + timedelta(days=3),
+         'desc': '产品部下季度需求优先级评审'},
     ]
 
     for td in demo_tasks:
         task = Task(title=td['title'], description=td.get('desc', ''),
                     category=td['category'],
                     start_time=td['start'], end_time=td['end'],
-                    creator_id=guest.id, is_all=(td['assign'] == 'all'))
+                    creator_id=guest.id, is_all=(td.get('assign') == 'all'))
         db.session.add(task)
         db.session.flush()
-        if td['assign'] == 'all':
+        if td.get('assign') == 'all':
             target_users = [guest] + users
-        elif td['assign'] == 'guest':
+        elif td.get('assign') == 'guest':
             target_users = [guest]
-        else:
+        elif td.get('assign'):
             target_users = [u for u in users if u.username == td['assign']]
+        else:
+            target_users = []
         for u in target_users:
             db.session.add(TaskAssignment(task_id=task.id, user_id=u.id))
             create_notification(u.id, 'task_assigned',
                                 f'你收到一个新任务：「{td["title"]}」', task.id)
+        if td.get('group'):
+            g = Group.query.filter_by(name=td['group']).first()
+            if g:
+                task.groups.append(g)
+                for m in g.members:
+                    if m.id not in [u.id for u in target_users]:
+                        db.session.add(TaskAssignment(task_id=task.id, user_id=m.id))
+                        create_notification(m.id, 'task_assigned',
+                                            f'你收到一个新任务：「{td["title"]}」', task.id)
 
     # Mark some as completed with varying progress
     completed_tasks_data = [
@@ -389,6 +458,57 @@ def highlight_sensitive_words(text):
     for w in SENSITIVE_WORDS:
         text = text.replace(w, f'<mark style="color:var(--danger);background:#fecaca;padding:0 2px;border-radius:2px;">{w}</mark>')
     return text
+
+
+def find_similar_tasks(title, description='', category='', start_time=None, end_time=None, exclude_id=None, threshold=0.85):
+    from difflib import SequenceMatcher
+    results = []
+    query = Task.query
+    if exclude_id:
+        query = query.filter(Task.id != exclude_id)
+    tasks = query.all()
+    for t in tasks:
+        title_sim = SequenceMatcher(None, title.lower(), t.title.lower()).ratio()
+        if title_sim >= 0.95:
+            results.append({
+                'task': t, 'similarity': round(title_sim * 100),
+                'title_sim': round(title_sim * 100), 'desc_sim': 0,
+                'match_type': '标题完全匹配',
+            })
+            continue
+        desc_sim = 0
+        if description and t.description:
+            desc_sim = SequenceMatcher(None, description.lower(), t.description.lower()).ratio()
+        cat_sim = 1.0 if category and t.category and category == t.category else 0
+        time_sim = 0
+        if start_time and end_time and t.start_time and t.end_time:
+            overlap_start = max(start_time, t.start_time)
+            overlap_end = min(end_time, t.end_time)
+            if overlap_start < overlap_end:
+                overlap = (overlap_end - overlap_start).total_seconds()
+                union = (max(end_time, t.end_time) - min(start_time, t.start_time)).total_seconds()
+                time_sim = overlap / union if union > 0 else 0
+        combined = title_sim * 0.45 + desc_sim * 0.25 + cat_sim * 0.15 + time_sim * 0.15
+        if combined >= threshold:
+            match_type = []
+            if title_sim >= 0.7:
+                match_type.append('标题')
+            if desc_sim >= 0.6:
+                match_type.append('描述')
+            if cat_sim >= 0.9:
+                match_type.append('类型')
+            if time_sim >= 0.5:
+                match_type.append('时间重叠')
+            results.append({
+                'task': t,
+                'similarity': round(combined * 100),
+                'title_sim': round(title_sim * 100),
+                'desc_sim': round(desc_sim * 100),
+                'match_type': '、'.join(match_type) if match_type else '综合',
+            })
+    results.sort(key=lambda x: x['similarity'], reverse=True)
+    return results[:5]
+
 
 WEEK_KEYS = ['本周', '这周', '本星期', '这个星期']
 NEXT_WEEK_KEYS = ['下周', '下星期']
@@ -916,7 +1036,8 @@ def admin_dashboard():
 @admin_required
 def admin_users():
     users = User.query.all()
-    return render_template('admin/users.html', users=users, is_admin=True)
+    groups = Group.query.all()
+    return render_template('admin/users.html', users=users, groups=groups, is_admin=True)
 
 
 @app.route('/admin/users/add', methods=['POST'])
@@ -987,6 +1108,8 @@ def admin_edit_user(user_id):
         return redirect(url_for('admin_users'))
     username = request.form.get('username', '').strip()
     name = request.form.get('name', '').strip()
+    role = request.form.get('role', 'user')
+    password = request.form.get('password', '').strip()
     if not username:
         flash('用户名不能为空', 'danger')
         return redirect(url_for('admin_users'))
@@ -996,8 +1119,18 @@ def admin_edit_user(user_id):
         return redirect(url_for('admin_users'))
     user.username = username
     user.name = name
+    if role in ['admin', 'user']:
+        user.role = role
+    if password:
+        user.set_password(password)
+    group_ids = request.form.getlist('groups')
+    user.groups = []
+    for gid in group_ids:
+        g = db.session.get(Group, int(gid))
+        if g:
+            user.groups.append(g)
     db.session.commit()
-    flash(f'用户信息已更新', 'success')
+    flash('用户信息已更新', 'success')
     return redirect(url_for('admin_users'))
 
 
@@ -1034,6 +1167,108 @@ def admin_disable_user(user_id):
     db.session.commit()
     status = '已禁用' if user.is_disabled else '已启用'
     flash(f'用户 {user.username} {status}', 'success')
+    return redirect(url_for('admin_users'))
+
+
+@app.route('/admin/groups', methods=['GET'])
+@login_required
+@admin_required
+def admin_groups():
+    return redirect(url_for('admin_users'))
+
+
+@app.route('/admin/groups/add', methods=['POST'])
+@login_required
+@admin_required
+def admin_add_group():
+    name = request.form.get('name', '').strip()
+    description = request.form.get('description', '').strip()
+    if not name:
+        flash('群组名称不能为空', 'danger')
+        return redirect(url_for('admin_groups'))
+    if Group.query.filter_by(name=name).first():
+        flash('群组名称已存在', 'danger')
+        return redirect(url_for('admin_groups'))
+    g = Group(name=name, description=description)
+    db.session.add(g)
+    db.session.commit()
+    flash(f'群组「{name}」创建成功', 'success')
+    return redirect(url_for('admin_groups'))
+
+
+@app.route('/admin/groups/edit/<int:group_id>', methods=['POST'])
+@login_required
+@admin_required
+def admin_edit_group(group_id):
+    g = db.session.get(Group, group_id)
+    if not g:
+        flash('群组不存在', 'danger')
+        return redirect(url_for('admin_groups'))
+    name = request.form.get('name', '').strip()
+    description = request.form.get('description', '').strip()
+    if not name:
+        flash('群组名称不能为空', 'danger')
+        return redirect(url_for('admin_groups'))
+    existing = Group.query.filter(Group.name == name, Group.id != group_id).first()
+    if existing:
+        flash('群组名称已存在', 'danger')
+        return redirect(url_for('admin_groups'))
+    g.name = name
+    g.description = description
+    db.session.commit()
+    flash('群组信息已更新', 'success')
+    return redirect(url_for('admin_groups'))
+
+
+@app.route('/admin/groups/delete/<int:group_id>', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_group(group_id):
+    g = db.session.get(Group, group_id)
+    if not g:
+        flash('群组不存在', 'danger')
+        return redirect(url_for('admin_groups'))
+    db.session.delete(g)
+    db.session.commit()
+    flash(f'群组「{g.name}」已删除', 'success')
+    return redirect(url_for('admin_groups'))
+
+
+@app.route('/admin/groups/<int:group_id>/members', methods=['POST'])
+@login_required
+@admin_required
+def admin_update_group_members(group_id):
+    g = db.session.get(Group, group_id)
+    if not g:
+        flash('群组不存在', 'danger')
+        return redirect(url_for('admin_groups'))
+    member_ids = request.form.getlist('members')
+    g.members = []
+    for uid in member_ids:
+        u = db.session.get(User, int(uid))
+        if u:
+            g.members.append(u)
+    db.session.commit()
+    flash(f'群组「{g.name}」成员已更新', 'success')
+    return redirect(url_for('admin_groups'))
+
+
+@app.route('/admin/users/<int:user_id>/groups', methods=['POST'])
+@login_required
+@admin_required
+def admin_update_user_groups(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        flash('用户不存在', 'danger')
+        return redirect(url_for('admin_users'))
+    group_ids = request.form.getlist('groups')
+    user.groups = []
+    for gid in group_ids:
+        g = db.session.get(Group, int(gid))
+        if g:
+            user.groups.append(g)
+    db.session.commit()
+    flash(f'用户「{user.name or user.username}」的群组已更新', 'success')
     return redirect(url_for('admin_users'))
 
 
@@ -1231,36 +1466,61 @@ def user_dashboard():
                            upcoming=upcoming, overdue=overdue,
                            recent=recent,
                            today_tasks=today_tasks, week_tasks=week_tasks,
-                           all_pending=all_pending,
-                           now=now,
-                           is_admin=False)
+                            all_pending=all_pending,
+                            now=now,
+                            is_admin=False)
+
+
+@app.route('/api/group-members')
+@login_required
+def api_group_members():
+    members = get_same_group_users(current_user)
+    result = [{'id': u.id, 'name': u.name or u.username, 'username': u.username}
+              for u in members]
+    return jsonify(result)
 
 
 @app.route('/user/tasks', methods=['GET', 'POST'])
 @login_required
 def user_tasks():
-    users = User.query.order_by(User.username).all()
+    users = get_same_group_users(current_user)
+    if not any(u.id == current_user.id for u in users):
+        users.append(current_user)
+    duplicate_tasks = []
     rejected_tasks = TaskAssignment.query.join(Task).filter(
         TaskAssignment.user_id == current_user.id,
         TaskAssignment.status == 'rejected'
     ).order_by(Task.end_time).all()
-    my_tasks = Task.query.filter_by(creator_id=current_user.id, is_all=False).order_by(Task.created_at.desc()).all()
+    my_tasks = Task.query.filter_by(creator_id=current_user.id).order_by(Task.created_at.desc()).all()
+    if current_user.role == 'admin':
+        user_groups = Group.query.all()
+    else:
+        user_groups = current_user.groups.all()
 
     if request.method == 'POST':
         text = request.form.get('text', '').strip()
         action = request.form.get('action', '')
         sensitive = check_sensitive_words(text) if text else []
         if sensitive:
-            return render_template('tasks.html',
-                                   rejected_tasks=rejected_tasks,
-                                   preview=None, users=users,
-                                   my_tasks=my_tasks,
-                                   TaskAssignment=TaskAssignment,
-                                   now=datetime.now(),
-                                   is_admin=current_user.role == 'admin',
-                                   sensitive_words=sensitive,
-                                   sensitive_text=highlight_sensitive_words(text),
-                                   original_text=text)
+            my_assigned_ids = {a.task_id for a in TaskAssignment.query.filter_by(user_id=current_user.id).all()}
+            other_assigned = Task.query.filter(Task.id.in_(my_assigned_ids), Task.creator_id != current_user.id).order_by(Task.created_at.desc()).all() if my_assigned_ids else []
+            template_data = {
+                'rejected_tasks': rejected_tasks,
+                'preview': None, 'users': users,
+                'my_tasks': my_tasks,
+                'other_assigned': other_assigned,
+                'TaskAssignment': TaskAssignment,
+                'now': datetime.now(),
+                'is_admin': current_user.role == 'admin',
+                'sensitive_words': sensitive,
+                'sensitive_text': highlight_sensitive_words(text),
+                'original_text': text,
+                'user_groups': user_groups,
+                'duplicate_tasks': [],
+            }
+            if current_user.role == 'admin':
+                template_data['all_tasks'] = Task.query.order_by(Task.created_at.desc()).all()
+            return render_template('tasks.html', **template_data)
         if action == 'save':
             try:
                 title = request.form.get('title', '').strip()
@@ -1272,6 +1532,7 @@ def user_tasks():
                 if current_user.role != 'admin':
                     is_all = False
                 assignee_ids = request.form.getlist('assignee_ids')
+                group_ids = request.form.getlist('group_ids')
                 if not title:
                     flash('任务标题不能为空', 'danger')
                     return redirect(url_for('user_tasks'))
@@ -1282,6 +1543,34 @@ def user_tasks():
                 recurrence_interval_days = int(request.form.get('recurrence_interval_days', '0') or '0')
                 duration = end_time - start_time
                 total = recurrence_count if recurrence and recurrence_count > 0 else 1
+                if not request.form.get('confirm_duplicate'):
+                    similar = find_similar_tasks(title, description, category, start_time, end_time)
+                    if similar:
+                        preview_data = {
+                            'title': title, 'category': category,
+                            'start_time': start_time, 'end_time': end_time,
+                            'description': description, 'is_all': is_all,
+                            'assignees': [], 'raw_text': description,
+                            'recurrence': recurrence,
+                            'recurrence_count': recurrence_count,
+                            'recurrence_interval_days': recurrence_interval_days,
+                        }
+                        my_assigned_ids = {a.task_id for a in TaskAssignment.query.filter_by(user_id=current_user.id).all()}
+                        other_assigned = Task.query.filter(Task.id.in_(my_assigned_ids), Task.creator_id != current_user.id).order_by(Task.created_at.desc()).all() if my_assigned_ids else []
+                        template_data = {
+                            'rejected_tasks': rejected_tasks,
+                            'preview': preview_data, 'users': users,
+                            'my_tasks': my_tasks,
+                            'other_assigned': other_assigned,
+                            'TaskAssignment': TaskAssignment,
+                            'now': datetime.now(),
+                            'is_admin': current_user.role == 'admin',
+                            'user_groups': user_groups,
+                            'duplicate_tasks': similar,
+                        }
+                        if current_user.role == 'admin':
+                            template_data['all_tasks'] = Task.query.order_by(Task.created_at.desc()).all()
+                        return render_template('tasks.html', **template_data)
                 created_titles = []
                 for i in range(total):
                     offset = timedelta(days=recurrence_interval_days * i)
@@ -1302,8 +1591,14 @@ def user_tasks():
                                                 f'你收到一个新任务：「{t_title}」', task.id)
                     else:
                         uid_set = set(int(x) for x in assignee_ids) if assignee_ids else set()
-                        if current_user.role != 'admin' or current_user.id in uid_set:
-                            uid_set.add(current_user.id)
+                        if group_ids:
+                            selected_groups = Group.query.filter(Group.id.in_([int(gid) for gid in group_ids])).all()
+                            for g in selected_groups:
+                                for m in g.members:
+                                    if not m.is_disabled:
+                                        uid_set.add(m.id)
+                                task.groups.append(g)
+                        uid_set.add(current_user.id)
                         for uid in uid_set:
                             db.session.add(TaskAssignment(task_id=task.id, user_id=uid))
                             create_notification(uid, 'task_assigned',
@@ -1336,6 +1631,7 @@ def user_tasks():
                 'TaskAssignment': TaskAssignment,
                 'now': datetime.now(),
                 'is_admin': is_admin_user,
+                'user_groups': user_groups,
             }
             # tasks assigned to me by others
             my_assigned_ids = {a.task_id for a in TaskAssignment.query.filter_by(user_id=current_user.id).all()}
@@ -1369,6 +1665,7 @@ def user_tasks():
         'TaskAssignment': TaskAssignment,
         'now': datetime.now(),
         'is_admin': is_admin_user,
+        'user_groups': user_groups,
     }
     if is_admin_user:
         tasks = Task.query.order_by(Task.created_at.desc()).all()
@@ -1497,6 +1794,23 @@ def user_update_assign_progress(assignment_id):
         assignment.progress = progress
     if note:
         assignment.note = note
+    file_saved = False
+    if 'file' in request.files:
+        f = request.files['file']
+        if f and f.filename and f.filename.strip():
+            if allowed_file(f.filename):
+                original = secure_filename(f.filename)
+                if not original or '.' not in original:
+                    ext = f.filename.rsplit('.', 1)[-1].lower() if '.' in f.filename else 'png'
+                    original = f"upload_{int(datetime.now().timestamp())}.{ext}"
+                filename = f"{current_user.id}_{assignment.id}_{original}"
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+                f.save(filepath)
+                assignment.attachment = filename
+                file_saved = True
+            else:
+                flash('不支持的文件类型', 'danger')
     if progress == 100 and assignment.status == 'pending':
         assignment.status = 'completed'
         assignment.completed_at = datetime.now()
@@ -1555,6 +1869,7 @@ def admin_clear_data():
     Notification.query.delete()
     TaskAssignment.query.delete()
     Task.query.delete()
+    Group.query.delete()
     demo_users = User.query.filter(
         User.username.in_(['guest', 'zhangsan', 'lisi', 'wangwu', 'zhaoliu', 'sunqi'])
     ).all()

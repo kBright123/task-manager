@@ -47,6 +47,19 @@ def inject_globals():
     return {'now': datetime.now, 'timedelta': timedelta, 'VERSION': VERSION}
 
 
+import markupsafe
+
+_url_re = re.compile(r'(https?://[^\s<>"\')\]，。、！？）]+)')
+
+@app.template_filter('linkify')
+def linkify_filter(text):
+    if not text:
+        return text
+    escaped = markupsafe.escape(text)
+    linked = _url_re.sub(r'<a href="\1" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:underline;">\1</a>', str(escaped))
+    return markupsafe.Markup(linked)
+
+
 class User(UserMixin, db.Model):
     __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
@@ -1478,6 +1491,40 @@ def api_group_members():
     result = [{'id': u.id, 'name': u.name or u.username, 'username': u.username}
               for u in members]
     return jsonify(result)
+
+
+@app.route('/api/search-tasks')
+@login_required
+def api_search_tasks():
+    q = request.args.get('q', '').strip()
+    category = request.args.get('category', '').strip()
+    filters = [TaskAssignment.user_id == current_user.id]
+    if q:
+        pattern = f'%{q}%'
+        filters.append(db.or_(
+            Task.title.like(pattern),
+            Task.description.like(pattern),
+            TaskAssignment.note.like(pattern)
+        ))
+    if category:
+        filters.append(Task.category == category)
+    assignments = TaskAssignment.query.join(Task).filter(
+        *filters
+    ).order_by(Task.end_time.desc()).limit(20).all()
+    results = []
+    for a in assignments:
+        results.append({
+            'task_id': a.task.id,
+            'title': a.task.title,
+            'description': a.task.description or '',
+            'category': a.task.category,
+            'status': a.status,
+            'progress': a.progress,
+            'start_time': a.task.start_time.strftime('%Y-%m-%d %H:%M'),
+            'end_time': a.task.end_time.strftime('%Y-%m-%d %H:%M'),
+            'detail_url': url_for('user_task_detail', task_id=a.task.id),
+        })
+    return jsonify(results)
 
 
 @app.route('/user/tasks', methods=['GET', 'POST'])

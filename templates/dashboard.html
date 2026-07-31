@@ -101,6 +101,9 @@
     <option value="工作">工作</option>
     <option value="个人">个人</option>
   </select>
+  <button class="btn btn-sm btn-outline-primary" style="white-space:nowrap;font-size:.85rem;padding:6px 14px;border-radius:var(--radius-sm);" onclick="openSummaryModal()">
+    <i class="bi bi-file-earmark-text"></i> 总结报告
+  </button>
 </div>
 
 <div class="row g-4">
@@ -320,7 +323,116 @@ function closeTaskDrawer() {
   document.getElementById('drawerOverlay').classList.add('d-none');
 }
 </script>
+
+<!-- Summary Modal -->
+<div class="modal fade" id="summaryModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content" style="border-radius:var(--radius);border:none;box-shadow:var(--shadow-lg);">
+      <div class="modal-header" style="border-bottom:1px solid var(--gray-100);padding:14px 20px;">
+        <h5 class="modal-title" style="font-size:.95rem;font-weight:600;"><i class="bi bi-file-earmark-text" style="color:var(--primary);"></i> 总结报告</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" style="padding:16px 20px;">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <div class="d-flex align-items-center gap-2">
+            <div class="btn-group btn-group-sm" role="group">
+              <input type="radio" class="btn-check" name="summaryPeriod" id="periodMonth" value="month" checked onchange="changeSummaryPeriod()">
+              <label class="btn btn-outline-primary" for="periodMonth" style="font-size:.8rem;padding:4px 12px;">月度</label>
+              <input type="radio" class="btn-check" name="summaryPeriod" id="periodYear" value="year" onchange="changeSummaryPeriod()">
+              <label class="btn btn-outline-primary" for="periodYear" style="font-size:.8rem;padding:4px 12px;">年度</label>
+            </div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-secondary" style="padding:2px 8px;font-size:.85rem;border:none;" onclick="summaryNavigate(-1)"><i class="bi bi-chevron-left"></i></button>
+            <span id="summaryDateLabel" style="font-size:.88rem;font-weight:600;min-width:100px;text-align:center;"></span>
+            <button class="btn btn-sm btn-outline-secondary" style="padding:2px 8px;font-size:.85rem;border:none;" onclick="summaryNavigate(1)"><i class="bi bi-chevron-right"></i></button>
+          </div>
+        </div>
+        <div id="summaryStats" class="d-flex gap-2 mb-3 flex-wrap"></div>
+        <div id="summaryContent" style="white-space:pre-wrap;font-size:.85rem;line-height:1.7;color:var(--gray-700);background:var(--gray-50);border-radius:var(--radius-sm);padding:16px 20px;max-height:50vh;overflow-y:auto;"></div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid var(--gray-100);padding:10px 20px;">
+        <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal" style="font-size:.82rem;">关闭</button>
+        <button class="btn btn-sm btn-primary" onclick="copySummaryText()" style="font-size:.82rem;"><i class="bi bi-clipboard"></i> 复制报告</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% block extra_js %}
+<script>
+var _summaryDate = '';
+var _summaryPeriod = 'month';
+
+function openSummaryModal() {
+  var now = new Date();
+  _summaryPeriod = 'month';
+  document.getElementById('periodMonth').checked = true;
+  _summaryDate = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  loadSummary();
+  new bootstrap.Modal(document.getElementById('summaryModal')).show();
+}
+
+function changeSummaryPeriod() {
+  _summaryPeriod = document.querySelector('input[name="summaryPeriod"]:checked').value;
+  var now = new Date();
+  if (_summaryPeriod === 'year') {
+    _summaryDate = String(now.getFullYear());
+  } else {
+    _summaryDate = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  }
+  loadSummary();
+}
+
+function summaryNavigate(dir) {
+  if (_summaryPeriod === 'year') {
+    var y = parseInt(_summaryDate) + dir;
+    _summaryDate = String(y);
+  } else {
+    var parts = _summaryDate.split('-');
+    var y = parseInt(parts[0]), m = parseInt(parts[1]) + dir;
+    if (m > 12) { m = 1; y++; }
+    if (m < 1) { m = 12; y--; }
+    _summaryDate = y + '-' + String(m).padStart(2, '0');
+  }
+  loadSummary();
+}
+
+function loadSummary() {
+  var label = _summaryPeriod === 'year' ? _summaryDate + '年' : _summaryDate.replace('-', '年') + '月';
+  document.getElementById('summaryDateLabel').textContent = label;
+  document.getElementById('summaryContent').innerHTML = '<div class="text-center py-3" style="color:var(--gray-400);"><i class="bi bi-hourglass-split"></i> 加载中...</div>';
+  document.getElementById('summaryStats').innerHTML = '';
+  fetch('/api/summary?period=' + _summaryPeriod + '&date=' + encodeURIComponent(_summaryDate))
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.total === 0) {
+        document.getElementById('summaryContent').textContent = d.text;
+        document.getElementById('summaryStats').innerHTML = '';
+        return;
+      }
+      var statsHtml =
+        '<div class="flex-grow-1 text-center py-2 rounded" style="background:#e0f2fe;min-width:70px;"><div style="font-size:1.1rem;font-weight:700;color:#0c4a6e;">' + d.total + '</div><div style="font-size:.65rem;color:#0284c7;">总任务</div></div>' +
+        '<div class="flex-grow-1 text-center py-2 rounded" style="background:#d1fae5;min-width:70px;"><div style="font-size:1.1rem;font-weight:700;color:#064e3b;">' + d.completed + '</div><div style="font-size:.65rem;color:#059669;">已完成</div></div>' +
+        '<div class="flex-grow-1 text-center py-2 rounded" style="background:#eef2ff;min-width:70px;"><div style="font-size:1.1rem;font-weight:700;color:var(--primary);">' + d.rate + '%</div><div style="font-size:.65rem;color:var(--primary);">完成率</div></div>' +
+        '<div class="flex-grow-1 text-center py-2 rounded" style="background:#fef3c7;min-width:70px;"><div style="font-size:1.1rem;font-weight:700;color:#78350f;">' + d.avg_progress + '%</div><div style="font-size:.65rem;color:#d97706;">平均进度</div></div>';
+      document.getElementById('summaryStats').innerHTML = statsHtml;
+      document.getElementById('summaryContent').textContent = d.text;
+    });
+}
+
+function copySummaryText() {
+  var text = document.getElementById('summaryContent').textContent;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(function() {
+      var btn = event.target.closest('button');
+      var orig = btn.innerHTML;
+      btn.innerHTML = '<i class="bi bi-check-lg"></i> 已复制';
+      setTimeout(function() { btn.innerHTML = orig; }, 1500);
+    });
+  }
+}
+</script>
 <script>
 var _searchTimer = null;
 function debounceSearch() {

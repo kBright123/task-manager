@@ -31,6 +31,11 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
+from kb import kb_bp
+from kb.models import (KbDocument, KbEntity, KbPage, KbTriple,
+                       enable_sqlite_wal)
+app.register_blueprint(kb_bp)
+
 
 @app.context_processor
 def inject_globals():
@@ -205,6 +210,7 @@ def init_db():
         print(f'Migration note: {e}')
 
     db.create_all()
+    enable_sqlite_wal()
     if not User.query.filter_by(username='bright').first():
         admin = User(username='bright', role='admin')
         admin.set_password('Bright@wangzhan')
@@ -1525,6 +1531,142 @@ def api_search_tasks():
             'detail_url': url_for('user_task_detail', task_id=a.task.id),
         })
     return jsonify(results)
+
+
+@app.route('/api/summary')
+@login_required
+def api_summary():
+    period = request.args.get('period', 'month')
+    date_str = request.args.get('date', '')
+    now = datetime.now()
+
+    if period == 'year':
+        if date_str:
+            year = int(date_str)
+        else:
+            year = now.year
+        start = datetime(year, 1, 1)
+        end = datetime(year, 12, 31, 23, 59, 59)
+        label = f'{year}年'
+    else:
+        if date_str and '-' in date_str:
+            parts = date_str.split('-')
+            year, month = int(parts[0]), int(parts[1])
+        else:
+            year, month = now.year, now.month
+        start = datetime(year, month, 1)
+        if month == 12:
+            end = datetime(year + 1, 1, 1) - timedelta(seconds=1)
+        else:
+            end = datetime(year, month + 1, 1) - timedelta(seconds=1)
+        label = f'{year}年{month}月'
+
+    assignments = TaskAssignment.query.join(Task).filter(
+        TaskAssignment.user_id == current_user.id,
+        Task.end_time >= start,
+        Task.end_time <= end
+    ).all()
+
+    if not assignments:
+        return jsonify({
+            'period': period, 'date': date_str, 'label': label,
+            'text': f'{label}暂无分配任务记录。',
+            'total': 0, 'completed': 0, 'pending': 0,
+            'abandoned': 0, 'rejected': 0, 'rate': 0, 'avg_progress': 0,
+        })
+
+    total = len(assignments)
+    completed = [a for a in assignments if a.status in ('completed', 'approved')]
+    pending = [a for a in assignments if a.status == 'pending']
+    abandoned = [a for a in assignments if a.status == 'abandoned']
+    rejected = [a for a in assignments if a.status == 'rejected']
+    rate = round(len(completed) / total * 100, 1) if total else 0
+    avg_progress = round(sum(a.progress for a in assignments) / total) if total else 0
+
+    work_tasks = [a for a in assignments if a.task.category == '工作']
+    personal_tasks = [a for a in assignments if a.task.category == '个人']
+
+    def task_line(a):
+        status_map = {
+            'pending': '进行中', 'completed': '已完成',
+            'approved': '已确认', 'rejected': '已驳回', 'abandoned': '已废弃'
+        }
+        s = status_map.get(a.status, a.status)
+        desc_hint = ''
+        if a.task.description and a.task.description != a.task.title:
+            brief = a.task.description[:60].replace('\n', ' ')
+            if len(a.task.description) > 60:
+                brief += '…'
+            desc_hint = f'（{brief}）'
+        line = f'- {a.task.title}{desc_hint}，{s}'
+        if a.status == 'pending' and a.progress > 0:
+            line += f'，进度{a.progress}%'
+        if a.note:
+            note_brief = a.note[:40].replace('\n', ' ')
+            if len(a.note) > 40:
+                note_brief += '…'
+            line += f'，备注：{note_brief}'
+        return line
+
+    lines = [f'{label}工作总结', '']
+
+    lines.append(f'本期共分配任务{total}项，已完成{len(completed)}项，完成率{rate}%，平均进度{avg_progress}%。')
+    lines.append('')
+
+    overdue_in_period = [a for a in pending if a.task.end_time < now]
+    if overdue_in_period:
+        lines.append(f'当前仍有{len(overdue_in_period)}项任务逾期未完成。')
+        lines.append('')
+
+    if work_tasks:
+        work_done = len([a for a in work_tasks if a.status in ('completed', 'approved')])
+        lines.append(f'【工作类】共{len(work_tasks)}项，已完成{work_done}项。')
+        for a in sorted(work_tasks, key=lambda x: x.task.end_time):
+            lines.append(task_line(a))
+        lines.append('')
+
+    if personal_tasks:
+        personal_done = len([a for a in personal_tasks if a.status in ('completed', 'approved')])
+        lines.append(f'【个人类】共{len(personal_tasks)}项，已完成{personal_done}项。')
+        for a in sorted(personal_tasks, key=lambda x: x.task.end_time):
+            lines.append(task_line(a))
+        lines.append('')
+
+    if rejected:
+        lines.append(f'【驳回任务】{len(rejected)}项。')
+        for a in rejected:
+            reason = f'，原因：{a.rejection_reason}' if a.rejection_reason else ''
+            lines.append(f'- {a.task.title}{reason}')
+        lines.append('')
+
+    if abandoned:
+        lines.append(f'【废弃任务】{len(abandoned)}项。')
+        for a in abandoned:
+            lines.append(f'- {a.task.title}')
+        lines.append('')
+
+    next_period_date = ''
+    if period == 'year':
+        next_period_date = f'{year + 1}'
+        prev_period_date = f'{year - 1}'
+    else:
+        nm, ny = month + 1, year
+        if nm > 12:
+            nm, ny = 1, year + 1
+        pm, py = month - 1, year
+        if pm < 1:
+            pm, py = 12, year - 1
+        next_period_date = f'{ny}-{nm:02d}'
+        prev_period_date = f'{py}-{pm:02d}'
+
+    return jsonify({
+        'period': period, 'date': date_str, 'label': label,
+        'text': '\n'.join(lines),
+        'total': total, 'completed': len(completed), 'pending': len(pending),
+        'abandoned': len(abandoned), 'rejected': len(rejected),
+        'rate': rate, 'avg_progress': avg_progress,
+        'next_date': next_period_date, 'prev_date': prev_period_date,
+    })
 
 
 @app.route('/user/tasks', methods=['GET', 'POST'])

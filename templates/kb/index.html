@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}知识库 - TaskFlow{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 style="font-weight:700;color:var(--gray-900);margin:0;">知识库</h4>
+  <form method="POST" action="{{ url_for('kb.upload') }}" enctype="multipart/form-data"
+        class="d-flex gap-2 align-items-center">
+    <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg,.bmp,.tif,.tiff,.webp"
+           class="form-control form-control-sm" style="max-width:280px;" required>
+    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-cloud-upload"></i> 上传识别</button>
+  </form>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="stat-card" style="background:var(--primary);" onclick="location.href='{{ url_for('kb.index') }}'">
+      <div class="stat-icon"><i class="bi bi-file-earmark-text"></i></div>
+      <div class="stat-num">{{ docs|length }}</div>
+      <div class="stat-label">文档</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card" style="background:#10b981;" onclick="location.href='{{ url_for('kb.search') }}'">
+      <div class="stat-icon"><i class="bi bi-fonts"></i></div>
+      <div class="stat-num">{{ "{:,}".format(total_pages) }}</div>
+      <div class="stat-label">识别字符</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card" style="background:#f59e0b;" onclick="location.href='{{ url_for('kb.search') }}'">
+      <div class="stat-icon"><i class="bi bi-diagram-3"></i></div>
+      <div class="stat-num">{{ triple_count }}</div>
+      <div class="stat-label">三元组</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card" style="background:#8b5cf6;" onclick="location.href='{{ url_for('kb.search') }}'">
+      <div class="stat-icon"><i class="bi bi-tags"></i></div>
+      <div class="stat-num">{{ entity_count }}</div>
+      <div class="stat-label">实体</div>
+    </div>
+  </div>
+</div>
+
+<div class="d-flex gap-2 mb-3">
+  <form method="GET" action="{{ url_for('kb.search') }}" class="d-flex flex-grow-1 gap-2">
+    <input type="text" name="q" class="form-control" placeholder="搜索知识库内容..." value="">
+    <button class="btn btn-primary"><i class="bi bi-search"></i></button>
+  </form>
+  <a href="{{ url_for('kb.ask') }}" class="btn btn-outline-primary">
+    <i class="bi bi-chat-dots"></i> 智能问答
+  </a>
+</div>
+
+<div class="card">
+  <div class="card-header"><i class="bi bi-collection"></i> 文档列表</div>
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>标题</th>
+          <th>类型</th>
+          <th>页数</th>
+          <th>状态</th>
+          <th>上传时间</th>
+          <th style="width:110px;">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for doc in docs %}
+        <tr>
+          <td>
+            <a href="{{ url_for('kb.doc_detail', doc_id=doc.id) }}" style="color:var(--gray-800);text-decoration:none;font-weight:500;">
+              {{ doc.title }}
+            </a>
+          </td>
+          <td><span class="badge badge-low">{{ doc.file_type|upper }}</span></td>
+          <td>{{ doc.page_count if doc.page_count else '-' }}</td>
+          <td>
+            <span class="status-badge status-{{ doc.status }}" data-status="{{ doc.id }}">
+              {% if doc.status == 'queued' %}等待识别
+              {% elif doc.status == 'ocr' %}OCR 中
+              {% elif doc.status == 'embedding' %}向量化中
+              {% elif doc.status == 'graphing' %}图谱抽取中
+              {% elif doc.status == 'done' %}已完成
+              {% elif doc.status == 'failed' %}失败
+              {% endif %}
+            </span>
+            {% if doc.error %}<small class="text-muted d-block">{{ doc.error[:60] }}</small>{% endif %}
+          </td>
+          <td><small class="text-muted">{{ doc.created_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
+          <td>
+            <a href="{{ url_for('kb.doc_detail', doc_id=doc.id) }}" class="btn btn-xs-custom btn-outline-primary">查看</a>
+            <form method="POST" action="{{ url_for('kb.doc_delete', doc_id=doc.id) }}" style="display:inline;"
+                  onsubmit="return confirm('确认删除该文档及其图谱数据?')">
+              <button class="btn btn-xs-custom btn-outline-danger"><i class="bi bi-trash"></i></button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center py-4 text-muted">暂无文档,上传 PDF 或图片开始建立知识库</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function pollStatus() {
+  var badges = document.querySelectorAll('.status-badge[data-status]');
+  var pending = [];
+  badges.forEach(function (b) {
+    var s = b.className;
+    if (!/status-(done|failed)/.test(s)) pending.push(b.getAttribute('data-status'));
+  });
+  if (!pending.length) return;
+  var done = 0;
+  pending.forEach(function (id) {
+    fetch('/kb/status/' + id).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.ok) return;
+      var map = {queued: '等待识别', ocr: 'OCR 中', embedding: '向量化中', graphing: '图谱抽取中', done: '已完成', failed: '失败'};
+      var badge = document.querySelector('.status-badge[data-status="' + id + '"]');
+      if (!badge) return;
+      badge.className = 'status-badge status-' + d.status;
+      badge.textContent = map[d.status] || d.status;
+      done++;
+      if (done === pending.length) setTimeout(pollStatus, 3000);
+    }).catch(function () { done++; if (done === pending.length) setTimeout(pollStatus, 3000); });
+  });
+})();
+</script>
+{% endblock %}

@@ -2,16 +2,29 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+ENV PYTHONUNBUFFERED=1 \
+    HF_ENDPOINT=https://hf-mirror.com \
+    HF_HUB_DISABLE_XET=1 \
+    HF_HOME=/app/hf_cache
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libglib2.0-0 \
+    libgl1 \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+    && python -c "from fastembed import TextEmbedding; TextEmbedding(model_name='BAAI/bge-small-zh-v1.5')"
 
 COPY . .
 
-RUN mkdir -p /app/instance /app/static/uploads && \
+RUN mkdir -p /app/instance/kb_data /app/static/uploads && \
     addgroup --system appuser && \
-    adduser --system --ingroup appuser appuser
+    adduser --system --ingroup appuser appuser && \
+    chown -R appuser:appuser /app/instance /app/static/uploads /app/hf_cache
 
 EXPOSE 5000
 USER appuser
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "120", "app:app"]
+ENTRYPOINT ["bash", "/app/entrypoint.sh"]

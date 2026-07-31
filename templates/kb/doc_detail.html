@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.title }} - 知识库{% endblock %}
+{% block content %}
+<nav class="mb-3">
+  <a href="{{ url_for('kb.index') }}" style="color:var(--primary);text-decoration:none;">
+    <i class="bi bi-arrow-left"></i> 返回知识库
+  </a>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h4 style="font-weight:700;color:var(--gray-900);margin:0;">{{ doc.title }}</h4>
+    <small class="text-muted">{{ doc.filename }} · {{ doc.file_type|upper }} ·
+      {{ "{:,}".format(doc.file_size) }} 字节 · 上传于 {{ doc.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+  </div>
+  <div class="d-flex gap-2">
+    <form method="POST" action="{{ url_for('kb.doc_reprocess', doc_id=doc.id) }}">
+      <button class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-repeat"></i> 重新识别</button>
+    </form>
+    <form method="POST" action="{{ url_for('kb.doc_delete', doc_id=doc.id) }}"
+          onsubmit="return confirm('确认删除该文档及其图谱数据?')">
+      <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i> 删除</button>
+    </form>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-fonts"></i> 识别文本 ({{ pages|length }} 页)</div>
+      <div class="card-body" style="max-height:600px;overflow-y:auto;">
+        {% for page in pages %}
+        <div class="mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="badge badge-medium">第 {{ page.page_no }} 页</span>
+            <small class="text-muted">{{ "{:,}".format(page.char_count) }} 字符</small>
+          </div>
+          <pre style="white-space:pre-wrap;font-family:var(--font);font-size:.85rem;background:var(--gray-50);
+                     border-radius:var(--radius-sm);padding:12px;color:var(--gray-700);">{{ page.text }}</pre>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-4">
+          {% if doc.status == 'done' %}该文档未识别出文本{% else %}文档正在识别中...{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-diagram-3"></i> 三元组 ({{ triples|length }})</div>
+      <div class="table-responsive" style="max-height:400px;overflow-y:auto;">
+        <table class="table table-sm">
+          <tbody>
+            {% for t in triples %}
+            <tr>
+              <td class="text-end"><span class="badge badge-medium">{{ t.head_type }}</span> <strong>{{ t.head }}</strong></td>
+              <td style="color:var(--gray-400);">--{{ t.rel }}--</td>
+              <td><strong>{{ t.tail }}</strong> <span class="badge badge-low">{{ t.tail_type }}</span></td>
+            </tr>
+            {% else %}
+            <tr><td class="text-center text-muted py-3">暂无三元组</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><i class="bi bi-tags"></i> 实体 ({{ entities|length }})</div>
+      <div class="card-body">
+        {% for e in entities %}
+        <span class="badge" style="background:var(--primary-light);color:var(--primary);margin:2px;">
+          {{ e.node_type }} · {{ e.name }}
+        </span>
+        {% else %}
+        <div class="text-muted text-center py-2">暂无实体</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+{% if doc.status not in ('done', 'failed') %}
+<script>
+(function poll() {
+  fetch('/kb/status/{{ doc.id }}').then(function (r) { return r.json(); }).then(function (d) {
+    if (d.ok && (d.status === 'done' || d.status === 'failed')) { location.reload(); }
+    else { setTimeout(poll, 3000); }
+  }).catch(function () { setTimeout(poll, 5000); });
+})();
+</script>
+{% endif %}
+{% endblock %}

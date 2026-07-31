@@ -24,7 +24,7 @@ fi
 echo "[entrypoint] sochdb-server ready"
 
 echo "[entrypoint] starting kb_worker"
-python -m kb.worker &
+python knowledge.py &
 WORKER_PID=$!
 
 cleanup() {

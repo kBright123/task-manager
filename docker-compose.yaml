@@ -6,6 +6,8 @@ services:
       - "5000:5000"
     volumes:
       - ./app.py:/app/app.py
+      - ./knowledge.py:/app/knowledge.py
+      - ./entrypoint.sh:/app/entrypoint.sh
       - ./templates:/app/templates
       - ./static:/app/static
       - task-data:/app/instance
@@ -13,6 +15,9 @@ services:
     restart: unless-stopped
     environment:
       - TZ=Asia/Shanghai
+      - KB_OPENCODE_BASE_URL=http://host.docker.internal:4096
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - vscode_vscode_default
 

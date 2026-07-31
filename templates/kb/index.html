@@ -1,111 +1,303 @@
 {% extends "base.html" %}
-{% block title %}知识库 - TaskFlow{% endblock %}
+{% block title %}文档管理 - 知识库{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h4 style="font-weight:700;color:var(--gray-900);margin:0;">知识库</h4>
-  <form method="POST" action="{{ url_for('kb.upload') }}" enctype="multipart/form-data"
-        class="d-flex gap-2 align-items-center">
-    <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg,.bmp,.tif,.tiff,.webp"
-           class="form-control form-control-sm" style="max-width:280px;" required>
-    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-cloud-upload"></i> 上传识别</button>
-  </form>
-</div>
-
 <div class="row g-3 mb-3">
-  <div class="col-6 col-md-3">
-    <div class="stat-card" style="background:var(--primary);" onclick="location.href='{{ url_for('kb.index') }}'">
-      <div class="stat-icon"><i class="bi bi-file-earmark-text"></i></div>
-      <div class="stat-num">{{ docs|length }}</div>
-      <div class="stat-label">文档</div>
-    </div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="stat-card" style="background:#10b981;" onclick="location.href='{{ url_for('kb.search') }}'">
-      <div class="stat-icon"><i class="bi bi-fonts"></i></div>
-      <div class="stat-num">{{ "{:,}".format(total_pages) }}</div>
-      <div class="stat-label">识别字符</div>
-    </div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="stat-card" style="background:#f59e0b;" onclick="location.href='{{ url_for('kb.search') }}'">
-      <div class="stat-icon"><i class="bi bi-diagram-3"></i></div>
-      <div class="stat-num">{{ triple_count }}</div>
-      <div class="stat-label">三元组</div>
-    </div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="stat-card" style="background:#8b5cf6;" onclick="location.href='{{ url_for('kb.search') }}'">
-      <div class="stat-icon"><i class="bi bi-tags"></i></div>
-      <div class="stat-num">{{ entity_count }}</div>
-      <div class="stat-label">实体</div>
-    </div>
-  </div>
-</div>
-
-<div class="d-flex gap-2 mb-3">
-  <form method="GET" action="{{ url_for('kb.search') }}" class="d-flex flex-grow-1 gap-2">
-    <input type="text" name="q" class="form-control" placeholder="搜索知识库内容..." value="">
-    <button class="btn btn-primary"><i class="bi bi-search"></i></button>
-  </form>
-  <a href="{{ url_for('kb.ask') }}" class="btn btn-outline-primary">
-    <i class="bi bi-chat-dots"></i> 智能问答
-  </a>
-</div>
-
-<div class="card">
-  <div class="card-header"><i class="bi bi-collection"></i> 文档列表</div>
-  <div class="table-responsive">
-    <table class="table table-hover">
-      <thead>
-        <tr>
-          <th>标题</th>
-          <th>类型</th>
-          <th>页数</th>
-          <th>状态</th>
-          <th>上传时间</th>
-          <th style="width:110px;">操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for doc in docs %}
-        <tr>
-          <td>
-            <a href="{{ url_for('kb.doc_detail', doc_id=doc.id) }}" style="color:var(--gray-800);text-decoration:none;font-weight:500;">
-              {{ doc.title }}
-            </a>
-          </td>
-          <td><span class="badge badge-low">{{ doc.file_type|upper }}</span></td>
-          <td>{{ doc.page_count if doc.page_count else '-' }}</td>
-          <td>
-            <span class="status-badge status-{{ doc.status }}" data-status="{{ doc.id }}">
-              {% if doc.status == 'queued' %}等待识别
-              {% elif doc.status == 'ocr' %}OCR 中
-              {% elif doc.status == 'embedding' %}向量化中
-              {% elif doc.status == 'graphing' %}图谱抽取中
-              {% elif doc.status == 'done' %}已完成
-              {% elif doc.status == 'failed' %}失败
-              {% endif %}
-            </span>
-            {% if doc.error %}<small class="text-muted d-block">{{ doc.error[:60] }}</small>{% endif %}
-          </td>
-          <td><small class="text-muted">{{ doc.created_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
-          <td>
-            <a href="{{ url_for('kb.doc_detail', doc_id=doc.id) }}" class="btn btn-xs-custom btn-outline-primary">查看</a>
-            <form method="POST" action="{{ url_for('kb.doc_delete', doc_id=doc.id) }}" style="display:inline;"
-                  onsubmit="return confirm('确认删除该文档及其图谱数据?')">
-              <button class="btn btn-xs-custom btn-outline-danger"><i class="bi bi-trash"></i></button>
-            </form>
-          </td>
-        </tr>
-        {% else %}
-        <tr><td colspan="6" class="text-center py-4 text-muted">暂无文档,上传 PDF 或图片开始建立知识库</td></tr>
+  <div class="col-12 col-lg-3">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-folder2-open"></i> 集合</span>
+        <button class="btn btn-xs-custom btn-outline-primary" onclick="showCollectionModal()">
+          <i class="bi bi-plus"></i> 新建
+        </button>
+      </div>
+      <div class="card-body py-2">
+        <a href="{{ url_for('kb.index') }}"
+           class="d-flex justify-content-between align-items-center px-2 py-2 text-decoration-none rounded"
+           style="color:{% if not active_collection %}var(--primary);background:var(--primary-light);font-weight:600{% else %}var(--gray-600){% endif %}">
+          <span><i class="bi bi-archive"></i> 全部文档</span>
+          <span class="badge badge-low">{{ pagination.total if not active_collection else '' }}</span>
+        </a>
+        {% for c in collections %}
+        <div class="d-flex justify-content-between align-items-center px-2 py-2 rounded"
+             style="{% if active_collection == c.id %}background:var(--primary-light);{% endif %}">
+          <a href="{{ url_for('kb.index', collection=c.id) }}"
+             class="d-flex align-items-center gap-2 text-decoration-none flex-grow-1"
+             style="color:{% if active_collection == c.id %}var(--primary);font-weight:600{% else %}var(--gray-600){% endif %}">
+            <span style="width:10px;height:10px;border-radius:50%;background:{{ c.color }};flex-shrink:0;"></span>
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ c.name }}</span>
+            <span class="badge badge-low">{{ c.documents|length }}</span>
+          </a>
+          <div class="dropdown">
+            <button class="btn btn-xs-custom" data-bs-toggle="dropdown"
+                    style="background:transparent;border:none;color:var(--gray-400);padding:2px 6px;">
+              <i class="bi bi-three-dots-vertical"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><a class="dropdown-item" href="#" onclick="showCollectionModal({{ c.id }}, {{ c.name|tojson }}, {{ c.color|tojson }});return false;">
+                <i class="bi bi-pencil"></i> 重命名</a></li>
+              <li><a class="dropdown-item text-danger" href="#" onclick="deleteCollection({{ c.id }}, {{ c.name|tojson }});return false;">
+                <i class="bi bi-trash"></i> 删除</a></li>
+            </ul>
+          </div>
+        </div>
         {% endfor %}
-      </tbody>
-    </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-lg-9">
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-cloud-upload"></i> 上传文档</span>
+        <a href="{{ url_for('kb.workbench') }}" class="btn btn-primary btn-sm">
+          <i class="bi bi-collection"></i> 进入工作台
+        </a>
+      </div>
+      <div class="card-body py-3">
+        <div id="dropZone" style="border:2px dashed var(--gray-300);background:var(--gray-50);cursor:pointer;transition:all .15s;border-radius:var(--radius-sm);padding:8px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <i class="bi bi-cloud-arrow-up" style="font-size:1.1rem;color:var(--primary);flex-shrink:0;"></i>
+          <span style="font-weight:600;color:var(--gray-700);font-size:.85rem;white-space:nowrap;">拖拽文件到此处,或点击选择文件</span>
+          <small class="text-muted ms-auto" style="font-size:.72rem;">支持 PDF / 图片 / Markdown(.md) / 文本(.txt),可多选</small>
+        </div>
+        <input type="file" id="dropFileInput" accept=".pdf,.png,.jpg,.jpeg,.bmp,.tif,.tiff,.webp,.txt,.md,.markdown" multiple style="display:none;">
+        <div class="mt-3 pt-3 border-top d-none" id="queueCard">
+          <div class="d-flex align-items-center gap-3 mb-2">
+            <span class="spinner-border spinner-border-sm text-primary" style="width:1rem;height:1rem;"></span>
+            <span style="font-weight:600;" id="queueSummary">已完成 0/0 文件</span>
+            <div class="flex-grow-1"><div class="progress-custom"><div class="progress-custom-bar" id="queueProgress" style="width:0%;background:var(--primary);"></div></div></div>
+          </div>
+          <div class="text-muted" style="font-size:.78rem;" id="queueDetail">等待识别 0 · OCR 中 0 · 向量化中 0 · 图谱抽取中 0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="bi bi-collection"></i> 文档列表
+          {% if active_collection %}<span class="text-muted">— {{ (collections|selectattr('id','equalto',active_collection)|first).name if collections|selectattr('id','equalto',active_collection)|first else '' }}</span>{% endif %}
+          {% if q %}<span class="text-muted">— 搜索「{{ q }}」</span>{% endif %}
+        </span>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+          <form method="GET" action="{{ url_for('kb.index') }}" class="d-flex gap-1 align-items-center" style="position:relative;">
+            {% if active_collection %}<input type="hidden" name="collection" value="{{ active_collection }}">{% endif %}
+            <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="搜索文档标题..." style="width:200px;">
+            <button class="btn btn-xs-custom btn-outline-primary" type="submit"><i class="bi bi-search"></i></button>
+            {% if q %}<a href="{{ url_for('kb.index', collection=active_collection or None) }}" class="btn btn-xs-custom btn-outline-secondary" title="清除搜索"><i class="bi bi-x-lg"></i></a>{% endif %}
+          </form>
+          <a href="{{ url_for('kb.export_all') }}" class="btn btn-xs-custom btn-outline-primary"><i class="bi bi-download"></i> 全部导出</a>
+          <a href="{{ url_for('kb.export_graph') }}" class="btn btn-xs-custom btn-outline-primary"><i class="bi bi-diagram-3"></i> 图谱导出</a>
+        </div>
+      </div>
+      <div class="card-body py-2 d-none align-items-center gap-2 flex-wrap" id="bulkBar" style="border-bottom:1px solid var(--gray-100);">
+        <span style="font-weight:600;font-size:.85rem;" id="bulkCount">已选 0 项</span>
+        <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkAssign()"><i class="bi bi-folder-plus"></i> 移动到集合</button>
+        <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkExport()"><i class="bi bi-download"></i> 导出选中</button>
+        <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkExportTxt()"><i class="bi bi-filetype-txt"></i> 导出识别结果</button>
+        <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkReprocess()"><i class="bi bi-arrow-repeat"></i> 重新识别</button>
+        <button class="btn btn-xs-custom btn-outline-danger" onclick="bulkDelete()"><i class="bi bi-trash"></i> 删除选中</button>
+        <button class="btn btn-xs-custom" style="background:transparent;border:none;color:var(--gray-400);" onclick="toggleAll(false)">取消</button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th style="width:34px;"><input type="checkbox" id="checkAll" onchange="toggleAll(this.checked)"></th>
+              <th>文档</th>
+              <th style="width:90px;">类型</th>
+              <th style="width:70px;">页数</th>
+              <th style="width:120px;">状态</th>
+              <th style="width:130px;">上传时间</th>
+              <th style="width:230px;">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for doc in docs %}
+            <tr data-doc-id="{{ doc.id }}">
+              <td><input type="checkbox" class="doc-check" value="{{ doc.id }}" onchange="refreshBulk()"></td>
+              <td>
+                <a href="{{ url_for('kb.doc_detail', doc_id=doc.id) }}" style="color:var(--gray-800);text-decoration:none;font-weight:600;">
+                  {{ doc.title }}
+                </a>
+                {% if doc.collection %}
+                <span class="badge" style="background:{{ doc.collection.color }}22;color:{{ doc.collection.color }};margin-left:4px;">{{ doc.collection.name }}</span>
+                {% endif %}
+                {% set prev = previews.get(doc.id) %}
+                {% if prev %}
+                <small class="text-muted d-block" style="max-width:460px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.75rem;">{{ prev[:120] }}</small>
+                {% endif %}
+              </td>
+              <td><span class="badge badge-low">{{ doc.file_type|upper }}</span></td>
+              <td>{{ doc.page_count if doc.page_count else '-' }}</td>
+              <td>
+                <span class="status-badge status-{{ doc.status }}" data-status="{{ doc.id }}">
+                  {% if doc.status == 'queued' %}等待识别
+                  {% elif doc.status == 'ocr' %}OCR 中
+                  {% elif doc.status == 'embedding' %}向量化中
+                  {% elif doc.status == 'graphing' %}图谱抽取中
+                  {% elif doc.status == 'done' %}已完成
+                  {% elif doc.status == 'failed' %}失败
+                  {% endif %}
+                </span>
+                {% if doc.error %}<small class="text-muted d-block">{{ doc.error[:60] }}</small>{% endif %}
+              </td>
+              <td><small class="text-muted">{{ doc.created_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
+              <td>
+                <div class="d-flex gap-1 flex-wrap">
+                  <button class="btn btn-xs-custom btn-outline-primary" onclick="assignDoc({{ doc.id }})"><i class="bi bi-folder-plus"></i></button>
+                  <a href="{{ url_for('kb.doc_detail', doc_id=doc.id) }}" class="btn btn-xs-custom btn-outline-primary">查看</a>
+                  <a href="{{ url_for('kb.export_doc', doc_id=doc.id) }}" class="btn btn-xs-custom btn-outline-secondary" title="导出"><i class="bi bi-download"></i></a>
+                  <form method="POST" action="{{ url_for('kb.doc_delete', doc_id=doc.id) }}" style="display:inline;"
+                        onsubmit="return confirm('确认删除该文档及其图谱数据?')">
+                    <button class="btn btn-xs-custom btn-outline-danger"><i class="bi bi-trash"></i></button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="text-center py-4 text-muted">暂无文档,上传 PDF/图片/Markdown 或文本开始建立知识库</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if pagination.pages > 1 %}
+      <div class="card-body py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <small class="text-muted">共 {{ pagination.total }} 篇文档</small>
+        <nav>
+          <ul class="pagination pagination-sm mb-0">
+            <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+              <a class="page-link" {% if pagination.has_prev %}href="{{ url_for('kb.index', collection=active_collection or None, q=q or None, page=pagination.prev_num) }}"{% endif %}>上一页</a>
+            </li>
+            {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=1) %}
+              {% if p %}
+              <li class="page-item {{ 'active' if p == pagination.page }}">
+                <a class="page-link" href="{{ url_for('kb.index', collection=active_collection or None, q=q or None, page=p) }}">{{ p }}</a>
+              </li>
+              {% else %}
+              <li class="page-item disabled"><span class="page-link">…</span></li>
+              {% endif %}
+            {% endfor %}
+            <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+              <a class="page-link" {% if pagination.has_next %}href="{{ url_for('kb.index', collection=active_collection or None, q=q or None, page=pagination.next_num) }}"{% endif %}>下一页</a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="collectionModal" tabindex="-1">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title" id="collectionModalTitle">新建集合</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="collectionName" class="form-control mb-2" placeholder="集合名称">
+        <input type="color" id="collectionColor" class="form-control form-control-color" value="#8b5cf6">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-sm" data-bs-dismiss="modal" style="background:var(--gray-100);color:var(--gray-600);">取消</button>
+        <button class="btn btn-sm btn-primary" onclick="saveCollection()">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="assignModal" tabindex="-1">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title">移动到集合</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <select id="assignSelect" class="form-select">
+          <option value="">(不分配)</option>
+          {% for c in collections %}
+          <option value="{{ c.id }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-sm" data-bs-dismiss="modal" style="background:var(--gray-100);color:var(--gray-600);">取消</button>
+        <button class="btn btn-sm btn-primary" onclick="doAssign()">确定</button>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}
 {% block extra_js %}
+<script>
+(function dropUpload() {
+  var zone = document.getElementById('dropZone');
+  var fileInput = document.getElementById('dropFileInput');
+  var form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '{{ url_for('kb.upload') }}';
+  form.enctype = 'multipart/form-data';
+  form.style.display = 'none';
+  document.body.appendChild(form);
+  function upload(files) {
+    var list = Array.prototype.filter.call(files, function (f) {
+      var ext = (f.name.split('.').pop() || '').toLowerCase();
+      return ['.pdf', '.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff', '.webp', '.txt', '.md', '.markdown'].indexOf('.' + ext) !== -1;
+    });
+    if (!list.length) return;
+    var fd = new FormData();
+    list.forEach(function (f) { fd.append('file', f); });
+    form.innerHTML = '';
+    fetch(form.action, { method: 'POST', body: fd })
+      .then(function (r) { if (r.ok) { location.reload(); } else { alert('上传失败'); } })
+      .catch(function () { alert('上传失败'); });
+  }
+  zone.addEventListener('click', function () { fileInput.click(); });
+  fileInput.addEventListener('change', function () { upload(fileInput.files); fileInput.value = ''; });
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    zone.addEventListener(ev, function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      zone.style.borderColor = 'var(--primary)';
+      zone.style.background = 'var(--primary-light)';
+    });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    zone.addEventListener(ev, function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      zone.style.borderColor = 'var(--gray-300)';
+      zone.style.background = 'var(--gray-50)';
+    });
+  });
+  zone.addEventListener('drop', function (e) { upload(e.dataTransfer.files); });
+})();
+</script>
+<script>
+(function pollQueue() {
+  var card = document.getElementById('queueCard');
+  function poll() {
+    fetch('{{ url_for('kb.api_queue') }}').then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.ok) return;
+      var c = d.counts;
+      var p = d.processing || 0;
+      var total = d.total || 0;
+      if (p > 0) {
+        card.classList.remove('d-none');
+        document.getElementById('queueSummary').textContent = '已完成 ' + (c.done || 0) + '/' + total + ' 文件';
+        document.getElementById('queueDetail').textContent =
+          '等待识别 ' + (c.queued || 0) + ' · OCR 中 ' + (c.ocr || 0) + ' · 向量化中 ' + (c.embedding || 0) + ' · 图谱抽取中 ' + (c.graphing || 0) +
+          (total ? ' · 已完成 ' + (c.done || 0) + ' · 失败 ' + (c.failed || 0) : '');
+        document.getElementById('queueProgress').style.width =
+          (total ? Math.round((c.done || 0) / total * 100) : 0) + '%';
+      } else {
+        card.classList.add('d-none');
+      }
+      setTimeout(poll, 4000);
+    }).catch(function () { setTimeout(poll, 6000); });
+  }
+  poll();
+})();
+</script>
 <script>
 (function pollStatus() {
   var badges = document.querySelectorAll('.status-badge[data-status]');
@@ -128,6 +320,133 @@
       if (done === pending.length) setTimeout(pollStatus, 3000);
     }).catch(function () { done++; if (done === pending.length) setTimeout(pollStatus, 3000); });
   });
+})();
+</script>
+<script>
+(function bulkOps() {
+  function selected() {
+    return Array.prototype.map.call(
+      document.querySelectorAll('.doc-check:checked'),
+      function (c) { return c.value; });
+  }
+  function setBar(on) {
+    var bar = document.getElementById('bulkBar');
+    bar.classList.toggle('d-flex', on);
+    bar.classList.toggle('d-none', !on);
+  }
+  window.refreshBulk = function () {
+    var n = selected().length;
+    setBar(n > 0);
+    document.getElementById('bulkCount').textContent = '已选 ' + n + ' 项';
+    var checkAll = document.getElementById('checkAll');
+    var boxes = document.querySelectorAll('.doc-check');
+    checkAll.checked = boxes.length > 0 && n === boxes.length;
+  };
+  window.toggleAll = function (checked) {
+    document.querySelectorAll('.doc-check').forEach(function (c) { c.checked = checked; });
+    refreshBulk();
+  };
+  function post(action, ids) {
+    return fetch('{{ url_for('kb.bulk') }}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: action, doc_ids: ids })
+    }).then(function (r) { return r.json(); });
+  }
+  window.bulkDelete = function () {
+    var ids = selected();
+    if (!ids.length) return;
+    if (!confirm('确认删除选中的 ' + ids.length + ' 个文档及其图谱数据?')) return;
+    post('delete', ids).then(function (d) {
+      alert(d.ok ? '已删除 ' + d.deleted + ' 个文档' : (d.error || '删除失败'));
+      if (d.ok) location.reload();
+    });
+  };
+  window.bulkReprocess = function () {
+    var ids = selected();
+    if (!ids.length) return;
+    if (!confirm('确认重新识别选中的 ' + ids.length + ' 个文档?')) return;
+    post('reprocess', ids).then(function (d) {
+      alert(d.ok ? '已加入识别队列 ' + d.requeued + ' 个文档' : (d.error || '操作失败'));
+      if (d.ok) location.reload();
+    });
+  };
+  window.bulkExport = function () {
+    var ids = selected();
+    if (!ids.length) return;
+    post('export', ids).then(function (r) {
+      var el = document.createElement('a');
+      el.href = URL.createObjectURL(new Blob([JSON.stringify(r, null, 2)], { type: 'application/json' }));
+      el.download = 'knowledge-selection.json';
+      document.body.appendChild(el);
+      el.click();
+      setTimeout(function () { URL.revokeObjectURL(el.href); el.remove(); }, 100);
+    });
+  };
+  window.bulkExportTxt = function () {
+    var ids = selected();
+    if (!ids.length) return;
+    window.location.href = '{{ url_for('kb.export_txt') }}' + '?ids=' + ids.join(',');
+  };
+  window.bulkAssign = function () {
+    var ids = selected();
+    if (!ids.length) return;
+    window._assignIds = ids;
+    new bootstrap.Modal(document.getElementById('assignModal')).show();
+  };
+  window.assignDoc = function (docId) {
+    window._assignIds = [docId];
+    new bootstrap.Modal(document.getElementById('assignModal')).show();
+  };
+  window.doAssign = function () {
+    var cid = document.getElementById('assignSelect').value;
+    var ids = window._assignIds || [];
+    if (!ids.length) return;
+    fetch('{{ url_for('kb.api_collection_assign') }}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ doc_ids: ids.map(Number), collection_id: cid ? Number(cid) : null })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      bootstrap.Modal.getInstance(document.getElementById('assignModal')).hide();
+      if (d.ok) location.reload(); else alert(d.error || '操作失败');
+    });
+  };
+})();
+</script>
+<script>
+(function collectionOps() {
+  var editingId = null;
+  window.showCollectionModal = function (id, name, color) {
+    editingId = id || null;
+    document.getElementById('collectionName').value = name || '';
+    document.getElementById('collectionColor').value = color || '#8b5cf6';
+    document.getElementById('collectionModalTitle').textContent = id ? '重命名集合' : '新建集合';
+    new bootstrap.Modal(document.getElementById('collectionModal')).show();
+  };
+  window.saveCollection = function () {
+    var name = document.getElementById('collectionName').value.trim();
+    var color = document.getElementById('collectionColor').value;
+    if (!name) { alert('请输入集合名称'); return; }
+    var url = editingId
+      ? '{{ url_for('kb.api_collection_update', cid=0) }}'.replace(/0$/, editingId)
+      : '{{ url_for('kb.api_collection_create') }}';
+    var method = editingId ? 'PUT' : 'POST';
+    fetch(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, color: color })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      bootstrap.Modal.getInstance(document.getElementById('collectionModal')).hide();
+      if (d.ok) location.reload(); else alert(d.error || '操作失败');
+    });
+  };
+  window.deleteCollection = function (id, name) {
+    if (!confirm('删除集合「' + name + '」?集合内的文档不会被删除。')) return;
+    fetch('{{ url_for('kb.api_collection_delete', cid=0) }}'.replace(/0$/, id), { method: 'DELETE' })
+      .then(function (r) { return r.json(); }).then(function (d) {
+        if (d.ok) location.reload(); else alert(d.error || '操作失败');
+      });
+  };
 })();
 </script>
 {% endblock %}

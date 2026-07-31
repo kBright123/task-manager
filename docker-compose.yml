@@ -15,7 +15,7 @@ services:
     restart: unless-stopped
     environment:
       - TZ=Asia/Shanghai
-      - KB_OPENCODE_BASE_URL=http://host.docker.internal:4096
+      - KB_OPENCODE_BASE_URL=http://opencode:3000
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

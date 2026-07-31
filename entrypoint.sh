@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+chmod 644 /app/app.py /app/knowledge.py 2>/dev/null || true
+
 SOCHDB_PATH="${KB_SOCHDB_PATH:-/app/instance/kb_data/kb.soch}"
 mkdir -p "$(dirname "$SOCHDB_PATH")"
 

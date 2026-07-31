@@ -1,0 +1,396 @@
+{% extends "base.html" %}
+{% block title %}知识库工作台 - TaskFlow{% endblock %}
+{% block extra_css %}
+<style>
+  .wb { display: flex; flex-direction: column; height: calc(100vh - var(--nav-height) - 88px); gap: 12px; }
+  @media (max-width: 767px) { .wb { height: auto; } }
+  .wb-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; }
+  .wb-body { flex: 1; display: flex; gap: 12px; min-height: 0; }
+  @media (max-width: 767px) { .wb-body { flex-direction: column; } }
+  .wb-left { width: 40%; display: flex; flex-direction: column; gap: 12px; min-width: 0; overflow-y: auto; padding-right: 4px; }
+  @media (min-width: 768px) and (max-width: 1439px) { .wb-left { width: 42%; } }
+  @media (max-width: 767px) { .wb-left { width: 100%; } }
+  .wb-right { flex: 1; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  @media (max-width: 767px) { .wb-right { height: 560px; } }
+
+  .search-wrap { position: relative; }
+  .suggest-box { position: absolute; top: 100%; left: 0; right: 0; background: #fff; border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); max-height: 260px; overflow-y: auto; z-index: 50; margin-top: 6px; padding: 6px; }
+  .suggest-box .item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: .85rem; color: var(--gray-700); }
+  .suggest-box .item:hover, .suggest-box .item.sel { background: var(--primary-light); color: var(--primary); }
+  .suggest-box .item .tag { font-size: .62rem; padding: 1px 6px; border-radius: 100px; background: var(--gray-100); color: var(--gray-500); margin-left: auto; flex-shrink: 0; }
+
+  .answer-body { font-size: .88rem; line-height: 1.7; color: var(--gray-800); }
+  .answer-body h1, .answer-body h2, .answer-body h3, .answer-body h4 { font-size: 1.02rem; margin: 14px 0 6px; font-weight: 700; color: var(--gray-900); }
+  .answer-body h1:first-child, .answer-body h2:first-child, .answer-body h3:first-child { margin-top: 0; }
+  .answer-body p { margin: 0 0 8px; }
+  .answer-body ul, .answer-body ol { margin: 0 0 8px; padding-left: 22px; }
+  .answer-body pre { background: var(--gray-900); color: #e2e8f0; padding: 12px; border-radius: 8px; overflow-x: auto; font-size: .78rem; margin: 8px 0; }
+  .answer-body code { background: var(--gray-100); color: var(--primary); padding: 1px 5px; border-radius: 4px; font-size: .8em; }
+  .answer-body pre code { background: transparent; color: inherit; padding: 0; }
+  .answer-body blockquote { border-left: 3px solid var(--primary-light); padding-left: 12px; color: var(--gray-500); margin: 8px 0; }
+  .answer-body table { border-collapse: collapse; margin: 8px 0; }
+  .answer-body th, .answer-body td { border: 1px solid var(--gray-200); padding: 5px 10px; }
+  .answer-body a { color: var(--primary); }
+  .answer-body mark { background: #fef08a; padding: 0 2px; border-radius: 2px; }
+
+  .source-tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 100px; font-size: .72rem; background: var(--primary-light); color: var(--primary); font-weight: 500; cursor: pointer; border: 1px solid transparent; text-decoration: none; }
+  .source-tag:hover { border-color: var(--primary); }
+
+  .result-group { border-left: 3px solid var(--gray-200); padding-left: 12px; }
+  .result-group .doc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .result-page { border-left: 3px solid var(--gray-100); padding-left: 10px; margin-top: 8px; }
+  .result-page mark { background: #fef08a; padding: 0 2px; border-radius: 2px; }
+
+  .spinner-sm { width: 16px; height: 16px; border: 2px solid var(--gray-200); border-top-color: var(--primary); border-radius: 50%; animation: wbSpin .8s linear infinite; }
+  @keyframes wbSpin { to { transform: rotate(360deg); } }
+
+  .loading-answer { display: flex; align-items: center; gap: 8px; color: var(--gray-400); font-size: .82rem; padding: 12px 0; }
+  .empty-tip { color: var(--gray-400); text-align: center; padding: 30px 10px; font-size: .85rem; }
+  .empty-tip i { font-size: 1.8rem; display: block; margin-bottom: 10px; color: var(--gray-300); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="wb">
+  <div class="wb-top">
+    <div class="search-wrap" style="flex:1;position:relative;">
+      <div class="input-group">
+        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+        <input type="text" id="askInput" class="form-control"
+               placeholder="输入关键词或问题, 如: 上海宏图采购了什么设备?"
+               autocomplete="off">
+        <button class="btn btn-primary" id="askBtn" onclick="submitQuery()"><i class="bi bi-send"></i></button>
+      </div>
+      <div class="suggest-box d-none" id="suggestBox"></div>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+      <span id="queuePill" class="status-badge status-pending d-none">
+        <span class="spinner-sm"></span><span id="queuePillText">处理中</span>
+      </span>
+      <a href="{{ url_for('kb.index') }}" class="btn btn-outline-primary btn-xs-custom">
+        <i class="bi bi-gear"></i> 文档管理
+      </a>
+    </div>
+  </div>
+
+  <div class="wb-body">
+    <div class="wb-left">
+      <div class="card" id="resultCard" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span id="resultTitle"><i class="bi bi-search"></i> 检索结果</span>
+          <button class="btn btn-primary btn-sm" id="aiBtn" style="display:none;" onclick="runAiAnswer()">
+            <i class="bi bi-stars"></i> AI 回答
+          </button>
+        </div>
+        <div class="card-body" style="padding:16px;overflow-y:auto;">
+          <div id="answerSection" style="display:none;">
+            <div id="answerLoading" class="loading-answer d-none">
+              <span class="spinner-sm"></span> AI 正在根据检索结果生成回答...
+            </div>
+            <div id="answerBody"></div>
+            <div class="mt-3 pt-2 border-top" id="sourcesWrap" style="display:none;">
+              <small class="text-muted" style="font-size:.72rem;font-weight:600;">引用来源</small>
+              <div class="d-flex flex-wrap gap-2 mt-2" id="sourcesBox"></div>
+            </div>
+            <hr style="margin:18px 0;border-top:2px solid var(--gray-100);">
+          </div>
+          <div id="searchLoading" class="loading-answer d-none">
+            <span class="spinner-sm"></span> 正在检索...
+          </div>
+          <div id="resultBody">
+            <div class="empty-tip">
+              <i class="bi bi-search"></i>
+              <div>输入关键词或问题开始检索</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wb-right">
+      <div class="card" id="previewCard" style="display:none;">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span id="previewTitle"><i class="bi bi-file-earmark-image"></i> 原始文件预览</span>
+          <div class="d-flex gap-2 align-items-center">
+            <a href="#" id="previewOpenNew" class="btn btn-xs-custom btn-outline-primary" target="_blank"><i class="bi bi-box-arrow-up-right"></i> 新窗口打开</a>
+            <button class="btn btn-xs-custom btn-outline-secondary" onclick="closePreview()">关闭</button>
+          </div>
+        </div>
+        <div class="card-body" style="padding:16px;">
+          <div id="previewBody"><div class="loading-answer"><span class="spinner-sm"></span> 加载中...</div></div>
+        </div>
+      </div>
+      <div class="card" id="previewPlaceholder" style="flex:1;display:flex;align-items:center;justify-content:center;">
+        <div class="empty-tip">
+          <i class="bi bi-file-earmark-image"></i>
+          <div>在左侧检索结果中点击任意条目<br>查看对应原始文件</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<script>
+var lastQuery = '';
+function submitQuery() {
+  var q = document.getElementById('askInput').value.trim();
+  if (!q) { document.getElementById('askInput').focus(); return; }
+  lastQuery = q;
+  searchQuery(q);
+}
+</script>
+<script>
+function renderAnswer(question, d) {
+  var card = document.getElementById('resultCard');
+  card.style.display = '';
+  document.getElementById('resultTitle').innerHTML = '<i class="bi bi-chat-square-text"></i> AI 回答' + (d.cached ? ' <span class="badge badge-low">已缓存</span>' : '');
+  var body = document.getElementById('answerBody');
+  var raw = d.answer || '';
+  if (window.marked && window.DOMPurify) {
+    body.innerHTML = DOMPurify.sanitize(marked.parse(raw));
+  } else {
+    body.textContent = raw;
+    body.style.whiteSpace = 'pre-wrap';
+  }
+  var srcBox = document.getElementById('sourcesBox');
+  srcBox.innerHTML = '';
+  (d.sources || []).forEach(function (s) {
+    var a = document.createElement('a');
+    a.className = 'source-tag';
+    a.href = '{{ url_for('kb.doc_detail', doc_id=0) }}'.replace('0', s.doc_id);
+    a.innerHTML = '<i class="bi bi-file-earmark-text"></i> ' + s.title + ' · 第' + s.page + '页';
+    srcBox.appendChild(a);
+  });
+  document.getElementById('sourcesWrap').style.display = (d.sources || []).length ? 'block' : 'none';
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function runAiAnswer() {
+  var q = lastQuery;
+  if (!q) return;
+  var aiBtn = document.getElementById('aiBtn');
+  var loading = document.getElementById('answerLoading');
+  aiBtn.disabled = true;
+  var old = aiBtn.innerHTML;
+  aiBtn.innerHTML = '<span class="spinner-sm" style="display:inline-block;"></span> 生成中';
+  loading.classList.remove('d-none');
+  document.getElementById('answerSection').style.display = 'block';
+  document.getElementById('answerBody').innerHTML = '';
+  fetch('{{ url_for('kb.api_ask') }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question: q })
+  }).then(function (r) { return r.json(); }).then(function (d) {
+    aiBtn.disabled = false;
+    aiBtn.innerHTML = old;
+    loading.classList.add('d-none');
+    if (!d.ok) {
+      document.getElementById('answerBody').innerHTML = '<div class="empty-tip">生成失败: ' + (d.error || '未知错误') + '</div>';
+      return;
+    }
+    renderAnswer(q, d);
+  }).catch(function (e) {
+    aiBtn.disabled = false;
+    aiBtn.innerHTML = old;
+    loading.classList.add('d-none');
+    document.getElementById('answerBody').innerHTML = '<div class="empty-tip">生成失败: ' + e.message + '</div>';
+  });
+}
+
+function renderSearch(q, d) {
+  var card = document.getElementById('resultCard');
+  card.style.display = '';
+  document.getElementById('resultTitle').innerHTML = '<i class="bi bi-search"></i> 检索结果' + (d.cached ? ' <span class="badge badge-low">已缓存</span>' : '');
+  document.getElementById('searchLoading').classList.add('d-none');
+  document.getElementById('answerSection').style.display = 'none';
+  var groups = d.groups || [];
+  var body = document.getElementById('resultBody');
+  if (!groups.length) {
+    body.innerHTML = '<div class="empty-tip">未找到相关内容</div>';
+  } else {
+    var docUrl = '{{ url_for('kb.doc_detail', doc_id=0) }}';
+    body.innerHTML = groups.map(function (g) {
+      var dUrl = docUrl.replace('/0', '/' + g.doc_id);
+      var pages = g.pages.map(function (p) {
+        return '<div class="result-page" style="cursor:pointer;transition:background .15s;" onmouseover="this.style.background=\'var(--gray-50)\'" onmouseout="this.style.background=\'transparent\'" onclick="openPreview(' + g.doc_id + ',' + p.page_no + ')">' +
+          '<div class="d-flex justify-content-between align-items-center">' +
+          '<span class="badge badge-medium">第 ' + p.page_no + ' 页</span>' +
+          '<small class="text-muted" style="font-size:.7rem;">相关度 ' + Math.round(p.score * 100) + '%</small>' +
+          '</div>' +
+          '<p class="mb-0 mt-1" style="font-size:.82rem;color:var(--gray-600);line-height:1.6;">' + (p.snippet || '') + '</p>' +
+          '<small class="text-muted" style="font-size:.68rem;color:var(--primary)!important;"><i class="bi bi-file-earmark-image"></i> 点击查看原页</small>' +
+          '</div>';
+      }).join('');
+      return '<div class="result-group mb-3">' +
+        '<div class="doc-head">' +
+        '<a href="' + dUrl + '" style="color:var(--gray-900);text-decoration:none;font-weight:600;font-size:.9rem;">' + g.title + '</a>' +
+        '<span class="badge badge-low">' + Math.round(g.best_score * 100) + '%</span>' +
+        '</div>' +
+        '<div class="progress-custom mt-1" style="width:120px;"><div class="progress-custom-bar" style="width:' + Math.round(g.best_score * 100) + '%;background:var(--primary);"></div></div>' +
+        pages + '</div>';
+    }).join('');
+  }
+  document.getElementById('aiBtn').style.display = groups.length ? '' : 'none';
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function searchQuery(q) {
+  var btn = document.getElementById('askBtn');
+  var card = document.getElementById('resultCard');
+  card.style.display = '';
+  document.getElementById('resultTitle').innerHTML = '<i class="bi bi-search"></i> 检索结果';
+  document.getElementById('searchLoading').classList.remove('d-none');
+  document.getElementById('resultBody').innerHTML = '';
+  document.getElementById('answerSection').style.display = 'none';
+  document.getElementById('aiBtn').style.display = 'none';
+  btn.disabled = true;
+  var label = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner-sm" style="display:inline-block;"></span>';
+  fetch('{{ url_for('kb.api_search') }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ q: q })
+  }).then(function (r) { return r.json(); }).then(function (d) {
+    btn.disabled = false;
+    btn.innerHTML = label;
+    if (!d.ok) {
+      document.getElementById('searchLoading').classList.add('d-none');
+      document.getElementById('resultBody').innerHTML = '<div class="empty-tip">检索失败: ' + (d.error || '未知错误') + '</div>';
+      return;
+    }
+    renderSearch(q, d);
+  }).catch(function (e) {
+    btn.disabled = false;
+    btn.innerHTML = label;
+    document.getElementById('searchLoading').classList.add('d-none');
+    document.getElementById('resultBody').innerHTML = '<div class="empty-tip">检索失败: ' + e.message + '</div>';
+  });
+}
+
+function closePreview() {
+  document.getElementById('previewCard').style.display = 'none';
+  document.getElementById('previewPlaceholder').style.display = 'flex';
+  if (window._previewObjUrl) { URL.revokeObjectURL(window._previewObjUrl); window._previewObjUrl = null; }
+}
+
+function openPreview(docId, pageNo) {
+  var card = document.getElementById('previewCard');
+  var title = document.getElementById('previewTitle');
+  var body = document.getElementById('previewBody');
+  var openNew = document.getElementById('previewOpenNew');
+  var url = '{{ url_for('kb.preview', doc_id=0) }}'.replace('/0', '/' + docId) + (pageNo ? '?page=' + pageNo : '');
+  card.style.display = 'flex';
+  card.style.flexDirection = 'column';
+  document.getElementById('previewPlaceholder').style.display = 'none';
+  openNew.href = url;
+  title.innerHTML = '<i class="bi bi-file-earmark-image"></i> 原始文件预览' + (pageNo ? ' · 第 ' + pageNo + ' 页' : '');
+  body.innerHTML = '<div class="loading-answer"><span class="spinner-sm"></span> 加载中...</div>';
+  fetch(url).then(function (r) {
+    if (!r.ok) { throw new Error('加载失败 (' + r.status + ')'); }
+    var ct = r.headers.get('Content-Type') || '';
+    return Promise.all([r.blob(), ct]);
+  }).then(function (parts) {
+    var blob = parts[0], ct = parts[1];
+    var objUrl = URL.createObjectURL(blob);
+    if (window._previewObjUrl) { URL.revokeObjectURL(window._previewObjUrl); }
+    window._previewObjUrl = objUrl;
+    if (ct.indexOf('image/') === 0) {
+      body.innerHTML = '<div style="text-align:center;background:var(--gray-100);border-radius:var(--radius-sm);padding:12px;">' +
+        '<img src="' + objUrl + '" style="max-width:100%;max-height:70vh;border-radius:6px;box-shadow:var(--shadow);">' +
+        '<div class="text-muted mt-2" style="font-size:.75rem;">如需放大可点击右上角"新窗口打开"</div></div>';
+    } else {
+      blob.text().then(function (t) {
+        body.innerHTML = '<pre style="white-space:pre-wrap;font-family:var(--font);font-size:.85rem;background:var(--gray-50);border-radius:var(--radius-sm);padding:12px;color:var(--gray-700);max-height:70vh;overflow-y:auto;">' +
+          t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>';
+      });
+    }
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }).catch(function (e) {
+    body.innerHTML = '<div class="empty-tip">' + e.message + '</div>';
+  });
+}
+</script>
+<script>
+(function suggest() {
+  var input = document.getElementById('askInput');
+  var box = document.getElementById('suggestBox');
+  var items = [], sel = -1, timer = null;
+  function hide() { box.classList.add('d-none'); sel = -1; }
+  function render() {
+    if (!items.length) { hide(); return; }
+    box.classList.remove('d-none');
+    box.innerHTML = items.map(function (it, i) {
+      return '<div class="item' + (i === sel ? ' sel' : '') + '" data-i="' + i + '">' +
+        '<i class="bi bi-tag" style="color:var(--primary);font-size:.8rem;"></i>' + it.name +
+        '<span class="tag">' + it.type + '</span></div>';
+    }).join('');
+  }
+  function pick(i) {
+    if (items[i]) { input.value = items[i].name; hide(); submitQuery(); }
+  }
+  input.addEventListener('input', function () {
+    var v = input.value.trim();
+    clearTimeout(timer);
+    if (!v) { hide(); return; }
+    timer = setTimeout(function () {
+      fetch('{{ url_for('kb.api_suggest') }}?q=' + encodeURIComponent(v))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d.ok) return;
+          items = d.items.map(function (n) { return { name: n, type: n.indexOf(':') !== -1 ? '文档' : '实体' }; });
+          sel = -1;
+          render();
+        }).catch(function () { hide(); });
+    }, 200);
+  });
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); if (box.classList.contains('d-none')) return; sel = (sel + 1) % items.length; render(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); if (box.classList.contains('d-none')) return; sel = (sel - 1 + items.length) % items.length; render(); }
+    else if (e.key === 'Enter') { if (sel >= 0 && items[sel]) { pick(sel); } else { submitQuery(); } hide(); }
+    else if (e.key === 'Escape') { hide(); }
+  });
+  box.addEventListener('click', function (e) {
+    var el = e.target.closest('.item');
+    if (el) pick(parseInt(el.getAttribute('data-i'), 10));
+  });
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('.search-wrap')) hide();
+  });
+})();
+</script>
+<script>
+(function queuePoll() {
+  var pill = document.getElementById('queuePill');
+  var pillText = document.getElementById('queuePillText');
+  var wasProcessing = null;
+  function poll() {
+    fetch('{{ url_for('kb.api_queue') }}').then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.ok) return;
+      var p = d.processing || 0;
+      var total = d.total || 0;
+      var nowProcessing = p > 0;
+      wasProcessing = nowProcessing;
+      if (nowProcessing) {
+        pill.classList.remove('d-none');
+        pillText.textContent = '已完成 ' + (d.counts.done || 0) + '/' + total;
+      } else {
+        pill.classList.add('d-none');
+      }
+      setTimeout(poll, 4000);
+    }).catch(function () { setTimeout(poll, 6000); });
+  }
+  poll();
+})();
+</script>
+<script>
+(function autoRun() {
+  var q = {{ q|tojson }};
+  if (q) {
+    document.getElementById('askInput').value = q;
+    setTimeout(submitQuery, 300);
+  }
+})();
+</script>
+{% endblock %}

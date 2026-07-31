@@ -19,10 +19,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'task-manager-secret-2024'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'task-manager-secret-2024')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tasks.db'
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
@@ -203,6 +205,10 @@ def init_db():
         cols = [r[1] for r in c.fetchall()]
         if 'abandoned_at' not in cols:
             c.execute('ALTER TABLE task_assignment ADD COLUMN abandoned_at DATETIME')
+        c.execute('PRAGMA table_info(kb_document)')
+        cols = [r[1] for r in c.fetchall()]
+        if 'collection_id' not in cols:
+            c.execute('ALTER TABLE kb_document ADD COLUMN collection_id INTEGER')
         conn.commit()
         conn.close()
     except Exception as e:
@@ -1092,6 +1098,12 @@ def admin_delete_user(user_id):
         flash('不能删除管理员账号', 'danger')
         return redirect(url_for('admin_users'))
     TaskAssignment.query.filter_by(user_id=user.id).delete()
+    Notification.query.filter_by(user_id=user.id).delete()
+    admin = db.session.get(User, current_user.id)
+    for t in list(user.created_tasks):
+        t.creator = admin
+    for g in list(user.groups):
+        g.members.remove(user)
     db.session.delete(user)
     db.session.commit()
     flash(f'用户 {user.username} 已删除', 'success')

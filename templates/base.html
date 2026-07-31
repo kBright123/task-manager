@@ -193,7 +193,7 @@
         <a href="{{ url_for('user_tasks') }}" class="{% if request.endpoint in ('user_tasks', 'user_task_detail', 'admin_task_detail') %}active{% endif %}">
           <i class="bi bi-send"></i> 任务发布
         </a>
-        <a href="{{ url_for('kb.index') }}" class="{% if request.endpoint.startswith('kb.') %}active{% endif %}">
+        <a href="{{ url_for('kb.workbench') }}" class="{% if request.endpoint.startswith('kb.') %}active{% endif %}">
           <i class="bi bi-collection"></i> 知识库
         </a>
         {% if current_user.role == 'admin' %}
@@ -271,7 +271,7 @@
     <a href="{{ url_for('user_tasks') }}" class="{% if request.endpoint in ('user_tasks', 'user_task_detail', 'admin_task_detail') %}active{% endif %}">
       <i class="bi bi-send"></i><span>任务发布</span>
     </a>
-    <a href="{{ url_for('kb.index') }}" class="{% if request.endpoint.startswith('kb.') %}active{% endif %}">
+    <a href="{{ url_for('kb.workbench') }}" class="{% if request.endpoint.startswith('kb.') %}active{% endif %}">
       <i class="bi bi-collection"></i><span>知识库</span>
     </a>
     {% if current_user.role == 'admin' %}

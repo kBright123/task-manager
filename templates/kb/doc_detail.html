@@ -2,8 +2,8 @@
 {% block title %}{{ doc.title }} - 知识库{% endblock %}
 {% block content %}
 <nav class="mb-3">
-  <a href="{{ url_for('kb.index') }}" style="color:var(--primary);text-decoration:none;">
-    <i class="bi bi-arrow-left"></i> 返回知识库
+  <a href="{{ url_for('kb.workbench') }}" style="color:var(--primary);text-decoration:none;">
+    <i class="bi bi-arrow-left"></i> 返回工作台
   </a>
 </nav>
 
@@ -30,10 +30,16 @@
       <div class="card-header"><i class="bi bi-fonts"></i> 识别文本 ({{ pages|length }} 页)</div>
       <div class="card-body" style="max-height:600px;overflow-y:auto;">
         {% for page in pages %}
-        <div class="mb-3">
+        <div class="mb-3" id="page-{{ page.page_no }}" style="scroll-margin-top:76px;">
           <div class="d-flex justify-content-between align-items-center mb-1">
             <span class="badge badge-medium">第 {{ page.page_no }} 页</span>
-            <small class="text-muted">{{ "{:,}".format(page.char_count) }} 字符</small>
+            <div class="d-flex gap-2 align-items-center">
+              <a href="{{ url_for('kb.preview', doc_id=doc.id) }}?page={{ page.page_no }}" target="_blank"
+                 class="btn btn-xs-custom btn-outline-primary" style="padding:2px 8px;font-size:.7rem;">
+                <i class="bi bi-file-earmark-image"></i> 查看原页
+              </a>
+              <small class="text-muted">{{ "{:,}".format(page.char_count) }} 字符</small>
+            </div>
           </div>
           <pre style="white-space:pre-wrap;font-family:var(--font);font-size:.85rem;background:var(--gray-50);
                      border-radius:var(--radius-sm);padding:12px;color:var(--gray-700);">{{ page.text }}</pre>

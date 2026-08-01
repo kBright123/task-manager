@@ -2,6 +2,44 @@
 {% block title %}任务发布{% endblock %}
 {% block content %}
 
+{% macro task_row(task, is_other) %}
+{% set s = task_stats.get(task.id, {'total': 0, 'completed': 0, 'abandoned': 0, 'pending': 0}) %}
+{% set total_count = s['total'] %}
+{% set completed_count = s['completed'] %}
+{% set abandoned_count = s['abandoned'] %}
+{% set abandoned_all = abandoned_count == total_count if total_count > 0 else False %}
+{% set my_assignment = my_assignments.get(task.id) %}
+{% set my_pending = my_assignment if my_assignment and my_assignment.status == 'pending' else None %}
+{% set my_completed = my_assignment if my_assignment and my_assignment.status != 'pending' else None %}
+<tr{% if abandoned_all %} style="opacity:.5;"{% endif %}>
+  <td style="padding:4px 10px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+    <a href="{{ url_for('admin_task_detail' if is_other else ('admin_task_detail' if is_admin else 'user_task_detail'), task_id=task.id) }}" style="font-weight:600;font-size:.8rem;color:var(--gray-800);text-decoration:none;" title="{{ task.title }}">{{ task.title[:20] }}{% if task.title|length > 20 %}…{% endif %}</a>
+    <div><span class="badge" style="background:{{ 'var(--primary)' if task.category == '工作' else 'var(--success)' if task.category == '个人' else 'var(--warning)' }};font-size:.5rem;">{{ task.category }}</span></div>
+  </td>
+  <td style="padding:4px 8px;font-size:.68rem;white-space:nowrap;">
+    <span style="color:var(--gray-600);">分配{{ total_count }}</span>
+    <span style="color:var(--success);"> ✓{{ completed_count }}</span>
+    {% if abandoned_count %}<span style="color:var(--gray-400);"> ✗{{ abandoned_count }}</span>{% endif %}
+  </td>
+  <td style="padding:4px 8px;">
+    <small style="font-size:.65rem;">{{ task.end_time.strftime('%m-%d') }}</small>
+    {% if task.end_time < now and (is_other or not abandoned_all) %}<span class="badge bg-danger" style="font-size:.5rem;">逾期</span>{% endif %}
+  </td>
+  <td style="padding:4px 8px;">
+    <div class="d-flex gap-1" style="white-space:nowrap;">
+    <a href="{{ url_for('admin_task_detail' if is_other else ('admin_task_detail' if is_admin else 'user_task_detail'), task_id=task.id) }}" class="btn btn-sm btn-outline-primary" style="padding:1px 6px;font-size:.62rem;line-height:1.3;" title="查看任务详情"><i class="bi bi-eye"></i> 详情</a>
+    {% if my_pending %}
+    <form method="POST" action="{{ url_for('user_complete_task', assignment_id=my_pending.id) }}">
+      <button type="submit" class="btn btn-sm btn-outline-success" style="padding:1px 6px;font-size:.62rem;line-height:1.3;" title="标记任务为已完成">完成</button>
+    </form>
+    {% else %}
+    <span class="btn btn-sm btn-outline-secondary" style="padding:1px 6px;font-size:.62rem;line-height:1.3;opacity:.4;cursor:default;" title="{% if my_completed %}已完成{% else %}无待办{% endif %}">完成</span>
+    {% endif %}
+    </div>
+  </td>
+</tr>
+{% endmacro %}
+
 <div class="row g-4">
   <div class="col-lg-7">
 
@@ -355,79 +393,13 @@ function applyCustomRecurrence() {
       </thead>
       <tbody id="taskTableBody">
         {% for task in my_tasks[:5] %}
-        {% set total_count = task.assignments.count() %}
-        {% set completed_count = task.assignments.filter(TaskAssignment.status.in_(['completed','approved'])).count() %}
-        {% set abandoned_count = task.assignments.filter_by(status='abandoned').count() %}
-        {% set abandoned_all = abandoned_count == total_count if total_count > 0 else False %}
-        {% set my_pending = task.assignments.filter_by(user_id=current_user.id, status='pending').first() %}
-        {% set my_completed = task.assignments.filter_by(user_id=current_user.id, status='completed').first() or task.assignments.filter_by(user_id=current_user.id, status='approved').first() %}
-        {% set pending_count = total_count - completed_count - abandoned_count %}
-        <tr{% if abandoned_all %} style="opacity:.5;"{% endif %}>
-          <td style="padding:4px 10px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-            <a href="{{ url_for('admin_task_detail' if is_admin else 'user_task_detail', task_id=task.id) }}" style="font-weight:600;font-size:.8rem;color:var(--gray-800);text-decoration:none;" title="{{ task.title }}">{{ task.title[:20] }}{% if task.title|length > 20 %}…{% endif %}</a>
-            <div><span class="badge" style="background:{{ 'var(--primary)' if task.category == '工作' else 'var(--success)' if task.category == '个人' else 'var(--warning)' }};font-size:.5rem;">{{ task.category }}</span></div>
-          </td>
-          <td style="padding:4px 8px;font-size:.68rem;white-space:nowrap;">
-            <span style="color:var(--gray-600);">分配{{ total_count }}</span>
-            <span style="color:var(--success);"> ✓{{ completed_count }}</span>
-            {% if abandoned_count %}<span style="color:var(--gray-400);"> ✗{{ abandoned_count }}</span>{% endif %}
-          </td>
-          <td style="padding:4px 8px;">
-            <small style="font-size:.65rem;">{{ task.end_time.strftime('%m-%d') }}</small>
-            {% if task.end_time < now and not abandoned_all %}<span class="badge bg-danger" style="font-size:.5rem;">逾期</span>{% endif %}
-          </td>
-          <td style="padding:4px 8px;">
-            <div class="d-flex gap-1" style="white-space:nowrap;">
-            <a href="{{ url_for('admin_task_detail' if is_admin else 'user_task_detail', task_id=task.id) }}" class="btn btn-sm btn-outline-primary" style="padding:1px 6px;font-size:.62rem;line-height:1.3;" title="查看任务详情"><i class="bi bi-eye"></i> 详情</a>
-            {% if my_pending %}
-            <form method="POST" action="{{ url_for('user_complete_task', assignment_id=my_pending.id) }}">
-              <button type="submit" class="btn btn-sm btn-outline-success" style="padding:1px 6px;font-size:.62rem;line-height:1.3;" title="标记任务为已完成">完成</button>
-            </form>
-            {% else %}
-            <span class="btn btn-sm btn-outline-secondary" style="padding:1px 6px;font-size:.62rem;line-height:1.3;opacity:.4;cursor:default;" title="{% if my_completed %}已完成{% else %}无待办{% endif %}">完成</span>
-            {% endif %}
-            </div>
-          </td>
-        </tr>
+        {{ task_row(task, False) }}
         {% endfor %}
       </tbody>
       {% if my_tasks|length > 5 %}
       <tbody id="taskTableExtra" style="display:none;">
         {% for task in my_tasks[5:] %}
-        {% set total_count = task.assignments.count() %}
-        {% set completed_count = task.assignments.filter(TaskAssignment.status.in_(['completed','approved'])).count() %}
-        {% set abandoned_count = task.assignments.filter_by(status='abandoned').count() %}
-        {% set abandoned_all = abandoned_count == total_count if total_count > 0 else False %}
-        {% set my_pending = task.assignments.filter_by(user_id=current_user.id, status='pending').first() %}
-        {% set my_completed = task.assignments.filter_by(user_id=current_user.id, status='completed').first() or task.assignments.filter_by(user_id=current_user.id, status='approved').first() %}
-        {% set pending_count = total_count - completed_count - abandoned_count %}
-        <tr{% if abandoned_all %} style="opacity:.5;"{% endif %}>
-          <td style="padding:4px 10px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-            <a href="{{ url_for('admin_task_detail' if is_admin else 'user_task_detail', task_id=task.id) }}" style="font-weight:600;font-size:.8rem;color:var(--gray-800);text-decoration:none;" title="{{ task.title }}">{{ task.title[:20] }}{% if task.title|length > 20 %}…{% endif %}</a>
-            <div><span class="badge" style="background:{{ 'var(--primary)' if task.category == '工作' else 'var(--success)' if task.category == '个人' else 'var(--warning)' }};font-size:.5rem;">{{ task.category }}</span></div>
-          </td>
-          <td style="padding:4px 8px;font-size:.68rem;white-space:nowrap;">
-            <span style="color:var(--gray-600);">分配{{ total_count }}</span>
-            <span style="color:var(--success);"> ✓{{ completed_count }}</span>
-            {% if abandoned_count %}<span style="color:var(--gray-400);"> ✗{{ abandoned_count }}</span>{% endif %}
-          </td>
-          <td style="padding:4px 8px;">
-            <small style="font-size:.65rem;">{{ task.end_time.strftime('%m-%d') }}</small>
-            {% if task.end_time < now and not abandoned_all %}<span class="badge bg-danger" style="font-size:.5rem;">逾期</span>{% endif %}
-          </td>
-          <td style="padding:4px 8px;">
-            <div class="d-flex gap-1" style="white-space:nowrap;">
-            <a href="{{ url_for('admin_task_detail' if is_admin else 'user_task_detail', task_id=task.id) }}" class="btn btn-sm btn-outline-primary" style="padding:1px 6px;font-size:.62rem;line-height:1.3;" title="查看任务详情"><i class="bi bi-eye"></i> 详情</a>
-            {% if my_pending %}
-            <form method="POST" action="{{ url_for('user_complete_task', assignment_id=my_pending.id) }}">
-              <button type="submit" class="btn btn-sm btn-outline-success" style="padding:1px 6px;font-size:.62rem;line-height:1.3;" title="标记任务为已完成">完成</button>
-            </form>
-            {% else %}
-            <span class="btn btn-sm btn-outline-secondary" style="padding:1px 6px;font-size:.62rem;line-height:1.3;opacity:.4;cursor:default;" title="{% if my_completed %}已完成{% else %}无待办{% endif %}">完成</span>
-            {% endif %}
-            </div>
-          </td>
-        </tr>
+        {{ task_row(task, False) }}
         {% endfor %}
       </tbody>
       <tfoot>
@@ -449,17 +421,7 @@ function applyCustomRecurrence() {
     <span style="font-size:.82rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-pie-chart"></i> 分配概览</span>
   </div>
   <div class="card-body py-2 px-3">
-    {% set user_task_counts = {} %}
-    {% for task in all_tasks %}
-      {% for a in task.assignments %}
-        {% set uname = a.user.name or a.user.username %}
-        {% if uname in user_task_counts %}
-          {% set _ = user_task_counts.update({uname: user_task_counts[uname] + 1}) %}
-        {% else %}
-          {% set _ = user_task_counts.update({uname: 1}) %}
-        {% endif %}
-      {% endfor %}
-    {% endfor %}
+    {% set user_task_counts = assignment_counts or {} %}
     {% set max_count = user_task_counts.values()|max or 1 %}
     {% for uname, count in (user_task_counts.items()|list)[:8] %}
     <div class="d-flex align-items-center gap-2 mb-1">
@@ -494,39 +456,7 @@ function applyCustomRecurrence() {
       </thead>
       <tbody>
         {% for task in other_assigned %}
-        {% set total_count = task.assignments.count() %}
-        {% set completed_count = task.assignments.filter(TaskAssignment.status.in_(['completed','approved'])).count() %}
-        {% set abandoned_count = task.assignments.filter_by(status='abandoned').count() %}
-        {% set abandoned_all = abandoned_count == total_count if total_count > 0 else False %}
-        {% set my_pending = task.assignments.filter_by(user_id=current_user.id, status='pending').first() %}
-        {% set my_completed = task.assignments.filter_by(user_id=current_user.id, status='completed').first() or task.assignments.filter_by(user_id=current_user.id, status='approved').first() %}
-        <tr{% if abandoned_all %} style="opacity:.5;"{% endif %}>
-          <td style="padding:4px 10px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-            <a href="{{ url_for('admin_task_detail', task_id=task.id) }}" style="font-weight:600;font-size:.8rem;color:var(--gray-800);text-decoration:none;" title="{{ task.title }}">{{ task.title[:20] }}{% if task.title|length > 20 %}…{% endif %}</a>
-            <div><span class="badge" style="background:{{ 'var(--primary)' if task.category == '工作' else 'var(--success)' if task.category == '个人' else 'var(--warning)' }};font-size:.5rem;">{{ task.category }}</span></div>
-          </td>
-          <td style="padding:4px 8px;font-size:.68rem;white-space:nowrap;">
-            <span style="color:var(--gray-600);">分配{{ total_count }}</span>
-            <span style="color:var(--success);"> ✓{{ completed_count }}</span>
-            {% if abandoned_count %}<span style="color:var(--gray-400);"> ✗{{ abandoned_count }}</span>{% endif %}
-          </td>
-          <td style="padding:4px 8px;">
-            <small style="font-size:.65rem;">{{ task.end_time.strftime('%m-%d') }}</small>
-            {% if task.end_time < now %}<span class="badge bg-danger" style="font-size:.5rem;">逾期</span>{% endif %}
-          </td>
-          <td style="padding:4px 8px;">
-            <div class="d-flex gap-1" style="white-space:nowrap;">
-            <a href="{{ url_for('admin_task_detail', task_id=task.id) }}" class="btn btn-sm btn-outline-primary" style="padding:1px 6px;font-size:.62rem;line-height:1.3;" title="查看任务详情"><i class="bi bi-eye"></i> 详情</a>
-            {% if my_pending %}
-            <form method="POST" action="{{ url_for('user_complete_task', assignment_id=my_pending.id) }}">
-              <button type="submit" class="btn btn-sm btn-outline-success" style="padding:1px 6px;font-size:.62rem;line-height:1.3;" title="标记任务为已完成">完成</button>
-            </form>
-            {% else %}
-            <span class="btn btn-sm btn-outline-secondary" style="padding:1px 6px;font-size:.62rem;line-height:1.3;opacity:.4;cursor:default;" title="{% if my_completed %}已完成{% else %}无待办{% endif %}">完成</span>
-            {% endif %}
-            </div>
-          </td>
-        </tr>
+        {{ task_row(task, True) }}
         {% endfor %}
       </tbody>
     </table>

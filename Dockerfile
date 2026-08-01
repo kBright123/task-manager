@@ -20,10 +20,10 @@ RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple \
 
 COPY . .
 
-RUN mkdir -p /app/instance/kb_data /app/static/uploads && \
+RUN mkdir -p /app/instance/kb_data /app/instance/uploads && \
     addgroup --system appuser && \
     adduser --system --ingroup appuser appuser && \
-    chown -R appuser:appuser /app/instance /app/static/uploads /app/hf_cache
+    chown -R appuser:appuser /app/instance /app/hf_cache
 
 EXPOSE 5000
 USER appuser

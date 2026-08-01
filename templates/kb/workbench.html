@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}知识库工作台 - TaskFlow{% endblock %}
+{% block title %}知识库工作台 - 知行合一{% endblock %}
 {% block extra_css %}
 <style>
   .wb { display: flex; flex-direction: column; height: calc(100vh - var(--nav-height) - 88px); gap: 12px; }
@@ -56,7 +56,7 @@
       <div class="input-group">
         <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
         <input type="text" id="askInput" class="form-control"
-               placeholder="输入关键词或问题, 如: 上海宏图采购了什么设备?"
+               placeholder="输入关键词或问题"
                autocomplete="off">
         <button class="btn btn-primary" id="askBtn" onclick="submitQuery()"><i class="bi bi-send"></i></button>
       </div>
@@ -66,9 +66,11 @@
       <span id="queuePill" class="status-badge status-pending d-none">
         <span class="spinner-sm"></span><span id="queuePillText">处理中</span>
       </span>
+      {% if current_user.role == 'admin' %}
       <a href="{{ url_for('kb.index') }}" class="btn btn-outline-primary btn-xs-custom">
         <i class="bi bi-gear"></i> 文档管理
       </a>
+      {% endif %}
     </div>
   </div>
 
@@ -323,27 +325,45 @@ function openPreview(docId, pageNo) {
     box.classList.remove('d-none');
     box.innerHTML = items.map(function (it, i) {
       return '<div class="item' + (i === sel ? ' sel' : '') + '" data-i="' + i + '">' +
-        '<i class="bi bi-tag" style="color:var(--primary);font-size:.8rem;"></i>' + it.name +
+        '<i class="bi ' + (it.ask ? 'bi-clock-history' : 'bi-tag') + '" style="color:var(--primary);font-size:.8rem;"></i>' + it.name +
         '<span class="tag">' + it.type + '</span></div>';
     }).join('');
   }
   function pick(i) {
-    if (items[i]) { input.value = items[i].name; hide(); submitQuery(); }
+    if (items[i]) { input.value = items[i].name; hide(); items[i].ask ? runHistoryQuery(items[i].name) : submitQuery(); }
   }
+  function showRecents() {
+    clearTimeout(timer);
+    fetch('{{ url_for('kb.api_history') }}')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok || !d.items || !d.items.length) { hide(); return; }
+        items = d.items.map(function (it) {
+          return { name: it.query, type: '最近', ask: true };
+        });
+        sel = -1;
+        render();
+      }).catch(function () { hide(); });
+  }
+  function showSuggest(v) {
+    mode = 'suggest';
+    fetch('{{ url_for('kb.api_suggest') }}?q=' + encodeURIComponent(v))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) return;
+        items = d.items.map(function (n) { return { name: n, type: n.indexOf(':') !== -1 ? '文档' : '实体' }; });
+        sel = -1;
+        render();
+      }).catch(function () { hide(); });
+  }
+  input.addEventListener('focus', function () {
+    if (!input.value.trim()) showRecents();
+  });
   input.addEventListener('input', function () {
     var v = input.value.trim();
     clearTimeout(timer);
-    if (!v) { hide(); return; }
-    timer = setTimeout(function () {
-      fetch('{{ url_for('kb.api_suggest') }}?q=' + encodeURIComponent(v))
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          if (!d.ok) return;
-          items = d.items.map(function (n) { return { name: n, type: n.indexOf(':') !== -1 ? '文档' : '实体' }; });
-          sel = -1;
-          render();
-        }).catch(function () { hide(); });
-    }, 200);
+    if (!v) { showRecents(); return; }
+    timer = setTimeout(function () { showSuggest(v); }, 200);
   });
   input.addEventListener('keydown', function (e) {
     if (e.key === 'ArrowDown') { e.preventDefault(); if (box.classList.contains('d-none')) return; sel = (sel + 1) % items.length; render(); }
@@ -389,8 +409,40 @@ function openPreview(docId, pageNo) {
   var q = {{ q|tojson }};
   if (q) {
     document.getElementById('askInput').value = q;
-    setTimeout(submitQuery, 300);
+    if (window.location.search.indexOf('ask=1') !== -1) {
+      setTimeout(function () { if (window.runHistoryQuery) runHistoryQuery(q); }, 300);
+    } else {
+      setTimeout(submitQuery, 300);
+    }
   }
+})();
+</script>
+<script>
+(function historyQuery() {
+  window.runHistoryQuery = function (q) {
+    document.getElementById('askInput').value = q;
+    lastQuery = q;
+    var aiBtn = document.getElementById('aiBtn');
+    var loading = document.getElementById('answerLoading');
+    aiBtn.disabled = true;
+    document.getElementById('answerSection').style.display = 'block';
+    document.getElementById('answerBody').innerHTML = '';
+    document.getElementById('searchLoading').classList.add('d-none');
+    loading.classList.remove('d-none');
+    fetch('{{ url_for('kb.api_history_answer') }}?q=' + encodeURIComponent(q))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        loading.classList.add('d-none');
+        aiBtn.disabled = false;
+        if (d.ok) { renderAnswer(q, d); return; }
+        searchQuery(q);
+      })
+      .catch(function () {
+        loading.classList.add('d-none');
+        aiBtn.disabled = false;
+        searchQuery(q);
+      });
+  };
 })();
 </script>
 {% endblock %}

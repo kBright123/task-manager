@@ -49,6 +49,15 @@
     <h1 style="font-size:1.5rem;font-weight:700;color:var(--gray-900);margin:0;">欢迎回来，{{ current_user.name or current_user.username }}</h1>
     <p style="font-size:.82rem;color:var(--gray-400);margin:4px 0 0;">{{ now.strftime('%Y年%m月%d日 %A') }}</p>
   </div>
+  <div class="d-flex gap-2 d-md-none flex-shrink-0">
+    <a href="{{ url_for('notifications') }}" class="btn btn-outline-primary d-flex align-items-center justify-content-center" style="width:44px;height:44px;border-radius:var(--radius-sm);position:relative;" title="通知">
+      <i class="bi bi-bell" style="font-size:1.1rem;"></i>
+      {% if unread_notifications > 0 %}<span class="badge bg-danger" style="position:absolute;top:-6px;right:-6px;font-size:.6rem;padding:2px 5px;">{{ unread_notifications }}</span>{% endif %}
+    </a>
+    <a href="{{ url_for('logout') }}" class="btn btn-outline-secondary d-flex align-items-center justify-content-center" style="width:44px;height:44px;border-radius:var(--radius-sm);" title="退出登录">
+      <i class="bi bi-box-arrow-right" style="font-size:1.1rem;"></i>
+    </a>
+  </div>
 </div>
 
 <!-- Search Results -->
@@ -97,13 +106,30 @@
     </div>
   </div>
   <select id="searchCategory" class="form-select form-select-sm" style="width:auto;min-width:100px;font-size:.85rem;border-radius:var(--radius-sm);border:1px solid var(--gray-200);" onchange="debounceSearch()">
-    <option value="">全部类型</option>
+    <option value="">全部</option>
     <option value="工作">工作</option>
     <option value="个人">个人</option>
   </select>
   <button class="btn btn-sm btn-outline-primary" style="white-space:nowrap;font-size:.85rem;padding:6px 14px;border-radius:var(--radius-sm);" onclick="openSummaryModal()">
     <i class="bi bi-file-earmark-text"></i> 总结报告
   </button>
+</div>
+
+<!-- Knowledge Base Search -->
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
+    <span><i class="bi bi-collection" style="color:var(--primary);"></i> 知识库检索</span>
+    <a href="{{ url_for('kb.workbench') }}" class="btn btn-sm btn-outline-primary" style="padding:2px 8px;font-size:.7rem;">进入工作台</a>
+  </div>
+  <div class="card-body py-3">
+    <div class="position-relative">
+      <div class="input-group">
+        <input type="text" id="kbSearchInput" class="form-control" placeholder="搜索知识库文档或提问" style="font-size:.88rem;" autocomplete="off" onfocus="kbShowRecent()" oninput="if(this.value.trim()){kbHideRecent();}else{kbShowRecent();}" onkeydown="if(event.key==='Enter'){event.preventDefault();kbSearch();}">
+        <button class="btn btn-primary" id="kbSearchBtn" onclick="kbSearch()" style="white-space:nowrap;"><i class="bi bi-search"></i> 检索</button>
+      </div>
+      <div id="kbRecentBox" class="d-none" style="position:absolute;top:100%;left:0;right:0;background:#fff;border-radius:var(--radius-sm);box-shadow:var(--shadow-lg);max-height:260px;overflow-y:auto;z-index:50;margin-top:6px;padding:6px;"></div>
+    </div>
+  </div>
 </div>
 
 <div class="row g-4">
@@ -492,6 +518,45 @@ function clearSearch() {
   document.getElementById('searchResults').classList.add('d-none');
   document.getElementById('searchClearBtn').classList.add('d-none');
 }
+</script>
+<script>
+var _kbTimer = null;
+function kbSearch() {
+  var input = document.getElementById('kbSearchInput');
+  var q = input.value.trim();
+  if (!q) { input.focus(); return; }
+  window.location.href = '{{ url_for('kb.workbench', q='') }}' + encodeURIComponent(q);
+}
+function kbShowRecent() {
+  var input = document.getElementById('kbSearchInput');
+  if (input.value.trim()) return;
+  var box = document.getElementById('kbRecentBox');
+  fetch('{{ url_for('kb.api_history') }}')
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d.ok || !d.items || !d.items.length) return;
+      box.innerHTML = d.items.map(function (it) {
+        return '<div class="item" data-q="' + encodeURIComponent(it.query) + '" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:.85rem;color:var(--gray-700);">' +
+          '<i class="bi bi-clock-history" style="color:var(--primary);font-size:.8rem;flex-shrink:0;"></i>' +
+          '<span class="text-truncate">' + it.query + '</span>' +
+          '<span style="font-size:.62rem;padding:1px 6px;border-radius:100px;background:var(--gray-100);color:var(--gray-500);margin-left:auto;flex-shrink:0;">最近</span></div>';
+      }).join('');
+      box.classList.remove('d-none');
+    }).catch(function () {});
+}
+function kbHideRecent() {
+  document.getElementById('kbRecentBox').classList.add('d-none');
+}
+document.getElementById('kbRecentBox').addEventListener('click', function (e) {
+  var el = e.target.closest('.item');
+  if (!el) return;
+  var q = decodeURIComponent(el.getAttribute('data-q'));
+  kbHideRecent();
+  window.location.href = '{{ url_for('kb.workbench', q='') }}' + encodeURIComponent(q) + '&ask=1';
+});
+document.addEventListener('click', function (e) {
+  if (!e.target.closest('.card-body')) kbHideRecent();
+});
 </script>
 {% endblock %}
 {% endblock %}

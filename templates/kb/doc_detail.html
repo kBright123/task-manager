@@ -10,7 +10,7 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
     <h4 style="font-weight:700;color:var(--gray-900);margin:0;">{{ doc.title }}</h4>
-    <small class="text-muted">{{ doc.filename }} · {{ doc.file_type|upper }} ·
+    <small class="text-muted">{{ doc.file_type|upper }} ·
       {{ "{:,}".format(doc.file_size) }} 字节 · 上传于 {{ doc.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
   </div>
   <div class="d-flex gap-2">

@@ -11,7 +11,7 @@ services:
       - ./templates:/app/templates
       - ./static:/app/static
       - task-data:/app/instance
-      - task-uploads:/app/static/uploads
+      - task-uploads:/app/instance/uploads
     restart: unless-stopped
     environment:
       - TZ=Asia/Shanghai

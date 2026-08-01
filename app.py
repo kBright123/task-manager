@@ -1,5 +1,6 @@
 import re
 import logging
+import contextlib
 from datetime import datetime, timedelta, date
 from flask import (Flask, render_template, request, redirect, url_for,
                    flash, jsonify, send_from_directory)
@@ -8,20 +9,46 @@ from flask_login import (LoginManager, UserMixin, login_user,
                          login_required, logout_user, current_user)
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func, case
 import os
 
 VERSION = 'v0.7.0'
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=os.environ.get('LOG_LEVEL', 'INFO'),
     format='%(asctime)s [%(levelname)s] %(message)s'
 )
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'task-manager-secret-2024')
+
+def _get_or_create_secret_key(root_path):
+    """Persist a random SECRET_KEY in instance/ so sessions survive restarts,
+    unless SECRET_KEY is provided via env (docker-compose already sets one)."""
+    key_path = os.path.join(root_path, 'instance', '.secret_key')
+    try:
+        with open(key_path) as f:
+            existing = f.read().strip()
+            if existing:
+                return existing
+    except OSError:
+        pass
+    import secrets
+    key = secrets.token_hex(32)
+    try:
+        os.makedirs(os.path.dirname(key_path), exist_ok=True)
+        with open(key_path, 'w') as f:
+            f.write(key)
+        os.chmod(key_path, 0o600)
+    except OSError:
+        logger.warning('Could not persist SECRET_KEY to %s', key_path)
+    return key
+
+app.config['SECRET_KEY'] = os.environ.get(
+    'SECRET_KEY', _get_or_create_secret_key(app.root_path))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tasks.db'
-app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads')
+app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'instance', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -85,13 +112,17 @@ class User(UserMixin, db.Model):
 
 class Task(db.Model):
     __tablename__ = 'task'
+    __table_args__ = (
+        db.Index('ix_task_creator_end', 'creator_id', 'end_time'),
+        db.Index('ix_task_start', 'start_time'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
     category = db.Column(db.String(50), default='工作')
     start_time = db.Column(db.DateTime, nullable=False)
     end_time = db.Column(db.DateTime, nullable=False)
-    creator_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    creator_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     is_all = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -104,9 +135,12 @@ class Task(db.Model):
 
 class TaskAssignment(db.Model):
     __tablename__ = 'task_assignment'
+    __table_args__ = (
+        db.Index('ix_task_assignment_user_status', 'user_id', 'status'),
+    )
     id = db.Column(db.Integer, primary_key=True)
-    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     status = db.Column(db.String(20), default='pending')
     progress = db.Column(db.Integer, default=0)
     note = db.Column(db.Text)
@@ -141,8 +175,12 @@ class Group(db.Model):
 
 class Notification(db.Model):
     __tablename__ = 'notification'
+    __table_args__ = (
+        db.Index('ix_notification_user_read', 'user_id', 'is_read'),
+        db.Index('ix_notification_created', 'created_at'),
+    )
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=True)
     type = db.Column(db.String(50), default='task_assigned')
     message = db.Column(db.String(500), nullable=False)
@@ -154,7 +192,10 @@ class Notification(db.Model):
 
 @login_manager.user_loader
 def load_user(user_id):
-    return db.session.get(User, int(user_id))
+    u = db.session.get(User, int(user_id))
+    if u is not None and u.is_disabled:
+        return None
+    return u
 
 
 TASK_COMPLETION_DAYS = 30
@@ -186,7 +227,32 @@ def get_same_group_users(user):
     ).distinct().all()
 
 
-def init_db():
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+
+
+@contextlib.contextmanager
+def db_init_lock():
+    """Serialize init_db/seed_demo_data across gunicorn workers so concurrent
+    startup cannot double-insert demo rows and trip the UNIQUE constraint."""
+    if fcntl is None:
+        yield
+        return
+    lock_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), 'instance', '.db_init.lock')
+    os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+    f = open(lock_path, 'a+')
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(f, fcntl.LOCK_UN)
+        f.close()
+
+
+def _run_sqlite_migrations():
     import sqlite3
     db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance', 'tasks.db')
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
@@ -209,23 +275,54 @@ def init_db():
         cols = [r[1] for r in c.fetchall()]
         if 'collection_id' not in cols:
             c.execute('ALTER TABLE kb_document ADD COLUMN collection_id INTEGER')
+        if 'attempts' not in cols:
+            c.execute('ALTER TABLE kb_document ADD COLUMN attempts INTEGER DEFAULT 0')
+        c.execute(
+            'SELECT id, file_path FROM kb_document WHERE file_path LIKE ?',
+            ('%static/uploads%',))
+        for doc_id, fp in c.fetchall():
+            c.execute(
+                'UPDATE kb_document SET file_path=? WHERE id=?',
+                (fp.replace('/static/uploads/', '/instance/uploads/'), doc_id))
+        for sql in [
+            'CREATE INDEX IF NOT EXISTS ix_task_creator_end ON task (creator_id, end_time)',
+            'CREATE INDEX IF NOT EXISTS ix_task_start ON task (start_time)',
+            'CREATE INDEX IF NOT EXISTS ix_task_creator ON task (creator_id)',
+            'CREATE INDEX IF NOT EXISTS ix_task_assignment_user_status ON task_assignment (user_id, status)',
+            'CREATE INDEX IF NOT EXISTS ix_task_assignment_task ON task_assignment (task_id)',
+            'CREATE INDEX IF NOT EXISTS ix_task_assignment_user ON task_assignment (user_id)',
+            'CREATE INDEX IF NOT EXISTS ix_notification_user_read ON notification (user_id, is_read)',
+            'CREATE INDEX IF NOT EXISTS ix_notification_user ON notification (user_id)',
+        ]:
+            c.execute(sql)
         conn.commit()
         conn.close()
     except Exception as e:
         print(f'Migration note: {e}')
 
-    db.create_all()
-    enable_sqlite_wal()
-    if not User.query.filter_by(username='bright').first():
-        admin = User(username='bright', role='admin')
-        admin.set_password('Bright@wangzhan')
-        db.session.add(admin)
-        db.session.commit()
-    seed_demo_data()
+
+def init_db():
+    with db_init_lock():
+        db.create_all()
+        _run_sqlite_migrations()
+        enable_sqlite_wal()
+        fresh = not User.query.filter_by(username='bright').first()
+        if fresh:
+            admin = User(username='bright', role='admin')
+            admin.set_password('Bright@wangzhan')
+            db.session.add(admin)
+            db.session.commit()
+        try:
+            seed_demo_data(force=fresh)
+        except IntegrityError:
+            db.session.rollback()
+            logger.warning('Demo seeding skipped: another worker seeded first')
 
 
-def seed_demo_data():
-    if User.query.filter_by(username='guest').first():
+def seed_demo_data(force=False):
+    """Seed demo data only when force=True (fresh DB or explicit reset).
+    Restarts never restore demo users deleted by the admin."""
+    if not force:
         return
     print('Seeding demo data...')
     guest = User(username='guest', name='体验用户', role='user')
@@ -479,17 +576,29 @@ def check_sensitive_words(text):
     return found
 
 def highlight_sensitive_words(text):
+    safe = str(markupsafe.escape(text))
     for w in SENSITIVE_WORDS:
-        text = text.replace(w, f'<mark style="color:var(--danger);background:#fecaca;padding:0 2px;border-radius:2px;">{w}</mark>')
-    return text
+        ew = markupsafe.escape(w)
+        safe = safe.replace(
+            ew,
+            f'<mark style="color:var(--danger);background:#fecaca;padding:0 2px;border-radius:2px;">{ew}</mark>')
+    return markupsafe.Markup(safe)
 
 
 def find_similar_tasks(title, description='', category='', start_time=None, end_time=None, exclude_id=None, threshold=0.85):
     from difflib import SequenceMatcher
+    from sqlalchemy import or_
     results = []
     query = Task.query
     if exclude_id:
         query = query.filter(Task.id != exclude_id)
+    # SQL pre-filter: only compare against tasks sharing a 2-char token with the
+    # input title, so the expensive SequenceMatcher runs on a small candidate set.
+    title_lower = title.lower()
+    bigrams = sorted({title_lower[i:i + 2] for i in range(len(title_lower) - 1)})
+    if bigrams:
+        like_conds = [Task.title.ilike(f'%{g}%') for g in bigrams[:5]]
+        query = query.filter(or_(*like_conds))
     tasks = query.all()
     for t in tasks:
         title_sim = SequenceMatcher(None, title.lower(), t.title.lower()).ratio()
@@ -913,7 +1022,9 @@ def login():
             login_user(user)
             flash('登录成功！', 'success')
             next_page = request.args.get('next')
-            return redirect(next_page or url_for('index'))
+            if next_page and next_page.startswith('/') and not next_page.startswith('//'):
+                return redirect(next_page)
+            return redirect(url_for('index'))
         flash('用户名或密码错误！', 'danger')
     return render_template('login.html')
 
@@ -921,11 +1032,14 @@ def login():
 @app.route('/login-guest')
 def login_guest():
     guest = User.query.filter_by(username='guest').first()
-    if guest:
+    if guest and not guest.is_disabled:
         login_user(guest)
         flash('您已使用体验账号登录，数据仅供展示', 'info')
         return redirect(url_for('index'))
-    flash('体验账号不存在，请先创建', 'danger')
+    if guest:
+        flash('体验账号已被禁用', 'danger')
+    else:
+        flash('体验账号不存在，请先创建', 'danger')
     return redirect(url_for('login'))
 
 
@@ -959,10 +1073,13 @@ def get_completion_rate(task):
 def get_overall_stats():
     total_tasks = Task.query.count()
     total_users = User.query.count()
-    total_assignments = TaskAssignment.query.count()
-    completed_assignments = TaskAssignment.query.filter_by(status='completed').count()
-    pending_assignments = TaskAssignment.query.filter_by(status='pending').count()
-    rejected_assignments = TaskAssignment.query.filter_by(status='rejected').count()
+    rows = dict(db.session.query(
+        TaskAssignment.status, func.count(TaskAssignment.id)
+    ).group_by(TaskAssignment.status).all())
+    total_assignments = sum(rows.values())
+    completed_assignments = rows.get('completed', 0)
+    pending_assignments = rows.get('pending', 0)
+    rejected_assignments = rows.get('rejected', 0)
     rate = round(completed_assignments / total_assignments * 100, 1) if total_assignments > 0 else 0
     return {
         'total_tasks': total_tasks,
@@ -982,26 +1099,42 @@ def get_overall_stats():
 def admin_dashboard():
     stats = get_overall_stats()
     users = User.query.all()
-    user_stats = []
+    user_ids = [u.id for u in users]
     now = datetime.now()
+    total_rows = dict(db.session.query(
+        TaskAssignment.user_id, func.count(TaskAssignment.id)
+    ).filter(TaskAssignment.user_id.in_(user_ids))
+     .group_by(TaskAssignment.user_id).all())
+    completed_rows = dict(db.session.query(
+        TaskAssignment.user_id, func.count(TaskAssignment.id)
+    ).filter(TaskAssignment.user_id.in_(user_ids),
+             TaskAssignment.status == 'completed')
+     .group_by(TaskAssignment.user_id).all())
+    urgent_rows = dict(db.session.query(
+        TaskAssignment.user_id, func.count(TaskAssignment.id)
+    ).join(Task).filter(
+        TaskAssignment.user_id.in_(user_ids),
+        TaskAssignment.status == 'pending',
+        Task.end_time <= now + timedelta(days=3),
+        Task.end_time >= now
+    ).group_by(TaskAssignment.user_id).all())
+    overdue_rows = dict(db.session.query(
+        TaskAssignment.user_id, func.count(TaskAssignment.id)
+    ).join(Task).filter(
+        TaskAssignment.user_id.in_(user_ids),
+        TaskAssignment.status == 'pending',
+        Task.end_time < now
+    ).group_by(TaskAssignment.user_id).all())
+    user_stats = []
     for u in users:
-        total = TaskAssignment.query.filter_by(user_id=u.id).count()
-        completed = TaskAssignment.query.filter_by(user_id=u.id, status='completed').count()
+        total = total_rows.get(u.id, 0)
+        completed = completed_rows.get(u.id, 0)
         rate = round(completed / total * 100, 1) if total > 0 else 0
-        urgent_tasks = TaskAssignment.query.join(Task).filter(
-            TaskAssignment.user_id == u.id,
-            TaskAssignment.status == 'pending',
-            Task.end_time <= now + timedelta(days=3),
-            Task.end_time >= now
-        ).count()
-        overdue_tasks = TaskAssignment.query.join(Task).filter(
-            TaskAssignment.user_id == u.id,
-            TaskAssignment.status == 'pending',
-            Task.end_time < now
-        ).count()
         user_stats.append({
             'user': u, 'total': total, 'completed': completed,
-            'rate': rate, 'urgent': urgent_tasks, 'overdue': overdue_tasks
+            'rate': rate,
+            'urgent': urgent_rows.get(u.id, 0),
+            'overdue': overdue_rows.get(u.id, 0)
         })
 
     uid = current_user.id
@@ -1680,6 +1813,50 @@ def api_summary():
     })
 
 
+def _build_task_stats(task_ids, user_id):
+    """Precompute per-task assignment counts and the current user's actionable
+    assignment in bulk, avoiding per-task dynamic-relationship queries in
+    tasks.html."""
+    task_ids = list({t for t in (task_ids or []) if t is not None})
+    if not task_ids:
+        return {}, {}
+    rows = db.session.query(
+        TaskAssignment.task_id, TaskAssignment.status,
+        func.count(TaskAssignment.id)
+    ).filter(TaskAssignment.task_id.in_(task_ids)).group_by(
+        TaskAssignment.task_id, TaskAssignment.status).all()
+    stats = {}
+    for tid, status, n in rows:
+        entry = stats.setdefault(tid, {'total': 0, 'completed': 0,
+                                       'abandoned': 0, 'pending': 0})
+        entry['total'] += n
+        if status in ('completed', 'approved'):
+            entry['completed'] += n
+        elif status == 'abandoned':
+            entry['abandoned'] += n
+        elif status == 'pending':
+            entry['pending'] += n
+    my_assignments = {}
+    for a in TaskAssignment.query.filter(
+            TaskAssignment.task_id.in_(task_ids),
+            TaskAssignment.user_id == user_id,
+            TaskAssignment.status.in_(['pending', 'completed', 'approved'])
+    ).all():
+        if a.task_id not in my_assignments or a.status == 'pending':
+            my_assignments[a.task_id] = a
+    return stats, my_assignments
+
+
+def _assignment_counts_by_user():
+    """{display name -> number of assigned tasks}, for the admin overview bar."""
+    rows = db.session.query(
+        func.coalesce(User.name, User.username).label('uname'),
+        func.count(TaskAssignment.id)
+    ).select_from(TaskAssignment).join(User, TaskAssignment.user_id == User.id) \
+     .group_by(User.id).order_by(func.count(TaskAssignment.id).desc()).all()
+    return {uname: n for uname, n in rows}
+
+
 @app.route('/user/tasks', methods=['GET', 'POST'])
 @login_required
 def user_tasks():
@@ -1696,6 +1873,14 @@ def user_tasks():
         user_groups = Group.query.all()
     else:
         user_groups = current_user.groups.all()
+
+    def _stats_context():
+        ids = [t.id for t in my_tasks] + [t.id for t in (other_assigned or [])]
+        stats, mine = _build_task_stats(ids, current_user.id)
+        ctx = {'task_stats': stats, 'my_assignments': mine}
+        if current_user.role == 'admin':
+            ctx['assignment_counts'] = _assignment_counts_by_user()
+        return ctx
 
     if request.method == 'POST':
         text = request.form.get('text', '').strip()
@@ -1720,6 +1905,7 @@ def user_tasks():
             }
             if current_user.role == 'admin':
                 template_data['all_tasks'] = Task.query.order_by(Task.created_at.desc()).all()
+            template_data.update(_stats_context())
             return render_template('tasks.html', **template_data)
         if action == 'save':
             try:
@@ -1770,6 +1956,7 @@ def user_tasks():
                         }
                         if current_user.role == 'admin':
                             template_data['all_tasks'] = Task.query.order_by(Task.created_at.desc()).all()
+                        template_data.update(_stats_context())
                         return render_template('tasks.html', **template_data)
                 created_titles = []
                 for i in range(total):
@@ -1846,6 +2033,7 @@ def user_tasks():
             if is_admin_user:
                 tasks = Task.query.order_by(Task.created_at.desc()).all()
                 template_data['all_tasks'] = tasks
+            template_data.update(_stats_context())
             return render_template('tasks.html', **template_data)
         except Exception as e:
             db.session.rollback()
@@ -1870,27 +2058,46 @@ def user_tasks():
     if is_admin_user:
         tasks = Task.query.order_by(Task.created_at.desc()).all()
         template_data['all_tasks'] = tasks
+        template_data.update(_stats_context())
         _now = datetime.now()
+        user_ids = [u.id for u in users]
         user_stats = []
-        for u in users:
-            urgent_tasks = TaskAssignment.query.join(Task).filter(
-                TaskAssignment.user_id == u.id,
+        status_rows = db.session.query(
+            TaskAssignment.user_id, TaskAssignment.status,
+            func.count(TaskAssignment.id)
+        ).filter(TaskAssignment.user_id.in_(user_ids)).group_by(
+            TaskAssignment.user_id, TaskAssignment.status).all()
+        per_status = {}
+        for uid, status, n in status_rows:
+            per_status.setdefault(uid, {})[status] = n
+        if user_ids:
+            urgent_rows = db.session.query(
+                TaskAssignment.user_id, func.count(TaskAssignment.id)
+            ).join(Task).filter(
+                TaskAssignment.user_id.in_(user_ids),
                 TaskAssignment.status == 'pending',
                 Task.end_time <= _now
-            ).count()
-            overdue_tasks = TaskAssignment.query.join(Task).filter(
-                TaskAssignment.user_id == u.id,
+            ).group_by(TaskAssignment.user_id).all()
+            overdue_rows = db.session.query(
+                TaskAssignment.user_id, func.count(TaskAssignment.id)
+            ).join(Task).filter(
+                TaskAssignment.user_id.in_(user_ids),
                 TaskAssignment.status == 'pending',
                 Task.end_time < _now
-            ).count()
-            total = TaskAssignment.query.filter_by(user_id=u.id).count()
-            completed = TaskAssignment.query.filter_by(user_id=u.id, status='completed').count()
-            approved = TaskAssignment.query.filter_by(user_id=u.id, status='approved').count()
-            completed_count = completed + approved
+            ).group_by(TaskAssignment.user_id).all()
+        else:
+            urgent_rows, overdue_rows = [], []
+        urgent = dict(urgent_rows)
+        overdue = dict(overdue_rows)
+        for u in users:
+            s = per_status.get(u.id, {})
+            total = sum(s.values())
+            completed_count = s.get('completed', 0) + s.get('approved', 0)
             rate = round(completed_count / total * 100, 1) if total > 0 else 0
             user_stats.append({
                 'user': u, 'total': total, 'completed': completed_count,
-                'rate': rate, 'urgent': urgent_tasks, 'overdue': overdue_tasks
+                'rate': rate, 'urgent': urgent.get(u.id, 0),
+                'overdue': overdue.get(u.id, 0)
             })
         template_data['user_stats'] = user_stats
 
@@ -2068,7 +2275,9 @@ def download_file(filename):
 def admin_clear_data():
     Notification.query.delete()
     TaskAssignment.query.delete()
+    db.session.execute(task_group.delete())
     Task.query.delete()
+    db.session.execute(user_group.delete())
     Group.query.delete()
     demo_users = User.query.filter(
         User.username.in_(['guest', 'zhangsan', 'lisi', 'wangwu', 'zhaoliu', 'sunqi'])
@@ -2077,6 +2286,11 @@ def admin_clear_data():
         db.session.delete(u)
     db.session.commit()
     init_db()
+    try:
+        seed_demo_data(force=True)
+    except IntegrityError:
+        db.session.rollback()
+        logger.warning('Demo reseed skipped after clear')
     flash('所有数据已清空并重新初始化', 'success')
     return redirect(url_for('admin_dashboard'))
 
@@ -2085,4 +2299,4 @@ with app.app_context():
     init_db()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=os.environ.get('FLASK_DEBUG') == '1')

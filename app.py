@@ -191,6 +191,48 @@ class Notification(db.Model):
     user = db.relationship('User', backref='notifications')
 
 
+class OperationLog(db.Model):
+    """用户关键操作日志(登录、知识库管理操作等)。"""
+    __tablename__ = 'operation_log'
+    __table_args__ = (
+        db.Index('ix_operation_log_created', 'created_at'),
+        db.Index('ix_operation_log_user', 'user_id'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=True, index=True)
+    username = db.Column(db.String(80), default='', index=True)
+    action = db.Column(db.String(50), nullable=False, index=True)
+    target = db.Column(db.String(200), default='')
+    detail = db.Column(db.String(1000), default='')
+    ip = db.Column(db.String(64), default='')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+
+def client_ip():
+    try:
+        return request.headers.get('X-Forwarded-For', '').split(',')[0].strip() or request.remote_addr or ''
+    except Exception:
+        return ''
+
+
+def log_operation(action, target='', detail='', user=None):
+    """记录一条用户操作日志。user 缺省取当前登录用户。"""
+    try:
+        u = user or (current_user if current_user.is_authenticated else None)
+        entry = OperationLog(
+            user_id=getattr(u, 'id', None),
+            username=(getattr(u, 'name', '') or getattr(u, 'username', '')) or '',
+            action=action,
+            target=(target or '')[:200],
+            detail=(detail or '')[:1000],
+            ip=client_ip(),
+        )
+        db.session.add(entry)
+        db.session.commit()
+    except Exception as e:
+        logger.warning('log_operation failed: %s', e)
+
+
 @login_manager.user_loader
 def load_user(user_id):
     u = db.session.get(User, int(user_id))
@@ -328,6 +370,11 @@ def _run_sqlite_migrations():
             'CREATE INDEX IF NOT EXISTS ix_task_assignment_user ON task_assignment (user_id)',
             'CREATE INDEX IF NOT EXISTS ix_notification_user_read ON notification (user_id, is_read)',
             'CREATE INDEX IF NOT EXISTS ix_notification_user ON notification (user_id)',
+            'CREATE INDEX IF NOT EXISTS ix_operation_log_created ON operation_log (created_at)',
+            'CREATE INDEX IF NOT EXISTS ix_operation_log_user ON operation_log (user_id)',
+            'CREATE INDEX IF NOT EXISTS ix_operation_log_action ON operation_log (action)',
+            'DROP TABLE IF EXISTS kb_triple',
+            'DROP TABLE IF EXISTS kb_entity',
         ]:
             c.execute(sql)
         conn.commit()
@@ -1052,14 +1099,21 @@ def login():
         user = User.query.filter_by(username=username).first()
         if user and user.check_password(password):
             if user.is_disabled:
+                log_operation('login_fail', username, '账号已禁用')
+                db.session.commit()
                 flash('该账号已被禁用，请联系管理员', 'danger')
                 return render_template('login.html')
             login_user(user)
+            log_operation('login', username,
+                          f'用户 {user.name or user.username} 登录成功')
+            db.session.commit()
             flash('登录成功！', 'success')
             next_page = request.args.get('next')
             if next_page and next_page.startswith('/') and not next_page.startswith('//'):
                 return redirect(next_page)
             return redirect(url_for('index'))
+        log_operation('login_fail', username, '用户名或密码错误')
+        db.session.commit()
         flash('用户名或密码错误！', 'danger')
     return render_template('login.html')
 
@@ -1069,9 +1123,13 @@ def login_guest():
     guest = User.query.filter_by(username='guest').first()
     if guest and not guest.is_disabled:
         login_user(guest)
+        log_operation('login', 'guest', '体验账号登录')
+        db.session.commit()
         flash('您已使用体验账号登录，数据仅供展示', 'info')
         return redirect(url_for('index'))
     if guest:
+        log_operation('login_fail', 'guest', '体验账号已被禁用')
+        db.session.commit()
         flash('体验账号已被禁用', 'danger')
     else:
         flash('体验账号不存在，请先创建', 'danger')
@@ -1081,6 +1139,9 @@ def login_guest():
 @app.route('/logout')
 @login_required
 def logout():
+    log_operation('logout', current_user.username or '',
+                  f'用户 {current_user.name or current_user.username} 退出登录')
+    db.session.commit()
     logout_user()
     flash('已退出登录', 'info')
     return redirect(url_for('login'))
@@ -1221,6 +1282,46 @@ def admin_dashboard():
                            all_pending=all_pending,
                            now=now_dt,
                            is_admin=True)
+
+
+@app.route('/admin/logs', methods=['GET'])
+@login_required
+@admin_required
+def admin_logs():
+    """操作日志管理:按用户/动作/时间筛选,分页展示。"""
+    page = request.args.get('page', 1, type=int)
+    username = (request.args.get('username') or '').strip()
+    action = (request.args.get('action') or '').strip()
+    days = request.args.get('days', type=int)
+
+    query = OperationLog.query
+    if username:
+        like = f'%{username}%'
+        query = query.filter(OperationLog.username.ilike(like))
+    if action:
+        query = query.filter(OperationLog.action == action)
+    if days:
+        since = datetime.utcnow() - timedelta(days=days)
+        query = query.filter(OperationLog.created_at >= since)
+
+    pagination = db.paginate(
+        query.order_by(OperationLog.created_at.desc()),
+        page=page, per_page=30, error_out=False)
+    logs = pagination.items
+
+    action_counts = dict(db.session.query(
+        OperationLog.action, func.count(OperationLog.id)
+    ).group_by(OperationLog.action).all())
+    total_users = db.session.query(
+        func.count(func.distinct(OperationLog.user_id))).scalar() or 0
+
+    return render_template('admin/logs.html', logs=logs,
+                           pagination=pagination, username=username,
+                           action=action, days=days,
+                           action_counts=action_counts,
+                           total_users=total_users,
+                           total_logs=(db.session.query(OperationLog.id)
+                                       .count()))
 
 
 @app.route('/admin/users', methods=['GET'])
@@ -2091,10 +2192,10 @@ def user_tasks():
         'is_admin': is_admin_user,
         'user_groups': user_groups,
     }
+    template_data.update(_stats_context())
     if is_admin_user:
         tasks = Task.query.order_by(Task.created_at.desc()).all()
         template_data['all_tasks'] = tasks
-        template_data.update(_stats_context())
         _now = datetime.now()
         user_ids = [u.id for u in users]
         user_stats = []

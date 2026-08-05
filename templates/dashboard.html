@@ -108,25 +108,54 @@
   </div>
 </div>
 
-<!-- Search Bar -->
-<div class="d-flex align-items-center gap-2 mb-4">
-  <div class="card flex-grow-1" style="border-radius:var(--radius);">
-    <div class="card-body py-2 px-3">
-      <div class="d-flex align-items-center gap-2">
-        <i class="bi bi-search" style="color:var(--gray-400);font-size:1rem;"></i>
-        <input type="text" id="taskSearchInput" class="form-control form-control-sm" placeholder="搜索任务标题、描述或备注..." style="border:none;box-shadow:none;font-size:.88rem;background:transparent;" oninput="debounceSearch()">
-        <button class="btn btn-sm btn-outline-secondary d-none" id="searchClearBtn" style="padding:2px 8px;font-size:.75rem;border:none;" onclick="clearSearch()"><i class="bi bi-x-lg"></i></button>
+<div class="row g-3 mb-4">
+  <!-- 任务检索 -->
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
+        <span><i class="bi bi-list-task" style="color:var(--primary);"></i> 任务检索</span>
+        <button class="btn btn-sm btn-outline-primary" style="white-space:nowrap;font-size:.78rem;padding:3px 10px;border-radius:var(--radius-sm);" onclick="openSummaryModal()">
+          <i class="bi bi-file-earmark-text"></i> 总结报告
+        </button>
+      </div>
+      <div class="card-body py-2 px-3">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-search" style="color:var(--gray-400);font-size:1rem;"></i>
+          <input type="text" id="taskSearchInput" class="form-control form-control-sm" placeholder="搜索任务标题、描述或备注..." style="border:none;box-shadow:none;font-size:.88rem;background:transparent;" oninput="debounceSearch()">
+          <button class="btn btn-sm btn-outline-secondary d-none" id="searchClearBtn" style="padding:2px 8px;font-size:.75rem;border:none;" onclick="clearSearch()"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="d-flex align-items-center gap-2 mt-2">
+          <select id="searchCategory" class="form-select form-select-sm" style="width:auto;min-width:100px;font-size:.85rem;border-radius:var(--radius-sm);border:1px solid var(--gray-200);" onchange="debounceSearch()">
+            <option value="">全部</option>
+            <option value="工作">工作</option>
+            <option value="个人">个人</option>
+          </select>
+          <small class="text-muted" style="font-size:.78rem;"><i class="bi bi-arrow-down-right-circle" style="color:var(--primary);"></i> 输入后自动搜索任务</small>
+        </div>
       </div>
     </div>
   </div>
-  <select id="searchCategory" class="form-select form-select-sm" style="width:auto;min-width:100px;font-size:.85rem;border-radius:var(--radius-sm);border:1px solid var(--gray-200);" onchange="debounceSearch()">
-    <option value="">全部</option>
-    <option value="工作">工作</option>
-    <option value="个人">个人</option>
-  </select>
-  <button class="btn btn-sm btn-outline-primary" style="white-space:nowrap;font-size:.85rem;padding:6px 14px;border-radius:var(--radius-sm);" onclick="openSummaryModal()">
-    <i class="bi bi-file-earmark-text"></i> 总结报告
-  </button>
+  <!-- 知识库检索 -->
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
+        <span><i class="bi bi-search" style="color:var(--primary);"></i> 知识库检索</span>
+        <a href="{{ url_for('kb.workbench') }}" class="btn btn-sm btn-outline-primary" style="padding:2px 8px;font-size:.7rem;">进入工作台</a>
+      </div>
+      <div class="card-body py-3">
+        <div class="position-relative">
+          <div class="input-group">
+            <input type="text" id="kbAskInput" class="form-control" placeholder="输入关键词检索知识库" style="font-size:.88rem;" autocomplete="off" onfocus="kbShowAskRecent()" oninput="if(this.value.trim()){kbHideAskRecent();}else{kbShowAskRecent();}" onkeydown="if(event.key==='Enter'){event.preventDefault();kbSearch();}">
+            <button class="btn btn-primary" id="kbSearchBtn" onclick="kbSearch()" style="white-space:nowrap;"><i class="bi bi-search"></i> 检索</button>
+          </div>
+          <div id="kbAskRecentBox" class="d-none" style="position:absolute;top:100%;left:0;right:0;background:#fff;border-radius:var(--radius-sm);box-shadow:var(--shadow-lg);max-height:260px;overflow-y:auto;z-index:50;margin-top:6px;padding:6px;"></div>
+        </div>
+        <div class="mt-3 mb-0 d-flex align-items-center gap-2" style="font-size:.78rem;color:var(--gray-500);">
+          <i class="bi bi-arrow-right-circle" style="color:var(--primary);"></i> 检索将自动跳转到知识库工作台查看结果
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Search Results -->
@@ -137,40 +166,6 @@
       <span class="badge bg-primary" id="searchCount" style="font-size:.65rem;">0</span>
     </div>
     <div class="list-group list-group-flush" id="searchResultList"></div>
-  </div>
-</div>
-
-<!-- Knowledge Base Q&A -->
-<div class="card mb-4">
-  <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
-    <span><i class="bi bi-chat-square-text" style="color:var(--primary);"></i> 知识库问答</span>
-    <a href="{{ url_for('kb.workbench') }}" class="btn btn-sm btn-outline-primary" style="padding:2px 8px;font-size:.7rem;">进入工作台</a>
-  </div>
-  <div class="card-body py-3">
-    <div class="position-relative mb-3">
-      <div class="input-group">
-        <input type="text" id="kbAskInput" class="form-control" placeholder="输入问题或关键词" style="font-size:.88rem;" autocomplete="off" onfocus="kbShowAskRecent()" oninput="if(this.value.trim()){kbHideAskRecent();}else{kbShowAskRecent();}" onkeydown="if(event.key==='Enter'){event.preventDefault();kbSearch();}">
-        <button class="btn btn-outline-primary" id="kbSearchBtn" onclick="kbSearch()" style="white-space:nowrap;"><i class="bi bi-search"></i> 检索</button>
-        <button class="btn btn-primary" id="kbAskBtn" onclick="kbAsk()" style="white-space:nowrap;"><i class="bi bi-send"></i> 分身问答</button>
-      </div>
-      <div id="kbAskRecentBox" class="d-none" style="position:absolute;top:100%;left:0;right:0;background:#fff;border-radius:var(--radius-sm);box-shadow:var(--shadow-lg);max-height:260px;overflow-y:auto;z-index:50;margin-top:6px;padding:6px;"></div>
-    </div>
-    <div id="kbSearchResult" style="display:none;">
-      <div id="kbSearchLoading" class="loading-answer d-none">
-        <span class="spinner-border spinner-border-sm" style="width:1rem;height:1rem;"></span> 检索中…
-      </div>
-      <div id="kbSearchBody"></div>
-    </div>
-    <div id="kbAskLoading" class="loading-answer d-none">
-      <span class="spinner-border spinner-border-sm" style="width:1rem;height:1rem;"></span> 分身思考中…
-    </div>
-    <div id="kbAskAnswer" style="display:none;">
-      <div id="kbAskAnswerBody" class="answer-body"></div>
-      <div id="kbAskSourcesWrap" class="mt-3 pt-2 border-top" style="display:none;">
-        <small class="text-muted" style="font-size:.72rem;font-weight:600;">引用来源</small>
-        <div class="d-flex flex-wrap gap-2 mt-2" id="kbAskSourcesBox"></div>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -428,8 +423,6 @@ function closeTaskDrawer() {
 </div>
 
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 <script>
 var _summaryDate = '';
 var _summaryPeriod = 'month';
@@ -569,107 +562,11 @@ function clearSearch() {
 }
 </script>
 <script>
-var _askTimer = null;
 function kbSearch() {
   var input = document.getElementById('kbAskInput');
   var q = input.value.trim();
   if (!q) { input.focus(); return; }
-  var searchResult = document.getElementById('kbSearchResult');
-  var searchLoading = document.getElementById('kbSearchLoading');
-  var searchBody = document.getElementById('kbSearchBody');
-  searchResult.style.display = 'block';
-  searchLoading.classList.remove('d-none');
-  searchBody.innerHTML = '';
-  document.getElementById('kbAskAnswer').style.display = 'none';
-  fetch('{{ url_for('kb.api_search') }}', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ q: q })
-  }).then(function(r) { return r.json(); }).then(function(d) {
-    searchLoading.classList.add('d-none');
-    if (!d.ok) {
-      searchBody.innerHTML = '<div class="empty-tip">检索失败: ' + (d.error || '未知错误') + '</div>';
-      return;
-    }
-    var groups = d.groups || [];
-    if (!groups.length) {
-      searchBody.innerHTML = '<div class="empty-tip">未找到相关内容</div>';
-      return;
-    }
-    searchBody.innerHTML = groups.map(function(g) {
-      var pages = (g.pages || []).map(function(p) {
-        return '<div class="result-page" style="cursor:pointer;transition:background .15s;" onmouseover="this.style.background=\'var(--gray-50)\'" onmouseout="this.style.background=\'transparent\'">' +
-          '<div class="d-flex justify-content-between align-items-center">' +
-          '<span class="badge badge-medium">第 ' + p.page_no + ' 页</span>' +
-          '<small class="text-muted" style="font-size:.7rem;">相关度 ' + Math.round(p.score * 100) + '%</small>' +
-          '</div>' +
-          '<p class="mb-0 mt-1" style="font-size:.82rem;color:var(--gray-600);line-height:1.6;">' + (p.snippet || '') + '</p>' +
-          '</div>';
-      }).join('');
-      return '<div class="result-group mb-3">' +
-        '<div class="doc-head">' +
-        '<span style="color:var(--gray-900);text-decoration:none;font-weight:600;font-size:.9rem;">' + g.title + '</span>' +
-        '<span class="badge badge-low">' + Math.round(g.best_score * 100) + '%</span>' +
-        '</div>' +
-        '<div class="progress-custom mt-1" style="width:120px;"><div class="progress-custom-bar" style="width:' + Math.round(g.best_score * 100) + '%;background:var(--primary);"></div></div>' +
-        pages + '</div>';
-    }).join('');
-  }).catch(function(e) {
-    searchLoading.classList.add('d-none');
-    searchBody.innerHTML = '<div class="empty-tip">检索失败: ' + e.message + '</div>';
-  });
-}
-function kbAsk() {
-  var input = document.getElementById('kbAskInput');
-  var q = input.value.trim();
-  if (!q) { input.focus(); return; }
-  var loading = document.getElementById('kbAskLoading');
-  var answer = document.getElementById('kbAskAnswer');
-  var searchResult = document.getElementById('kbSearchResult');
-  searchResult.style.display = 'none';
-  answer.style.display = 'none';
-  loading.classList.remove('d-none');
-  fetch('{{ url_for('kb.api_ask') }}', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question: q })
-  }).then(function(r) { return r.json(); }).then(function(d) {
-    loading.classList.add('d-none');
-    if (!d.ok) {
-      answer.style.display = 'block';
-      document.getElementById('kbAskAnswerBody').innerHTML = '<div class="empty-tip">问答失败: ' + (d.error || '未知错误') + '</div>';
-      document.getElementById('kbAskSourcesWrap').style.display = 'none';
-      return;
-    }
-    renderAskAnswer(q, d);
-  }).catch(function(e) {
-    loading.classList.add('d-none');
-    answer.style.display = 'block';
-    document.getElementById('kbAskAnswerBody').innerHTML = '<div class="empty-tip">网络错误,请重试</div>';
-    document.getElementById('kbAskSourcesWrap').style.display = 'none';
-  });
-}
-function renderAskAnswer(question, d) {
-  var answer = document.getElementById('kbAskAnswer');
-  answer.style.display = 'block';
-  var body = document.getElementById('kbAskAnswerBody');
-  var raw = d.answer || '';
-  if (window.marked && window.DOMPurify) {
-    body.innerHTML = DOMPurify.sanitize(marked.parse(raw));
-  } else {
-    body.textContent = raw;
-    body.style.whiteSpace = 'pre-wrap';
-  }
-  var srcBox = document.getElementById('kbAskSourcesBox');
-  srcBox.innerHTML = '';
-  (d.sources || []).forEach(function(s) {
-    var a = document.createElement('a');
-    a.className = 'source-tag';
-    a.href = '{{ url_for('kb.doc_detail', doc_id=0) }}'.replace('0', s.doc_id);
-    a.innerHTML = '<i class="bi bi-file-earmark-text"></i> ' + s.title + ' · 第' + s.page + '页';
-    srcBox.appendChild(a);
-  });
-  document.getElementById('kbAskSourcesWrap').style.display = (d.sources || []).length ? 'block' : 'none';
+  window.location.href = '{{ url_for('kb.workbench') }}?q=' + encodeURIComponent(q);
 }
 function kbShowAskRecent() {
   var input = document.getElementById('kbAskInput');
@@ -696,8 +593,7 @@ document.getElementById('kbAskRecentBox').addEventListener('click', function(e) 
   if (!el) return;
   var q = decodeURIComponent(el.getAttribute('data-q'));
   kbHideAskRecent();
-  document.getElementById('kbAskInput').value = q;
-  kbAsk();
+  window.location.href = '{{ url_for('kb.workbench') }}?q=' + encodeURIComponent(q);
 });
 document.addEventListener('click', function(e) {
   if (!e.target.closest('.position-relative')) kbHideAskRecent();

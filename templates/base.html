@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}知行合一{% endblock %}</title>
+  <title>{% block title %}知行合一 + 数字分身{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
   <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.11.2/font/bootstrap-icons.min.css">
@@ -185,8 +185,8 @@
   <nav class="top-nav">
     <div class="top-nav-inner">
       <a href="{{ url_for('user_dashboard') }}" class="top-nav-logo">
-        <i class="bi bi-lightning-fill"></i>
-        <span>知行合一</span>
+        <i class="bi bi-person-fill"></i>
+        <span>知行合一 + 数字分身</span>
       </a>
       <div class="top-nav-links">
         <a href="{{ url_for('user_dashboard') }}" class="{% if request.endpoint == 'user_dashboard' %}active{% endif %}">
@@ -199,8 +199,8 @@
             <i class="bi bi-collection"></i> 知识库
           </a>
         {% if current_user.role == 'admin' %}
-        <a href="{{ url_for('admin_users') }}" class="{% if request.endpoint == 'admin_users' %}active{% endif %}">
-          <i class="bi bi-people"></i> 用户管理
+        <a href="{{ url_for('admin_users') }}" class="{% if request.endpoint in ('admin_users', 'admin_logs') %}active{% endif %}">
+          <i class="bi bi-gear"></i> 后台管理
         </a>
         {% endif %}
       </div>
@@ -277,8 +277,8 @@
             <i class="bi bi-collection"></i> 知识库
           </a>
     {% if current_user.role == 'admin' %}
-    <a href="{{ url_for('admin_users') }}" class="{% if request.endpoint == 'admin_users' %}active{% endif %}">
-      <i class="bi bi-people"></i><span>用户</span>
+    <a href="{{ url_for('admin_users') }}" class="{% if request.endpoint in ('admin_users', 'admin_logs') %}active{% endif %}">
+      <i class="bi bi-gear"></i><span>后台</span>
     </a>
     {% endif %}
   </nav>

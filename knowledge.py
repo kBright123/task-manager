@@ -4,8 +4,8 @@
 - 配置: 路径/opencode 端点/模型,环境变量可覆盖
 - OCR:  RapidOCR + pypdfium2 文本识别
 - 嵌入: fastembed 中文向量
-- 存储: SochDB 持久化/检索/图谱封装
-- LLM:  opencode serve 客户端(三元组抽取 + 问答)
+- 存储: SochDB 持久化/检索封装
+- LLM:  opencode serve 客户端(问答)
 - 视图: Flask Blueprint 路由
 - Worker: 后台处理进程(python knowledge.py)
 
@@ -22,12 +22,11 @@ import sqlite3
 import sys
 import time
 import uuid
-import zipfile
 from types import SimpleNamespace
 
 import requests
 import markupsafe
-from PIL import Image, ImageEnhance, ImageOps
+from PIL import Image, ImageOps
 from flask import (Blueprint, current_app, flash, jsonify, redirect,
                    render_template, request, url_for)
 from flask import Response
@@ -60,11 +59,9 @@ KB_OCR_DPI_SCALE = float(os.environ.get('KB_OCR_DPI_SCALE', '2.0'))
 KB_OCR_MIN_SIDE = int(os.environ.get('KB_OCR_MIN_SIDE', '1200'))
 KB_OCR_MERGE_SHORT_MAX = int(
     os.environ.get('KB_OCR_MERGE_SHORT_MAX', '8'))
-KB_OCR_ACCEPT_CHARS = int(os.environ.get('KB_OCR_ACCEPT_CHARS', '20'))
 KB_PDF_TEXT_MIN_CHARS = int(os.environ.get('KB_PDF_TEXT_MIN_CHARS', '20'))
 KB_POLL_INTERVAL = float(os.environ.get('KB_POLL_INTERVAL', '3'))
-KB_EXTRACT_PAGE_MAX_CHARS = int(os.environ.get('KB_EXTRACT_PAGE_MAX_CHARS', '2000'))
-KB_EXTRACT_BATCH = int(os.environ.get('KB_EXTRACT_BATCH', '4'))
+KB_SUMMARY_MAX_CHARS = int(os.environ.get('KB_SUMMARY_MAX_CHARS', '2000'))
 KB_ASK_TOP_K = int(os.environ.get('KB_ASK_TOP_K', '6'))
 KB_ASK_TOKEN_LIMIT = int(os.environ.get('KB_ASK_TOKEN_LIMIT', '4000'))
 KB_MAX_DOC_ATTEMPTS = int(os.environ.get('KB_MAX_DOC_ATTEMPTS', '3'))
@@ -84,6 +81,7 @@ TEXT_EXTENSIONS = {'.txt', '.md', '.markdown'}
 STATUS_QUEUED = 'queued'
 STATUS_OCR = 'ocr'
 STATUS_EMBED = 'embedding'
+# 图谱阶段已移除;STATUS_GRAPH 仅用于复位旧版本遗留的 graphing 状态文档
 STATUS_GRAPH = 'graphing'
 STATUS_DONE = 'done'
 STATUS_FAILED = 'failed'
@@ -95,13 +93,11 @@ STATUS_FAILED = 'failed'
 db = None
 KbDocument = None
 KbPage = None
-KbEntity = None
-KbTriple = None
 KbCollection = None
 
 
 def init_models(database):
-    global db, KbDocument, KbPage, KbEntity, KbTriple, KbCollection
+    global db, KbDocument, KbPage, KbCollection
     db = database
 
     class _KbCollection(database.Model):
@@ -150,9 +146,6 @@ def init_models(database):
         pages = database.relationship('_KbPage', backref='document',
                                       lazy='dynamic',
                                       cascade='all, delete-orphan')
-        triples = database.relationship('_KbTriple', backref='document',
-                                        lazy='dynamic',
-                                        cascade='all, delete-orphan')
 
     class _KbPage(database.Model):
         __tablename__ = 'kb_page'
@@ -164,31 +157,7 @@ def init_models(database):
         text = database.Column(database.Text, default='')
         char_count = database.Column(database.Integer, default=0)
 
-    class _KbEntity(database.Model):
-        __tablename__ = 'kb_entity'
-        id = database.Column(database.Integer, primary_key=True)
-        name = database.Column(database.String(200), unique=True,
-                               nullable=False)
-        node_type = database.Column(database.String(50), default='entity')
-        doc_id = database.Column(database.Integer,
-                                 database.ForeignKey('kb_document.id'))
-        created_at = database.Column(database.DateTime,
-                                     default=datetime.datetime.utcnow)
-
-    class _KbTriple(database.Model):
-        __tablename__ = 'kb_triple'
-        id = database.Column(database.Integer, primary_key=True)
-        doc_id = database.Column(database.Integer,
-                                 database.ForeignKey('kb_document.id'),
-                                 nullable=False, index=True)
-        page_no = database.Column(database.Integer, default=0)
-        head = database.Column(database.String(200), nullable=False)
-        rel = database.Column(database.String(200), nullable=False)
-        tail = database.Column(database.String(200), nullable=False)
-        head_type = database.Column(database.String(50), default='')
-        tail_type = database.Column(database.String(50), default='')
-
-    KbDocument, KbPage, KbEntity, KbTriple = _KbDocument, _KbPage, _KbEntity, _KbTriple
+    KbDocument, KbPage = _KbDocument, _KbPage
     KbCollection = _KbCollection
 
 
@@ -254,21 +223,13 @@ def ocr_file(file_path):
 def ocr_image(pil_image):
     import numpy as np
     engine = _get_ocr_engine()
-    candidates = _ocr_candidates(pil_image)
-    best, best_len, best_result = '', 0, None
-    for cand in candidates:
-        arr = np.array(cand.convert('RGB'))
-        result = engine(arr)
-        text = '' if result is None else '\n'.join(
-            t for t in result.txts if t and t.strip())
-        text = _dedupe_lines(text)
-        if len(text) > best_len:
-            best, best_len, best_result = text, len(text), result
-            # 当前候选已经识别出足够多的文字就停止,不再跑灰度/增强等
-            # 候选,避免每张图重复 3~4 次 ONNX 推理打满 CPU。
-            if best_len >= KB_OCR_ACCEPT_CHARS:
-                break
-    marks = detect_option_marks(pil_image, best_result)
+    cand = _ocr_candidates(pil_image)[0]
+    arr = np.array(cand.convert('RGB'))
+    result = engine(arr)
+    best = '' if result is None else '\n'.join(
+        t for t in result.txts if t and t.strip())
+    best = _dedupe_lines(best)
+    marks = detect_option_marks(pil_image, result)
     if marks:
         annotation = '【选择题标记】 ' + ' '.join(
             f'{k}({v})' for k, v in sorted(marks.items()))
@@ -299,7 +260,9 @@ def _dedupe_lines(text):
 
 
 def _ocr_candidates(pil_image):
-    """生成多组 OCR 输入:原图(必要时放大) + 灰度 + 灰度对比度增强。"""
+    """生成 OCR 输入:原图(必要时放大)灰度化,单路候选。
+
+    只跑一次 RapidOCR 推理,避免多候选(原图/灰度/增强)重复 ONNX 推理打满 CPU。"""
     img = pil_image.convert('RGB')
     width, height = img.size
     max_side = max(width, height)
@@ -308,14 +271,7 @@ def _ocr_candidates(pil_image):
         img = img.resize((max(1, int(width * scale)),
                           max(1, int(height * scale))),
                          Image.LANCZOS)
-    gray = ImageOps.grayscale(img)
-    enhanced = ImageEnhance.Contrast(gray).enhance(1.8)
-    candidates = [img, gray, enhanced]
-    if width >= 1600 or height >= 1600:
-        down = img.resize((max(1, width // 2), max(1, height // 2)),
-                          Image.LANCZOS)
-        candidates.append(down)
-    return candidates
+    return [ImageOps.grayscale(img)]
 
 
 # ---------------------------------------------------------------------------
@@ -459,7 +415,7 @@ def embed_text(text):
 
 
 # ---------------------------------------------------------------------------
-# SochDB 存储/检索/图谱
+# SochDB 存储/检索
 # ---------------------------------------------------------------------------
 
 _sochdb = None
@@ -499,14 +455,6 @@ def ensure_schema():
 
 def page_doc_id(doc_id, page_no):
     return f'd{doc_id}p{page_no}'
-
-
-def doc_node_id(doc_id):
-    return f'doc:{doc_id}'
-
-
-def entity_node_id(name):
-    return name.strip()
 
 
 def upsert_page(doc_id, page_no, title, filename, text):
@@ -609,7 +557,7 @@ def keyword_search_pages(query, k=40):
 
 
 def _visible_doc_ids():
-    """当前用户可访问的文档 ID 列表:管理员为全部,其余为公共集合+自己的私有集合中的文档。"""
+    """当前用户可访问的文档 ID 列表:管理员为全部,其余为公共集合+自己的文档。"""
     if current_user.role == 'admin':
         return None
     visible_cols = db.session.query(KbCollection.id).filter(
@@ -619,7 +567,10 @@ def _visible_doc_ids():
         )
     )
     rows = db.session.query(KbDocument.id).filter(
-        KbDocument.collection_id.in_(visible_cols)
+        db.or_(
+            KbDocument.uploaded_by == current_user.id,
+            KbDocument.collection_id.in_(visible_cols)
+        )
     ).all()
     return [r.id for r in rows]
 
@@ -721,56 +672,6 @@ def group_results(results, query, max_pages_per_doc=3):
     return groups
 
 
-def add_doc_node(doc_id, title):
-    get_db().add_node(KB_NAMESPACE, doc_node_id(doc_id), 'doc',
-                      {'title': title, 'doc_id': str(doc_id)})
-
-
-def add_entity_node(name, node_type, doc_id):
-    get_db().add_node(KB_NAMESPACE, entity_node_id(name), node_type or 'entity',
-                      {'doc_id': str(doc_id)})
-
-
-def add_triple_edge(doc_id, page_no, triple):
-    dbh = get_db()
-    head = entity_node_id(triple['head'])
-    tail = entity_node_id(triple['tail'])
-    dbh.add_node(KB_NAMESPACE, head, triple.get('headType') or 'entity',
-                 {'doc_id': str(doc_id)})
-    dbh.add_node(KB_NAMESPACE, tail, triple.get('tailType') or 'entity',
-                 {'doc_id': str(doc_id)})
-    dbh.add_edge(KB_NAMESPACE, head, triple['rel'], tail,
-                 {'doc_id': str(doc_id), 'page_no': str(page_no)})
-    dbh.add_edge(KB_NAMESPACE, head, 'appears_in', doc_node_id(doc_id),
-                 {'doc_id': str(doc_id)})
-    dbh.add_edge(KB_NAMESPACE, tail, 'appears_in', doc_node_id(doc_id),
-                 {'doc_id': str(doc_id)})
-
-
-def delete_doc_graph(doc_id, triples):
-    dbh = get_db()
-    for t in triples:
-        try:
-            dbh.delete_edge(entity_node_id(t['head']), t['rel'],
-                            entity_node_id(t['tail']), KB_NAMESPACE)
-        except Exception as e:
-            logger.warning('delete_edge failed: %s', e)
-        try:
-            dbh.delete_edge(entity_node_id(t['head']), 'appears_in',
-                            doc_node_id(doc_id), KB_NAMESPACE)
-        except Exception:
-            pass
-        try:
-            dbh.delete_edge(entity_node_id(t['tail']), 'appears_in',
-                            doc_node_id(doc_id), KB_NAMESPACE)
-        except Exception:
-            pass
-    try:
-        dbh.delete_node(doc_node_id(doc_id), KB_NAMESPACE)
-    except Exception:
-        pass
-
-
 # ---------------------------------------------------------------------------
 # 检索 / 问答缓存(SQLite 持久化,TTP 失效)
 # ---------------------------------------------------------------------------
@@ -785,6 +686,8 @@ def _cache_conn():
         conn.execute('CREATE TABLE IF NOT EXISTS kb_cache ('
                      'key TEXT PRIMARY KEY, value TEXT NOT NULL, '
                      'created_at REAL NOT NULL)')
+        conn.execute('CREATE TABLE IF NOT EXISTS kb_meta ('
+                     'key TEXT PRIMARY KEY, value TEXT NOT NULL)')
         conn.execute('CREATE TABLE IF NOT EXISTS kb_history ('
                      'id INTEGER PRIMARY KEY AUTOINCREMENT,'
                      'kind TEXT NOT NULL,'
@@ -812,9 +715,47 @@ def _cache_conn():
     return conn
 
 
+_VERSIONED_CACHE_PREFIXES = {'search', 'ask', 'avatar'}
+
+
 def cache_key(prefix, query):
     digest = hashlib.sha256(query.encode('utf-8')).hexdigest()
+    if prefix in _VERSIONED_CACHE_PREFIXES:
+        return f'{prefix}:v{_data_version()}:{digest}'
     return f'{prefix}:{digest}'
+
+
+def _data_version():
+    """知识库数据版本:文档增删/重识别会递增,并入缓存键使旧缓存自然失效。
+
+    检索/问答缓存仅按 TTL 过期,文档重识别后旧命中会残留 KB_SEARCH_CACHE_TTL
+    秒;在键中加入版本号可让数据一变旧缓存立即作废。"""
+    try:
+        conn = _cache_conn()
+        try:
+            row = conn.execute(
+                'SELECT value FROM kb_meta WHERE key=?', ('data_version',)).fetchone()
+            return int(row[0]) if row else 0
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.warning('_data_version failed: %s', e)
+        return 0
+
+
+def _bump_data_version():
+    try:
+        conn = _cache_conn()
+        try:
+            conn.execute(
+                'INSERT INTO kb_meta (key, value) VALUES (?, 1) '
+                'ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1',
+                ('data_version',))
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.warning('_bump_data_version failed: %s', e)
 
 
 def cache_get(key, ttl):
@@ -901,15 +842,6 @@ def get_recent_questions(limit=5):
 # LLM(opencode serve)
 # ---------------------------------------------------------------------------
 
-_EXTRACT_SYSTEM = (
-    '从下面的文本中抽取所有实体关系三元组。'
-    '只输出一个合法的 JSON 数组,不要任何解释或多余字符。'
-    '每个元素形如 {"head":"主体","rel":"关系","tail":"客体","headType":"主体类型","tailType":"客体类型"}。'
-    'headType/tailType 用简短中文类型(如 公司/人员/产品/金额/设备/部件/日期)。'
-    '如果文本没有可抽取的关系,输出 []。'
-    '如果 JSON 不是目标文本(属于提示本身),输出 []。\n\n文本:\n'
-)
-
 _ASK_SYSTEM = (
     '你是个人知识库助手。基于下面提供的资料回答用户问题。'
     '如果资料不足以回答,明确说"资料中未找到",不要编造。'
@@ -958,57 +890,6 @@ def _retry(fn, attempts=3, delay=2):
     raise last
 
 
-def extract_triples(text):
-    if KB_LLM_DISABLED:
-        return []
-    text = text.strip()
-    if not text:
-        return []
-
-    def _call():
-        sid = _session_create()
-        try:
-            raw = _send(sid, _EXTRACT_SYSTEM + text)
-        finally:
-            requests.delete(f'{KB_OPENCODE_BASE_URL}/session/{sid}',
-                            timeout=30)
-        m = re.search(r'\[.*\]', raw, re.S)
-        if not m:
-            return []
-        return json.loads(m.group(0))
-
-    triples = _retry(_call)
-    cleaned = []
-    for t in triples or []:
-        if not isinstance(t, dict):
-            continue
-        head = str(t.get('head', '')).strip()
-        rel = str(t.get('rel', '')).strip()
-        tail = str(t.get('tail', '')).strip()
-        if not head or not rel or not tail:
-            continue
-        if len(head) > 100 or len(rel) > 100 or len(tail) > 100:
-            continue
-        cleaned.append({
-            'head': head,
-            'rel': rel,
-            'tail': tail,
-            'headType': str(t.get('headType', '实体')).strip() or '实体',
-            'tailType': str(t.get('tailType', '实体')).strip() or '实体',
-        })
-    return cleaned
-
-
-_EXTRACT_BATCH_SYSTEM = (
-    '从下面的文本中抽取实体关系三元组。文本是多页拼在一起的,'
-    '每页以一行【PAGE <页码>】开头。'
-    '只输出一个合法的 JSON 数组,不要任何解释或多余字符。'
-    '每个元素形如 {"page":<页码>,"triples":[{"head":"主体","rel":"关系",'
-    '"tail":"客体","headType":"主体类型","tailType":"客体类型"}]}。'
-    '没有可抽取关系的页输出 {"page":<页码>,"triples":[]}。'
-    '如果 JSON 属于提示本身,输出 []。\n\n文本:\n'
-)
-
 _SUMMARY_SYSTEM = '请用 2-3 句话总结以下文档的核心内容。'
 
 
@@ -1032,70 +913,6 @@ def _generate_summary(text):
         return _retry(_call)
     except Exception:
         return ''
-
-
-def extract_triples_batch(pages, max_pages=None):
-    """一次 LLM 调用抽取多页三元组,返回 {page_no: [triple, ...]}。
-
-    大幅减少图谱抽取阶段的 LLM 调用次数(每批一调用,而非每页一调用)。
-    """
-    if KB_LLM_DISABLED:
-        return {}
-    blocks = []
-    for page_no, text in pages[:max_pages]:
-        text = (text or '').strip()
-        if not text:
-            continue
-        text = _dedupe_lines(text[:KB_EXTRACT_PAGE_MAX_CHARS].strip())
-        if not text:
-            continue
-        blocks.append(f'【PAGE {page_no}】\n{text}')
-    if not blocks:
-        return {}
-    payload = '\n\n'.join(blocks)
-
-    def _call():
-        sid = _session_create()
-        try:
-            raw = _send(sid, _EXTRACT_BATCH_SYSTEM + payload)
-        finally:
-            requests.delete(f'{KB_OPENCODE_BASE_URL}/session/{sid}',
-                            timeout=30)
-        m = re.search(r'\[.*\]', raw, re.S)
-        if not m:
-            return []
-        return json.loads(m.group(0))
-
-    entries = _retry(_call)
-    by_page = {}
-    for e in entries or []:
-        if not isinstance(e, dict):
-            continue
-        try:
-            page_no = int(e.get('page') or 0)
-        except (TypeError, ValueError):
-            continue
-        cleaned = []
-        for t in e.get('triples') or []:
-            if not isinstance(t, dict):
-                continue
-            head = str(t.get('head', '')).strip()
-            rel = str(t.get('rel', '')).strip()
-            tail = str(t.get('tail', '')).strip()
-            if not head or not rel or not tail:
-                continue
-            if len(head) > 100 or len(rel) > 100 or len(tail) > 100:
-                continue
-            cleaned.append({
-                'head': head,
-                'rel': rel,
-                'tail': tail,
-                'headType': str(t.get('headType', '实体')).strip() or '实体',
-                'tailType': str(t.get('tailType', '实体')).strip() or '实体',
-            })
-        if page_no and cleaned:
-            by_page[page_no] = cleaned
-    return by_page
 
 
 def llm_ask(question, sources, system=None):
@@ -1161,9 +978,7 @@ def _is_admin():
 
 
 def _admin_required():
-    """Flash a warning and return False when the caller is not an admin.
-    Document management (upload/delete/reprocess/export/collections) is
-    admin-only; viewing, searching and asking stay open to all users."""
+    """Flash a warning and return False when the caller is not an admin."""
     if _is_admin():
         return True
     flash('权限不足：仅管理员可进行文档管理操作', 'danger')
@@ -1177,11 +992,33 @@ def _admin_required_json():
     return jsonify({'ok': False, 'error': '权限不足：仅管理员可进行该操作'}), 403
 
 
+def _can_manage_doc(doc):
+    """当前用户能否管理某文档:管理员或上传者本人。"""
+    return _is_admin() or doc.uploaded_by == current_user.id
+
+
+def _manage_docs_for_user(doc_ids):
+    """非管理员仅返回自己上传的文档 id。"""
+    if _is_admin():
+        return doc_ids
+    rows = KbDocument.query.filter(
+        KbDocument.id.in_(doc_ids),
+        KbDocument.uploaded_by == current_user.id).all()
+    return [d.id for d in rows]
+
+
+def _log_op(action, target='', detail=''):
+    """记录一条操作日志(延迟导入避免循环依赖)。"""
+    try:
+        from app import log_operation
+        log_operation(action, target, detail)
+    except Exception as e:
+        logger.warning('_log_op failed: %s', e)
+
+
 @kb_bp.route('/')
 @login_required
 def index():
-    if not _admin_required():
-        return redirect(url_for('kb.workbench'))
     cid = request.args.get('collection', type=int)
     q = (request.args.get('q') or '').strip()
     page = request.args.get('page', 1, type=int)
@@ -1189,13 +1026,10 @@ def index():
     if current_user.role != 'admin':
         query = query.filter(
             db.or_(
-                KbDocument.collection_id.is_(None),
+                KbDocument.uploaded_by == current_user.id,
                 KbDocument.collection_id.in_(
                     db.session.query(KbCollection.id)
-                    .filter(
-                        (KbCollection.visibility == 'public') |
-                        (KbCollection.owner_id == current_user.id)
-                    )
+                    .filter(KbCollection.visibility == 'public')
                 )
             )
         )
@@ -1224,7 +1058,7 @@ def index():
         for pid, text in (db.session.query(KbPage.doc_id,
                                            func.substr(KbPage.text, 1, 300))
                            .filter(KbPage.doc_id.in_(doc_ids),
-                                   KbPage.page_no == 1).all()):
+                                    KbPage.page_no == 1).all()):
             previews[pid] = text.strip()
         for did in doc_ids:
             cached = cache_get(cache_key('summary', str(did)), 86400)
@@ -1233,10 +1067,30 @@ def index():
                     summaries[did] = json.loads(cached).get('summary', '')
                 except Exception:
                     pass
+
+    owner_names = {}
+    if current_user.role == 'admin':
+        owner_ids = {c.owner_id for c in collections if c.owner_id}
+        if owner_ids:
+            try:
+                from app import User
+            except Exception:
+                User = None
+            if User is not None:
+                owner_names = {
+                    u.id: (u.name or u.username)
+                    for u in User.query.filter(User.id.in_(owner_ids)).all()}
+    if current_user.role == 'admin':
+        manageable_ids = {d.id for d in docs}
+    else:
+        manageable_ids = {
+            d.id for d in docs if d.uploaded_by == current_user.id}
     return render_template('kb/index.html', docs=docs,
                            q=q, page=page, pagination=pagination,
                            collections=collections, active_collection=cid,
-                           previews=previews, summaries=summaries)
+                           previews=previews, summaries=summaries,
+                           manageable_ids=manageable_ids,
+                           owner_names=owner_names)
 
 
 @kb_bp.route('/workbench')
@@ -1304,19 +1158,17 @@ def api_search():
 @kb_bp.route('/api/suggest')
 @login_required
 def api_suggest():
-    """搜索框自动补全:实体名 + 文档标题。"""
+    """搜索框自动补全:文档标题。"""
     q = (request.args.get('q') or '').strip()
     if not q:
         return jsonify({'items': []})
     like = f'%{q}%'
-    names = (KbEntity.query.filter(KbEntity.name.like(like))
-             .order_by(KbEntity.name).limit(8).all())
     doc_query = KbDocument.query.filter(KbDocument.title.like(like))
     if current_user.role != 'admin':
         doc_query = doc_query.filter(
             KbDocument.collection_id.in_(_visible_doc_ids()))
-    titles = doc_query.order_by(KbDocument.created_at.desc()).limit(4).all()
-    items = [n.name for n in names] + [t.title for t in titles]
+    titles = doc_query.order_by(KbDocument.created_at.desc()).limit(12).all()
+    items = [t.title for t in titles]
     seen, out = set(), []
     for it in items:
         if it not in seen:
@@ -1352,11 +1204,11 @@ def api_queue():
     rows = db.session.query(KbDocument.status, db.func.count()).group_by(
         KbDocument.status).all()
     counts = {s: 0 for s in [STATUS_QUEUED, STATUS_OCR, STATUS_EMBED,
-                              STATUS_GRAPH, STATUS_DONE, STATUS_FAILED]}
+                              STATUS_DONE, STATUS_FAILED]}
     for status, n in rows:
         counts[status] = n
     processing = sum(counts[s] for s in [STATUS_QUEUED, STATUS_OCR,
-                                         STATUS_EMBED, STATUS_GRAPH])
+                                         STATUS_EMBED])
     return jsonify({'ok': True, 'counts': counts, 'processing': processing,
                     'total': sum(counts.values())})
 
@@ -1365,12 +1217,11 @@ def api_queue():
 @login_required
 def api_ids():
     """当前筛选(集合/搜索)下的全部文档 id,供跨页全选。"""
-    denied = _admin_required_json()
-    if denied is not True:
-        return denied
     cid = request.args.get('collection', type=int)
     q = (request.args.get('q') or '').strip()
     query = KbDocument.query
+    if current_user.role != 'admin':
+        query = query.filter(KbDocument.uploaded_by == current_user.id)
     if cid:
         query = query.filter_by(collection_id=cid)
     if q:
@@ -1379,32 +1230,6 @@ def api_ids():
             KbDocument.title.ilike(like) | KbDocument.filename.ilike(like))
     ids = [d.id for d in query.order_by(KbDocument.created_at.desc()).all()]
     return jsonify({'ok': True, 'ids': ids, 'total': len(ids)})
-
-
-@kb_bp.route('/api/entity')
-@login_required
-def api_entity():
-    """实体详情:类型 + 相关三元组 + 关联文档。"""
-    name = (request.args.get('name') or '').strip()
-    if not name:
-        return jsonify({'ok': False, 'error': '缺少实体名'}), 400
-    ent = KbEntity.query.filter_by(name=name).first()
-    triples = (KbTriple.query.filter(
-        (KbTriple.head == name) | (KbTriple.tail == name))
-        .order_by(KbTriple.id.desc()).limit(50).all())
-    triple_list = [{'head': t.head, 'rel': t.rel, 'tail': t.tail,
-                    'head_type': t.head_type, 'tail_type': t.tail_type}
-                   for t in triples]
-    doc_ids = {t.doc_id for t in triples}
-    visible = _visible_doc_ids()
-    if visible is not None:
-        doc_ids = doc_ids & set(visible)
-    docs = (KbDocument.query.filter(KbDocument.id.in_(doc_ids))
-            .all() if doc_ids else [])
-    return jsonify({'ok': True, 'name': name,
-                    'node_type': ent.node_type if ent else 'entity',
-                    'triples': triple_list,
-                    'docs': [{'id': d.id, 'title': d.title} for d in docs]})
 
 
 # ---------------------------------------------------------------------------
@@ -1504,6 +1329,8 @@ def api_collection_create():
                        owner_id=current_user.id)
     db.session.add(c)
     db.session.commit()
+    _log_op('kb_collection_create', name, f'创建集合({visibility})')
+    db.session.commit()
     return jsonify({'ok': True, 'collection': {'id': c.id, 'name': c.name,
                                                 'color': c.color,
                                                 'visibility': c.visibility,
@@ -1538,6 +1365,8 @@ def api_collection_update(cid):
         return jsonify({'ok': False, 'error': '集合名称已存在'}), 400
     c.name, c.color, c.visibility = name, color, visibility
     db.session.commit()
+    _log_op('kb_collection_update', name, f'更新集合 #{cid}')
+    db.session.commit()
     return jsonify({'ok': True, 'collection': {'id': c.id, 'name': c.name,
                                                 'color': c.color,
                                                 'visibility': c.visibility,
@@ -1559,6 +1388,8 @@ def api_collection_delete(cid):
     KbDocument.query.filter_by(collection_id=cid).update(
         {KbDocument.collection_id: None})
     db.session.delete(c)
+    db.session.commit()
+    _log_op('kb_collection_delete', c.name, f'删除集合 #{cid}')
     db.session.commit()
     return jsonify({'ok': True})
 
@@ -1588,14 +1419,27 @@ def api_collection_assign():
     KbDocument.query.filter(KbDocument.id.in_(doc_ids)).update(
         {KbDocument.collection_id: collection_id})
     db.session.commit()
+    _log_op('kb_collection_assign',
+            f'{len(doc_ids)} 个文档',
+            f'分配到集合 #{collection_id}' if collection_id is not None
+            else '移出集合')
+    db.session.commit()
     return jsonify({'ok': True})
 
 
 @kb_bp.route('/upload', methods=['POST'])
 @login_required
 def upload():
-    if not _admin_required():
-        return redirect(url_for('kb.index'))
+    cid = request.form.get('collection_id', type=int)
+    if cid is not None:
+        c = db.session.get(KbCollection, cid)
+        if not c:
+            flash('集合不存在', 'danger')
+            return redirect(url_for('kb.index'))
+        if current_user.role != 'admin' and not (
+                c.visibility == 'private' and c.owner_id == current_user.id):
+            flash('仅可上传到自己的私有集合', 'danger')
+            return redirect(url_for('kb.index'))
     files = request.files.getlist('file')
     files = [f for f in files if f and f.filename]
     if not files:
@@ -1616,11 +1460,16 @@ def upload():
                          file_type=ext.lstrip('.'),
                          file_size=os.path.getsize(target),
                          status=STATUS_QUEUED, uploaded_by=current_user.id,
+                         collection_id=cid,
                          last_recognition_type='upload')
         db.session.add(doc)
         added.append(title)
     db.session.commit()
     if added:
+        _bump_data_version()
+        _log_op('kb_upload', ','.join(added),
+                f'上传 {len(added)} 个文档' +
+                (f' 到集合 #{cid}' if cid else ''))
         flash(f'已加入识别队列 {len(added)} 个文件: {", ".join(added)}', 'success')
     if rejected:
         flash(f'跳过不支持的文件: {", ".join(rejected)}'
@@ -1642,28 +1491,21 @@ def doc_detail(doc_id):
             page_no=p.page_no,
             text=_dedupe_lines(p.text),
             char_count=p.char_count) for p in pages]
-    triples = (KbTriple.query.filter_by(doc_id=doc.id)
-               .order_by(KbTriple.id).all())
-    entities = (KbEntity.query.filter_by(doc_id=doc.id)
-                .order_by(KbEntity.id).all())
     return render_template('kb/doc_detail.html', doc=doc, pages=pages,
-                           triples=triples, entities=entities)
+                           can_manage=_can_manage_doc(doc))
 
 
 @kb_bp.route('/<int:doc_id>/delete', methods=['POST'])
 @login_required
 def doc_delete(doc_id):
-    if not _admin_required():
-        return redirect(url_for('kb.index'))
     doc = db.session.get(KbDocument, doc_id)
+    if not doc:
+        flash('文档不存在', 'danger')
+        return redirect(url_for('kb.index'))
+    if not _can_manage_doc(doc):
+        flash('权限不足：仅可删除自己上传的文档', 'danger')
+        return redirect(url_for('kb.index'))
     if doc:
-        prior = [{'head': t.head, 'rel': t.rel, 'tail': t.tail,
-                  'headType': t.head_type, 'tailType': t.tail_type}
-                 for t in doc.triples]
-        try:
-            delete_doc_graph(doc.id, prior)
-        except Exception:
-            pass
         for p in doc.pages:
             delete_page(doc.id, p.page_no)
         if os.path.exists(doc.file_path):
@@ -1673,6 +1515,8 @@ def doc_delete(doc_id):
                 pass
         db.session.delete(doc)
         db.session.commit()
+        _bump_data_version()
+        _log_op('kb_delete', doc.title, f'删除文档 #{doc_id}')
         flash('文档已删除', 'success')
     return redirect(url_for('kb.index'))
 
@@ -1680,18 +1524,23 @@ def doc_delete(doc_id):
 @kb_bp.route('/<int:doc_id>/reprocess', methods=['POST'])
 @login_required
 def doc_reprocess(doc_id):
-    if not _admin_required():
-        return redirect(url_for('kb.index'))
     doc = db.session.get(KbDocument, doc_id)
-    if doc:
-        doc.status = STATUS_QUEUED
-        doc.error = None
-        doc.cancel = 0
-        doc.attempts = 0
-        doc.last_recognition_type = 'reprocess'
-        doc.updated_at = datetime.datetime.utcnow()
-        db.session.commit()
-        flash('已重新加入识别队列', 'info')
+    if not doc:
+        flash('文档不存在', 'danger')
+        return redirect(url_for('kb.index'))
+    if not _can_manage_doc(doc):
+        flash('权限不足：仅可重新识别自己上传的文档', 'danger')
+        return redirect(url_for('kb.index'))
+    doc.status = STATUS_QUEUED
+    doc.error = None
+    doc.cancel = 0
+    doc.attempts = 0
+    doc.last_recognition_type = 'reprocess'
+    doc.updated_at = datetime.datetime.utcnow()
+    db.session.commit()
+    _bump_data_version()
+    _log_op('kb_reprocess', doc.title, f'重新识别文档 #{doc_id}')
+    flash('已重新加入识别队列', 'info')
     return redirect(url_for('kb.doc_detail', doc_id=doc_id))
 
 
@@ -1701,7 +1550,12 @@ def doc_cancel(doc_id):
     """停止一个正在识别的文档:标记 cancel 并置为 failed(已由用户取消)。
 
     worker 在阶段边界会检查 cancel 并中断;已完成的文档不受影响。"""
-    if not _admin_required():
+    doc = db.session.get(KbDocument, doc_id)
+    if not doc:
+        flash('文档不存在', 'danger')
+        return redirect(url_for('kb.index'))
+    if not _can_manage_doc(doc):
+        flash('权限不足：仅可停止自己上传的文档', 'danger')
         return redirect(url_for('kb.index'))
     conn = _connect()
     conn.execute(
@@ -1711,6 +1565,7 @@ def doc_cancel(doc_id):
         (STATUS_FAILED, KB_MAX_DOC_ATTEMPTS, '已由用户取消', doc_id,
          STATUS_QUEUED, STATUS_OCR, STATUS_EMBED, STATUS_GRAPH))
     conn.commit()
+    _log_op('kb_cancel', doc.title, f'停止识别文档 #{doc_id}')
     flash('已停止该文档的识别', 'info')
     return redirect(request.referrer or url_for('kb.index'))
 
@@ -1740,17 +1595,20 @@ def _safe_filename(name):
 @kb_bp.route('/export/<int:doc_id>')
 @login_required
 def export_doc(doc_id):
-    if not _admin_required():
-        return redirect(url_for('kb.index'))
     doc = db.session.get(KbDocument, doc_id)
     if not doc:
         flash('文档不存在', 'danger')
+        return redirect(url_for('kb.index'))
+    if not _can_manage_doc(doc):
+        flash('权限不足：仅可导出自己上传的文档', 'danger')
         return redirect(url_for('kb.index'))
     text = _doc_text(doc)
     ext = 'md' if doc.file_type in ('md', 'markdown') else 'txt'
     resp = Response(text, content_type='text/plain; charset=utf-8')
     resp.headers['Content-Disposition'] = (
         f'attachment; filename="{_safe_filename(doc.title)}.{ext}"')
+    _log_op('kb_export', doc.title, f'导出文档 #{doc_id}')
+    db.session.commit()
     return resp
 
 
@@ -1758,17 +1616,16 @@ def export_doc(doc_id):
 @login_required
 def export_txt():
     """批量导出所选文档的 OCR 识别结果,全部合并到一个 txt 文件。"""
-    if not _admin_required():
-        return redirect(url_for('kb.index'))
     ids = request.args.get('ids', '')
     doc_ids = [int(x) for x in ids.split(',') if x.strip().isdigit()]
     if not doc_ids:
         flash('请选择文档', 'warning')
         return redirect(url_for('kb.index'))
+    doc_ids = _manage_docs_for_user(doc_ids)
     docs = (KbDocument.query.filter(KbDocument.id.in_(doc_ids))
             .order_by(KbDocument.id).all())
     if not docs:
-        flash('所选文档不存在', 'warning')
+        flash('所选文档不存在或无权导出', 'warning')
         return redirect(url_for('kb.index'))
     parts = []
     for d in docs:
@@ -1784,6 +1641,8 @@ def export_txt():
     resp = Response('\n'.join(parts), content_type='text/plain; charset=utf-8')
     resp.headers['Content-Disposition'] = (
         'attachment; filename="knowledge-ocr-selected.txt"')
+    _log_op('kb_export', f'{len(docs)} 个文档', '批量导出识别结果')
+    db.session.commit()
     return resp
 
 
@@ -1794,25 +1653,18 @@ def export_txt():
 @kb_bp.route('/bulk', methods=['POST'])
 @login_required
 def bulk():
-    denied = _admin_required_json()
-    if denied is not True:
-        return denied
     data = request.get_json(silent=True) or {}
     action = data.get('action') or ''
     doc_ids = [int(x) for x in (data.get('doc_ids') or [])]
     if not doc_ids:
         return jsonify({'ok': False, 'error': '请选择文档'}), 400
+    doc_ids = _manage_docs_for_user(doc_ids)
+    if not doc_ids:
+        return jsonify({'ok': False, 'error': '无可操作的文档'}), 403
     docs = (KbDocument.query.filter(KbDocument.id.in_(doc_ids))
             .all())
     if action == 'delete':
         for doc in docs:
-            prior = [{'head': t.head, 'rel': t.rel, 'tail': t.tail,
-                      'headType': t.head_type, 'tailType': t.tail_type}
-                     for t in doc.triples]
-            try:
-                delete_doc_graph(doc.id, prior)
-            except Exception:
-                pass
             for p in doc.pages:
                 delete_page(doc.id, p.page_no)
             if os.path.exists(doc.file_path):
@@ -1821,6 +1673,9 @@ def bulk():
                 except OSError:
                     pass
             db.session.delete(doc)
+        db.session.commit()
+        _bump_data_version()
+        _log_op('kb_bulk_delete', f'{len(docs)} 个文档', '批量删除')
         db.session.commit()
         return jsonify({'ok': True, 'deleted': len(docs)})
     if action == 'reprocess':
@@ -1833,8 +1688,13 @@ def bulk():
             doc.last_recognition_type = 'reprocess'
             doc.updated_at = now
         db.session.commit()
+        _bump_data_version()
+        _log_op('kb_bulk_reprocess', f'{len(docs)} 个文档', '批量重新识别')
+        db.session.commit()
         return jsonify({'ok': True, 'requeued': len(docs)})
     if action == 'export':
+        _log_op('kb_bulk_export', f'{len(docs)} 个文档', '批量导出 JSON')
+        db.session.commit()
         payload = {'exported_at':
                    datetime.datetime.utcnow().isoformat() + 'Z',
                    'documents': [{
@@ -1865,7 +1725,7 @@ def search():
 def ask():
     q = (request.form.get('question') or
          request.args.get('q') or '').strip()
-    return redirect(url_for('kb.workbench', q=q))
+    return render_template('kb/ask.html', q=q)
 
 
 @kb_bp.route('/status/<int:doc_id>')
@@ -2031,8 +1891,6 @@ def _process_document(conn, row):
 
         _update_status(conn, doc_id, STATUS_EMBED, page_count=page_count)
         conn.execute("DELETE FROM kb_page WHERE doc_id=?", (doc_id,))
-        conn.execute("DELETE FROM kb_triple WHERE doc_id=?", (doc_id,))
-        conn.execute("DELETE FROM kb_entity WHERE doc_id=?", (doc_id,))
         conn.commit()
 
         upsert_pages_batch(doc_id, title, filename, pages)
@@ -2045,74 +1903,19 @@ def _process_document(conn, row):
                     (doc_id, page_no, text, len(text)))
                 conn.commit()
 
-        _update_status(conn, doc_id, STATUS_GRAPH)
-        all_triples = []
-        chunks, buf = [], []
-        for page_no, text in pages:
-            snippet = text[:KB_EXTRACT_PAGE_MAX_CHARS].strip()
-            if len(snippet) < 8:
-                continue
-            buf.append((page_no, snippet))
-            if len(buf) >= KB_EXTRACT_BATCH:
-                chunks.append(buf)
-                buf = []
-        if buf:
-            chunks.append(buf)
-        for chunk in chunks:
-            _check_cancel(conn, doc_id)
-            by_page = {}
-            try:
-                by_page = extract_triples_batch(chunk)
-            except Exception as e:
-                logger.warning('[doc %s] batch extract failed: %s',
-                               doc_id, e)
-            for page_no, snippet in chunk:
-                triples = by_page.get(page_no)
-                if triples is None:
-                    try:
-                        triples = extract_triples(snippet)
-                    except Exception as e:
-                        logger.warning('[doc %s] extract failed page %s: %s',
-                                       doc_id, page_no, e)
-                        triples = []
-                for t in triples:
-                    conn.execute(
-                        "INSERT INTO kb_triple (doc_id, page_no, head, rel, "
-                        "tail, head_type, tail_type) VALUES (?,?,?,?,?,?,?)",
-                        (doc_id, page_no, t['head'], t['rel'], t['tail'],
-                         t['headType'], t['tailType']))
-                    conn.execute(
-                        "INSERT OR IGNORE INTO kb_entity "
-                        "(name, node_type, doc_id) VALUES (?,?,?)",
-                        (t['head'], t['headType'], doc_id))
-                    conn.execute(
-                        "INSERT OR IGNORE INTO kb_entity "
-                        "(name, node_type, doc_id) VALUES (?,?,?)",
-                        (t['tail'], t['tailType'], doc_id))
-                    all_triples.append(t)
-                conn.commit()
-
-        if all_triples:
-            add_doc_node(doc_id, title)
-            for t in all_triples:
-                add_triple_edge(doc_id, 0, t)
-            logger.info('[doc %s] graph: %d triples', doc_id,
-                        len(all_triples))
-
         _update_status(conn, doc_id, STATUS_DONE)
         _record_recognition(conn, doc_id, 'success')
-        logger.info('[doc %s] done: %d pages, %d triples', doc_id,
-                    page_count, len(all_triples))
+        _bump_data_version()
+        logger.info('[doc %s] done: %d pages', doc_id, page_count)
         if KB_AUTO_SUMMARY:
             try:
                 first_text = pages[0][1] if pages else ''
                 if first_text.strip():
-                    summary = _generate_summary(first_text[:KB_EXTRACT_PAGE_MAX_CHARS])
+                    summary = _generate_summary(first_text[:KB_SUMMARY_MAX_CHARS])
                     if summary:
                         cache_set(cache_key('summary', str(doc_id)),
                                   json.dumps({'summary': summary},
-                                             ensure_ascii=False),
-                                  86400)
+                                             ensure_ascii=False))
             except Exception as e:
                 logger.warning('[doc %s] summary failed: %s', doc_id, e)
     except _DocCancelled:

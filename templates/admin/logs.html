@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}后台管理{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1 style="font-size:1.5rem;font-weight:700;color:var(--gray-900);margin:0;">后台管理</h1>
+  <div class="d-flex gap-2 align-items-center">
+    <span class="badge" style="background:var(--gray-100);color:var(--gray-600);font-size:.7rem;">共 {{ total_logs }} 条</span>
+    <span class="badge" style="background:var(--primary-light);color:var(--primary);font-size:.7rem;">{{ total_users }} 位用户操作</span>
+  </div>
+</div>
+
+<ul class="nav nav-tabs mb-3" style="border-bottom:1px solid var(--gray-200);">
+  <li class="nav-item">
+    <a class="nav-link" href="{{ url_for('admin_users') }}" style="font-size:.85rem;color:var(--gray-500);"><i class="bi bi-people"></i> 用户管理</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link active" href="{{ url_for('admin_logs') }}" style="font-size:.85rem;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);"><i class="bi bi-journal-text"></i> 操作日志</a>
+  </li>
+</ul>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3">
+    <div class="card p-3">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <small class="text-muted" style="font-size:.7rem;">登录相关</small>
+          <div style="font-size:1.3rem;font-weight:700;">{{ action_counts.get('login', 0) + action_counts.get('login_fail', 0) + action_counts.get('logout', 0) }}</div>
+        </div>
+        <i class="bi bi-box-arrow-in-right" style="font-size:1.4rem;color:var(--primary);"></i>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card p-3">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <small class="text-muted" style="font-size:.7rem;">知识库管理</small>
+          <div style="font-size:1.3rem;font-weight:700;">{{ action_counts.get('kb_upload', 0) + action_counts.get('kb_delete', 0) + action_counts.get('kb_reprocess', 0) + action_counts.get('kb_export', 0) + action_counts.get('kb_bulk_delete', 0) + action_counts.get('kb_bulk_reprocess', 0) + action_counts.get('kb_bulk_export', 0) + action_counts.get('kb_collection_create', 0) + action_counts.get('kb_collection_update', 0) + action_counts.get('kb_collection_delete', 0) + action_counts.get('kb_collection_assign', 0) }}</div>
+        </div>
+        <i class="bi bi-collection" style="font-size:1.4rem;color:var(--primary);"></i>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card p-3">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <small class="text-muted" style="font-size:.7rem;">上传文档</small>
+          <div style="font-size:1.3rem;font-weight:700;">{{ action_counts.get('kb_upload', 0) }}</div>
+        </div>
+        <i class="bi bi-cloud-arrow-up" style="font-size:1.4rem;color:var(--primary);"></i>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card p-3">
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <small class="text-muted" style="font-size:.7rem;">删除文档</small>
+          <div style="font-size:1.3rem;font-weight:700;">{{ action_counts.get('kb_delete', 0) + action_counts.get('kb_bulk_delete', 0) }}</div>
+        </div>
+        <i class="bi bi-trash" style="font-size:1.4rem;color:var(--danger);"></i>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-header py-2 px-3" style="border-bottom:1px solid var(--gray-100);">
+    <form method="GET" class="d-flex gap-2 align-items-center flex-wrap">
+      <div class="input-group input-group-sm" style="max-width:200px;">
+        <span class="input-group-text" style="background:var(--gray-50);border-color:var(--gray-200);"><i class="bi bi-person" style="font-size:.75rem;"></i></span>
+        <input type="text" class="form-control" name="username" placeholder="搜索用户..." value="{{ username }}" style="font-size:.8rem;border-color:var(--gray-200);">
+      </div>
+      <select class="form-select form-select-sm" name="action" style="width:auto;font-size:.8rem;border-color:var(--gray-200);">
+        <option value="">全部操作</option>
+        {% set actions = ['login','login_fail','logout','kb_upload','kb_delete','kb_reprocess','kb_cancel','kb_export','kb_bulk_delete','kb_bulk_reprocess','kb_bulk_export','kb_collection_create','kb_collection_update','kb_collection_delete','kb_collection_assign'] %}
+        {% for a in actions %}
+        <option value="{{ a }}" {% if action == a %}selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select>
+      <select class="form-select form-select-sm" name="days" style="width:auto;font-size:.8rem;border-color:var(--gray-200);">
+        <option value="">全部时间</option>
+        {% for d in [1, 7, 30, 90] %}
+        <option value="{{ d }}" {% if days == d %}selected{% endif %}>近 {{ d }} 天</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-funnel"></i> 筛选</button>
+      <a href="{{ url_for('admin_logs') }}" class="btn btn-sm btn-outline-secondary">重置</a>
+    </form>
+  </div>
+
+  <div class="table-responsive d-none d-md-block">
+    <table class="table table-hover" style="font-size:.8rem;">
+      <thead>
+        <tr>
+          <th style="padding:10px 16px;width:110px;">时间</th>
+          <th style="padding:10px 16px;width:120px;">用户</th>
+          <th style="padding:10px 16px;width:150px;">操作</th>
+          <th style="padding:10px 16px;width:200px;">对象</th>
+          <th style="padding:10px 16px;">详情</th>
+          <th style="padding:10px 16px;width:120px;">IP</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td style="padding:8px 16px;"><small class="text-muted" style="font-size:.7rem;">{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</small></td>
+          <td style="padding:8px 16px;">
+            <span class="d-inline-flex align-items-center gap-1">
+              <span class="avatar" style="width:24px;height:24px;font-size:.65rem;">{{ (log.username or '?')[0]|upper }}</span>
+              <span style="font-weight:500;">{{ log.username or '系统' }}</span>
+            </span>
+          </td>
+          <td style="padding:8px 16px;">
+            {% set badge_map = {'login': 'var(--success)', 'login_fail': 'var(--danger)', 'logout': 'var(--gray-500)', 'kb_upload': 'var(--primary)', 'kb_delete': 'var(--danger)', 'kb_reprocess': 'var(--warning)', 'kb_cancel': 'var(--gray-500)', 'kb_export': 'var(--primary)', 'kb_bulk_delete': 'var(--danger)', 'kb_bulk_reprocess': 'var(--warning)', 'kb_bulk_export': 'var(--primary)', 'kb_collection_create': 'var(--primary)', 'kb_collection_update': 'var(--primary)', 'kb_collection_delete': 'var(--danger)', 'kb_collection_assign': 'var(--primary)'} %}
+            {% set label_map = {'login': '登录成功', 'login_fail': '登录失败', 'logout': '退出登录', 'kb_upload': '上传文档', 'kb_delete': '删除文档', 'kb_reprocess': '重新识别', 'kb_cancel': '停止识别', 'kb_export': '导出文档', 'kb_bulk_delete': '批量删除', 'kb_bulk_reprocess': '批量重识别', 'kb_bulk_export': '批量导出', 'kb_collection_create': '创建集合', 'kb_collection_update': '更新集合', 'kb_collection_delete': '删除集合', 'kb_collection_assign': '集合分配'} %}
+            <span class="badge" style="background:{{ badge_map.get(log.action, 'var(--gray-200)') }};color:#fff;font-size:.62rem;{% if log.action not in badge_map %}color:var(--gray-600);background:var(--gray-200);{% endif %}">
+              {{ label_map.get(log.action, log.action) }}
+            </span>
+          </td>
+          <td style="padding:8px 16px;"><span style="color:var(--gray-700);font-size:.8rem;">{{ log.target or '-' }}</span></td>
+          <td style="padding:8px 16px;"><small class="text-muted" style="font-size:.75rem;">{{ log.detail or '' }}</small></td>
+          <td style="padding:8px 16px;"><small class="text-muted" style="font-size:.7rem;">{{ log.ip or '-' }}</small></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center py-4"><small class="text-muted">暂无日志记录</small></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="d-md-none p-3">
+    {% for log in logs %}
+    <div class="card mb-2" style="border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+      <div class="card-body p-3">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <span class="d-inline-flex align-items-center gap-1" style="font-weight:600;font-size:.85rem;">
+            <span class="avatar" style="width:22px;height:22px;font-size:.6rem;">{{ (log.username or '?')[0]|upper }}</span>
+            {{ log.username or '系统' }}
+          </span>
+          <small class="text-muted" style="font-size:.65rem;">{{ log.created_at.strftime('%m-%d %H:%M:%S') }}</small>
+        </div>
+        <div class="mb-1">
+          <span class="badge" style="background:var(--primary-light);color:var(--primary);font-size:.62rem;">{{ log.action }}</span>
+        </div>
+        <div style="font-size:.8rem;color:var(--gray-700);">{{ log.target or '-' }}</div>
+        {% if log.detail %}<small class="text-muted" style="font-size:.72rem;">{{ log.detail }}</small>{% endif %}
+        {% if log.ip %}<div><small class="text-muted" style="font-size:.65rem;">IP: {{ log.ip }}</small></div>{% endif %}
+      </div>
+    </div>
+    {% else %}
+    <div class="text-center py-4"><small class="text-muted">暂无日志记录</small></div>
+    {% endfor %}
+  </div>
+
+  {% if pagination.pages > 1 %}
+  <div class="card-body py-2 px-3 d-flex justify-content-between align-items-center">
+    <small class="text-muted" style="font-size:.75rem;">第 {{ pagination.page }} / {{ pagination.pages }} 页 · 共 {{ pagination.total }} 条</small>
+    <nav>
+      <ul class="pagination pagination-sm mb-0">
+        {% if pagination.has_prev %}
+        <li class="page-item"><a class="page-link" href="{{ url_for('admin_logs', page=pagination.prev_num, username=username, action=action, days=days) }}">上一页</a></li>
+        {% endif %}
+        {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+          {% if p %}
+          <li class="page-item {% if p == pagination.page %}active{% endif %}">
+            <a class="page-link" href="{{ url_for('admin_logs', page=p, username=username, action=action, days=days) }}">{{ p }}</a>
+          </li>
+          {% else %}
+          <li class="page-item disabled"><span class="page-link">…</span></li>
+          {% endif %}
+        {% endfor %}
+        {% if pagination.has_next %}
+        <li class="page-item"><a class="page-link" href="{{ url_for('admin_logs', page=pagination.next_num, username=username, action=action, days=days) }}">下一页</a></li>
+        {% endif %}
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

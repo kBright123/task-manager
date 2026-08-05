@@ -6,11 +6,9 @@
     <div class="card">
       <div class="card-header d-flex justify-content-between align-items-center">
         <span><i class="bi bi-folder2-open"></i> 集合</span>
-        {% if current_user.role == 'admin' %}
         <button class="btn btn-xs-custom btn-outline-primary" onclick="showCollectionModal()">
           <i class="bi bi-plus"></i> 新建
         </button>
-        {% endif %}
       </div>
       <div class="card-body py-2">
         <a href="{{ url_for('kb.index') }}"
@@ -27,7 +25,10 @@
              style="color:{% if active_collection == c.id %}var(--primary);font-weight:600{% else %}var(--gray-600){% endif %}">
             <span style="width:10px;height:10px;border-radius:50%;background:{{ c.color }};flex-shrink:0;"></span>
             <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ c.name }}</span>
-            <span class="badge" style="font-size:.6rem;background:{{ 'var(--success)' if c.visibility == 'public' else 'var(--gray-400)' }};color:#fff;">{{ '公共' if c.visibility == 'public' else '私有' }}</span>
+            <span class="badge" style="font-size:.6rem;background:{{ 'var(--success)' if c.visibility == 'public' else 'var(--gray-400)' }};color:#fff;">{{ '公共' if c.visibility == 'public' else '个人' }}</span>
+            {% if c.visibility == 'private' and c.owner_id and c.owner_id != current_user.id %}
+            <small class="text-muted" style="font-size:.6rem;flex-shrink:0;">{{ owner_names.get(c.owner_id, '他人') }}</small>
+            {% endif %}
             <span class="badge badge-low">{{ c.documents|length }}</span>
           </a>
           {% if current_user.role == 'admin' or (c.owner_id == current_user.id and c.visibility == 'private') %}
@@ -52,7 +53,6 @@
     </div>
   </div>
   <div class="col-12 col-lg-9">
-    {% if current_user.role == 'admin' %}
     <div class="card mb-3">
       <div class="card-header d-flex justify-content-between align-items-center">
         <span><i class="bi bi-cloud-upload"></i> 上传文档</span>
@@ -61,6 +61,16 @@
         </a>
       </div>
       <div class="card-body py-3">
+        <div class="d-flex align-items-center gap-2 mb-2" style="font-size:.8rem;color:var(--gray-600);">
+          <span style="white-space:nowrap;"><i class="bi bi-folder2-open"></i> 上传到集合</span>
+          <select id="uploadCollection" class="form-select form-select-sm" style="width:auto;max-width:220px;font-size:.8rem;">
+            <option value="">(暂不分配)</option>
+            {% for c in collections %}
+            <option value="{{ c.id }}">{{ c.name }}（{{ '公共' if c.visibility == 'public' else '个人' }}）</option>
+            {% endfor %}
+          </select>
+          <small class="text-muted" style="font-size:.7rem;">普通用户仅可上传到自己的个人集合</small>
+        </div>
         <div id="dropZone" style="border:2px dashed var(--gray-300);background:var(--gray-50);cursor:pointer;transition:all .15s;border-radius:var(--radius-sm);padding:8px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <i class="bi bi-cloud-arrow-up" style="font-size:1.1rem;color:var(--primary);flex-shrink:0;"></i>
           <span style="font-weight:600;color:var(--gray-700);font-size:.85rem;white-space:nowrap;">拖拽文件到此处,或点击选择文件</span>
@@ -73,11 +83,10 @@
             <span style="font-weight:600;" id="queueSummary">已完成 0/0 文件</span>
             <div class="flex-grow-1"><div class="progress-custom"><div class="progress-custom-bar" id="queueProgress" style="width:0%;background:var(--primary);"></div></div></div>
           </div>
-          <div class="text-muted" style="font-size:.78rem;" id="queueDetail">等待识别 0 · OCR 中 0 · 向量化中 0 · 图谱抽取中 0</div>
+          <div class="text-muted" style="font-size:.78rem;" id="queueDetail">等待识别 0 · OCR 中 0 · 向量化中 0</div>
         </div>
       </div>
     </div>
-    {% endif %}
 
     <div class="card">
       <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -94,7 +103,6 @@
           </form>
         </div>
       </div>
-      {% if current_user.role == 'admin' %}
       <div class="card-body py-2 d-none align-items-center gap-2 flex-wrap" id="bulkBar" style="border-bottom:1px solid var(--gray-100);">
         <span style="font-weight:600;font-size:.85rem;" id="bulkCount">已选 0 项</span>
         <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkAssign()"><i class="bi bi-folder-plus"></i> 移动到集合</button>
@@ -108,12 +116,11 @@
         <span class="spinner-border spinner-border-sm text-primary" style="width:1rem;height:1rem;"></span>
         <span style="font-weight:600;font-size:.85rem;" id="reprogressText">重新识别中...</span>
       </div>
-      {% endif %}
       <div class="table-responsive d-none d-md-block">
         <table class="table table-hover">
           <thead>
             <tr>
-              {% if current_user.role == 'admin' %}<th style="width:34px;"><input type="checkbox" id="checkAll" onchange="toggleAll(this.checked)"></th>{% endif %}
+              {% if current_user.role == 'admin' or docs %}<th style="width:34px;"><input type="checkbox" id="checkAll" onchange="toggleAll(this.checked)"></th>{% endif %}
               <th>文档</th>
               <th style="width:90px;">类型</th>
               <th style="width:70px;">页数</th>
@@ -124,7 +131,7 @@
           <tbody>
             {% for doc in docs %}
             <tr data-doc-id="{{ doc.id }}">
-              {% if current_user.role == 'admin' %}<td><input type="checkbox" class="doc-check" value="{{ doc.id }}" onchange="refreshBulk()"></td>{% endif %}
+              {% if current_user.role == 'admin' or doc.id in manageable_ids %}<td><input type="checkbox" class="doc-check" value="{{ doc.id }}" onchange="refreshBulk()"></td>{% elif current_user.role != 'admin' %}<td></td>{% endif %}
               <td>
                 <a href="{{ url_for('kb.doc_detail', doc_id=doc.id) }}" style="color:var(--gray-800);text-decoration:none;font-weight:600;">
                   {{ doc.title }}
@@ -175,17 +182,15 @@
 
       <!-- Mobile Cards -->
       <div class="d-md-none px-3 pb-3" id="kbCardList">
-        {% if current_user.role == 'admin' %}
         <div class="d-flex align-items-center gap-2 mb-2" style="font-size:.8rem;">
           <input type="checkbox" id="checkAllMobile" onchange="toggleAll(this.checked)">
           <label for="checkAllMobile" class="mb-0 text-muted" style="cursor:pointer;">全选</label>
         </div>
-        {% endif %}
         {% for doc in docs %}
         <div class="card mb-2" style="border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.05);" data-doc-id="{{ doc.id }}">
           <div class="card-body p-3">
             <div class="d-flex align-items-start gap-2">
-              {% if current_user.role == 'admin' %}<input type="checkbox" class="doc-check mt-1" value="{{ doc.id }}" onchange="refreshBulk()">{% endif %}
+              {% if current_user.role == 'admin' or doc.id in manageable_ids %}<input type="checkbox" class="doc-check mt-1" value="{{ doc.id }}" onchange="refreshBulk()">{% endif %}
               <div class="flex-grow-1" style="min-width:0;">
                 <a href="{{ url_for('kb.doc_detail', doc_id=doc.id) }}" style="color:var(--gray-800);text-decoration:none;font-weight:600;font-size:.88rem;">{{ doc.title }}</a>
                 {% if doc.collection %}
@@ -248,7 +253,6 @@
   </div>
 </div>
 
-{% if current_user.role == 'admin' %}
 <div class="modal fade" id="collectionModal" tabindex="-1">
   <div class="modal-dialog modal-sm modal-dialog-centered">
     <div class="modal-content">
@@ -281,8 +285,8 @@
       <div class="modal-body">
         <select id="assignSelect" class="form-select">
           <option value="">(不分配)</option>
-          {% for c in collections %}
-          <option value="{{ c.id }}">{{ c.name }}</option>
+          {% for c in collections if current_user.role == 'admin' or (c.owner_id == current_user.id and c.visibility == 'private') %}
+          <option value="{{ c.id }}">{{ c.name }}（{{ '公共' if c.visibility == 'public' else '个人' }}）</option>
           {% endfor %}
         </select>
       </div>
@@ -293,7 +297,6 @@
     </div>
   </div>
 </div>
-{% endif %}
 {% endblock %}
 {% block extra_js %}
 <script>
@@ -313,7 +316,10 @@
       return ['.pdf', '.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff', '.webp', '.txt', '.md', '.markdown'].indexOf('.' + ext) !== -1;
     });
     if (!list.length) return;
+    var cidEl = document.getElementById('uploadCollection');
+    var cid = cidEl ? cidEl.value : '';
     var fd = new FormData();
+    if (cid) fd.append('collection_id', cid);
     list.forEach(function (f) { fd.append('file', f); });
     form.innerHTML = '';
     fetch(form.action, { method: 'POST', body: fd })
@@ -357,7 +363,7 @@
         card.classList.remove('d-none');
         document.getElementById('queueSummary').textContent = '已完成 ' + (c.done || 0) + '/' + total + ' 文件';
         document.getElementById('queueDetail').textContent =
-          '等待识别 ' + (c.queued || 0) + ' · OCR 中 ' + (c.ocr || 0) + ' · 向量化中 ' + (c.embedding || 0) + ' · 图谱抽取中 ' + (c.graphing || 0) +
+          '等待识别 ' + (c.queued || 0) + ' · OCR 中 ' + (c.ocr || 0) + ' · 向量化中 ' + (c.embedding || 0) +
           (total ? ' · 已完成 ' + (c.done || 0) + ' · 失败 ' + (c.failed || 0) : '');
         document.getElementById('queueProgress').style.width =
           (total ? Math.round((c.done || 0) / total * 100) : 0) + '%';
@@ -514,7 +520,7 @@
   window.bulkDelete = function () {
     var ids = selected();
     if (!ids.length) return;
-    if (!confirm('确认删除选中的 ' + ids.length + ' 个文档及其图谱数据?')) return;
+    if (!confirm('确认删除选中的 ' + ids.length + ' 个文档?')) return;
     post('delete', ids).then(function (d) {
       alert(d.ok ? '已删除 ' + d.deleted + ' 个文档' : (d.error || '删除失败'));
       if (d.ok) location.reload();

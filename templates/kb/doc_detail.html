@@ -14,18 +14,21 @@
       {{ "{:,}".format(doc.file_size) }} 字节 · 上传于 {{ doc.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
   </div>
   <div class="d-flex gap-2">
+    {% if can_manage %}
     <form method="POST" action="{{ url_for('kb.doc_reprocess', doc_id=doc.id) }}">
       <button class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-repeat"></i> 重新识别</button>
     </form>
     <form method="POST" action="{{ url_for('kb.doc_delete', doc_id=doc.id) }}"
-          onsubmit="return confirm('确认删除该文档及其图谱数据?')">
+          onsubmit="return confirm('确认删除该文档?')">
       <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i> 删除</button>
     </form>
+    <a href="{{ url_for('kb.export_doc', doc_id=doc.id) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-download"></i> 导出</a>
+    {% endif %}
   </div>
 </div>
 
 <div class="row g-3">
-  <div class="col-lg-7">
+  <div class="col-lg-12">
     <div class="card">
       <div class="card-header"><i class="bi bi-fonts"></i> 识别文本 ({{ pages|length }} 页)</div>
       <div class="card-body" style="max-height:600px;overflow-y:auto;">
@@ -48,40 +51,6 @@
         <div class="text-center text-muted py-4">
           {% if doc.status == 'done' %}该文档未识别出文本{% else %}文档正在识别中...{% endif %}
         </div>
-        {% endfor %}
-      </div>
-    </div>
-  </div>
-
-  <div class="col-lg-5">
-    <div class="card mb-3">
-      <div class="card-header"><i class="bi bi-diagram-3"></i> 三元组 ({{ triples|length }})</div>
-      <div class="table-responsive" style="max-height:400px;overflow-y:auto;">
-        <table class="table table-sm">
-          <tbody>
-            {% for t in triples %}
-            <tr>
-              <td class="text-end"><span class="badge badge-medium">{{ t.head_type }}</span> <strong>{{ t.head }}</strong></td>
-              <td style="color:var(--gray-400);">--{{ t.rel }}--</td>
-              <td><strong>{{ t.tail }}</strong> <span class="badge badge-low">{{ t.tail_type }}</span></td>
-            </tr>
-            {% else %}
-            <tr><td class="text-center text-muted py-3">暂无三元组</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header"><i class="bi bi-tags"></i> 实体 ({{ entities|length }})</div>
-      <div class="card-body">
-        {% for e in entities %}
-        <span class="badge" style="background:var(--primary-light);color:var(--primary);margin:2px;">
-          {{ e.node_type }} · {{ e.name }}
-        </span>
-        {% else %}
-        <div class="text-muted text-center py-2">暂无实体</div>
         {% endfor %}
       </div>
     </div>

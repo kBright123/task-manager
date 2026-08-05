@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}知识库工作台 - 知行合一{% endblock %}
+{% block title %}知识库工作台 - 知行合一 + 数字分身{% endblock %}
 {% block extra_css %}
 <style>
   .wb { display: flex; flex-direction: column; height: calc(100vh - var(--nav-height) - 88px); gap: 12px; }
@@ -89,17 +89,12 @@
       <button class="btn btn-outline-secondary btn-xs-custom" onclick="exportResults()" title="导出结果">
         <i class="bi bi-download"></i>
       </button>
-      <button class="btn btn-outline-secondary btn-xs-custom" onclick="showGraph()" title="知识图谱">
-        <i class="bi bi-diagram-3"></i>
-      </button>
       <span id="queuePill" class="status-badge status-pending d-none">
         <span class="spinner-sm"></span><span id="queuePillText">处理中</span>
       </span>
-      {% if current_user.role == 'admin' %}
       <a href="{{ url_for('kb.index') }}" class="btn btn-outline-primary btn-xs-custom">
         <i class="bi bi-gear"></i> 文档管理
       </a>
-      {% endif %}
     </div>
   </div>
 
@@ -144,9 +139,6 @@
             <li class="nav-item">
               <a class="nav-link active" data-bs-toggle="tab" href="#previewTab">预览</a>
             </li>
-            <li class="nav-item">
-              <a class="nav-link" data-bs-toggle="tab" href="#avatarTab"><i class="bi bi-person-fill"></i> 分身</a>
-            </li>
           </ul>
         </div>
         <div class="card-body tab-content p-0" style="flex:1;overflow:hidden;">
@@ -167,23 +159,6 @@
               <div class="empty-tip">
                 <i class="bi bi-file-earmark-image"></i>
                 <div>在左侧检索结果中点击任意条目<br>查看对应原始文件</div>
-              </div>
-            </div>
-          </div>
-          <div class="tab-pane fade" id="avatarTab">
-            <div class="p-3" style="height:100%;display:flex;flex-direction:column;">
-              <div id="avatarChatWrap" class="avatar-chat-wrap flex-grow-1">
-                <div class="avatar-empty" id="avatarEmpty">
-                  <i class="bi bi-chat-square-text"></i>
-                  <div>输入问题,开始与你的数字分身对话</div>
-                </div>
-              </div>
-              <div id="avatarLoading" class="avatar-typing d-none">
-                <span class="spinner-border spinner-border-sm" style="width:1rem;height:1rem;"></span> 分身思考中…
-              </div>
-              <div class="chat-input-row">
-                <input type="text" id="avatarInput" class="form-control form-control-sm" placeholder="输入你的问题…" autocomplete="off" onkeydown="if(event.key==='Enter')submitAvatar()">
-                <button class="btn btn-sm btn-primary" onclick="submitAvatar()"><i class="bi bi-send"></i></button>
               </div>
             </div>
           </div>
@@ -445,7 +420,7 @@ function openPreview(docId, pageNo) {
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d.ok) return;
-        items = d.items.map(function (n) { return { name: n, type: n.indexOf(':') !== -1 ? '文档' : '实体' }; });
+        items = d.items.map(function (n) { return { name: n, type: '文档' }; });
         sel = -1;
         render();
       }).catch(function () { hide(); });
@@ -622,101 +597,6 @@ function exportResults() {
   URL.revokeObjectURL(url);
 }
 
-// ---- Knowledge graph visualization ----
-function showGraph() {
-  var existing = document.getElementById('graphModal');
-  if (existing) { existing.remove(); return; }
-  var modal = document.createElement('div');
-  modal.id = 'graphModal';
-  modal.className = 'modal fade show';
-  modal.style.display = 'block';
-  modal.setAttribute('tabindex', '-1');
-  modal.innerHTML = '<div class="modal-dialog modal-xl"><div class="modal-content">' +
-    '<div class="modal-header"><h6 class="modal-title"><i class="bi bi-diagram-3"></i> 知识图谱</h6>' +
-    '<button type="button" class="btn-close" onclick="document.getElementById(\'graphModal\').remove()"></button></div>' +
-    '<div class="modal-body" style="height:60vh;"><canvas id="graphCanvas" style="width:100%;height:100%;"></canvas></div></div></div>';
-  document.body.appendChild(modal);
-  var canvas = document.getElementById('graphCanvas');
-  if (!canvas) return;
-  var ctx = canvas.getContext('2d');
-  canvas.width = canvas.parentElement.clientWidth;
-  canvas.height = canvas.parentElement.clientHeight;
-  fetch('{{ url_for('kb.api_entity') }}?name=' + encodeURIComponent(lastQuery || ''))
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
-      if (!d.ok || !d.triples.length) {
-        ctx.fillStyle = '#999';
-        ctx.font = '14px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('暂无图谱数据，请先进行检索', canvas.width / 2, canvas.height / 2);
-        return;
-      }
-      var nodes = {};
-      var edges = [];
-      d.triples.forEach(function (t) {
-        if (!nodes[t.head]) nodes[t.head] = { label: t.head, type: t.head_type || 'entity' };
-        if (!nodes[t.tail]) nodes[t.tail] = { label: t.tail, type: t.tail_type || 'entity' };
-        edges.push({ from: t.head, to: t.tail, rel: t.rel });
-      });
-      var nodeList = Object.keys(nodes);
-      var w = canvas.width, h = canvas.height;
-      var positions = {};
-      nodeList.forEach(function (n, i) {
-        var angle = (2 * Math.PI * i) / nodeList.length;
-        var r = Math.min(w, h) * 0.35;
-        positions[n] = { x: w / 2 + r * Math.cos(angle), y: h / 2 + r * Math.sin(angle) };
-      });
-      function draw() {
-        ctx.clearRect(0, 0, w, h);
-        edges.forEach(function (e) {
-          var from = positions[e.from], to = positions[e.to];
-          if (!from || !to) return;
-          ctx.beginPath();
-          ctx.moveTo(from.x, from.y);
-          ctx.lineTo(to.x, to.y);
-          ctx.strokeStyle = '#cbd5e1';
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-          var mx = (from.x + to.x) / 2, my = (from.y + to.y) / 2;
-          ctx.font = '10px sans-serif';
-          ctx.fillStyle = '#64748b';
-          ctx.textAlign = 'center';
-          ctx.fillText(e.rel, mx, my - 4);
-        });
-        nodeList.forEach(function (n) {
-          var p = positions[n];
-          if (!p) return;
-          var nd = nodes[n];
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, 18, 0, 2 * Math.PI);
-          ctx.fillStyle = nd.type === 'event' ? '#f59e0b' : '#4f46e7';
-          ctx.fill();
-          ctx.strokeStyle = '#fff';
-          ctx.lineWidth = 2;
-          ctx.stroke();
-          ctx.font = '11px sans-serif';
-          ctx.fillStyle = '#fff';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(nd.label.length > 4 ? nd.label.slice(0, 4) + '…' : nd.label, p.x, p.y);
-          ctx.font = '10px sans-serif';
-          ctx.fillStyle = '#334155';
-          ctx.textBaseline = 'top';
-          ctx.fillText(nd.label, p.x, p.y + 20);
-        });
-      }
-      draw();
-    })
-    .catch(function () {
-      ctx.fillStyle = '#999';
-      ctx.font = '14px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('图谱加载失败', canvas.width / 2, canvas.height / 2);
-    });
-  modal.addEventListener('click', function (e) {
-    if (e.target === modal) modal.remove();
-  });
-}
 </script>
 <script>
 var avatarMessages = [];

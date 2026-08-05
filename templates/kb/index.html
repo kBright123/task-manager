@@ -27,19 +27,22 @@
              style="color:{% if active_collection == c.id %}var(--primary);font-weight:600{% else %}var(--gray-600){% endif %}">
             <span style="width:10px;height:10px;border-radius:50%;background:{{ c.color }};flex-shrink:0;"></span>
             <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ c.name }}</span>
+            <span class="badge" style="font-size:.6rem;background:{{ 'var(--success)' if c.visibility == 'public' else 'var(--gray-400)' }};color:#fff;">{{ '公共' if c.visibility == 'public' else '私有' }}</span>
             <span class="badge badge-low">{{ c.documents|length }}</span>
           </a>
-          {% if current_user.role == 'admin' %}
+          {% if current_user.role == 'admin' or (c.owner_id == current_user.id and c.visibility == 'private') %}
           <div class="dropdown">
             <button class="btn btn-xs-custom" data-bs-toggle="dropdown"
                     style="background:transparent;border:none;color:var(--gray-400);padding:2px 6px;">
               <i class="bi bi-three-dots-vertical"></i>
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
-              <li><a class="dropdown-item" href="#" onclick="showCollectionModal({{ c.id }}, {{ c.name|tojson }}, {{ c.color|tojson }});return false;">
+              <li><a class="dropdown-item" href="#" onclick="showCollectionModal({{ c.id }}, {{ c.name|tojson }}, {{ c.color|tojson }}, {{ c.visibility|tojson }});return false;">
                 <i class="bi bi-pencil"></i> 重命名</a></li>
+              {% if c.visibility == 'public' and current_user.role == 'admin' or c.visibility == 'private' and c.owner_id == current_user.id %}
               <li><a class="dropdown-item text-danger" href="#" onclick="deleteCollection({{ c.id }}, {{ c.name|tojson }});return false;">
                 <i class="bi bi-trash"></i> 删除</a></li>
+              {% endif %}
             </ul>
           </div>
           {% endif %}
@@ -114,9 +117,8 @@
               <th>文档</th>
               <th style="width:90px;">类型</th>
               <th style="width:70px;">页数</th>
-              <th style="width:120px;">状态</th>
+              <th style="width:150px;">状态</th>
               <th style="width:130px;">上传时间</th>
-              <th style="width:230px;">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -134,38 +136,38 @@
                 {% if prev %}
                 <small class="text-muted d-block" style="max-width:460px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.75rem;">{{ prev[:120] }}</small>
                 {% endif %}
+                {% set s = summaries.get(doc.id) %}
+                {% if s %}
+                <small class="text-muted d-block" style="max-width:460px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.72rem;color:var(--primary);">{{ s[:100] }}</small>
+                {% endif %}
               </td>
               <td><span class="badge badge-low">{{ doc.file_type|upper }}</span></td>
               <td>{{ doc.page_count if doc.page_count else '-' }}</td>
               <td>
-                <span class="status-badge status-{{ doc.status }}" data-status="{{ doc.id }}">
-                  {% if doc.status == 'queued' %}等待识别
-                  {% elif doc.status == 'ocr' %}OCR 中
-                  {% elif doc.status == 'embedding' %}向量化中
-                  {% elif doc.status == 'graphing' %}图谱抽取中
-                  {% elif doc.status == 'done' %}已完成
-                  {% elif doc.status == 'failed' %}失败
-                  {% endif %}
-                </span>
-                {% if doc.error %}<small class="text-muted d-block">{{ doc.error[:60] }}</small>{% endif %}
-              </td>
-              <td><small class="text-muted">{{ doc.created_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
-              <td>
-                <div class="d-flex gap-1 flex-wrap">
-                  <a href="{{ url_for('kb.doc_detail', doc_id=doc.id) }}" class="btn btn-xs-custom btn-outline-primary">查看</a>
-                  {% if current_user.role == 'admin' %}
-                  <button class="btn btn-xs-custom btn-outline-primary" onclick="assignDoc({{ doc.id }})"><i class="bi bi-folder-plus"></i></button>
-                  <a href="{{ url_for('kb.export_doc', doc_id=doc.id) }}" class="btn btn-xs-custom btn-outline-secondary" title="导出"><i class="bi bi-download"></i></a>
-                  <form method="POST" action="{{ url_for('kb.doc_delete', doc_id=doc.id) }}" style="display:inline;"
-                        onsubmit="return confirm('确认删除该文档及其图谱数据?')">
-                    <button class="btn btn-xs-custom btn-outline-danger"><i class="bi bi-trash"></i></button>
-                  </form>
+                <div class="d-flex align-items-center gap-1 flex-wrap">
+                  <span class="status-badge status-{{ doc.status }}" data-status="{{ doc.id }}">
+                    {% if doc.status == 'queued' %}等待识别
+                    {% elif doc.status == 'ocr' %}OCR 中
+                    {% elif doc.status == 'embedding' %}向量化中
+                    {% elif doc.status == 'graphing' %}图谱抽取中
+                    {% elif doc.status == 'done' %}已完成
+                    {% elif doc.status == 'failed' %}失败
+                    {% endif %}
+                  </span>
+                  {% if doc.last_recognition_at %}
+                  <small class="text-muted" style="font-size:.68rem;white-space:nowrap;">
+                    {{ '重识' if doc.last_recognition_type == 'reprocess' else '新传' }}
+                    ·{{ doc.last_recognition_at.strftime('%m-%d %H:%M') }}
+                    {% if doc.recognition_count > 1 %}·第{{ doc.recognition_count }}次{% endif %}
+                  </small>
                   {% endif %}
                 </div>
+                {% if doc.error %}<small class="text-muted d-block" style="font-size:.68rem;">{{ doc.error[:60] }}</small>{% endif %}
               </td>
+              <td><small class="text-muted">{{ doc.created_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
             </tr>
             {% else %}
-            <tr><td colspan="7" class="text-center py-4 text-muted">暂无文档,上传 PDF/图片/Markdown 或文本开始建立知识库</td></tr>
+            <tr><td colspan="{{ 6 if current_user.role == 'admin' else 5 }}" class="text-center py-4 text-muted">暂无文档,上传 PDF/图片/Markdown 或文本开始建立知识库</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -200,21 +202,17 @@
                     {% elif doc.status == 'failed' %}失败
                     {% endif %}
                   </span>
+                  {% if doc.last_recognition_at %}
+                  <small class="text-muted" style="font-size:.68rem;white-space:nowrap;">
+                    {{ '重识' if doc.last_recognition_type == 'reprocess' else '新传' }}
+                    ·{{ doc.last_recognition_at.strftime('%m-%d %H:%M') }}
+                    {% if doc.recognition_count > 1 %}·第{{ doc.recognition_count }}次{% endif %}
+                  </small>
+                  {% endif %}
                   <small class="text-muted" style="font-size:.68rem;">{{ doc.created_at.strftime('%m-%d %H:%M') }}</small>
                 </div>
                 {% if doc.error %}<small class="text-muted d-block" style="font-size:.7rem;">{{ doc.error[:60] }}</small>{% endif %}
               </div>
-            </div>
-            <div class="d-flex justify-content-end gap-1 mt-2">
-              <a href="{{ url_for('kb.doc_detail', doc_id=doc.id) }}" class="btn btn-xs-custom btn-outline-primary">查看</a>
-              {% if current_user.role == 'admin' %}
-              <button class="btn btn-xs-custom btn-outline-primary" onclick="assignDoc({{ doc.id }})"><i class="bi bi-folder-plus"></i></button>
-              <a href="{{ url_for('kb.export_doc', doc_id=doc.id) }}" class="btn btn-xs-custom btn-outline-secondary" title="导出"><i class="bi bi-download"></i></a>
-              <form method="POST" action="{{ url_for('kb.doc_delete', doc_id=doc.id) }}" style="display:inline;"
-                    onsubmit="return confirm('确认删除该文档及其图谱数据?')">
-                <button class="btn btn-xs-custom btn-outline-danger"><i class="bi bi-trash"></i></button>
-              </form>
-              {% endif %}
             </div>
           </div>
         </div>
@@ -261,6 +259,10 @@
       <div class="modal-body">
         <input type="text" id="collectionName" class="form-control mb-2" placeholder="集合名称">
         <input type="color" id="collectionColor" class="form-control form-control-color" value="#8b5cf6">
+        <select id="collectionVisibility" class="form-select mt-2" style="display:none;">
+          <option value="private">私有</option>
+          <option value="public">公共</option>
+        </select>
       </div>
       <div class="modal-footer">
         <button class="btn btn-sm" data-bs-dismiss="modal" style="background:var(--gray-100);color:var(--gray-600);">取消</button>
@@ -343,13 +345,15 @@
 (function pollQueue() {
   var card = document.getElementById('queueCard');
   if (!card) return;
+  var reprogress = document.getElementById('bulkReprogress');
   function poll() {
     fetch('{{ url_for('kb.api_queue') }}').then(function (r) { return r.json(); }).then(function (d) {
       if (!d.ok) return;
       var c = d.counts;
       var p = d.processing || 0;
       var total = d.total || 0;
-      if (p > 0) {
+      var reprocessing = reprogress && reprogress.classList.contains('d-flex');
+      if (p > 0 && !reprocessing) {
         card.classList.remove('d-none');
         document.getElementById('queueSummary').textContent = '已完成 ' + (c.done || 0) + '/' + total + ' 文件';
         document.getElementById('queueDetail').textContent =
@@ -555,6 +559,14 @@
     window._assignIds = [docId];
     new bootstrap.Modal(document.getElementById('assignModal')).show();
   };
+  window.stopDoc = function (docId) {
+    if (!confirm('确认停止该文档的识别?')) return;
+    var f = document.createElement('form');
+    f.method = 'POST';
+    f.action = '{{ url_for('kb.doc_cancel', doc_id=0) }}'.replace('/0', '/' + docId);
+    document.body.appendChild(f);
+    f.submit();
+  };
   window.doAssign = function () {
     var cid = document.getElementById('assignSelect').value;
     var ids = window._assignIds || [];
@@ -573,16 +585,24 @@
 <script>
 (function collectionOps() {
   var editingId = null;
-  window.showCollectionModal = function (id, name, color) {
+  window.showCollectionModal = function (id, name, color, visibility) {
     editingId = id || null;
     document.getElementById('collectionName').value = name || '';
     document.getElementById('collectionColor').value = color || '#8b5cf6';
     document.getElementById('collectionModalTitle').textContent = id ? '重命名集合' : '新建集合';
+    var visEl = document.getElementById('collectionVisibility');
+    if (currentUserRole === 'admin') {
+      visEl.style.display = 'block';
+      visEl.value = visibility || 'private';
+    } else {
+      visEl.style.display = 'none';
+    }
     new bootstrap.Modal(document.getElementById('collectionModal')).show();
   };
   window.saveCollection = function () {
     var name = document.getElementById('collectionName').value.trim();
     var color = document.getElementById('collectionColor').value;
+    var visibility = document.getElementById('collectionVisibility').value;
     if (!name) { alert('请输入集合名称'); return; }
     var url = editingId
       ? '{{ url_for('kb.api_collection_update', cid=0) }}'.replace(/0$/, editingId)
@@ -591,7 +611,7 @@
     fetch(url, {
       method: method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, color: color })
+      body: JSON.stringify({ name: name, color: color, visibility: visibility })
     }).then(function (r) { return r.json(); }).then(function (d) {
       bootstrap.Modal.getInstance(document.getElementById('collectionModal')).hide();
       if (d.ok) location.reload(); else alert(d.error || '操作失败');

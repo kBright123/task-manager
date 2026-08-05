@@ -11,7 +11,14 @@
   @media (min-width: 768px) and (max-width: 1439px) { .wb-left { width: 42%; } }
   @media (max-width: 767px) { .wb-left { width: 100%; } }
   .wb-right { flex: 1; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-  @media (max-width: 767px) { .wb-right { height: 560px; } }
+  @media (max-width: 767px) { .wb-right { display: none; } }
+
+  .preview-modal { position: fixed; inset: 0; z-index: 1050; display: none; }
+  .preview-modal-mask { position: absolute; inset: 0; background: rgba(15, 23, 42, .55); }
+  .preview-modal-sheet { position: relative; margin: auto 0 0; width: 100%; max-height: 88vh; background: #fff; border-radius: 16px 16px 0 0; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 -8px 30px rgba(0, 0, 0, .18); animation: wbSheetUp .22s ease-out; }
+  @keyframes wbSheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .preview-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--gray-100); font-weight: 600; font-size: .9rem; flex-shrink: 0; }
+  .preview-modal-body { padding: 14px; overflow-y: auto; }
 
   .search-wrap { position: relative; }
   .suggest-box { position: absolute; top: 100%; left: 0; right: 0; background: #fff; border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); max-height: 260px; overflow-y: auto; z-index: 50; margin-top: 6px; padding: 6px; }
@@ -33,8 +40,18 @@
   .answer-body a { color: var(--primary); }
   .answer-body mark { background: #fef08a; padding: 0 2px; border-radius: 2px; }
 
+  .chat-input-row { display: flex; gap: 8px; margin-top: 12px; }
+  .chat-input-row input { flex: 1; }
   .source-tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 100px; font-size: .72rem; background: var(--primary-light); color: var(--primary); font-weight: 500; cursor: pointer; border: 1px solid transparent; text-decoration: none; }
   .source-tag:hover { border-color: var(--primary); }
+
+  .avatar-chat-wrap { display: flex; flex-direction: column; gap: 8px; max-height: 50vh; overflow-y: auto; padding: 8px 0; }
+  .avatar-bubble { max-width: 82%; padding: 10px 14px; border-radius: 12px; font-size: .88rem; line-height: 1.6; word-break: break-word; }
+  .avatar-bubble.user { background: var(--primary); color: #fff; margin-left: auto; border-bottom-right-radius: 4px; }
+  .avatar-bubble.avatar { background: var(--gray-100); color: var(--gray-800); margin-right: auto; border-bottom-left-radius: 4px; }
+  .avatar-empty { text-align: center; padding: 40px 10px; color: var(--gray-400); }
+  .avatar-empty i { font-size: 2rem; display: block; margin-bottom: 8px; }
+  .avatar-typing { color: var(--gray-400); font-size: .82rem; padding: 4px 0; }
 
   .result-group { border-left: 3px solid var(--gray-200); padding-left: 12px; }
   .result-group .doc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -63,6 +80,18 @@
       <div class="suggest-box d-none" id="suggestBox"></div>
     </div>
     <div class="d-flex gap-2 align-items-center">
+      <div class="dropdown">
+        <button class="btn btn-outline-secondary btn-xs-custom" data-bs-toggle="dropdown" title="提示词模板">
+          <i class="bi bi-lightning"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end" id="promptTemplates"></ul>
+      </div>
+      <button class="btn btn-outline-secondary btn-xs-custom" onclick="exportResults()" title="导出结果">
+        <i class="bi bi-download"></i>
+      </button>
+      <button class="btn btn-outline-secondary btn-xs-custom" onclick="showGraph()" title="知识图谱">
+        <i class="bi bi-diagram-3"></i>
+      </button>
       <span id="queuePill" class="status-badge status-pending d-none">
         <span class="spinner-sm"></span><span id="queuePillText">处理中</span>
       </span>
@@ -109,23 +138,70 @@
     </div>
 
     <div class="wb-right">
-      <div class="card" id="previewCard" style="display:none;">
+      <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0;">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <span id="previewTitle"><i class="bi bi-file-earmark-image"></i> 原始文件预览</span>
-          <div class="d-flex gap-2 align-items-center">
-            <a href="#" id="previewOpenNew" class="btn btn-xs-custom btn-outline-primary" target="_blank"><i class="bi bi-box-arrow-up-right"></i> 新窗口打开</a>
+          <ul class="nav nav-tabs card-header-tabs" style="border-bottom:none;">
+            <li class="nav-item">
+              <a class="nav-link active" data-bs-toggle="tab" href="#previewTab">预览</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" data-bs-toggle="tab" href="#avatarTab"><i class="bi bi-person-fill"></i> 分身</a>
+            </li>
+          </ul>
+        </div>
+        <div class="card-body tab-content p-0" style="flex:1;overflow:hidden;">
+          <div class="tab-pane fade show active" id="previewTab">
+            <div id="previewCard" style="display:none;">
+              <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
+                <span id="previewTitle"><i class="bi bi-file-earmark-image"></i> 原始文件预览</span>
+                <div class="d-flex gap-2 align-items-center">
+                  <a href="#" id="previewOpenNew" class="btn btn-xs-custom btn-outline-primary" target="_blank"><i class="bi bi-box-arrow-up-right"></i> 新窗口打开</a>
+                  <button class="btn btn-xs-custom btn-outline-secondary" onclick="closePreview()">关闭</button>
+                </div>
+              </div>
+              <div class="card-body" style="padding:16px;">
+                <div id="previewBody"><div class="loading-answer"><span class="spinner-sm"></span> 加载中...</div></div>
+              </div>
+            </div>
+            <div id="previewPlaceholder" style="flex:1;display:flex;align-items:center;justify-content:center;">
+              <div class="empty-tip">
+                <i class="bi bi-file-earmark-image"></i>
+                <div>在左侧检索结果中点击任意条目<br>查看对应原始文件</div>
+              </div>
+            </div>
+          </div>
+          <div class="tab-pane fade" id="avatarTab">
+            <div class="p-3" style="height:100%;display:flex;flex-direction:column;">
+              <div id="avatarChatWrap" class="avatar-chat-wrap flex-grow-1">
+                <div class="avatar-empty" id="avatarEmpty">
+                  <i class="bi bi-chat-square-text"></i>
+                  <div>输入问题,开始与你的数字分身对话</div>
+                </div>
+              </div>
+              <div id="avatarLoading" class="avatar-typing d-none">
+                <span class="spinner-border spinner-border-sm" style="width:1rem;height:1rem;"></span> 分身思考中…
+              </div>
+              <div class="chat-input-row">
+                <input type="text" id="avatarInput" class="form-control form-control-sm" placeholder="输入你的问题…" autocomplete="off" onkeydown="if(event.key==='Enter')submitAvatar()">
+                <button class="btn btn-sm btn-primary" onclick="submitAvatar()"><i class="bi bi-send"></i></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="preview-modal" id="previewModal">
+      <div class="preview-modal-mask" onclick="closePreview()"></div>
+      <div class="preview-modal-sheet">
+        <div class="preview-modal-head">
+          <span id="previewModalTitle"><i class="bi bi-file-earmark-image"></i> 原始文件预览</span>
+          <div class="d-flex gap-2 align-items-center flex-shrink-0">
+            <a href="#" id="previewModalOpen" class="btn btn-xs-custom btn-outline-primary" target="_blank"><i class="bi bi-box-arrow-up-right"></i> 新窗口打开</a>
             <button class="btn btn-xs-custom btn-outline-secondary" onclick="closePreview()">关闭</button>
           </div>
         </div>
-        <div class="card-body" style="padding:16px;">
-          <div id="previewBody"><div class="loading-answer"><span class="spinner-sm"></span> 加载中...</div></div>
-        </div>
-      </div>
-      <div class="card" id="previewPlaceholder" style="flex:1;display:flex;align-items:center;justify-content:center;">
-        <div class="empty-tip">
-          <i class="bi bi-file-earmark-image"></i>
-          <div>在左侧检索结果中点击任意条目<br>查看对应原始文件</div>
-        </div>
+        <div class="preview-modal-body" id="previewModalBody"></div>
       </div>
     </div>
   </div>
@@ -272,23 +348,20 @@ function searchQuery(q) {
 }
 
 function closePreview() {
-  document.getElementById('previewCard').style.display = 'none';
-  document.getElementById('previewPlaceholder').style.display = 'flex';
+  var modal = document.getElementById('previewModal');
+  if (modal) modal.style.display = 'none';
+  document.body.style.overflow = '';
+  var card = document.getElementById('previewCard');
+  if (card) card.style.display = 'none';
+  var ph = document.getElementById('previewPlaceholder');
+  if (ph) ph.style.display = 'flex';
   if (window._previewObjUrl) { URL.revokeObjectURL(window._previewObjUrl); window._previewObjUrl = null; }
 }
 
-function openPreview(docId, pageNo) {
-  var card = document.getElementById('previewCard');
-  var title = document.getElementById('previewTitle');
-  var body = document.getElementById('previewBody');
-  var openNew = document.getElementById('previewOpenNew');
-  var url = '{{ url_for('kb.preview', doc_id=0) }}'.replace('/0', '/' + docId) + (pageNo ? '?page=' + pageNo : '');
-  card.style.display = 'flex';
-  card.style.flexDirection = 'column';
-  document.getElementById('previewPlaceholder').style.display = 'none';
+function loadPreview(url, titleEl, bodyEl, openNew, pageNo) {
+  titleEl.innerHTML = '<i class="bi bi-file-earmark-image"></i> 原始文件预览' + (pageNo ? ' · 第 ' + pageNo + ' 页' : '');
   openNew.href = url;
-  title.innerHTML = '<i class="bi bi-file-earmark-image"></i> 原始文件预览' + (pageNo ? ' · 第 ' + pageNo + ' 页' : '');
-  body.innerHTML = '<div class="loading-answer"><span class="spinner-sm"></span> 加载中...</div>';
+  bodyEl.innerHTML = '<div class="loading-answer"><span class="spinner-sm"></span> 加载中...</div>';
   fetch(url).then(function (r) {
     if (!r.ok) { throw new Error('加载失败 (' + r.status + ')'); }
     var ct = r.headers.get('Content-Type') || '';
@@ -299,19 +372,40 @@ function openPreview(docId, pageNo) {
     if (window._previewObjUrl) { URL.revokeObjectURL(window._previewObjUrl); }
     window._previewObjUrl = objUrl;
     if (ct.indexOf('image/') === 0) {
-      body.innerHTML = '<div style="text-align:center;background:var(--gray-100);border-radius:var(--radius-sm);padding:12px;">' +
+      bodyEl.innerHTML = '<div style="text-align:center;background:var(--gray-100);border-radius:var(--radius-sm);padding:12px;">' +
         '<img src="' + objUrl + '" style="max-width:100%;max-height:70vh;border-radius:6px;box-shadow:var(--shadow);">' +
         '<div class="text-muted mt-2" style="font-size:.75rem;">如需放大可点击右上角"新窗口打开"</div></div>';
     } else {
       blob.text().then(function (t) {
-        body.innerHTML = '<pre style="white-space:pre-wrap;font-family:var(--font);font-size:.85rem;background:var(--gray-50);border-radius:var(--radius-sm);padding:12px;color:var(--gray-700);max-height:70vh;overflow-y:auto;">' +
+        bodyEl.innerHTML = '<pre style="white-space:pre-wrap;font-family:var(--font);font-size:.85rem;background:var(--gray-50);border-radius:var(--radius-sm);padding:12px;color:var(--gray-700);max-height:70vh;overflow-y:auto;">' +
           t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>';
       });
     }
-    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    bodyEl.scrollTop = 0;
   }).catch(function (e) {
-    body.innerHTML = '<div class="empty-tip">' + e.message + '</div>';
+    bodyEl.innerHTML = '<div class="empty-tip">' + e.message + '</div>';
   });
+}
+
+function openPreview(docId, pageNo) {
+  var url = '{{ url_for('kb.preview', doc_id=0) }}'.replace('/0', '/' + docId) + (pageNo ? '?page=' + pageNo : '');
+  if (window.matchMedia('(max-width: 767px)').matches) {
+    var modal = document.getElementById('previewModal');
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    loadPreview(url, document.getElementById('previewModalTitle'),
+                document.getElementById('previewModalBody'),
+                document.getElementById('previewModalOpen'), pageNo);
+  } else {
+    var card = document.getElementById('previewCard');
+    card.style.display = 'flex';
+    card.style.flexDirection = 'column';
+    document.getElementById('previewPlaceholder').style.display = 'none';
+    loadPreview(url, document.getElementById('previewTitle'),
+                document.getElementById('previewBody'),
+                document.getElementById('previewOpenNew'), pageNo);
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 }
 </script>
 <script>
@@ -444,5 +538,231 @@ function openPreview(docId, pageNo) {
       });
   };
 })();
+
+// ---- Prompt templates (localStorage) ----
+(function () {
+  var TPL_KEY = 'kb_prompt_templates';
+  var defaults = [
+    { name: '总结要点', prompt: '请总结以下资料的要点，用简洁的条目列出：' },
+    { name: '对比分析', prompt: '请对比以下资料中的不同观点，分析异同：' },
+    { name: '提取行动项', prompt: '请从以下资料中提取可执行的行动项：' },
+    { name: '通俗解释', prompt: '请用通俗易懂的语言解释以下概念：' },
+    { name: '生成大纲', prompt: '请根据以下资料生成一个结构化大纲：' }
+  ];
+  function load() {
+    try { return JSON.parse(localStorage.getItem(TPL_KEY)) || defaults; }
+    catch (e) { return defaults; }
+  }
+  function save(tpls) { localStorage.setItem(TPL_KEY, JSON.stringify(tpls)); }
+  var ul = document.getElementById('promptTemplates');
+  if (ul) {
+    function render() {
+      ul.innerHTML = '';
+      load().forEach(function (t, i) {
+        var li = document.createElement('li');
+        var a = document.createElement('a');
+        a.className = 'dropdown-item';
+        a.href = '#';
+        a.textContent = t.name;
+        a.onclick = function () {
+          document.getElementById('askInput').value = t.prompt;
+          document.getElementById('askInput').focus();
+          return false;
+        };
+        li.appendChild(a);
+        ul.appendChild(li);
+      });
+      var sep = document.createElement('li');
+      sep.innerHTML = '<hr class="dropdown-divider">';
+      ul.appendChild(sep);
+      var addLi = document.createElement('li');
+      var addA = document.createElement('a');
+      addA.className = 'dropdown-item';
+      addA.href = '#';
+      addA.innerHTML = '<i class="bi bi-plus"></i> 新建模板';
+      addA.onclick = function () {
+        var name = prompt('模板名称：');
+        if (!name) return false;
+        var prompt = prompt('提示词内容：');
+        if (!prompt) return false;
+        var tpls = load();
+        tpls.push({ name: name, prompt: prompt });
+        save(tpls);
+        render();
+        return false;
+      };
+      addLi.appendChild(addA);
+      ul.appendChild(addLi);
+    }
+    render();
+  }
+})();
+
+// ---- Export results as markdown ----
+function exportResults() {
+  var title = document.getElementById('resultTitle').textContent.trim();
+  var body = document.getElementById('answerBody').innerText;
+  var srcWrap = document.getElementById('sourcesWrap');
+  var sources = [];
+  if (srcWrap && srcWrap.style.display !== 'none') {
+    srcWrap.querySelectorAll('.source-tag').forEach(function (a) {
+      sources.push(a.textContent.trim());
+    });
+  }
+  var md = '# ' + title + '\n\n' + body;
+  if (sources.length) {
+    md += '\n\n## 引用来源\n\n' + sources.map(function (s) { return '- ' + s; }).join('\n');
+  }
+  var blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = (title || 'knowledge-export') + '.md';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ---- Knowledge graph visualization ----
+function showGraph() {
+  var existing = document.getElementById('graphModal');
+  if (existing) { existing.remove(); return; }
+  var modal = document.createElement('div');
+  modal.id = 'graphModal';
+  modal.className = 'modal fade show';
+  modal.style.display = 'block';
+  modal.setAttribute('tabindex', '-1');
+  modal.innerHTML = '<div class="modal-dialog modal-xl"><div class="modal-content">' +
+    '<div class="modal-header"><h6 class="modal-title"><i class="bi bi-diagram-3"></i> 知识图谱</h6>' +
+    '<button type="button" class="btn-close" onclick="document.getElementById(\'graphModal\').remove()"></button></div>' +
+    '<div class="modal-body" style="height:60vh;"><canvas id="graphCanvas" style="width:100%;height:100%;"></canvas></div></div></div>';
+  document.body.appendChild(modal);
+  var canvas = document.getElementById('graphCanvas');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  canvas.width = canvas.parentElement.clientWidth;
+  canvas.height = canvas.parentElement.clientHeight;
+  fetch('{{ url_for('kb.api_entity') }}?name=' + encodeURIComponent(lastQuery || ''))
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d.ok || !d.triples.length) {
+        ctx.fillStyle = '#999';
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('暂无图谱数据，请先进行检索', canvas.width / 2, canvas.height / 2);
+        return;
+      }
+      var nodes = {};
+      var edges = [];
+      d.triples.forEach(function (t) {
+        if (!nodes[t.head]) nodes[t.head] = { label: t.head, type: t.head_type || 'entity' };
+        if (!nodes[t.tail]) nodes[t.tail] = { label: t.tail, type: t.tail_type || 'entity' };
+        edges.push({ from: t.head, to: t.tail, rel: t.rel });
+      });
+      var nodeList = Object.keys(nodes);
+      var w = canvas.width, h = canvas.height;
+      var positions = {};
+      nodeList.forEach(function (n, i) {
+        var angle = (2 * Math.PI * i) / nodeList.length;
+        var r = Math.min(w, h) * 0.35;
+        positions[n] = { x: w / 2 + r * Math.cos(angle), y: h / 2 + r * Math.sin(angle) };
+      });
+      function draw() {
+        ctx.clearRect(0, 0, w, h);
+        edges.forEach(function (e) {
+          var from = positions[e.from], to = positions[e.to];
+          if (!from || !to) return;
+          ctx.beginPath();
+          ctx.moveTo(from.x, from.y);
+          ctx.lineTo(to.x, to.y);
+          ctx.strokeStyle = '#cbd5e1';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          var mx = (from.x + to.x) / 2, my = (from.y + to.y) / 2;
+          ctx.font = '10px sans-serif';
+          ctx.fillStyle = '#64748b';
+          ctx.textAlign = 'center';
+          ctx.fillText(e.rel, mx, my - 4);
+        });
+        nodeList.forEach(function (n) {
+          var p = positions[n];
+          if (!p) return;
+          var nd = nodes[n];
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 18, 0, 2 * Math.PI);
+          ctx.fillStyle = nd.type === 'event' ? '#f59e0b' : '#4f46e7';
+          ctx.fill();
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          ctx.font = '11px sans-serif';
+          ctx.fillStyle = '#fff';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(nd.label.length > 4 ? nd.label.slice(0, 4) + '…' : nd.label, p.x, p.y);
+          ctx.font = '10px sans-serif';
+          ctx.fillStyle = '#334155';
+          ctx.textBaseline = 'top';
+          ctx.fillText(nd.label, p.x, p.y + 20);
+        });
+      }
+      draw();
+    })
+    .catch(function () {
+      ctx.fillStyle = '#999';
+      ctx.font = '14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('图谱加载失败', canvas.width / 2, canvas.height / 2);
+    });
+  modal.addEventListener('click', function (e) {
+    if (e.target === modal) modal.remove();
+  });
+}
+</script>
+<script>
+var avatarMessages = [];
+function submitAvatar() {
+  var input = document.getElementById('avatarInput');
+  var q = input.value.trim();
+  if (!q) return;
+  input.value = '';
+  appendAvatarBubble('user', q);
+  var empty = document.getElementById('avatarEmpty');
+  if (empty) empty.style.display = 'none';
+  var loading = document.getElementById('avatarLoading');
+  loading.classList.remove('d-none');
+  fetch('{{ url_for('kb.api_avatar_ask') }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question: q })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    loading.classList.add('d-none');
+    if (d.ok) {
+      appendAvatarBubble('avatar', d.answer || '');
+      (d.sources || []).forEach(function(s) {
+        var a = document.createElement('a');
+        a.className = 'source-tag';
+        a.href = '{{ url_for('kb.doc_detail', doc_id=0) }}'.replace('0', s.doc_id);
+        a.innerHTML = '<i class="bi bi-file-earmark-text"></i> ' + s.title + ' · 第' + s.page + '页';
+        var wrap = document.getElementById('avatarChatWrap');
+        var last = wrap.lastElementChild;
+        if (last) last.appendChild(a);
+      });
+    } else {
+      appendAvatarBubble('avatar', d.error || '回答生成失败');
+    }
+  }).catch(function() {
+    loading.classList.add('d-none');
+    appendAvatarBubble('avatar', '网络错误,请重试');
+  });
+}
+function appendAvatarBubble(role, text) {
+  var wrap = document.getElementById('avatarChatWrap');
+  var bubble = document.createElement('div');
+  bubble.className = 'avatar-bubble ' + role;
+  bubble.textContent = text;
+  bubble.style.whiteSpace = 'pre-wrap';
+  wrap.appendChild(bubble);
+  wrap.scrollTop = wrap.scrollHeight;
+}
 </script>
 {% endblock %}

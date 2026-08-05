@@ -60,7 +60,8 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-from knowledge import init_models, enable_sqlite_wal, kb_bp
+from knowledge import init_models, enable_sqlite_wal, kb_bp, \
+    _resolve_stored_path
 init_models(db)
 app.register_blueprint(kb_bp)
 
@@ -252,6 +253,25 @@ def db_init_lock():
         f.close()
 
 
+def _repair_doc_file_paths(c):
+    """把 kb_document.file_path 修正到原始文件实际所在的位置。
+
+    upload 目录或卷挂载路径在历史版本间发生过迁移,DB 中记录的绝对路径
+    可能已不存在;这里按文件名在 instance/uploads 与 static/uploads 两种
+    布局下兜底查找,找到就回写正确路径(每次启动都会执行,具备自愈能力)。"""
+    rows = c.execute('SELECT id, file_path FROM kb_document').fetchall()
+    fixed = 0
+    for doc_id, fp in rows:
+        if not fp:
+            continue
+        resolved = _resolve_stored_path(fp)
+        if resolved != fp and os.path.exists(resolved):
+            c.execute('UPDATE kb_document SET file_path=? WHERE id=?',
+                      (resolved, doc_id))
+            fixed += 1
+    return fixed
+
+
 def _run_sqlite_migrations():
     import sqlite3
     db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance', 'tasks.db')
@@ -277,13 +297,28 @@ def _run_sqlite_migrations():
             c.execute('ALTER TABLE kb_document ADD COLUMN collection_id INTEGER')
         if 'attempts' not in cols:
             c.execute('ALTER TABLE kb_document ADD COLUMN attempts INTEGER DEFAULT 0')
+        for col, ddl in [('last_recognition_at', 'DATETIME'),
+                           ('last_recognition_type', 'VARCHAR(20)'),
+                           ('last_recognition_result', 'VARCHAR(20)'),
+                           ('recognition_count', 'INTEGER DEFAULT 0'),
+                           ('cancel', 'INTEGER DEFAULT 0')]:
+            if col not in cols:
+                c.execute(f'ALTER TABLE kb_document ADD COLUMN {col} {ddl}')
+        c.execute('PRAGMA table_info(kb_collection)')
+        cols = [r[1] for r in c.fetchall()]
+        if 'visibility' not in cols:
+            c.execute("ALTER TABLE kb_collection ADD COLUMN visibility VARCHAR(10) DEFAULT 'private'")
+        if 'owner_id' not in cols:
+            c.execute('ALTER TABLE kb_collection ADD COLUMN owner_id INTEGER')
         c.execute(
-            'SELECT id, file_path FROM kb_document WHERE file_path LIKE ?',
-            ('%static/uploads%',))
-        for doc_id, fp in c.fetchall():
-            c.execute(
-                'UPDATE kb_document SET file_path=? WHERE id=?',
-                (fp.replace('/static/uploads/', '/instance/uploads/'), doc_id))
+            "UPDATE kb_document SET last_recognition_at=updated_at, "
+            "last_recognition_type='upload', "
+            "last_recognition_result=CASE WHEN status='done' THEN 'success' "
+            "ELSE 'failed' END, recognition_count=1 "
+            "WHERE last_recognition_at IS NULL")
+        fixed = _repair_doc_file_paths(c)
+        if fixed:
+            print(f'[migration] 修正 {fixed} 个文档的文件路径')
         for sql in [
             'CREATE INDEX IF NOT EXISTS ix_task_creator_end ON task (creator_id, end_time)',
             'CREATE INDEX IF NOT EXISTS ix_task_start ON task (start_time)',
@@ -1464,7 +1499,8 @@ def admin_task_detail(task_id):
                            pending_assignments=pending_assignments,
                            assignment=assignment,
                            TaskAssignment=TaskAssignment,
-                           is_admin=True)
+                           is_admin=True,
+                           now=datetime.now())
 
 
 @app.route('/admin/tasks/<int:task_id>/edit', methods=['POST'])
@@ -2185,7 +2221,8 @@ def user_task_detail(task_id):
     return render_template('task_detail.html', task=task,
                            assignment=assignment,
                            pending_assignments=pending_assignments,
-                           is_admin=False)
+                           is_admin=False,
+                           now=datetime.now())
 
 
 @app.route('/user/assignments/<int:assignment_id>/update_progress', methods=['POST'])

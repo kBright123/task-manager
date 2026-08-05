@@ -1,5 +1,30 @@
 {% extends "base.html" %}
 {% block title %}首页{% endblock %}
+{% block extra_css %}
+<style>
+  .answer-body { font-size: .88rem; line-height: 1.7; color: var(--gray-800); }
+  .answer-body h1, .answer-body h2, .answer-body h3, .answer-body h4 { font-size: 1.02rem; margin: 14px 0 6px; font-weight: 700; color: var(--gray-900); }
+  .answer-body h1:first-child, .answer-body h2:first-child, .answer-body h3:first-child { margin-top: 0; }
+  .answer-body p { margin: 0 0 8px; }
+  .answer-body ul, .answer-body ol { margin: 0 0 8px; padding-left: 22px; }
+  .answer-body pre { background: var(--gray-900); color: #e2e8f0; padding: 12px; border-radius: 8px; overflow-x: auto; font-size: .78rem; margin: 8px 0; }
+  .answer-body code { background: var(--gray-100); color: var(--primary); padding: 1px 5px; border-radius: 4px; font-size: .8em; }
+  .answer-body pre code { background: transparent; color: inherit; padding: 0; }
+  .answer-body blockquote { border-left: 3px solid var(--primary-light); padding-left: 12px; color: var(--gray-500); margin: 8px 0; }
+  .answer-body table { border-collapse: collapse; margin: 8px 0; }
+  .answer-body th, .answer-body td { border: 1px solid var(--gray-200); padding: 5px 10px; }
+  .answer-body a { color: var(--primary); }
+  .answer-body mark { background: #fef08a; padding: 0 2px; border-radius: 2px; }
+  .loading-answer { display: flex; align-items: center; gap: 8px; color: var(--gray-400); font-size: .82rem; padding: 12px 0; }
+  .source-tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 100px; font-size: .72rem; background: var(--primary-light); color: var(--primary); font-weight: 500; cursor: pointer; border: 1px solid transparent; text-decoration: none; }
+  .source-tag:hover { border-color: var(--primary); }
+  .result-group { border-left: 3px solid var(--gray-200); padding-left: 12px; }
+  .result-group .doc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .result-page { border-left: 3px solid var(--gray-100); padding-left: 10px; margin-top: 8px; }
+  .result-page mark { background: #fef08a; padding: 0 2px; border-radius: 2px; }
+  .badge-medium { font-size: .65rem; padding: 2px 6px; }
+</style>
+{% endblock %}
 {% block content %}
 {% set today_ids = today_tasks|map(attribute='id')|list %}
 {% set week_other = [] %}
@@ -60,17 +85,6 @@
   </div>
 </div>
 
-<!-- Search Results -->
-<div id="searchResults" class="d-none mb-4">
-  <div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
-      <span><i class="bi bi-search" style="color:var(--primary);"></i> 搜索结果</span>
-      <span class="badge bg-primary" id="searchCount" style="font-size:.65rem;">0</span>
-    </div>
-    <div class="list-group list-group-flush" id="searchResultList"></div>
-  </div>
-</div>
-
 <div class="stat-grid stat-grid-4 mb-4">
   <div class="stat-card card-lift" style="background:#e0f2fe;padding:12px 16px;">
     <div class="stat-icon" style="font-size:1.2rem;margin-bottom:4px;color:#0284c7;"><i class="bi bi-calendar-day"></i></div>
@@ -115,19 +129,47 @@
   </button>
 </div>
 
-<!-- Knowledge Base Search -->
+<!-- Search Results -->
+<div id="searchResults" class="d-none mb-4">
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
+      <span><i class="bi bi-search" style="color:var(--primary);"></i> 搜索结果</span>
+      <span class="badge bg-primary" id="searchCount" style="font-size:.65rem;">0</span>
+    </div>
+    <div class="list-group list-group-flush" id="searchResultList"></div>
+  </div>
+</div>
+
+<!-- Knowledge Base Q&A -->
 <div class="card mb-4">
   <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
-    <span><i class="bi bi-collection" style="color:var(--primary);"></i> 知识库检索</span>
+    <span><i class="bi bi-chat-square-text" style="color:var(--primary);"></i> 知识库问答</span>
     <a href="{{ url_for('kb.workbench') }}" class="btn btn-sm btn-outline-primary" style="padding:2px 8px;font-size:.7rem;">进入工作台</a>
   </div>
   <div class="card-body py-3">
-    <div class="position-relative">
+    <div class="position-relative mb-3">
       <div class="input-group">
-        <input type="text" id="kbSearchInput" class="form-control" placeholder="搜索知识库文档或提问" style="font-size:.88rem;" autocomplete="off" onfocus="kbShowRecent()" oninput="if(this.value.trim()){kbHideRecent();}else{kbShowRecent();}" onkeydown="if(event.key==='Enter'){event.preventDefault();kbSearch();}">
-        <button class="btn btn-primary" id="kbSearchBtn" onclick="kbSearch()" style="white-space:nowrap;"><i class="bi bi-search"></i> 检索</button>
+        <input type="text" id="kbAskInput" class="form-control" placeholder="输入问题或关键词" style="font-size:.88rem;" autocomplete="off" onfocus="kbShowAskRecent()" oninput="if(this.value.trim()){kbHideAskRecent();}else{kbShowAskRecent();}" onkeydown="if(event.key==='Enter'){event.preventDefault();kbSearch();}">
+        <button class="btn btn-outline-primary" id="kbSearchBtn" onclick="kbSearch()" style="white-space:nowrap;"><i class="bi bi-search"></i> 检索</button>
+        <button class="btn btn-primary" id="kbAskBtn" onclick="kbAsk()" style="white-space:nowrap;"><i class="bi bi-send"></i> 分身问答</button>
       </div>
-      <div id="kbRecentBox" class="d-none" style="position:absolute;top:100%;left:0;right:0;background:#fff;border-radius:var(--radius-sm);box-shadow:var(--shadow-lg);max-height:260px;overflow-y:auto;z-index:50;margin-top:6px;padding:6px;"></div>
+      <div id="kbAskRecentBox" class="d-none" style="position:absolute;top:100%;left:0;right:0;background:#fff;border-radius:var(--radius-sm);box-shadow:var(--shadow-lg);max-height:260px;overflow-y:auto;z-index:50;margin-top:6px;padding:6px;"></div>
+    </div>
+    <div id="kbSearchResult" style="display:none;">
+      <div id="kbSearchLoading" class="loading-answer d-none">
+        <span class="spinner-border spinner-border-sm" style="width:1rem;height:1rem;"></span> 检索中…
+      </div>
+      <div id="kbSearchBody"></div>
+    </div>
+    <div id="kbAskLoading" class="loading-answer d-none">
+      <span class="spinner-border spinner-border-sm" style="width:1rem;height:1rem;"></span> 分身思考中…
+    </div>
+    <div id="kbAskAnswer" style="display:none;">
+      <div id="kbAskAnswerBody" class="answer-body"></div>
+      <div id="kbAskSourcesWrap" class="mt-3 pt-2 border-top" style="display:none;">
+        <small class="text-muted" style="font-size:.72rem;font-weight:600;">引用来源</small>
+        <div class="d-flex flex-wrap gap-2 mt-2" id="kbAskSourcesBox"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -386,6 +428,8 @@ function closeTaskDrawer() {
 </div>
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 <script>
 var _summaryDate = '';
 var _summaryPeriod = 'month';
@@ -495,15 +539,20 @@ function doSearch(q, cat) {
           item.style.cssText = 'color:var(--gray-800);cursor:pointer;transition:background .15s;';
           item.onmouseover = function() { this.style.background = 'var(--gray-50)'; };
           item.onmouseout = function() { this.style.background = 'transparent'; };
-          item.innerHTML =
-            '<div class="flex-grow-1" style="min-width:0;">' +
-              '<div class="d-flex align-items-center gap-1">' +
-                '<span style="font-size:.9rem;font-weight:600;" class="text-truncate">' + t.title + '</span>' +
+          function esc(s) {
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+item.innerHTML =
+  '<div class="flex-grow-1" style="min-width:0;">' +
+    '<div class="d-flex align-items-center gap-1">' +
+      '<span style="font-size:.9rem;font-weight:600;" class="text-truncate">' + esc(t.title) + '</span>' +
                 '<span class="badge" style="background:' + catColor + ';font-size:.6rem;">' + t.category + '</span>' +
                 '<span class="status-badge ' + statusClass + '" style="font-size:.6rem;padding:1px 6px;">' + (statusMap[t.status]||t.status) + '</span>' +
                 (overdue ? '<span class="badge bg-danger" style="font-size:.6rem;">逾期</span>' : '') +
               '</div>' +
-              '<small class="text-muted" style="font-size:.75rem;">' + t.end_time + ' 截止 · 进度 ' + t.progress + '%</small>' +
+              '<small class="text-muted" style="font-size:.75rem;">' + esc(t.end_time) + ' 截止 · 进度 ' + esc(String(t.progress)) + '%</small>' +
             '</div>' +
             '<i class="bi bi-chevron-right" style="color:var(--gray-300);font-size:.8rem;"></i>';
           list.appendChild(item);
@@ -520,42 +569,138 @@ function clearSearch() {
 }
 </script>
 <script>
-var _kbTimer = null;
+var _askTimer = null;
 function kbSearch() {
-  var input = document.getElementById('kbSearchInput');
+  var input = document.getElementById('kbAskInput');
   var q = input.value.trim();
   if (!q) { input.focus(); return; }
-  window.location.href = '{{ url_for('kb.workbench', q='') }}' + encodeURIComponent(q);
+  var searchResult = document.getElementById('kbSearchResult');
+  var searchLoading = document.getElementById('kbSearchLoading');
+  var searchBody = document.getElementById('kbSearchBody');
+  searchResult.style.display = 'block';
+  searchLoading.classList.remove('d-none');
+  searchBody.innerHTML = '';
+  document.getElementById('kbAskAnswer').style.display = 'none';
+  fetch('{{ url_for('kb.api_search') }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ q: q })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    searchLoading.classList.add('d-none');
+    if (!d.ok) {
+      searchBody.innerHTML = '<div class="empty-tip">检索失败: ' + (d.error || '未知错误') + '</div>';
+      return;
+    }
+    var groups = d.groups || [];
+    if (!groups.length) {
+      searchBody.innerHTML = '<div class="empty-tip">未找到相关内容</div>';
+      return;
+    }
+    searchBody.innerHTML = groups.map(function(g) {
+      var pages = (g.pages || []).map(function(p) {
+        return '<div class="result-page" style="cursor:pointer;transition:background .15s;" onmouseover="this.style.background=\'var(--gray-50)\'" onmouseout="this.style.background=\'transparent\'">' +
+          '<div class="d-flex justify-content-between align-items-center">' +
+          '<span class="badge badge-medium">第 ' + p.page_no + ' 页</span>' +
+          '<small class="text-muted" style="font-size:.7rem;">相关度 ' + Math.round(p.score * 100) + '%</small>' +
+          '</div>' +
+          '<p class="mb-0 mt-1" style="font-size:.82rem;color:var(--gray-600);line-height:1.6;">' + (p.snippet || '') + '</p>' +
+          '</div>';
+      }).join('');
+      return '<div class="result-group mb-3">' +
+        '<div class="doc-head">' +
+        '<span style="color:var(--gray-900);text-decoration:none;font-weight:600;font-size:.9rem;">' + g.title + '</span>' +
+        '<span class="badge badge-low">' + Math.round(g.best_score * 100) + '%</span>' +
+        '</div>' +
+        '<div class="progress-custom mt-1" style="width:120px;"><div class="progress-custom-bar" style="width:' + Math.round(g.best_score * 100) + '%;background:var(--primary);"></div></div>' +
+        pages + '</div>';
+    }).join('');
+  }).catch(function(e) {
+    searchLoading.classList.add('d-none');
+    searchBody.innerHTML = '<div class="empty-tip">检索失败: ' + e.message + '</div>';
+  });
 }
-function kbShowRecent() {
-  var input = document.getElementById('kbSearchInput');
+function kbAsk() {
+  var input = document.getElementById('kbAskInput');
+  var q = input.value.trim();
+  if (!q) { input.focus(); return; }
+  var loading = document.getElementById('kbAskLoading');
+  var answer = document.getElementById('kbAskAnswer');
+  var searchResult = document.getElementById('kbSearchResult');
+  searchResult.style.display = 'none';
+  answer.style.display = 'none';
+  loading.classList.remove('d-none');
+  fetch('{{ url_for('kb.api_ask') }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question: q })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    loading.classList.add('d-none');
+    if (!d.ok) {
+      answer.style.display = 'block';
+      document.getElementById('kbAskAnswerBody').innerHTML = '<div class="empty-tip">问答失败: ' + (d.error || '未知错误') + '</div>';
+      document.getElementById('kbAskSourcesWrap').style.display = 'none';
+      return;
+    }
+    renderAskAnswer(q, d);
+  }).catch(function(e) {
+    loading.classList.add('d-none');
+    answer.style.display = 'block';
+    document.getElementById('kbAskAnswerBody').innerHTML = '<div class="empty-tip">网络错误,请重试</div>';
+    document.getElementById('kbAskSourcesWrap').style.display = 'none';
+  });
+}
+function renderAskAnswer(question, d) {
+  var answer = document.getElementById('kbAskAnswer');
+  answer.style.display = 'block';
+  var body = document.getElementById('kbAskAnswerBody');
+  var raw = d.answer || '';
+  if (window.marked && window.DOMPurify) {
+    body.innerHTML = DOMPurify.sanitize(marked.parse(raw));
+  } else {
+    body.textContent = raw;
+    body.style.whiteSpace = 'pre-wrap';
+  }
+  var srcBox = document.getElementById('kbAskSourcesBox');
+  srcBox.innerHTML = '';
+  (d.sources || []).forEach(function(s) {
+    var a = document.createElement('a');
+    a.className = 'source-tag';
+    a.href = '{{ url_for('kb.doc_detail', doc_id=0) }}'.replace('0', s.doc_id);
+    a.innerHTML = '<i class="bi bi-file-earmark-text"></i> ' + s.title + ' · 第' + s.page + '页';
+    srcBox.appendChild(a);
+  });
+  document.getElementById('kbAskSourcesWrap').style.display = (d.sources || []).length ? 'block' : 'none';
+}
+function kbShowAskRecent() {
+  var input = document.getElementById('kbAskInput');
   if (input.value.trim()) return;
-  var box = document.getElementById('kbRecentBox');
+  var box = document.getElementById('kbAskRecentBox');
   fetch('{{ url_for('kb.api_history') }}')
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
       if (!d.ok || !d.items || !d.items.length) return;
-      box.innerHTML = d.items.map(function (it) {
+      box.innerHTML = d.items.map(function(it) {
         return '<div class="item" data-q="' + encodeURIComponent(it.query) + '" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:.85rem;color:var(--gray-700);">' +
           '<i class="bi bi-clock-history" style="color:var(--primary);font-size:.8rem;flex-shrink:0;"></i>' +
           '<span class="text-truncate">' + it.query + '</span>' +
           '<span style="font-size:.62rem;padding:1px 6px;border-radius:100px;background:var(--gray-100);color:var(--gray-500);margin-left:auto;flex-shrink:0;">最近</span></div>';
       }).join('');
       box.classList.remove('d-none');
-    }).catch(function () {});
+    }).catch(function() {});
 }
-function kbHideRecent() {
-  document.getElementById('kbRecentBox').classList.add('d-none');
+function kbHideAskRecent() {
+  document.getElementById('kbAskRecentBox').classList.add('d-none');
 }
-document.getElementById('kbRecentBox').addEventListener('click', function (e) {
+document.getElementById('kbAskRecentBox').addEventListener('click', function(e) {
   var el = e.target.closest('.item');
   if (!el) return;
   var q = decodeURIComponent(el.getAttribute('data-q'));
-  kbHideRecent();
-  window.location.href = '{{ url_for('kb.workbench', q='') }}' + encodeURIComponent(q) + '&ask=1';
+  kbHideAskRecent();
+  document.getElementById('kbAskInput').value = q;
+  kbAsk();
 });
-document.addEventListener('click', function (e) {
-  if (!e.target.closest('.card-body')) kbHideRecent();
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.position-relative')) kbHideAskRecent();
 });
 </script>
 {% endblock %}

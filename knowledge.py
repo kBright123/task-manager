@@ -33,7 +33,7 @@ from flask import (Blueprint, current_app, flash, jsonify, redirect,
 from flask import Response
 from flask import send_file
 from flask_login import current_user, login_required
-from sqlalchemy import event
+from sqlalchemy import event, func
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +58,13 @@ KB_LLM_DISABLED = os.environ.get('KB_LLM_DISABLED', '0') == '1'
 
 KB_OCR_DPI_SCALE = float(os.environ.get('KB_OCR_DPI_SCALE', '2.0'))
 KB_OCR_MIN_SIDE = int(os.environ.get('KB_OCR_MIN_SIDE', '1200'))
+KB_OCR_MERGE_SHORT_MAX = int(
+    os.environ.get('KB_OCR_MERGE_SHORT_MAX', '8'))
+KB_OCR_ACCEPT_CHARS = int(os.environ.get('KB_OCR_ACCEPT_CHARS', '20'))
 KB_PDF_TEXT_MIN_CHARS = int(os.environ.get('KB_PDF_TEXT_MIN_CHARS', '20'))
 KB_POLL_INTERVAL = float(os.environ.get('KB_POLL_INTERVAL', '3'))
 KB_EXTRACT_PAGE_MAX_CHARS = int(os.environ.get('KB_EXTRACT_PAGE_MAX_CHARS', '2000'))
+KB_EXTRACT_BATCH = int(os.environ.get('KB_EXTRACT_BATCH', '4'))
 KB_ASK_TOP_K = int(os.environ.get('KB_ASK_TOP_K', '6'))
 KB_ASK_TOKEN_LIMIT = int(os.environ.get('KB_ASK_TOKEN_LIMIT', '4000'))
 KB_MAX_DOC_ATTEMPTS = int(os.environ.get('KB_MAX_DOC_ATTEMPTS', '3'))
@@ -70,6 +74,7 @@ KB_CACHE_PATH = os.environ.get('KB_CACHE_PATH',
                                os.path.join(KB_ROOT, 'cache.db'))
 KB_SEARCH_CACHE_TTL = int(os.environ.get('KB_SEARCH_CACHE_TTL', '600'))
 KB_ASK_CACHE_TTL = int(os.environ.get('KB_ASK_CACHE_TTL', '3600'))
+KB_AUTO_SUMMARY = os.environ.get('KB_AUTO_SUMMARY', '1') == '1'
 
 ALLOWED_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg', '.bmp', '.tif',
                       '.tiff', '.webp', '.txt', '.md', '.markdown'}
@@ -105,8 +110,12 @@ def init_models(database):
         name = database.Column(database.String(100), unique=True,
                                nullable=False)
         color = database.Column(database.String(20), default='#8b5cf6')
+        visibility = database.Column(database.String(10),
+                                       default='private')
+        owner_id = database.Column(database.Integer,
+                                     database.ForeignKey('user.id'))
         created_at = database.Column(database.DateTime,
-                                     default=datetime.datetime.utcnow)
+                                       default=datetime.datetime.utcnow)
 
     class _KbDocument(database.Model):
         __tablename__ = 'kb_document'
@@ -130,6 +139,11 @@ def init_models(database):
         updated_at = database.Column(database.DateTime,
                                      default=datetime.datetime.utcnow,
                                      onupdate=datetime.datetime.utcnow)
+        last_recognition_at = database.Column(database.DateTime)
+        last_recognition_type = database.Column(database.String(20))
+        last_recognition_result = database.Column(database.String(20))
+        recognition_count = database.Column(database.Integer, default=0)
+        cancel = database.Column(database.Integer, default=0)
 
         collection = database.relationship('_KbCollection',
                                            backref='documents')
@@ -250,6 +264,10 @@ def ocr_image(pil_image):
         text = _dedupe_lines(text)
         if len(text) > best_len:
             best, best_len, best_result = text, len(text), result
+            # 当前候选已经识别出足够多的文字就停止,不再跑灰度/增强等
+            # 候选,避免每张图重复 3~4 次 ONNX 推理打满 CPU。
+            if best_len >= KB_OCR_ACCEPT_CHARS:
+                break
     marks = detect_option_marks(pil_image, best_result)
     if marks:
         annotation = '【选择题标记】 ' + ' '.join(
@@ -259,7 +277,11 @@ def ocr_image(pil_image):
 
 
 def _dedupe_lines(text):
-    """去掉 OCR 重复识别的行(同一行文字被识别多次时只保留一次)。"""
+    """清理 OCR 行:去掉重复识别的行,并把连续短行合并成一行。
+
+    截图类文档的状态栏/按钮等碎片文字(如 "13:445G"、"交卷")常被 OCR
+    拆成多行,这里把彼此相邻的短行合并,减少碎片化换行;长段落保持原样。"""
+    max_len = KB_OCR_MERGE_SHORT_MAX
     seen = set()
     out = []
     for raw in text.split('\n'):
@@ -269,7 +291,10 @@ def _dedupe_lines(text):
         if line in seen:
             continue
         seen.add(line)
-        out.append(line)
+        if out and len(line) <= max_len and len(out[-1]) <= max_len:
+            out[-1] = out[-1] + ' ' + line
+        else:
+            out.append(line)
     return '\n'.join(out)
 
 
@@ -449,21 +474,27 @@ def get_db():
     return _sochdb
 
 
+_schema_ready = False
+
+
 def ensure_schema():
+    global _schema_ready
     dbh = get_db()
-    try:
-        dbh.create_namespace(KB_NAMESPACE)
-    except Exception:
-        pass
-    ns = dbh.namespace(KB_NAMESPACE)
-    if KB_PAGES_COLLECTION not in ns.list_collections():
-        from sochdb.namespace import CollectionConfig
-        col = CollectionConfig(name=KB_PAGES_COLLECTION, dimension=512,
-                               enable_hybrid_search=True,
-                               content_field='text')
-        ns.create_collection(col)
-        logger.info('created collection %s', KB_PAGES_COLLECTION)
-    return ns
+    if not _schema_ready:
+        try:
+            dbh.create_namespace(KB_NAMESPACE)
+        except Exception:
+            pass
+        ns = dbh.namespace(KB_NAMESPACE)
+        if KB_PAGES_COLLECTION not in ns.list_collections():
+            from sochdb.namespace import CollectionConfig
+            col = CollectionConfig(name=KB_PAGES_COLLECTION, dimension=512,
+                                   enable_hybrid_search=True,
+                                   content_field='text')
+            ns.create_collection(col)
+            logger.info('created collection %s', KB_PAGES_COLLECTION)
+        _schema_ready = True
+    return dbh.namespace(KB_NAMESPACE)
 
 
 def page_doc_id(doc_id, page_no):
@@ -492,6 +523,27 @@ def upsert_page(doc_id, page_no, title, filename, text):
                })
 
 
+def upsert_pages_batch(doc_id, title, filename, pages):
+    """一次批量嵌入并写入多页向量(避免每页一次模型推理)。"""
+    valid = [(page_no, text) for page_no, text in pages
+             if text and text.strip()]
+    if not valid:
+        return
+    ns = ensure_schema()
+    col = ns.collection(KB_PAGES_COLLECTION)
+    texts = [text for _, text in valid]
+    vecs = embed_texts(texts)
+    for (page_no, text), vec in zip(valid, vecs):
+        col.insert(id=page_doc_id(doc_id, page_no), vector=vec, content=text,
+                   metadata={
+                       'text': text,
+                       'doc_id': str(doc_id),
+                       'page_no': str(page_no),
+                       'title': title,
+                       'filename': filename,
+                   })
+
+
 def delete_page(doc_id, page_no):
     ns = ensure_schema()
     col = ns.collection(KB_PAGES_COLLECTION)
@@ -502,23 +554,110 @@ def delete_page(doc_id, page_no):
                        page_doc_id(doc_id, page_no), e)
 
 
-def search_pages(query, k=10, alpha=0.5):
+def _db_conn():
+    os.makedirs(os.path.dirname(DB_PATH) or '.', exist_ok=True)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.execute('PRAGMA journal_mode=WAL')
+    conn.execute('PRAGMA busy_timeout=10000')
+    conn.execute('PRAGMA synchronous=NORMAL')
+    return conn
+
+
+def keyword_search_pages(query, k=40):
+    """SQLite 关键词检索(LIKE 子串匹配)。
+
+    中文无需分词,任意长度子串都能命中,数千页毫秒级;用作 hybrid 检索的
+    关键词腿,替代 SochDB 里逐查询全表扫描的 BM25(数百毫秒)。"""
+    conn = _db_conn()
+    try:
+        q = (query or '').strip()
+        if not q:
+            return []
+        terms = [t for t in re.split(r'[，,。\s]+', q) if t] or [q]
+        terms = terms[:5]
+        clauses, params = [], []
+        for t in terms:
+            escaped = (t.replace('\\', '\\\\').replace('%', '\\%')
+                       .replace('_', '\\_'))
+            clauses.append('(p.text LIKE ? ESCAPE \'\\\' OR d.title LIKE ? '
+                           'ESCAPE \'\\\')')
+            pat = '%' + escaped + '%'
+            params += [pat, pat]
+        rows = conn.execute(
+            'SELECT p.doc_id, p.page_no, COALESCE(d.title, \'\'), '
+            'COALESCE(d.filename, \'\'), p.text FROM kb_page p '
+            'LEFT JOIN kb_document d ON d.id = p.doc_id '
+            'WHERE ' + ' AND '.join(clauses) +
+            ' ORDER BY p.doc_id, p.page_no LIMIT ?',
+            params + [k * 4]).fetchall()
+        out = []
+        for doc_id, page_no, title, filename, text in rows:
+            hay = (title or '') + '\n' + (text or '')
+            hits, first = 0, len(hay)
+            for t in terms:
+                idx = hay.find(t)
+                if idx >= 0:
+                    hits += 1
+                    first = min(first, idx)
+            out.append({'doc_id': doc_id, 'page_no': page_no,
+                        'title': title, 'filename': filename,
+                        'text': text, 'score': float(hits)})
+        out.sort(key=lambda r: (-r['score'], r['doc_id'], r['page_no']))
+        return out[:k]
+    finally:
+        conn.close()
+
+
+def _visible_doc_ids():
+    """当前用户可访问的文档 ID 列表:管理员为全部,其余为公共集合+自己的私有集合中的文档。"""
+    if current_user.role == 'admin':
+        return None
+    visible_cols = db.session.query(KbCollection.id).filter(
+        db.or_(
+            KbCollection.visibility == 'public',
+            KbCollection.owner_id == current_user.id
+        )
+    )
+    rows = db.session.query(KbDocument.id).filter(
+        KbDocument.collection_id.in_(visible_cols)
+    ).all()
+    return [r.id for r in rows]
+
+
+def search_pages(query, k=10, alpha=0.5, doc_ids=None):
     ns = ensure_schema()
     col = ns.collection(KB_PAGES_COLLECTION)
     vec = embed_text(query)
-    results = col.hybrid_search(vec, text_query=query, k=k, alpha=alpha)
-    out = []
-    for r in results.results:
+    pool_k = max(k * 3, 20)
+    vec_res = col.vector_search(vec, k=pool_k)
+    kw_res = keyword_search_pages(query, k=pool_k)
+    rrf_k = 60
+    scores = {}
+    for rank, r in enumerate(vec_res.results):
         meta = r.metadata or {}
-        out.append({
-            'id': r.id,
-            'score': r.score,
-            'doc_id': int(meta.get('doc_id', 0) or 0),
-            'page_no': int(meta.get('page_no', 0) or 0),
-            'title': meta.get('title', ''),
-            'filename': meta.get('filename', ''),
-            'text': meta.get('text', ''),
-        })
+        did = int(meta.get('doc_id', 0) or 0)
+        if doc_ids is not None and did not in doc_ids:
+            continue
+        key = page_doc_id(did, int(meta.get('page_no', 0) or 0))
+        scores[key] = [alpha / (rrf_k + rank + 1),
+                       (did, int(meta.get('page_no', 0) or 0),
+                        meta.get('title', ''), meta.get('filename', ''),
+                        meta.get('text', ''))]
+    for rank, r in enumerate(kw_res):
+        if doc_ids is not None and r['doc_id'] not in doc_ids:
+            continue
+        key = page_doc_id(r['doc_id'], r['page_no'])
+        contrib = (1 - alpha) / (rrf_k + rank + 1)
+        if key in scores:
+            scores[key][0] += contrib
+        else:
+            scores[key] = [contrib, (r['doc_id'], r['page_no'],
+                                     r['title'], r['filename'], r['text'])]
+    merged = sorted(scores.items(), key=lambda x: x[1][0], reverse=True)[:k]
+    out = []
+    for key, (score, (did, pno, title, filename, text)) in merged:
+        out.append({'id': key, 'score': score, 'doc_id': did, 'page_no': pno,
+                    'title': title, 'filename': filename, 'text': text})
     return out
 
 
@@ -642,32 +781,34 @@ def _cache_conn():
     conn.execute('PRAGMA journal_mode=WAL')
     conn.execute('PRAGMA busy_timeout=10000')
     conn.execute('PRAGMA synchronous=NORMAL')
-    conn.execute('CREATE TABLE IF NOT EXISTS kb_cache ('
-                 'key TEXT PRIMARY KEY, value TEXT NOT NULL, '
-                 'created_at REAL NOT NULL)')
-    conn.execute('CREATE TABLE IF NOT EXISTS kb_history ('
-                 'id INTEGER PRIMARY KEY AUTOINCREMENT,'
-                 'kind TEXT NOT NULL,'
-                 'query TEXT NOT NULL,'
-                 'user_id INTEGER DEFAULT 0,'
-                 'count INTEGER DEFAULT 1,'
-                 'last_at REAL NOT NULL)')
-    migrated = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='index' "
-        "AND name='idx_kb_history_kind_query'").fetchone()
-    if migrated:
-        conn.execute('DROP INDEX idx_kb_history_kind_query')
-        conn.execute('UPDATE kb_history SET '
-                     'count=(SELECT SUM(count) FROM kb_history h2 '
-                     'WHERE h2.query = kb_history.query), '
-                     'last_at=(SELECT MAX(last_at) FROM kb_history h2 '
-                     'WHERE h2.query = kb_history.query) '
-                     'WHERE id IN (SELECT MIN(id) FROM kb_history GROUP BY query)')
-        conn.execute('DELETE FROM kb_history WHERE id NOT IN '
-                     '(SELECT MIN(id) FROM kb_history GROUP BY query)')
-        conn.commit()
-    conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_kb_history_query '
-                 'ON kb_history(query)')
+    if not getattr(_cache_conn, 'inited', False):
+        conn.execute('CREATE TABLE IF NOT EXISTS kb_cache ('
+                     'key TEXT PRIMARY KEY, value TEXT NOT NULL, '
+                     'created_at REAL NOT NULL)')
+        conn.execute('CREATE TABLE IF NOT EXISTS kb_history ('
+                     'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+                     'kind TEXT NOT NULL,'
+                     'query TEXT NOT NULL,'
+                     'user_id INTEGER DEFAULT 0,'
+                     'count INTEGER DEFAULT 1,'
+                     'last_at REAL NOT NULL)')
+        migrated = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' "
+            "AND name='idx_kb_history_kind_query'").fetchone()
+        if migrated:
+            conn.execute('DROP INDEX idx_kb_history_kind_query')
+            conn.execute('UPDATE kb_history SET '
+                         'count=(SELECT SUM(count) FROM kb_history h2 '
+                         'WHERE h2.query = kb_history.query), '
+                         'last_at=(SELECT MAX(last_at) FROM kb_history h2 '
+                         'WHERE h2.query = kb_history.query) '
+                         'WHERE id IN (SELECT MIN(id) FROM kb_history GROUP BY query)')
+            conn.execute('DELETE FROM kb_history WHERE id NOT IN '
+                         '(SELECT MIN(id) FROM kb_history GROUP BY query)')
+            conn.commit()
+        conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_kb_history_query '
+                     'ON kb_history(query)')
+        _cache_conn.inited = True
     return conn
 
 
@@ -858,6 +999,105 @@ def extract_triples(text):
     return cleaned
 
 
+_EXTRACT_BATCH_SYSTEM = (
+    '从下面的文本中抽取实体关系三元组。文本是多页拼在一起的,'
+    '每页以一行【PAGE <页码>】开头。'
+    '只输出一个合法的 JSON 数组,不要任何解释或多余字符。'
+    '每个元素形如 {"page":<页码>,"triples":[{"head":"主体","rel":"关系",'
+    '"tail":"客体","headType":"主体类型","tailType":"客体类型"}]}。'
+    '没有可抽取关系的页输出 {"page":<页码>,"triples":[]}。'
+    '如果 JSON 属于提示本身,输出 []。\n\n文本:\n'
+)
+
+_SUMMARY_SYSTEM = '请用 2-3 句话总结以下文档的核心内容。'
+
+
+def _generate_summary(text):
+    if KB_LLM_DISABLED:
+        return ''
+    text = (text or '').strip()
+    if not text:
+        return ''
+
+    def _call():
+        sid = _session_create()
+        try:
+            raw = _send(sid, _SUMMARY_SYSTEM + text)
+        finally:
+            requests.delete(f'{KB_OPENCODE_BASE_URL}/session/{sid}',
+                            timeout=30)
+        return raw.strip()
+
+    try:
+        return _retry(_call)
+    except Exception:
+        return ''
+
+
+def extract_triples_batch(pages, max_pages=None):
+    """一次 LLM 调用抽取多页三元组,返回 {page_no: [triple, ...]}。
+
+    大幅减少图谱抽取阶段的 LLM 调用次数(每批一调用,而非每页一调用)。
+    """
+    if KB_LLM_DISABLED:
+        return {}
+    blocks = []
+    for page_no, text in pages[:max_pages]:
+        text = (text or '').strip()
+        if not text:
+            continue
+        text = _dedupe_lines(text[:KB_EXTRACT_PAGE_MAX_CHARS].strip())
+        if not text:
+            continue
+        blocks.append(f'【PAGE {page_no}】\n{text}')
+    if not blocks:
+        return {}
+    payload = '\n\n'.join(blocks)
+
+    def _call():
+        sid = _session_create()
+        try:
+            raw = _send(sid, _EXTRACT_BATCH_SYSTEM + payload)
+        finally:
+            requests.delete(f'{KB_OPENCODE_BASE_URL}/session/{sid}',
+                            timeout=30)
+        m = re.search(r'\[.*\]', raw, re.S)
+        if not m:
+            return []
+        return json.loads(m.group(0))
+
+    entries = _retry(_call)
+    by_page = {}
+    for e in entries or []:
+        if not isinstance(e, dict):
+            continue
+        try:
+            page_no = int(e.get('page') or 0)
+        except (TypeError, ValueError):
+            continue
+        cleaned = []
+        for t in e.get('triples') or []:
+            if not isinstance(t, dict):
+                continue
+            head = str(t.get('head', '')).strip()
+            rel = str(t.get('rel', '')).strip()
+            tail = str(t.get('tail', '')).strip()
+            if not head or not rel or not tail:
+                continue
+            if len(head) > 100 or len(rel) > 100 or len(tail) > 100:
+                continue
+            cleaned.append({
+                'head': head,
+                'rel': rel,
+                'tail': tail,
+                'headType': str(t.get('headType', '实体')).strip() or '实体',
+                'tailType': str(t.get('tailType', '实体')).strip() or '实体',
+            })
+        if page_no and cleaned:
+            by_page[page_no] = cleaned
+    return by_page
+
+
 def llm_ask(question, sources, system=None):
     if KB_LLM_DISABLED:
         return 'LLM 服务已禁用(环境变量 KB_LLM_DISABLED=1)。'
@@ -946,6 +1186,19 @@ def index():
     q = (request.args.get('q') or '').strip()
     page = request.args.get('page', 1, type=int)
     query = KbDocument.query
+    if current_user.role != 'admin':
+        query = query.filter(
+            db.or_(
+                KbDocument.collection_id.is_(None),
+                KbDocument.collection_id.in_(
+                    db.session.query(KbCollection.id)
+                    .filter(
+                        (KbCollection.visibility == 'public') |
+                        (KbCollection.owner_id == current_user.id)
+                    )
+                )
+            )
+        )
     if cid:
         query = query.filter_by(collection_id=cid)
     if q:
@@ -956,19 +1209,34 @@ def index():
         query.order_by(KbDocument.created_at.desc()),
         page=page, per_page=10, error_out=False)
     docs = pagination.items
-    collections = KbCollection.query.order_by(KbCollection.name).all()
+    if current_user.role == 'admin':
+        collections = KbCollection.query.order_by(KbCollection.name).all()
+    else:
+        collections = KbCollection.query.filter(
+            (KbCollection.visibility == 'public') |
+            (KbCollection.owner_id == current_user.id)
+        ).order_by(KbCollection.name).all()
 
     doc_ids = [d.id for d in docs]
     previews = {}
+    summaries = {}
     if doc_ids:
-        for pid, text in (db.session.query(KbPage.doc_id, KbPage.text)
-                          .filter(KbPage.doc_id.in_(doc_ids),
-                                  KbPage.page_no == 1).all()):
+        for pid, text in (db.session.query(KbPage.doc_id,
+                                           func.substr(KbPage.text, 1, 300))
+                           .filter(KbPage.doc_id.in_(doc_ids),
+                                   KbPage.page_no == 1).all()):
             previews[pid] = text.strip()
+        for did in doc_ids:
+            cached = cache_get(cache_key('summary', str(did)), 86400)
+            if cached is not None:
+                try:
+                    summaries[did] = json.loads(cached).get('summary', '')
+                except Exception:
+                    pass
     return render_template('kb/index.html', docs=docs,
                            q=q, page=page, pagination=pagination,
                            collections=collections, active_collection=cid,
-                           previews=previews)
+                           previews=previews, summaries=summaries)
 
 
 @kb_bp.route('/workbench')
@@ -993,7 +1261,8 @@ def api_ask():
         return jsonify({'ok': True, 'cached': True,
                         **json.loads(cached)})
     try:
-        hits = search_pages(question, k=KB_ASK_TOP_K, alpha=0.5)
+        hits = search_pages(question, k=KB_ASK_TOP_K, alpha=0.5,
+                            doc_ids=_visible_doc_ids())
         sources = [{'title': h['title'], 'page': h['page_no'],
                     'doc_id': h['doc_id'], 'text': h['text']} for h in hits]
         answer = llm_ask(question, sources)
@@ -1020,7 +1289,8 @@ def api_search():
         return jsonify({'ok': True, 'cached': True,
                         **json.loads(cached)})
     try:
-        results = search_pages(q, k=30, alpha=0.5)
+        results = search_pages(q, k=30, alpha=0.5,
+                               doc_ids=_visible_doc_ids())
         groups = group_results(results, q)
         payload = {'groups': groups}
         cache_set(key, json.dumps(payload, ensure_ascii=False))
@@ -1041,8 +1311,11 @@ def api_suggest():
     like = f'%{q}%'
     names = (KbEntity.query.filter(KbEntity.name.like(like))
              .order_by(KbEntity.name).limit(8).all())
-    titles = (KbDocument.query.filter(KbDocument.title.like(like))
-              .order_by(KbDocument.created_at.desc()).limit(4).all())
+    doc_query = KbDocument.query.filter(KbDocument.title.like(like))
+    if current_user.role != 'admin':
+        doc_query = doc_query.filter(
+            KbDocument.collection_id.in_(_visible_doc_ids()))
+    titles = doc_query.order_by(KbDocument.created_at.desc()).limit(4).all()
     items = [n.name for n in names] + [t.title for t in titles]
     seen, out = set(), []
     for it in items:
@@ -1123,6 +1396,9 @@ def api_entity():
                     'head_type': t.head_type, 'tail_type': t.tail_type}
                    for t in triples]
     doc_ids = {t.doc_id for t in triples}
+    visible = _visible_doc_ids()
+    if visible is not None:
+        doc_ids = doc_ids & set(visible)
     docs = (KbDocument.query.filter(KbDocument.id.in_(doc_ids))
             .all() if doc_ids else [])
     return jsonify({'ok': True, 'name': name,
@@ -1132,18 +1408,77 @@ def api_entity():
 
 
 # ---------------------------------------------------------------------------
+# 数字分身 (Digital Avatar)
+# ---------------------------------------------------------------------------
+
+
+@kb_bp.route('/avatar')
+@login_required
+def avatar():
+    return render_template('kb/avatar.html')
+
+
+@kb_bp.route('/api/avatar/ask', methods=['POST'])
+@login_required
+def api_avatar_ask():
+    """数字分身问答:基于当前用户的私有知识库进行 RAG 检索与生成。"""
+    data = request.get_json(silent=True) or {}
+    question = (data.get('question') or '').strip()
+    if not question:
+        return jsonify({'ok': False, 'error': '请输入问题'}), 400
+    # 构建用户可访问的文档 ID 列表:自己的私有集合 + 公共集合中的文档
+    visible_collections = db.session.query(KbCollection.id).filter(
+        db.or_(
+            KbCollection.visibility == 'public',
+            KbCollection.owner_id == current_user.id
+        )
+    )
+    doc_ids = [d.id for d in KbDocument.query.filter(
+        KbDocument.collection_id.in_(visible_collections)
+    ).all()]
+    if not doc_ids:
+        return jsonify({'ok': True, 'answer': '你的知识库暂时为空，'
+                        '请先上传文档到知识库。', 'sources': []})
+    key = cache_key('avatar', f'{current_user.id}:{question}')
+    cached = cache_get(key, KB_ASK_CACHE_TTL)
+    if cached is not None:
+        return jsonify({'ok': True, 'cached': True,
+                        **json.loads(cached)})
+    try:
+        hits = search_pages(question, k=KB_ASK_TOP_K, alpha=0.5,
+                            doc_ids=doc_ids)
+        sources = [{'title': h['title'], 'page': h['page_no'],
+                    'doc_id': h['doc_id'], 'text': h['text']} for h in hits]
+        answer = llm_ask(question, sources)
+        payload = {'answer': answer, 'sources': sources[:5]}
+        cache_set(key, json.dumps(payload, ensure_ascii=False))
+        return jsonify({'ok': True, 'cached': False, **payload})
+    except Exception as e:
+        logger.exception('api_avatar_ask failed')
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
 # 集合(Collection)管理
 # ---------------------------------------------------------------------------
 
 @kb_bp.route('/api/collections')
 @login_required
 def api_collections():
-    cols = (KbCollection.query.order_by(KbCollection.name).all())
+    if current_user.role == 'admin':
+        cols = KbCollection.query.order_by(KbCollection.name).all()
+    else:
+        cols = KbCollection.query.filter(
+            (KbCollection.visibility == 'public') |
+            (KbCollection.owner_id == current_user.id)
+        ).order_by(KbCollection.name).all()
     out = []
     for c in cols:
         doc_count = KbDocument.query.filter_by(
             collection_id=c.id).count()
         out.append({'id': c.id, 'name': c.name, 'color': c.color,
+                    'visibility': c.visibility,
+                    'owner_id': c.owner_id,
                     'doc_count': doc_count})
     return jsonify({'ok': True, 'collections': out})
 
@@ -1151,55 +1486,76 @@ def api_collections():
 @kb_bp.route('/api/collections', methods=['POST'])
 @login_required
 def api_collection_create():
-    denied = _admin_required_json()
-    if denied is not True:
-        return denied
     data = request.get_json(silent=True) or {}
     name = (data.get('name') or '').strip()
     color = (data.get('color') or '#8b5cf6').strip()
+    visibility = (data.get('visibility') or 'private').strip()
     if not name:
         return jsonify({'ok': False, 'error': '请输入集合名称'}), 400
+    if visibility not in ('public', 'private'):
+        visibility = 'private'
+    if visibility == 'public' and current_user.role != 'admin':
+        return jsonify({'ok': False,
+                        'error': '仅管理员可创建公共知识库'}), 403
     if KbCollection.query.filter_by(name=name).first():
         return jsonify({'ok': False, 'error': '集合名称已存在'}), 400
-    c = KbCollection(name=name, color=color)
+    c = KbCollection(name=name, color=color,
+                       visibility=visibility,
+                       owner_id=current_user.id)
     db.session.add(c)
     db.session.commit()
     return jsonify({'ok': True, 'collection': {'id': c.id, 'name': c.name,
-                                               'color': c.color,
-                                               'doc_count': 0}})
+                                                'color': c.color,
+                                                'visibility': c.visibility,
+                                                'owner_id': c.owner_id,
+                                                'doc_count': 0}})
 
 
 @kb_bp.route('/api/collections/<int:cid>', methods=['PUT'])
 @login_required
 def api_collection_update(cid):
-    denied = _admin_required_json()
-    if denied is not True:
-        return denied
     c = db.session.get(KbCollection, cid)
     if not c:
         return jsonify({'ok': False, 'error': '集合不存在'}), 404
+    if c.visibility == 'public' and current_user.role != 'admin':
+        return jsonify({'ok': False,
+                        'error': '仅管理员可管理公共知识库'}), 403
+    if c.visibility == 'private' and c.owner_id != current_user.id \
+            and current_user.role != 'admin':
+        return jsonify({'ok': False, 'error': '权限不足'}), 403
     data = request.get_json(silent=True) or {}
     name = (data.get('name') or c.name).strip()
     color = (data.get('color') or c.color).strip()
-    dup = KbCollection.query.filter(KbCollection.name == name,
-                                    KbCollection.id != cid).first()
-    if dup:
+    visibility = data.get('visibility', c.visibility)
+    if visibility not in ('public', 'private'):
+        visibility = c.visibility
+    if visibility == 'public' and current_user.role != 'admin':
+        return jsonify({'ok': False,
+                        'error': '仅管理员可创建公共知识库'}), 403
+    if name != c.name and KbCollection.query.filter(
+            KbCollection.name == name,
+            KbCollection.id != cid).first():
         return jsonify({'ok': False, 'error': '集合名称已存在'}), 400
-    c.name, c.color = name, color
+    c.name, c.color, c.visibility = name, color, visibility
     db.session.commit()
     return jsonify({'ok': True, 'collection': {'id': c.id, 'name': c.name,
-                                               'color': c.color}})
+                                                'color': c.color,
+                                                'visibility': c.visibility,
+                                                'owner_id': c.owner_id}})
 
 
 @kb_bp.route('/api/collections/<int:cid>', methods=['DELETE'])
 @login_required
 def api_collection_delete(cid):
-    denied = _admin_required_json()
-    if denied is not True:
-        return denied
     c = db.session.get(KbCollection, cid)
     if not c:
         return jsonify({'ok': False, 'error': '集合不存在'}), 404
+    if c.visibility == 'public' and current_user.role != 'admin':
+        return jsonify({'ok': False,
+                        'error': '仅管理员可管理公共知识库'}), 403
+    if c.visibility == 'private' and c.owner_id != current_user.id \
+            and current_user.role != 'admin':
+        return jsonify({'ok': False, 'error': '权限不足'}), 403
     KbDocument.query.filter_by(collection_id=cid).update(
         {KbDocument.collection_id: None})
     db.session.delete(c)
@@ -1210,9 +1566,6 @@ def api_collection_delete(cid):
 @kb_bp.route('/api/collections/assign', methods=['POST'])
 @login_required
 def api_collection_assign():
-    denied = _admin_required_json()
-    if denied is not True:
-        return denied
     data = request.get_json(silent=True) or {}
     doc_ids = [int(x) for x in (data.get('doc_ids') or [])]
     collection_id = data.get('collection_id')
@@ -1222,6 +1575,16 @@ def api_collection_assign():
         c = db.session.get(KbCollection, collection_id)
         if not c:
             return jsonify({'ok': False, 'error': '集合不存在'}), 404
+        if c.visibility == 'public' and current_user.role != 'admin':
+            return jsonify({'ok': False,
+                            'error': '仅管理员可管理公共知识库'}), 403
+        if c.visibility == 'private' and c.owner_id != current_user.id \
+                and current_user.role != 'admin':
+            return jsonify({'ok': False, 'error': '权限不足'}), 403
+    if current_user.role != 'admin':
+        doc_ids = [d.id for d in KbDocument.query.filter(
+            KbDocument.id.in_(doc_ids),
+            KbDocument.uploaded_by == current_user.id).all()]
     KbDocument.query.filter(KbDocument.id.in_(doc_ids)).update(
         {KbDocument.collection_id: collection_id})
     db.session.commit()
@@ -1252,7 +1615,8 @@ def upload():
         doc = KbDocument(title=title, filename=f.filename, file_path=target,
                          file_type=ext.lstrip('.'),
                          file_size=os.path.getsize(target),
-                         status=STATUS_QUEUED, uploaded_by=current_user.id)
+                         status=STATUS_QUEUED, uploaded_by=current_user.id,
+                         last_recognition_type='upload')
         db.session.add(doc)
         added.append(title)
     db.session.commit()
@@ -1322,10 +1686,33 @@ def doc_reprocess(doc_id):
     if doc:
         doc.status = STATUS_QUEUED
         doc.error = None
+        doc.cancel = 0
+        doc.attempts = 0
+        doc.last_recognition_type = 'reprocess'
         doc.updated_at = datetime.datetime.utcnow()
         db.session.commit()
         flash('已重新加入识别队列', 'info')
     return redirect(url_for('kb.doc_detail', doc_id=doc_id))
+
+
+@kb_bp.route('/<int:doc_id>/cancel', methods=['POST'])
+@login_required
+def doc_cancel(doc_id):
+    """停止一个正在识别的文档:标记 cancel 并置为 failed(已由用户取消)。
+
+    worker 在阶段边界会检查 cancel 并中断;已完成的文档不受影响。"""
+    if not _admin_required():
+        return redirect(url_for('kb.index'))
+    conn = _connect()
+    conn.execute(
+        "UPDATE kb_document SET cancel=1, status=?, attempts=?, error=?, "
+        "updated_at=datetime('now') "
+        "WHERE id=? AND status IN (?, ?, ?, ?)",
+        (STATUS_FAILED, KB_MAX_DOC_ATTEMPTS, '已由用户取消', doc_id,
+         STATUS_QUEUED, STATUS_OCR, STATUS_EMBED, STATUS_GRAPH))
+    conn.commit()
+    flash('已停止该文档的识别', 'info')
+    return redirect(request.referrer or url_for('kb.index'))
 
 
 # ---------------------------------------------------------------------------
@@ -1441,6 +1828,9 @@ def bulk():
         for doc in docs:
             doc.status = STATUS_QUEUED
             doc.error = None
+            doc.cancel = 0
+            doc.attempts = 0
+            doc.last_recognition_type = 'reprocess'
             doc.updated_at = now
         db.session.commit()
         return jsonify({'ok': True, 'requeued': len(docs)})
@@ -1536,11 +1926,28 @@ def _connect():
     return conn
 
 
-def _ensure_attempts_column(conn):
+def _ensure_doc_columns(conn):
     cols = [r[1] for r in conn.execute('PRAGMA table_info(kb_document)')]
     if 'attempts' not in cols:
         conn.execute('ALTER TABLE kb_document ADD COLUMN attempts INTEGER DEFAULT 0')
-        conn.commit()
+    for col, ddl in [('last_recognition_at', 'DATETIME'),
+                     ('last_recognition_type', 'VARCHAR(20)'),
+                     ('last_recognition_result', 'VARCHAR(20)'),
+                     ('recognition_count', 'INTEGER DEFAULT 0'),
+                     ('cancel', 'INTEGER DEFAULT 0')]:
+        if col not in cols:
+            conn.execute(
+                f'ALTER TABLE kb_document ADD COLUMN {col} {ddl}')
+    conn.commit()
+
+
+def _record_recognition(conn, doc_id, result):
+    conn.execute(
+        "UPDATE kb_document SET last_recognition_at=datetime('now'), "
+        "last_recognition_result=?, "
+        "recognition_count=COALESCE(recognition_count, 0) + 1 WHERE id=?",
+        (result, doc_id))
+    conn.commit()
 
 
 def _requeue_stale(conn):
@@ -1550,6 +1957,16 @@ def _requeue_stale(conn):
         "julianday('now') - julianday(updated_at) > ?",
         (STATUS_QUEUED, STATUS_OCR, STATUS_EMBED, STATUS_GRAPH,
          KB_STALE_QUEUE_HOURS))
+    conn.commit()
+
+
+def _reset_inflight(conn):
+    """worker 启动时复位上次遗留的进行中文档(单 worker,重启前正在处理的
+    文档已无人在跑,全部放回队列;取消中的文档保持 failed)。"""
+    conn.execute(
+        "UPDATE kb_document SET status=?, error=NULL, updated_at=datetime('now') "
+        "WHERE cancel=0 AND status IN (?, ?, ?)",
+        (STATUS_QUEUED, STATUS_OCR, STATUS_EMBED, STATUS_GRAPH))
     conn.commit()
 
 
@@ -1588,6 +2005,17 @@ def _update_status(conn, doc_id, status, error=None, page_count=None):
     conn.commit()
 
 
+class _DocCancelled(Exception):
+    """用户在识别过程中请求停止该文档。"""
+
+
+def _check_cancel(conn, doc_id):
+    row = conn.execute(
+        "SELECT cancel FROM kb_document WHERE id=?", (doc_id,)).fetchone()
+    if row and row[0]:
+        raise _DocCancelled()
+
+
 def _process_document(conn, row):
     doc_id, file_path, title, filename = row
     try:
@@ -1598,6 +2026,7 @@ def _process_document(conn, row):
             raise FileNotFoundError(
                 f'源文件丢失:{file_path} (uploads 目录可能被清空或路径迁移)')
         pages = ocr_file(file_path)
+        _check_cancel(conn, doc_id)
         page_count = len(pages)
 
         _update_status(conn, doc_id, STATUS_EMBED, page_count=page_count)
@@ -1606,9 +2035,10 @@ def _process_document(conn, row):
         conn.execute("DELETE FROM kb_entity WHERE doc_id=?", (doc_id,))
         conn.commit()
 
+        upsert_pages_batch(doc_id, title, filename, pages)
         for page_no, text in pages:
+            _check_cancel(conn, doc_id)
             if text.strip():
-                upsert_page(doc_id, page_no, title, filename, text)
                 conn.execute(
                     "INSERT INTO kb_page (doc_id, page_no, text, char_count) "
                     "VALUES (?,?,?,?)",
@@ -1617,32 +2047,50 @@ def _process_document(conn, row):
 
         _update_status(conn, doc_id, STATUS_GRAPH)
         all_triples = []
+        chunks, buf = [], []
         for page_no, text in pages:
             snippet = text[:KB_EXTRACT_PAGE_MAX_CHARS].strip()
             if len(snippet) < 8:
                 continue
+            buf.append((page_no, snippet))
+            if len(buf) >= KB_EXTRACT_BATCH:
+                chunks.append(buf)
+                buf = []
+        if buf:
+            chunks.append(buf)
+        for chunk in chunks:
+            _check_cancel(conn, doc_id)
+            by_page = {}
             try:
-                triples = extract_triples(snippet)
+                by_page = extract_triples_batch(chunk)
             except Exception as e:
-                logger.warning('[doc %s] extract failed page %s: %s',
-                               doc_id, page_no, e)
-                triples = []
-            for t in triples:
-                conn.execute(
-                    "INSERT INTO kb_triple (doc_id, page_no, head, rel, tail,"
-                    " head_type, tail_type) VALUES (?,?,?,?,?,?,?)",
-                    (doc_id, page_no, t['head'], t['rel'], t['tail'],
-                     t['headType'], t['tailType']))
-                conn.execute(
-                    "INSERT OR IGNORE INTO kb_entity "
-                    "(name, node_type, doc_id) VALUES (?,?,?)",
-                    (t['head'], t['headType'], doc_id))
-                conn.execute(
-                    "INSERT OR IGNORE INTO kb_entity "
-                    "(name, node_type, doc_id) VALUES (?,?,?)",
-                    (t['tail'], t['tailType'], doc_id))
-                all_triples.append(t)
-            conn.commit()
+                logger.warning('[doc %s] batch extract failed: %s',
+                               doc_id, e)
+            for page_no, snippet in chunk:
+                triples = by_page.get(page_no)
+                if triples is None:
+                    try:
+                        triples = extract_triples(snippet)
+                    except Exception as e:
+                        logger.warning('[doc %s] extract failed page %s: %s',
+                                       doc_id, page_no, e)
+                        triples = []
+                for t in triples:
+                    conn.execute(
+                        "INSERT INTO kb_triple (doc_id, page_no, head, rel, "
+                        "tail, head_type, tail_type) VALUES (?,?,?,?,?,?,?)",
+                        (doc_id, page_no, t['head'], t['rel'], t['tail'],
+                         t['headType'], t['tailType']))
+                    conn.execute(
+                        "INSERT OR IGNORE INTO kb_entity "
+                        "(name, node_type, doc_id) VALUES (?,?,?)",
+                        (t['head'], t['headType'], doc_id))
+                    conn.execute(
+                        "INSERT OR IGNORE INTO kb_entity "
+                        "(name, node_type, doc_id) VALUES (?,?,?)",
+                        (t['tail'], t['tailType'], doc_id))
+                    all_triples.append(t)
+                conn.commit()
 
         if all_triples:
             add_doc_node(doc_id, title)
@@ -1652,17 +2100,36 @@ def _process_document(conn, row):
                         len(all_triples))
 
         _update_status(conn, doc_id, STATUS_DONE)
+        _record_recognition(conn, doc_id, 'success')
         logger.info('[doc %s] done: %d pages, %d triples', doc_id,
                     page_count, len(all_triples))
+        if KB_AUTO_SUMMARY:
+            try:
+                first_text = pages[0][1] if pages else ''
+                if first_text.strip():
+                    summary = _generate_summary(first_text[:KB_EXTRACT_PAGE_MAX_CHARS])
+                    if summary:
+                        cache_set(cache_key('summary', str(doc_id)),
+                                  json.dumps({'summary': summary},
+                                             ensure_ascii=False),
+                                  86400)
+            except Exception as e:
+                logger.warning('[doc %s] summary failed: %s', doc_id, e)
+    except _DocCancelled:
+        logger.info('[doc %s] cancelled by user', doc_id)
+        _update_status(conn, doc_id, STATUS_FAILED, error='已由用户取消')
+        _record_recognition(conn, doc_id, 'failed')
     except Exception as e:
         logger.exception('[doc %s] failed', doc_id)
         _update_status(conn, doc_id, STATUS_FAILED, error=str(e))
+        _record_recognition(conn, doc_id, 'failed')
 
 
 def main():
     ensure_schema()
     conn = _connect()
-    _ensure_attempts_column(conn)
+    _ensure_doc_columns(conn)
+    _reset_inflight(conn)
     _requeue_stale(conn)
     logger.info('knowledge.worker started, polling every %.1fs',
                 KB_POLL_INTERVAL)

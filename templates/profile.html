@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}个人信息{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1 style="font-size:1.5rem;font-weight:700;color:var(--gray-900);margin:0;">个人信息</h1>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header py-2 px-3"><i class="bi bi-person-badge"></i> 账号信息</div>
+      <div class="card-body py-3 px-3" style="font-size:.85rem;">
+        <table class="table">
+          <tbody>
+            <tr>
+              <td style="width:120px;color:var(--gray-500);border:none;">用户名</td>
+              <td style="border:none;font-weight:600;">{{ current_user.username }}</td>
+            </tr>
+            <tr>
+              <td style="color:var(--gray-500);border:none;">昵称</td>
+              <td style="border:none;">{{ current_user.name or '—' }}</td>
+            </tr>
+            <tr>
+              <td style="color:var(--gray-500);border:none;">角色</td>
+              <td style="border:none;">
+                <span class="badge" style="background:{{ 'var(--primary-light)' if current_user.role == 'admin' else 'var(--gray-100)' }};color:{{ 'var(--primary)' if current_user.role == 'admin' else 'var(--gray-500)' }};">
+                  {{ '管理员' if current_user.role == 'admin' else '普通用户' }}
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <td style="color:var(--gray-500);border:none;">注册时间</td>
+              <td style="border:none;">{{ current_user.created_at.strftime('%Y-%m-%d') }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header py-2 px-3"><i class="bi bi-envelope-check"></i> 邮箱绑定</div>
+      <div class="card-body py-3 px-3">
+        <div class="d-flex align-items-center gap-2 mb-3">
+          <span class="badge" style="background:{% if current_user.email_verified %}var(--success);{% else %}var(--warning);{% endif %}color:#fff;font-size:.72rem;padding:4px 12px;">
+            {% if current_user.email_verified %}
+            <i class="bi bi-check-circle"></i> 已绑定
+            {% elif current_user.email %}
+            <i class="bi bi-hourglass-split"></i> 待校验
+            {% else %}
+            <i class="bi bi-dash-circle"></i> 未绑定
+            {% endif %}
+          </span>
+          {% if current_user.email_verified %}
+          <span style="font-size:.9rem;color:var(--gray-700);">
+            <i class="bi bi-envelope"></i> {{ current_user.email }}
+          </span>
+          {% elif current_user.email %}
+          <span style="font-size:.9rem;color:var(--gray-600);">
+            已填写 {{ current_user.email }}，等待校验
+          </span>
+          {% endif %}
+        </div>
+
+        <div id="bindForm">
+          <div class="mb-2">
+            <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">
+              {% if current_user.email_verified %}更换邮箱{% else %}绑定邮箱{% endif %}
+            </label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+              <input type="email" id="bindEmail" class="form-control" list="commonEmails"
+                     placeholder="请输入邮箱地址" value="{{ current_user.pending_email or '' }}"
+                     style="font-size:.85rem;" autocomplete="email">
+              <datalist id="commonEmails">
+                {% for s in ['qq.com','163.com','126.com','gmail.com','outlook.com','hotmail.com','foxmail.com','sina.com','sohu.com','139.com','189.cn','aliyun.com','icloud.com','yahoo.com'] %}
+                <option value="you@{{ s }}"></option>
+                {% endfor %}
+              </datalist>
+            </div>
+            <small style="color:var(--gray-400);font-size:.7rem;">支持常见邮箱（QQ、163、126、Gmail、Outlook 等）</small>
+          </div>
+          <div class="mb-2">
+            <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">校验码</label>
+            <div class="d-flex gap-2">
+              <input type="text" id="bindCode" class="form-control" inputmode="numeric" maxlength="6"
+                     placeholder="6 位校验码" style="font-size:.85rem;letter-spacing:4px;">
+              <button type="button" id="sendCodeBtn" class="btn btn-outline-primary" style="white-space:nowrap;font-size:.82rem;" onclick="sendCode()">
+                <i class="bi bi-send"></i> 发送校验码
+              </button>
+            </div>
+          </div>
+          <div id="codeResult" class="mb-2" style="font-size:.78rem;"></div>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary" style="font-size:.84rem;" onclick="verifyEmail()">
+              <i class="bi bi-check-lg"></i> 确认绑定
+            </button>
+            {% if current_user.email_verified %}
+            <button type="button" class="btn btn-outline-danger" style="font-size:.84rem;" onclick="unbindEmail()">
+              <i class="bi bi-unlink"></i> 解除绑定
+            </button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var bindEmailEl = document.getElementById('bindEmail');
+var bindCodeEl = document.getElementById('bindCode');
+var codeResultEl = document.getElementById('codeResult');
+
+function showResult(msg, isError) {
+  codeResultEl.innerHTML = '<span style="color:' + (isError ? 'var(--danger)' : 'var(--success)') + ';">' + msg + '</span>';
+}
+
+function sendCode() {
+  var email = bindEmailEl.value.trim();
+  if (!email) { showResult('请先输入邮箱地址', true); return; }
+  var btn = document.getElementById('sendCodeBtn');
+  btn.disabled = true;
+  var text = btn.innerHTML;
+  fetch('{{ url_for("profile_send_verify_code") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email })
+  }).then(function (r) { return r.json(); }).then(function (d) {
+    if (d.ok) {
+      showResult('校验码已发送，10 分钟内有效' + (d.dev_code ? '（开发模式，请从服务器日志获取）' : ''), false);
+      bindCodeEl.focus();
+      startCountdown(btn, 60);
+    } else {
+      showResult(d.error || '发送失败', true);
+      btn.disabled = false;
+    }
+  }).catch(function () { showResult('网络错误，请重试', true); btn.disabled = false; });
+}
+
+function startCountdown(btn, sec) {
+  var text = btn.innerHTML;
+  btn.innerHTML = sec + 's';
+  var timer = setInterval(function () {
+    sec--;
+    if (sec <= 0) {
+      clearInterval(timer);
+      btn.innerHTML = text;
+      btn.disabled = false;
+    } else {
+      btn.innerHTML = sec + 's';
+    }
+  }, 1000);
+}
+
+function verifyEmail() {
+  var email = bindEmailEl.value.trim();
+  var code = bindCodeEl.value.trim();
+  if (!email) { showResult('请先输入邮箱地址', true); return; }
+  if (!code) { showResult('请输入校验码', true); return; }
+  fetch('{{ url_for("profile_verify_email") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email, code: code })
+  }).then(function (r) { return r.json(); }).then(function (d) {
+    if (d.ok) {
+      showResult('邮箱绑定成功', false);
+      setTimeout(function () { location.reload(); }, 800);
+    } else {
+      showResult(d.error || '绑定失败', true);
+    }
+  }).catch(function () { showResult('网络错误，请重试', true); });
+}
+
+function unbindEmail() {
+  if (!confirm('确定要解除邮箱绑定吗？')) return;
+  fetch('{{ url_for("profile_unbind_email") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }).then(function (r) { return r.json(); }).then(function (d) {
+    if (d.ok) { location.reload(); } else { showResult(d.error || '解除绑定失败', true); }
+  }).catch(function () { showResult('网络错误，请重试', true); });
+}
+</script>
+{% endblock %}

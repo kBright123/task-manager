@@ -7,6 +7,8 @@ services:
     volumes:
       - ./app.py:/app/app.py
       - ./knowledge.py:/app/knowledge.py
+      - ./classifier.py:/app/classifier.py
+      - ./reminder_worker.py:/app/reminder_worker.py
       - ./entrypoint.sh:/app/entrypoint.sh
       - ./templates:/app/templates
       - ./static:/app/static
@@ -17,6 +19,14 @@ services:
       - TZ=Asia/Shanghai
       - KB_OPENCODE_BASE_URL=http://opencode:3000
       - KB_AUTO_RELOAD=1
+      # 邮箱绑定 SMTP 配置(可选,未配置时校验码仅写入服务器日志)
+      - MAIL_SERVER=${MAIL_SERVER:-}
+      - MAIL_PORT=${MAIL_PORT:-465}
+      - MAIL_USE_SSL=${MAIL_USE_SSL:-1}
+      - MAIL_USE_TLS=${MAIL_USE_TLS:-0}
+      - MAIL_USERNAME=${MAIL_USERNAME:-}
+      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
+      - MAIL_FROM=${MAIL_FROM:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

@@ -53,6 +53,15 @@ app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 
+# 邮件(SMTP)配置,用于邮箱绑定验证码;未配置时校验码仅写入日志
+app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', '')
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', '465'))
+app.config['MAIL_USE_SSL'] = os.environ.get('MAIL_USE_SSL', '1') == '1'
+app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', '0') == '1'
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', '')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD', '')
+app.config['MAIL_FROM'] = os.environ.get('MAIL_FROM', '')
+
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 db = SQLAlchemy(app)
@@ -74,11 +83,13 @@ def inject_globals():
         recent_notifications = Notification.query.filter_by(
             user_id=current_user.id).order_by(
             Notification.created_at.desc()).limit(10).all()
-        return {'now': datetime.now, 'timedelta': timedelta,
+        return {'now': datetime.now, 'today_str': datetime.now().strftime(
+            '%Y年%m月%d日 %A'), 'timedelta': timedelta,
                 'VERSION': VERSION,
                 'unread_notifications': unread_count,
                 'recent_notifications': recent_notifications}
-    return {'now': datetime.now, 'timedelta': timedelta, 'VERSION': VERSION}
+    return {'now': datetime.now, 'today_str': datetime.now().strftime(
+        '%Y年%m月%d日 %A'), 'timedelta': timedelta, 'VERSION': VERSION}
 
 
 import markupsafe
@@ -102,6 +113,11 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(20), default='user')
     is_disabled = db.Column(db.Boolean, default=False)
+    email = db.Column(db.String(120), default='', index=True)
+    email_verified = db.Column(db.Boolean, default=False)
+    pending_email = db.Column(db.String(120), default='')
+    email_code = db.Column(db.String(6), default='')
+    email_code_expires_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def set_password(self, password):
@@ -151,6 +167,24 @@ class TaskAssignment(db.Model):
     attachment = db.Column(db.String(500))
 
     user = db.relationship('User', backref='task_assignments')
+
+
+class EmailLog(db.Model):
+    __tablename__ = 'email_log'
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(200), unique=True, nullable=False, index=True)
+    sent_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class EmailRecord(db.Model):
+    __tablename__ = 'email_record'
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), nullable=False, index=True)
+    subject = db.Column(db.String(200), default='')
+    category = db.Column(db.String(30), default='')
+    status = db.Column(db.String(20), default='sent')
+    error = db.Column(db.String(500), default='')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
 
 
 user_group = db.Table('user_group',
@@ -231,6 +265,101 @@ def log_operation(action, target='', detail='', user=None):
         db.session.commit()
     except Exception as e:
         logger.warning('log_operation failed: %s', e)
+
+
+COMMON_EMAIL_SUFFIXES = ['qq.com', '163.com', '126.com', 'gmail.com',
+                         'outlook.com', 'hotmail.com', 'foxmail.com',
+                         'sina.com', 'sohu.com', '139.com', '189.cn',
+                         'aliyun.com', 'icloud.com', 'yahoo.com']
+
+
+def normalize_email(value):
+    """规范化邮箱地址;不合法返回 None。"""
+    value = (value or '').strip().lower()
+    if len(value) > 120:
+        return None
+    if not re.match(r'^[a-z0-9._%+\-]+@[a-z0-9\-]+(\.[a-z0-9\-]+)+$', value):
+        return None
+    return value
+
+
+def send_email(to, subject, html_body, text_body='', category=''):
+    """通过 SMTP 发送邮件。返回 (ok, error),并记录发送结果到 email_record。"""
+    server = app.config['MAIL_SERVER']
+    port = app.config['MAIL_PORT']
+    username = app.config['MAIL_USERNAME']
+    password = app.config['MAIL_PASSWORD']
+    mail_from = app.config['MAIL_FROM'] or username
+    ok = False
+    err = ''
+    if not server or not username:
+        err = '邮件服务未配置'
+    else:
+        try:
+            import smtplib
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+            from email.header import Header
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = Header(subject, 'utf-8')
+            msg['From'] = mail_from
+            msg['To'] = to
+            if text_body:
+                msg.attach(MIMEText(text_body, 'plain', 'utf-8'))
+            if html_body:
+                msg.attach(MIMEText(html_body, 'html', 'utf-8'))
+            if port == 465 or app.config['MAIL_USE_SSL']:
+                smtp = smtplib.SMTP_SSL(server, port, timeout=15)
+            else:
+                smtp = smtplib.SMTP(server, port, timeout=15)
+                if app.config['MAIL_USE_TLS']:
+                    smtp.starttls()
+            with smtp:
+                smtp.login(username, password)
+                smtp.sendmail(mail_from, [to], msg.as_string())
+            ok = True
+        except Exception as e:
+            logger.warning('send_email failed: %s', e)
+            err = str(e)
+    try:
+        db.session.add(EmailRecord(
+            email=to or '', subject=subject or '',
+            category=category or '',
+            status='sent' if ok else 'failed',
+            error=(err or '')[:500]))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+    return ok, err
+
+
+def generate_verify_code():
+    import secrets
+    return f'{secrets.randbelow(1000000):06d}'
+
+
+def send_verify_code(user, email):
+    """生成校验码并发送邮件。返回 (ok, error, dev_code)。"""
+    code = generate_verify_code()
+    user.pending_email = email
+    user.email_code = code
+    user.email_code_expires_at = datetime.utcnow() + timedelta(minutes=10)
+    db.session.commit()
+    text = (f'您正在绑定邮箱 {email}。\n'
+            f'您的校验码为: {code}\n'
+            f'校验码 10 分钟内有效,请勿泄露给他人。\n'
+            f'如非本人操作,请忽略本邮件。')
+    html = (f'<div style="font-family:Microsoft YaHei,Arial,sans-serif;font-size:14px;color:#1e293b;">'
+            f'<p>您正在绑定邮箱 <b>{email}</b>。</p>'
+            f'<p>您的校验码为:</p>'
+            f'<p style="font-size:24px;font-weight:700;letter-spacing:4px;color:#4f46e7;">{code}</p>'
+            f'<p>校验码 <b>10 分钟</b>内有效,请勿泄露给他人。</p>'
+            f'<p style="color:#94a3b8;font-size:12px;">如非本人操作,请忽略本邮件。</p></div>')
+    ok, err = send_email(email, '【知行合一】邮箱绑定校验码', html, text, category='verify')
+    if not ok and not app.config['MAIL_SERVER']:
+        logger.info('邮件服务未配置,校验码(%s) 已写入日志,目标邮箱: %s', code, email)
+        return False, '邮件服务未配置,校验码已写入服务器日志', code
+    return ok, err, ''
 
 
 @login_manager.user_loader
@@ -325,6 +454,16 @@ def _run_sqlite_migrations():
         cols = [r[1] for r in c.fetchall()]
         if 'name' not in cols:
             c.execute('ALTER TABLE user ADD COLUMN name TEXT DEFAULT ""')
+        if 'email' not in cols:
+            c.execute('ALTER TABLE user ADD COLUMN email VARCHAR(120) DEFAULT ""')
+        if 'email_verified' not in cols:
+            c.execute('ALTER TABLE user ADD COLUMN email_verified BOOLEAN DEFAULT 0')
+        if 'pending_email' not in cols:
+            c.execute('ALTER TABLE user ADD COLUMN pending_email VARCHAR(120) DEFAULT ""')
+        if 'email_code' not in cols:
+            c.execute('ALTER TABLE user ADD COLUMN email_code VARCHAR(6) DEFAULT ""')
+        if 'email_code_expires_at' not in cols:
+            c.execute('ALTER TABLE user ADD COLUMN email_code_expires_at DATETIME')
         c.execute('PRAGMA table_info(task)')
         cols = [r[1] for r in c.fetchall()]
         if 'category' not in cols:
@@ -343,7 +482,8 @@ def _run_sqlite_migrations():
                            ('last_recognition_type', 'VARCHAR(20)'),
                            ('last_recognition_result', 'VARCHAR(20)'),
                            ('recognition_count', 'INTEGER DEFAULT 0'),
-                           ('cancel', 'INTEGER DEFAULT 0')]:
+                           ('cancel', 'INTEGER DEFAULT 0'),
+                           ('auto_classified', 'INTEGER DEFAULT 0')]:
             if col not in cols:
                 c.execute(f'ALTER TABLE kb_document ADD COLUMN {col} {ddl}')
         c.execute('PRAGMA table_info(kb_collection)')
@@ -667,13 +807,17 @@ def highlight_sensitive_words(text):
     return markupsafe.Markup(safe)
 
 
-def find_similar_tasks(title, description='', category='', start_time=None, end_time=None, exclude_id=None, threshold=0.85):
+def find_similar_tasks(title, description='', category='', start_time=None, end_time=None, exclude_id=None, threshold=0.70, unfinished_only=False):
     from difflib import SequenceMatcher
     from sqlalchemy import or_
     results = []
     query = Task.query
     if exclude_id:
         query = query.filter(Task.id != exclude_id)
+    if unfinished_only:
+        # 仅与“未完成任务”比较:存在未完成分配(pending/rejected)即视为未完成
+        query = query.filter(Task.assignments.any(
+            TaskAssignment.status.in_(['pending', 'rejected'])))
     # SQL pre-filter: only compare against tasks sharing a 2-char token with the
     # input title, so the expensive SequenceMatcher runs on a small candidate set.
     title_lower = title.lower()
@@ -774,7 +918,7 @@ def _find_all_datetime_candidates(text):
             pass
 
     # 本周/下周
-    if re.search(r'本[周星期]|这[周星期]', text):
+    if re.search(r'本(?:周|星期)|这(?:周|星期)', text):
         next_weekday = now + timedelta(days=(6 - now.weekday()))
         # generate candidates for each time in the remaining text
         for tm in re.finditer(r'(上[午]|下[午]|晚[上])?(\d{1,2})[：:点](\d{2})?(?:分)?', text):
@@ -785,7 +929,7 @@ def _find_all_datetime_candidates(text):
                     dt += timedelta(weeks=1)
                 candidates.append(dt)
 
-    if re.search(r'下[周星期]', text):
+    if re.search(r'下(?:周|星期)', text):
         next_weekday = now + timedelta(days=(13 - now.weekday()))
         for tm in re.finditer(r'(上[午]|下[午]|晚[上])?(\d{1,2})[：:点](\d{2})?(?:分)?', text):
             t = _parse_time(tm.group())
@@ -876,11 +1020,11 @@ def detect_deadline_from_text(text):
             if h < 24 and m < 60:
                 hour, minute = h, m
 
-    if re.search(r'本[周星期]|这[周星期]', text):
+    if re.search(r'本(?:周|星期)|这(?:周|星期)', text):
         end_of_week = now + timedelta(days=(6 - now.weekday()))
         return (end_of_week.replace(hour=hour, minute=minute, second=0), hour, minute)
 
-    if re.search(r'下[周星期]', text):
+    if re.search(r'下(?:周|星期)', text):
         end_of_next = now + timedelta(days=(13 - now.weekday()))
         return (end_of_next.replace(hour=hour, minute=minute, second=0), hour, minute)
 
@@ -1014,7 +1158,10 @@ def parse_task_from_text(text):
 
     # auto-detect category
     category_keywords = {
-        '工作': ['工作', '项目', '任务', '报告', '会议', '汇报', '方案', '开发', '测试', '上线', '需求', '周报', '月报'],
+        '考试': ['考试', '测验', '笔试', '月考', '中考', '高考', '期中考', '期末考', '考级', '考核', '答辩'],
+        '培训': ['培训', '训练', '课程', '集训', '学习班', '研修班', '岗前培训', '入职培训', '技能提升', '培训会'],
+        '会议': ['会议', '开会', '例会', '晨会', '周会', '月会', '评审会', '研讨会', '复盘', '站会'],
+        '工作': ['工作', '项目', '任务', '报告', '汇报', '方案', '开发', '测试', '上线', '需求', '周报', '月报'],
         '个人': ['个人', '学习', '读书', '运动', '健身', '购物', '家务', '休息', '娱乐', '游戏', '电影', '旅游'],
     }
     for cat, keywords in category_keywords.items():
@@ -1147,6 +1294,76 @@ def logout():
     return redirect(url_for('login'))
 
 
+@app.route('/profile', methods=['GET'])
+@login_required
+def profile():
+    """个人信息页:展示账号信息与邮箱绑定状态。"""
+    return render_template('profile.html')
+
+
+@app.route('/profile/send-verify-code', methods=['POST'])
+@login_required
+def profile_send_verify_code():
+    """发送邮箱绑定校验码。"""
+    data = request.get_json(silent=True) or {}
+    email = normalize_email(data.get('email'))
+    if not email:
+        return jsonify({'ok': False, 'error': '邮箱格式不正确,请检查后重试'})
+    dup = User.query.filter(
+        db.or_(User.email == email, User.pending_email == email),
+        User.id != current_user.id).first()
+    if dup:
+        return jsonify({'ok': False, 'error': '该邮箱已被其他账号绑定'})
+    ok, err, dev_code = send_verify_code(current_user, email)
+    return jsonify({'ok': ok, 'error': err or '', 'dev_code': dev_code})
+
+
+@app.route('/profile/verify-email', methods=['POST'])
+@login_required
+def profile_verify_email():
+    """校验邮箱校验码并完成绑定。"""
+    data = request.get_json(silent=True) or {}
+    email = normalize_email(data.get('email'))
+    code = (data.get('code') or '').strip()
+    if not email:
+        return jsonify({'ok': False, 'error': '邮箱格式不正确,请检查后重试'})
+    if not code:
+        return jsonify({'ok': False, 'error': '请输入校验码'})
+    user = current_user
+    if user.pending_email != email:
+        return jsonify({'ok': False, 'error': '邮箱与发送校验码时不一致,请重新发送'})
+    if user.email_code != code:
+        return jsonify({'ok': False, 'error': '校验码不正确,请重新输入'})
+    if not user.email_code_expires_at or user.email_code_expires_at < datetime.utcnow():
+        return jsonify({'ok': False, 'error': '校验码已过期,请重新发送'})
+    user.email = email
+    user.email_verified = True
+    user.pending_email = ''
+    user.email_code = ''
+    user.email_code_expires_at = None
+    db.session.commit()
+    log_operation('email_bind', email, f'用户 {user.name or user.username} 绑定邮箱')
+    return jsonify({'ok': True})
+
+
+@app.route('/profile/unbind-email', methods=['POST'])
+@login_required
+def profile_unbind_email():
+    """解除邮箱绑定。"""
+    user = current_user
+    if not user.email:
+        return jsonify({'ok': False, 'error': '当前未绑定邮箱'})
+    email = user.email
+    user.email = ''
+    user.email_verified = False
+    user.pending_email = ''
+    user.email_code = ''
+    user.email_code_expires_at = None
+    db.session.commit()
+    log_operation('email_unbind', email, f'用户 {user.name or user.username} 解除邮箱绑定')
+    return jsonify({'ok': True})
+
+
 def admin_required(f):
     from functools import wraps
     @wraps(f)
@@ -1250,7 +1467,7 @@ def admin_dashboard():
         TaskAssignment.status == 'pending',
         Task.end_time < now
     ).order_by(Task.end_time).all()
-    recent = TaskAssignment.query.filter(
+    recent = TaskAssignment.query.join(Task).filter(
         TaskAssignment.user_id == uid,
         TaskAssignment.completed_at.isnot(None)
     ).order_by(TaskAssignment.completed_at.desc()).limit(5).all()
@@ -1309,19 +1526,50 @@ def admin_logs():
         page=page, per_page=30, error_out=False)
     logs = pagination.items
 
-    action_counts = dict(db.session.query(
-        OperationLog.action, func.count(OperationLog.id)
-    ).group_by(OperationLog.action).all())
     total_users = db.session.query(
         func.count(func.distinct(OperationLog.user_id))).scalar() or 0
 
     return render_template('admin/logs.html', logs=logs,
                            pagination=pagination, username=username,
                            action=action, days=days,
-                           action_counts=action_counts,
                            total_users=total_users,
                            total_logs=(db.session.query(OperationLog.id)
                                        .count()))
+
+
+@app.route('/admin/emails', methods=['GET'])
+@login_required
+@admin_required
+def admin_emails():
+    """邮件发送记录:按类型/状态筛选,分页展示。"""
+    page = request.args.get('page', 1, type=int)
+    category = (request.args.get('category') or '').strip()
+    status = (request.args.get('status') or '').strip()
+
+    query = EmailRecord.query
+    if category:
+        query = query.filter(EmailRecord.category == category)
+    if status:
+        query = query.filter(EmailRecord.status == status)
+
+    pagination = db.paginate(
+        query.order_by(EmailRecord.created_at.desc()),
+        page=page, per_page=30, error_out=False)
+    records = pagination.items
+
+    category_counts = dict(db.session.query(
+        EmailRecord.category, func.count(EmailRecord.id)
+    ).group_by(EmailRecord.category).all())
+    status_counts = dict(db.session.query(
+        EmailRecord.status, func.count(EmailRecord.id)
+    ).group_by(EmailRecord.status).all())
+
+    return render_template('admin/emails.html', records=records,
+                           pagination=pagination, category=category,
+                           status=status,
+                           category_counts=category_counts,
+                           status_counts=status_counts,
+                           total=(db.session.query(EmailRecord.id).count()))
 
 
 @app.route('/admin/users', methods=['GET'])
@@ -1646,9 +1894,46 @@ def admin_delete_task(task_id):
         flash('任务不存在', 'danger')
         return redirect(url_for('user_tasks'))
     title = task.title
+    Notification.query.filter_by(task_id=task_id).update(
+        {Notification.task_id: None})
+    db.session.execute(
+        task_group.delete().where(task_group.c.task_id == task_id))
+    TaskAssignment.query.filter_by(task_id=task_id).delete(
+        synchronize_session=False)
     db.session.delete(task)
     db.session.commit()
     flash(f'任务 "{title}" 已删除', 'success')
+    return redirect(url_for('user_tasks'))
+
+
+@app.route('/user/tasks/batch_delete', methods=['POST'])
+@login_required
+def user_batch_delete_tasks():
+    task_ids = [int(x) for x in request.form.getlist('task_ids') if x.isdigit()]
+    if not task_ids:
+        flash('未选择任务', 'danger')
+        return redirect(url_for('user_tasks'))
+    tasks = Task.query.filter(Task.id.in_(task_ids)).all()
+    if not tasks:
+        flash('任务不存在', 'danger')
+        return redirect(url_for('user_tasks'))
+    mine = [t for t in tasks if t.creator_id == current_user.id]
+    if not mine:
+        flash('只能删除自己创建的任务', 'danger')
+        return redirect(url_for('user_tasks'))
+    ids = [t.id for t in mine]
+    Notification.query.filter(
+        Notification.task_id.in_(ids)).update(
+        {Notification.task_id: None})
+    db.session.execute(
+        task_group.delete().where(task_group.c.task_id.in_(ids)))
+    TaskAssignment.query.filter(
+        TaskAssignment.task_id.in_(ids)).delete(
+        synchronize_session=False)
+    Task.query.filter(Task.id.in_(ids)).delete(
+        synchronize_session=False)
+    db.session.commit()
+    flash(f'已删除 {len(ids)} 个任务', 'success')
     return redirect(url_for('user_tasks'))
 
 
@@ -1739,7 +2024,7 @@ def user_dashboard():
         Task.end_time < now
     ).order_by(Task.end_time).all()
 
-    recent = TaskAssignment.query.filter(
+    recent = TaskAssignment.query.join(Task).filter(
         TaskAssignment.user_id == current_user.id,
         TaskAssignment.completed_at.isnot(None)
     ).order_by(TaskAssignment.completed_at.desc()).limit(5).all()
@@ -1864,8 +2149,14 @@ def api_summary():
     rate = round(len(completed) / total * 100, 1) if total else 0
     avg_progress = round(sum(a.progress for a in assignments) / total) if total else 0
 
-    work_tasks = [a for a in assignments if a.task.category == '工作']
-    personal_tasks = [a for a in assignments if a.task.category == '个人']
+    tasks_by_cat = {}
+    for a in assignments:
+        cat = a.task.category or '其他'
+        tasks_by_cat.setdefault(cat, []).append(a)
+    cat_order = ['工作', '个人', '会议', '培训', '考试']
+    for cat in tasks_by_cat:
+        if cat not in cat_order:
+            cat_order.append(cat)
 
     def task_line(a):
         status_map = {
@@ -1899,17 +2190,13 @@ def api_summary():
         lines.append(f'当前仍有{len(overdue_in_period)}项任务逾期未完成。')
         lines.append('')
 
-    if work_tasks:
-        work_done = len([a for a in work_tasks if a.status in ('completed', 'approved')])
-        lines.append(f'【工作类】共{len(work_tasks)}项，已完成{work_done}项。')
-        for a in sorted(work_tasks, key=lambda x: x.task.end_time):
-            lines.append(task_line(a))
-        lines.append('')
-
-    if personal_tasks:
-        personal_done = len([a for a in personal_tasks if a.status in ('completed', 'approved')])
-        lines.append(f'【个人类】共{len(personal_tasks)}项，已完成{personal_done}项。')
-        for a in sorted(personal_tasks, key=lambda x: x.task.end_time):
+    for cat in cat_order:
+        group = tasks_by_cat.get(cat)
+        if not group:
+            continue
+        done = len([a for a in group if a.status in ('completed', 'approved')])
+        lines.append(f'【{cat}类】共{len(group)}项，已完成{done}项。')
+        for a in sorted(group, key=lambda x: x.task.end_time):
             lines.append(task_line(a))
         lines.append('')
 
@@ -2066,35 +2353,39 @@ def user_tasks():
                 recurrence_interval_days = int(request.form.get('recurrence_interval_days', '0') or '0')
                 duration = end_time - start_time
                 total = recurrence_count if recurrence and recurrence_count > 0 else 1
-                if not request.form.get('confirm_duplicate'):
-                    similar = find_similar_tasks(title, description, category, start_time, end_time)
-                    if similar:
-                        preview_data = {
-                            'title': title, 'category': category,
-                            'start_time': start_time, 'end_time': end_time,
-                            'description': description, 'is_all': is_all,
-                            'assignees': [], 'raw_text': description,
-                            'recurrence': recurrence,
-                            'recurrence_count': recurrence_count,
-                            'recurrence_interval_days': recurrence_interval_days,
-                        }
-                        my_assigned_ids = {a.task_id for a in TaskAssignment.query.filter_by(user_id=current_user.id).all()}
-                        other_assigned = Task.query.filter(Task.id.in_(my_assigned_ids), Task.creator_id != current_user.id).order_by(Task.created_at.desc()).all() if my_assigned_ids else []
-                        template_data = {
-                            'rejected_tasks': rejected_tasks,
-                            'preview': preview_data, 'users': users,
-                            'my_tasks': my_tasks,
-                            'other_assigned': other_assigned,
-                            'TaskAssignment': TaskAssignment,
-                            'now': datetime.now(),
-                            'is_admin': current_user.role == 'admin',
-                            'user_groups': user_groups,
-                            'duplicate_tasks': similar,
-                        }
-                        if current_user.role == 'admin':
-                            template_data['all_tasks'] = Task.query.order_by(Task.created_at.desc()).all()
-                        template_data.update(_stats_context())
-                        return render_template('tasks.html', **template_data)
+                similar = find_similar_tasks(title, description, category,
+                                             start_time, end_time,
+                                             unfinished_only=True)
+                if similar:
+                    preview_data = {
+                        'title': title, 'category': category,
+                        'start_time': start_time, 'end_time': end_time,
+                        'description': description, 'is_all': is_all,
+                        'assignees': [], 'raw_text': description,
+                        'assignee_ids': assignee_ids,
+                        'group_ids': group_ids,
+                        'recurrence': recurrence,
+                        'recurrence_count': recurrence_count,
+                        'recurrence_interval_days': recurrence_interval_days,
+                    }
+                    my_assigned_ids = {a.task_id for a in TaskAssignment.query.filter_by(user_id=current_user.id).all()}
+                    other_assigned = Task.query.filter(Task.id.in_(my_assigned_ids), Task.creator_id != current_user.id).order_by(Task.created_at.desc()).all() if my_assigned_ids else []
+                    template_data = {
+                        'rejected_tasks': rejected_tasks,
+                        'preview': preview_data, 'users': users,
+                        'my_tasks': my_tasks,
+                        'other_assigned': other_assigned,
+                        'TaskAssignment': TaskAssignment,
+                        'now': datetime.now(),
+                        'is_admin': current_user.role == 'admin',
+                        'user_groups': user_groups,
+                        'duplicate_tasks': similar,
+                        'duplicate_blocked': True,
+                    }
+                    if current_user.role == 'admin':
+                        template_data['all_tasks'] = Task.query.order_by(Task.created_at.desc()).all()
+                    template_data.update(_stats_context())
+                    return render_template('tasks.html', **template_data)
                 created_titles = []
                 for i in range(total):
                     offset = timedelta(days=recurrence_interval_days * i)
@@ -2148,6 +2439,13 @@ def user_tasks():
             if not is_admin_user:
                 parsed['is_all'] = False
                 parsed['assignees'] = [a for a in parsed['assignees'] if a not in ('@所有人', '所有人')]
+            parsed_duplicates = find_similar_tasks(
+                parsed.get('title') or '',
+                parsed.get('description') or '',
+                parsed.get('category') or '',
+                parsed.get('start_time'),
+                parsed.get('end_time'),
+                unfinished_only=True)
             template_data = {
                 'rejected_tasks': rejected_tasks,
                 'preview': parsed, 'users': users,
@@ -2156,6 +2454,8 @@ def user_tasks():
                 'now': datetime.now(),
                 'is_admin': is_admin_user,
                 'user_groups': user_groups,
+                'duplicate_tasks': parsed_duplicates,
+                'duplicate_blocked': bool(parsed_duplicates),
             }
             # tasks assigned to me by others
             my_assigned_ids = {a.task_id for a in TaskAssignment.query.filter_by(user_id=current_user.id).all()}
@@ -2324,6 +2624,48 @@ def user_task_detail(task_id):
                            pending_assignments=pending_assignments,
                            is_admin=False,
                            now=datetime.now())
+
+
+@app.route('/user/tasks/edit', methods=['POST'])
+@login_required
+def user_edit_task():
+    """修改任务信息:创建者、管理员或任务负责人可编辑。"""
+    task_id = request.form.get('task_id', type=int)
+    task = db.session.get(Task, task_id)
+    if not task:
+        flash('任务不存在', 'danger')
+        return redirect(request.referrer or url_for('user_dashboard'))
+    is_assignee = TaskAssignment.query.filter_by(
+        task_id=task.id, user_id=current_user.id).first() is not None
+    if task.creator_id != current_user.id and current_user.role != 'admin' \
+            and not is_assignee:
+        flash('只有任务创建者、管理员或任务负责人可以编辑', 'danger')
+        return redirect(request.referrer or url_for('user_dashboard'))
+    title = request.form.get('title', '').strip()
+    category = request.form.get('category', '').strip() or '工作'
+    start_str = request.form.get('start_time', '').strip()
+    end_str = request.form.get('end_time', '').strip()
+    description = request.form.get('description', '').strip()
+    if not title:
+        flash('任务标题不能为空', 'danger')
+        return redirect(request.referrer or url_for('user_dashboard'))
+    try:
+        task.title = title
+        task.category = category
+        if description:
+            task.description = description
+        if start_str:
+            task.start_time = datetime.strptime(
+                start_str.replace('T', ' '), '%Y-%m-%d %H:%M')
+        if end_str:
+            task.end_time = datetime.strptime(
+                end_str.replace('T', ' '), '%Y-%m-%d %H:%M')
+        db.session.commit()
+        flash(f'任务 "{title}" 已更新', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'更新失败：{str(e)}', 'danger')
+    return redirect(request.referrer or url_for('user_dashboard'))
 
 
 @app.route('/user/assignments/<int:assignment_id>/update_progress', methods=['POST'])

@@ -1,242 +1,242 @@
 {% extends "base.html" %}
-{% block title %}AI分身问答 - 知行合一 + 数字分身{% endblock %}
+{% block title %}分身问答 - 知行合一 + 数字分身{% endblock %}
 {% block extra_css %}
 <style>
-  .ask-page { max-width: 860px; margin: 0 auto; padding: 20px 16px 40px; }
-  .ask-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-  .ask-head .avatar-ic { width: 42px; height: 42px; border-radius: 50%;
-    background: var(--primary); color: #fff; display: inline-flex;
-    align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
-  .ask-title { font-weight: 700; font-size: 1.05rem; }
-  .ask-sub { font-size: .8rem; color: var(--gray-500); }
-  .search-wrap { position: relative; }
-  .suggest-box { position: absolute; top: 100%; left: 0; right: 0; background: #fff;
-    border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); max-height: 260px;
-    overflow-y: auto; z-index: 50; margin-top: 6px; padding: 6px; }
-  .suggest-box .item { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
-    border-radius: 6px; cursor: pointer; font-size: .85rem; color: var(--gray-700); }
-  .suggest-box .item:hover, .suggest-box .item.sel { background: var(--primary-light); color: var(--primary); }
-  .suggest-box .item .tag { font-size: .62rem; padding: 1px 6px; border-radius: 100px;
-    background: var(--gray-100); color: var(--gray-500); margin-left: auto; flex-shrink: 0; }
+  .ask-page { max-width: 100%; margin: 0 auto; padding: 0; height: calc(100vh - var(--nav-height) - 64px); display: flex; flex-direction: column; }
+  .ask-page .kb-tabs { flex-shrink: 0; }
+  .ask-card { flex: 1; min-height: 0; display: flex; flex-direction: column; margin-top: 14px; }
+  .ask-card .card-body { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 12px 14px; }
 
-  .answer-card { border: 1px solid var(--gray-100); border-radius: 12px; overflow: hidden; margin-top: 16px; }
-  .answer-card .ans-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px;
-    background: var(--gray-50); border-bottom: 1px solid var(--gray-100); font-weight: 600; font-size: .88rem; }
-  .answer-body { padding: 14px; font-size: .9rem; line-height: 1.7; color: var(--gray-800); }
-  .answer-body h1, .answer-body h2, .answer-body h3, .answer-body h4 { font-size: 1.02rem; margin: 14px 0 6px; font-weight: 700; color: var(--gray-900); }
-  .answer-body p { margin: 0 0 8px; }
-  .answer-body ul, .answer-body ol { margin: 0 0 8px; padding-left: 22px; }
-  .answer-body pre { background: var(--gray-900); color: #e2e8f0; padding: 12px; border-radius: 8px; overflow-x: auto; font-size: .78rem; margin: 8px 0; }
-  .answer-body code { background: var(--gray-100); color: var(--primary); padding: 1px 5px; border-radius: 4px; font-size: .8em; }
-  .answer-body pre code { background: transparent; color: inherit; padding: 0; }
-  .answer-body blockquote { border-left: 3px solid var(--primary-light); padding-left: 12px; color: var(--gray-500); margin: 8px 0; }
-  .answer-body table { border-collapse: collapse; margin: 8px 0; }
-  .answer-body th, .answer-body td { border: 1px solid var(--gray-200); padding: 5px 10px; }
-  .answer-body a { color: var(--primary); }
-  .answer-body mark { background: #fef08a; padding: 0 2px; border-radius: 2px; }
-
-  .material-card { border: 1px solid var(--gray-100); border-radius: 12px; overflow: hidden; margin-top: 16px; }
-  .material-card .mat-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px;
-    background: var(--gray-50); border-bottom: 1px solid var(--gray-100); font-weight: 600; font-size: .88rem; }
-  .material-card .mat-body { max-height: 340px; overflow-y: auto; }
-  .material-group { padding: 10px 14px; border-bottom: 1px solid var(--gray-100); }
-  .material-group:last-child { border-bottom: none; }
-  .material-group .doc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .material-group .result-page { margin-top: 8px; padding-left: 10px; border-left: 3px solid var(--gray-100); }
-  .material-group .result-page p { margin: 2px 0 0; font-size: .8rem; color: var(--gray-600); line-height: 1.6; }
-  .material-group mark { background: #fef08a; padding: 0 2px; border-radius: 2px; }
-
-  .chat-wrap { display: flex; flex-direction: column; gap: 8px; max-height: 48vh; overflow-y: auto; padding: 8px 0; }
+  .chat-wrap { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; overflow-y: auto; padding: 8px 2px; }
   .chat-bubble { max-width: 82%; padding: 10px 14px; border-radius: 12px;
-    font-size: .88rem; line-height: 1.6; word-break: break-word; }
+    font-size: .88rem; line-height: 1.6; word-break: break-word; overflow-wrap: break-word;
+    flex-shrink: 0; }
   .chat-bubble.user { background: var(--primary); color: #fff; margin-left: auto; border-bottom-right-radius: 4px; }
   .chat-bubble.avatar { background: var(--gray-100); color: var(--gray-800); margin-right: auto; border-bottom-left-radius: 4px; }
-  .chat-input-row { display: flex; gap: 8px; margin-top: 12px; }
+  .chat-bubble.avatar a { color: var(--primary); }
+  .md-body p { margin: 0 0 6px; }
+  .md-body p:last-child { margin-bottom: 0; }
+  .md-body h1, .md-body h2, .md-body h3, .md-body h4, .md-body h5, .md-body h6 { font-size: .95rem; font-weight: 700; margin: 8px 0 4px; }
+  .md-body ul, .md-body ol { margin: 0 0 6px; padding-left: 20px; }
+  .md-body li { margin: 2px 0; }
+  .md-body pre { background: var(--gray-200); padding: 8px 10px; border-radius: 8px; overflow-x: auto; font-size: .78rem; margin: 6px 0; }
+  .md-body code { background: var(--gray-200); padding: 1px 5px; border-radius: 4px; font-size: .8em; }
+  .md-body pre code { background: transparent; padding: 0; }
+  .md-body blockquote { border-left: 3px solid var(--primary-light); padding-left: 10px; color: var(--gray-500); margin: 6px 0; }
+  .md-body table { max-width: 100%; border-collapse: collapse; margin: 6px 0; }
+  .md-body th, .md-body td { border: 1px solid var(--gray-200); padding: 4px 8px; }
+  .md-body hr { border: none; border-top: 1px solid var(--gray-200); margin: 8px 0; }
+  .avatar-who { display: flex; align-items: center; gap: 4px; font-size: .66rem; font-weight: 700;
+    color: var(--primary); margin-bottom: 4px; letter-spacing: .02em; }
+  .avatar-who i { font-size: .7rem; }
+  .chat-input-row { display: flex; gap: 8px; margin-top: 12px; position: relative; flex-shrink: 0; }
   .chat-input-row input { flex: 1; }
   .chat-typing { color: var(--gray-400); font-size: .82rem; padding: 4px 0; }
-  .source-tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 100px;
-    font-size: .72rem; background: var(--primary-light); color: var(--primary); font-weight: 500;
-    cursor: pointer; border: 1px solid transparent; text-decoration: none; margin: 2px; }
-  .source-tag:hover { border-color: var(--primary); }
-  .loading-answer { display: flex; align-items: center; gap: 8px; color: var(--gray-400); font-size: .82rem; padding: 12px 0; }
-  .empty-tip { color: var(--gray-400); text-align: center; padding: 30px 10px; font-size: .85rem; }
-  .empty-tip i { font-size: 1.8rem; display: block; margin-bottom: 10px; color: var(--gray-300); }
+  .chat-empty-hint { margin: auto; display: flex; flex-direction: column; align-items: center;
+    gap: 10px; padding: 28px 16px; text-align: center; color: var(--gray-400);
+    font-size: .85rem; line-height: 1.6; }
+  .chat-empty-hint-icon { font-size: 2.1rem; color: var(--gray-300); }
+  .avatar-status-chip { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px;
+    padding: 6px 12px; border-radius: 100px; background: var(--primary-light); color: var(--primary);
+    font-size: .78rem; font-weight: 500; flex-shrink: 0; }
+  .avatar-status-chip .btn { margin-left: 2px; }
+  .mention-box { position: fixed; min-width: 220px; max-width: 340px; background: #fff;
+    border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); border: 1px solid var(--gray-100);
+    max-height: 260px; overflow-y: auto; z-index: 2000; padding: 6px; }
+  .mention-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 6px;
+    cursor: pointer; font-size: .8rem; color: var(--gray-700); }
+  .mention-item:hover, .mention-item.sel { background: var(--primary-light); color: var(--primary); }
+  .mention-item b { font-weight: 600; }
+  .mention-item small { margin-left: auto; color: var(--gray-400); font-size: .68rem; flex-shrink: 0; }
+  @media (max-width: 767px) {
+    .ask-page { height: calc(100vh - var(--nav-height) - var(--bottom-nav-height) - 32px); }
+  }
 </style>
 {% endblock %}
 {% block content %}
 <div class="ask-page">
-  <div class="ask-head">
-    <div class="avatar-ic"><i class="bi bi-person-fill"></i></div>
-    <div>
-      <div class="ask-title">AI分身问答</div>
-      <div class="ask-sub">自动整理知识库检索内容,基于你的资料与你对话</div>
-    </div>
+  {% include 'kb/_tabs.html' %}
+  <div id="avatarStatusChip" class="avatar-status-chip d-none">
+    <i class="bi bi-person-fill"></i>
+    <span>正在与 <b id="avatarStatusName" style="color:var(--primary);"></b>·分身 对话</span>
+    <button class="btn btn-xs-custom btn-outline-secondary" onclick="resetAvatarTarget()"><i class="bi bi-arrow-counterclockwise"></i> 切换回我的分身</button>
   </div>
 
-  <div class="search-wrap">
-    <div class="input-group">
-      <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
-      <input type="text" id="askInput" class="form-control" placeholder="输入问题,AI分身将基于知识库整理内容并回答" autocomplete="off">
-      <button class="btn btn-primary" id="askBtn" onclick="submitAsk()"><i class="bi bi-send"></i></button>
-    </div>
-    <div class="suggest-box d-none" id="suggestBox"></div>
-  </div>
-
-  <div class="d-flex gap-2 mt-3">
-    <button class="btn btn-outline-secondary btn-xs-custom" onclick="runAutoAsk()"><i class="bi bi-stars"></i> 自动整理并问答</button>
-    <a href="{{ url_for('kb.workbench') }}" class="btn btn-outline-secondary btn-xs-custom"><i class="bi bi-search"></i> 返回检索工作台</a>
-  </div>
-
-  <div id="loadingBox" class="loading-answer d-none">
-    <span class="spinner-border spinner-border-sm" style="width:1rem;height:1rem;"></span> 正在检索并整理知识库内容...
-  </div>
-
-  <div id="answerCard" class="answer-card" style="display:none;">
-    <div class="ans-head"><i class="bi bi-stars" style="color:var(--primary);"></i> AI分身回答</div>
-    <div class="answer-body" id="answerBody"></div>
-    <div class="px-3 pb-3 pt-0 border-top" id="answerSources" style="display:none;">
-      <small class="text-muted" style="font-size:.72rem;font-weight:600;">引用来源</small>
-      <div class="d-flex flex-wrap gap-2 mt-2" id="answerSourcesBox"></div>
-    </div>
-  </div>
-
-  <div id="materialCard" class="material-card" style="display:none;">
-    <div class="mat-head">
-      <span><i class="bi bi-journal-text" style="color:var(--primary);"></i> 检索整理的内容</span>
-      <small class="text-muted" id="matCount" style="font-size:.72rem;"></small>
-    </div>
-    <div class="mat-body" id="materialBody"></div>
-  </div>
-
-  <div class="card mt-3">
-    <div class="card-header"><i class="bi bi-chat-square-text"></i> 继续对话</div>
+  <div class="card ask-card">
     <div class="card-body">
       <div class="chat-wrap" id="chatWrap">
-        <div class="chat-typing" id="chatEmpty" style="text-align:center;color:var(--gray-400);padding:20px 10px;">输入问题继续与 AI分身对话,将基于同一份整理内容回答</div>
+        <div class="chat-typing" id="chatEmpty" style="text-align:center;color:var(--gray-400);padding:20px 10px;">输入问题开始对话</div>
       </div>
       <div id="chatLoading" class="chat-typing d-none"><span class="spinner-border spinner-border-sm" style="width:1rem;height:1rem;"></span> 分身思考中...</div>
       <div class="chat-input-row">
-        <input type="text" id="chatInput" class="form-control" placeholder="追问,基于当前整理内容..." autocomplete="off" onkeydown="if(event.key==='Enter')submitChat()">
+        <input type="text" id="chatInput" class="form-control" placeholder="输入问题;输入 @用户名 切换分身" autocomplete="off" onkeydown="handleMentionKeydown(this,event)">
         <button class="btn btn-primary" onclick="submitChat()"><i class="bi bi-send"></i></button>
       </div>
     </div>
   </div>
 </div>
+<div class="mention-box d-none" id="mentionBox"></div>
 {% endblock %}
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<script src="{{ url_for('static', filename='kb_markdown.js') }}"></script>
 <script>
 var initialQ = {{ q|tojson }};
-var currentSources = [];
-var chatMessages = [];
+var kbUsers = {{ kb_users|tojson }};
+var avatarTarget = null;
+var avatarTargetName = null;
+var mentionInput = null;
 
-function submitAsk() {
-  var input = document.getElementById('askInput');
-  var q = input.value.trim();
-  if (!q) { input.focus(); return; }
-  runAutoAsk(q);
+function esc(s) {
+  var d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML;
 }
 
-function runAutoAsk(q) {
-  if (!q) {
-    q = document.getElementById('askInput').value.trim();
-    if (!q) { document.getElementById('askInput').focus(); return; }
-  }
-  document.getElementById('askInput').value = q;
-  document.getElementById('loadingBox').classList.remove('d-none');
-  document.getElementById('answerCard').style.display = 'none';
-  document.getElementById('materialCard').style.display = 'none';
-  currentSources = [];
-  fetch('{{ url_for('kb.api_avatar_ask') }}', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question: q })
-  }).then(function (r) { return r.json(); }).then(function (d) {
-    document.getElementById('loadingBox').classList.add('d-none');
-    if (!d.ok) {
-      document.getElementById('answerCard').style.display = 'block';
-      document.getElementById('answerBody').innerHTML = '<div class="empty-tip">问答失败: ' + (d.error || '未知错误') + '</div>';
-      return;
-    }
-    renderAnswer(q, d);
-    return loadMaterial(q);
-  }).catch(function (e) {
-    document.getElementById('loadingBox').classList.add('d-none');
-    document.getElementById('answerCard').style.display = 'block';
-    document.getElementById('answerBody').innerHTML = '<div class="empty-tip">网络错误,请重试</div>';
-  });
+function currentAvatarLabel() {
+  return avatarTargetName ? avatarTargetName + '·分身' : '我的分身';
 }
 
-function renderAnswer(question, d) {
-  var body = document.getElementById('answerBody');
-  var raw = d.answer || '';
-  if (window.marked && window.DOMPurify) {
-    body.innerHTML = DOMPurify.sanitize(marked.parse(raw));
+function setAvatarTarget(u) {
+  avatarTarget = u ? u.id : null;
+  avatarTargetName = u ? u.name : null;
+  var chip = document.getElementById('avatarStatusChip');
+  var nameEl = document.getElementById('avatarStatusName');
+  if (u) {
+    if (chip) chip.classList.remove('d-none');
+    if (nameEl) nameEl.textContent = u.name;
   } else {
-    body.textContent = raw;
-    body.style.whiteSpace = 'pre-wrap';
+    if (chip) chip.classList.add('d-none');
   }
-  currentSources = d.sources || [];
-  var box = document.getElementById('answerSourcesBox');
-  box.innerHTML = '';
-  currentSources.forEach(function (s) {
-    var a = document.createElement('a');
-    a.className = 'source-tag';
-    a.href = '{{ url_for('kb.doc_detail', doc_id=0) }}'.replace('0', s.doc_id);
-    a.innerHTML = '<i class="bi bi-file-earmark-text"></i> ' + s.title + ' · 第' + s.page + '页';
-    box.appendChild(a);
-  });
-  document.getElementById('answerSources').style.display = currentSources.length ? 'block' : 'none';
-  document.getElementById('answerCard').style.display = 'block';
 }
 
-function loadMaterial(q) {
-  return fetch('{{ url_for('kb.api_search') }}', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ q: q })
-  }).then(function (r) { return r.json(); }).then(function (d) {
-    var card = document.getElementById('materialCard');
-    var body = document.getElementById('materialBody');
-    if (!d.ok || !d.groups || !d.groups.length) {
-      card.style.display = 'none';
+function resetAvatarTarget() {
+  setAvatarTarget(null);
+}
+
+function showMention(boxEl, input) {
+  var users = kbUsers.filter(function (u) {
+    return String(u.id) !== String(avatarTarget);
+  });
+  if (!users.length) return;
+  boxEl.innerHTML = '';
+  users.forEach(function (u) {
+    var item = document.createElement('div');
+    item.className = 'mention-item';
+    item.innerHTML = '<b>' + esc(u.name) + '</b><small>@' + esc(u.username) + '</small>';
+    item.onclick = function () {
+      setAvatarTarget(u);
+      boxEl.classList.add('d-none');
+      input.value = '';
+      input.focus();
+    };
+    boxEl.appendChild(item);
+  });
+  var rect = input.getBoundingClientRect();
+  boxEl.style.left = Math.max(8, rect.left) + 'px';
+  boxEl.style.top = (rect.bottom + 6) + 'px';
+  boxEl.classList.remove('d-none');
+  mentionInput = input;
+}
+
+function handleMentionKeydown(input, e) {
+  var boxEl = document.getElementById('mentionBox');
+  var boxOpen = boxEl && !boxEl.classList.contains('d-none');
+  if (e.key === 'Enter') {
+    if (boxOpen) {
+      var sel = boxEl.querySelector('.sel');
+      var items = boxEl.querySelectorAll('.mention-item');
+      var target = sel || (items.length ? items[0] : null);
+      if (target) {
+        e.preventDefault();
+        target.click();
+        return;
+      }
+    }
+    if (input.id === 'chatInput') submitChat();
+    return;
+  }
+  if (e.key === '@') {
+    if (!boxOpen) showMention(boxEl, input);
+    return;
+  }
+  if (boxOpen) {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Escape') {
+      e.preventDefault();
+      var items = boxEl.querySelectorAll('.mention-item');
+      if (!items.length) return;
+      var sel = boxEl.querySelector('.sel');
+      var idx = Array.prototype.indexOf.call(items, sel);
+      if (e.key === 'ArrowUp') {
+        idx = idx <= 0 ? items.length - 1 : idx - 1;
+      } else if (e.key === 'ArrowDown') {
+        idx = (idx + 1) % items.length;
+      } else {
+        boxEl.classList.add('d-none');
+        return;
+      }
+      items.forEach(function (it) { it.classList.remove('sel'); });
+      items[idx].classList.add('sel');
+      items[idx].scrollIntoView({ block: 'nearest' });
       return;
     }
-    body.innerHTML = d.groups.map(function (g) {
-      var pages = (g.pages || []).map(function (p) {
-        return '<div class="result-page">' +
-          '<small class="text-muted" style="font-size:.68rem;">第 ' + p.page_no + ' 页 · 相关度 ' + Math.round(p.score * 100) + '%</small>' +
-          '<p>' + (p.snippet || '') + '</p></div>';
-      }).join('');
-      return '<div class="material-group">' +
-        '<div class="doc-head">' +
-        '<a href="' + '{{ url_for('kb.doc_detail', doc_id=0) }}'.replace('/0', '/' + g.doc_id) + '" style="color:var(--gray-900);text-decoration:none;font-weight:600;font-size:.85rem;">' + g.title + '</a>' +
-        '<span class="badge badge-low">' + Math.round(g.best_score * 100) + '%</span>' +
-        '</div>' + pages + '</div>';
-    }).join('');
-    document.getElementById('matCount').textContent = '共 ' + d.groups.length + ' 个文档';
-    card.style.display = 'block';
-  }).catch(function () {});
+    if (e.key !== 'Shift' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' &&
+        e.key.length === 1) {
+      showMention(boxEl, input);
+    }
+  }
+}
+
+document.addEventListener('click', function (e) {
+  var boxEl = document.getElementById('mentionBox');
+  if (boxEl && !boxEl.classList.contains('d-none') &&
+      !e.target.closest('#mentionBox') && e.target !== mentionInput) {
+    boxEl.classList.add('d-none');
+  }
+});
+
+function parseAvatarTarget(q) {
+  var m = q.match(/^@([^\s@]+)([\s\S]*)$/);
+  if (m) {
+    var key = m[1];
+    var u = null;
+    kbUsers.forEach(function (x) {
+      if (x.username === key || x.name === key) u = x;
+    });
+    if (u) {
+      setAvatarTarget(u);
+      return m[2].trim();
+    }
+  }
+  return q;
 }
 
 function submitChat() {
   var input = document.getElementById('chatInput');
   var q = input.value.trim();
   if (!q) return;
+  q = parseAvatarTarget(q);
   input.value = '';
   appendBubble('user', q);
   document.getElementById('chatEmpty').style.display = 'none';
   var loading = document.getElementById('chatLoading');
   loading.classList.remove('d-none');
+  var body = { question: q };
+  if (avatarTarget) body.target_user_id = avatarTarget;
   fetch('{{ url_for('kb.api_avatar_ask') }}', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question: q })
+    body: JSON.stringify(body)
   }).then(function (r) { return r.json(); }).then(function (d) {
     loading.classList.add('d-none');
     if (d.ok) {
-      appendBubble('avatar', d.answer || '');
+      if (d.avatar_name) { avatarTargetName = d.avatar_name; }
+      if (d.empty) {
+        appendEmptyHint(d.answer || '');
+      } else {
+        appendBubble('avatar', d.answer || '没有生成回答，请重试');
+      }
     } else {
       appendBubble('avatar', d.error || '回答生成失败');
     }
@@ -246,24 +246,44 @@ function submitChat() {
   });
 }
 
+function appendEmptyHint(text) {
+  var wrap = document.getElementById('chatWrap');
+  var hint = document.createElement('div');
+  hint.className = 'chat-empty-hint';
+  hint.innerHTML = '<div class="chat-empty-hint-icon"><i class="bi bi-inbox"></i></div>' +
+    '<div>' + esc(text) + '</div>' +
+    '<a class="btn btn-xs-custom btn-primary" href="{{ url_for('kb.index') }}">去上传文档</a>';
+  wrap.appendChild(hint);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
 function appendBubble(role, text) {
   var wrap = document.getElementById('chatWrap');
   var bubble = document.createElement('div');
   bubble.className = 'chat-bubble ' + role;
-  if (window.marked && window.DOMPurify) {
-    bubble.innerHTML = DOMPurify.sanitize(marked.parse(text));
-  } else {
-    bubble.textContent = text;
-    bubble.style.whiteSpace = 'pre-wrap';
+  if (role === 'avatar') {
+    var who = document.createElement('div');
+    who.className = 'avatar-who';
+    who.innerHTML = '<i class="bi bi-person-fill"></i>' + esc(currentAvatarLabel());
+    bubble.appendChild(who);
   }
+  var content = document.createElement('div');
+  content.className = 'md-body';
+  var rendered = window.renderMarkdown ? window.renderMarkdown(text) : null;
+  if (rendered) {
+    content.innerHTML = rendered;
+  } else {
+    content.innerHTML = window.mdLite ? window.mdLite(text) : esc(text);
+  }
+  bubble.appendChild(content);
   wrap.appendChild(bubble);
   wrap.scrollTop = wrap.scrollHeight;
 }
 
 (function autoRun() {
   if (initialQ) {
-    document.getElementById('askInput').value = initialQ;
-    setTimeout(function () { runAutoAsk(initialQ); }, 300);
+    document.getElementById('chatInput').value = initialQ;
+    setTimeout(function () { submitChat(); }, 300);
   }
 })();
 </script>

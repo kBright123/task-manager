@@ -34,8 +34,10 @@
 {% for a in all_pending %}{% if a.id not in today_ids and a.id not in week_other_ids %}{% set _ = other_pending.append(a) %}{% endif %}{% endfor %}
 
 {% macro task_row(a) %}
+{% if a.task %}
 <div class="list-group-item d-flex align-items-center gap-2 py-2 px-3 task-item-inline card-lift" style="border-left:3px solid {{ 'var(--danger)' if a.task.end_time < now else 'var(--primary)' }};cursor:pointer;"
      data-id="{{ a.id }}"
+     data-task-id="{{ a.task.id }}"
      data-title="{{ a.task.title }}"
      data-desc="{{ a.task.description }}"
      data-start="{{ a.task.start_time.strftime('%m-%d %H:%M') }}"
@@ -44,16 +46,22 @@
      data-status="{{ a.status }}"
      data-note="{{ a.note|tojson or '' }}"
      data-attachment="{{ a.attachment or '' }}"
-     onclick="var d=this.dataset;openTaskDrawer(d.id,d.title,d.desc,d.start,d.end,d.progress,d.status,d.note,d.attachment)">
+     data-category="{{ a.task.category }}"
+     data-start-edit="{{ a.task.start_time.strftime('%Y-%m-%d %H:%M') }}"
+     data-end-edit="{{ a.task.end_time.strftime('%Y-%m-%d %H:%M') }}"
+     data-desc-edit="{{ a.task.description or '' }}"
+     onclick="if(event.detail===1){var d=this.dataset;openTaskDrawer(d.id,d.title,d.desc,d.start,d.end,d.progress,d.status,d.note,d.attachment)}"
+     ondblclick="openEditTaskModal(this);return false;"
+     title="单击查看详情,双击编辑任务">
   <div class="flex-grow-1" style="min-width:0;">
     <div class="d-flex align-items-center gap-1">
       <span style="font-size:.92rem;font-weight:600;" class="text-truncate">{{ a.task.title }}</span>
-      <span class="badge" style="background:{{ 'var(--primary)' if a.task.category == '工作' else 'var(--success)' if a.task.category == '个人' else 'var(--warning)' }};font-size:.65rem;">{{ a.task.category }}</span>
+      <span class="badge" style="background:{{ 'var(--primary)' if a.task.category == '工作' else 'var(--success)' if a.task.category == '个人' else 'var(--meeting)' if a.task.category == '会议' else 'var(--training)' if a.task.category == '培训' else 'var(--exam)' if a.task.category == '考试' else 'var(--warning)' }};font-size:.65rem;">{{ a.task.category }}</span>
       {% if a.task.end_time < now %}<span class="badge bg-danger" style="font-size:.65rem;">逾期</span>{% endif %}
     </div>
     <small class="text-muted" style="font-size:.78rem;">{{ a.task.end_time.strftime('%m-%d %H:%M') }} 截止</small>
   </div>
-  <div class="d-flex align-items-center gap-2 flex-shrink-0" onclick="event.stopPropagation()">
+  <div class="d-flex align-items-center gap-2 flex-shrink-0" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()">
     <form action="{{ url_for('user_update_assign_progress', assignment_id=a.id) }}" method="POST" class="d-flex align-items-center gap-2" style="min-width:100px;">
       <input type="range" name="progress" value="{{ a.progress }}" min="0" max="100" class="flex-grow-1" style="width:60px;min-width:60px;" onchange="this.form.submit()" title="拖动以更新进度">
       <small class="fw-bold" style="font-size:.82rem;min-width:2.2em;color:var(--primary);">{{ a.progress }}%</small>
@@ -65,25 +73,10 @@
       </button>
     </form>
     {% endif %}
+    </div>
   </div>
-</div>
+{% endif %}
 {% endmacro %}
-
-<div class="d-flex justify-content-between align-items-center mb-4">
-  <div>
-    <h1 style="font-size:1.5rem;font-weight:700;color:var(--gray-900);margin:0;">欢迎回来，{{ current_user.name or current_user.username }}</h1>
-    <p style="font-size:.82rem;color:var(--gray-400);margin:4px 0 0;">{{ now.strftime('%Y年%m月%d日 %A') }}</p>
-  </div>
-  <div class="d-flex gap-2 d-md-none flex-shrink-0">
-    <a href="{{ url_for('notifications') }}" class="btn btn-outline-primary d-flex align-items-center justify-content-center" style="width:44px;height:44px;border-radius:var(--radius-sm);position:relative;" title="通知">
-      <i class="bi bi-bell" style="font-size:1.1rem;"></i>
-      {% if unread_notifications > 0 %}<span class="badge bg-danger" style="position:absolute;top:-6px;right:-6px;font-size:.6rem;padding:2px 5px;">{{ unread_notifications }}</span>{% endif %}
-    </a>
-    <a href="{{ url_for('logout') }}" class="btn btn-outline-secondary d-flex align-items-center justify-content-center" style="width:44px;height:44px;border-radius:var(--radius-sm);" title="退出登录">
-      <i class="bi bi-box-arrow-right" style="font-size:1.1rem;"></i>
-    </a>
-  </div>
-</div>
 
 <div class="stat-grid stat-grid-4 mb-4">
   <div class="stat-card card-lift" style="background:#e0f2fe;padding:12px 16px;">
@@ -129,6 +122,9 @@
             <option value="">全部</option>
             <option value="工作">工作</option>
             <option value="个人">个人</option>
+            <option value="会议">会议</option>
+            <option value="培训">培训</option>
+            <option value="考试">考试</option>
           </select>
           <small class="text-muted" style="font-size:.78rem;"><i class="bi bi-arrow-down-right-circle" style="color:var(--primary);"></i> 输入后自动搜索任务</small>
         </div>
@@ -224,6 +220,7 @@
       </div>
       <div class="list-group list-group-flush">
         {% for a in recent %}
+        {% if a.task %}
         <a href="{{ url_for('user_task_detail', task_id=a.task.id) }}" class="list-group-item d-flex align-items-center gap-2 py-2 px-3 text-decoration-none" style="color:var(--gray-800);cursor:pointer;transition:background .15s;" onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background='transparent'">
           <span class="avatar avatar-sm" style="background:var(--success);">{{ (current_user.name or current_user.username)[0]|upper }}</span>
           <div class="flex-grow-1 overflow-hidden">
@@ -233,6 +230,7 @@
           <span class="status-badge status-completed flex-shrink-0" style="font-size:.68rem;padding:2px 10px;">完成</span>
           <i class="bi bi-chevron-right flex-shrink-0" style="color:var(--gray-300);font-size:.75rem;"></i>
         </a>
+        {% endif %}
         {% endfor %}
       </div>
     </div>
@@ -346,12 +344,70 @@
     </div>
   </div>
 </div>
+
+<!-- Task Edit Modal -->
+<div class="modal fade" id="editTaskModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="border-radius:var(--radius);border:none;box-shadow:var(--shadow-lg);">
+      <form method="POST" action="{{ url_for('user_edit_task') }}">
+        <input type="hidden" name="task_id" id="editTaskId">
+        <div class="modal-header" style="border-bottom:1px solid var(--gray-100);">
+          <h5 class="modal-title" style="font-size:.95rem;font-weight:600;"><i class="bi bi-pencil"></i> 编辑任务</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label" style="font-size:.85rem;font-weight:500;">任务标题</label>
+            <input type="text" name="title" id="editTaskTitle" class="form-control" required style="font-size:.9rem;">
+          </div>
+          <div class="mb-3">
+            <label class="form-label" style="font-size:.85rem;font-weight:500;">分类</label>
+            <select name="category" id="editTaskCategory" class="form-select" style="max-width:200px;font-size:.85rem;">
+              <option value="工作">工作</option>
+              <option value="个人">个人</option>
+              <option value="会议">会议</option>
+              <option value="培训">培训</option>
+              <option value="考试">考试</option>
+            </select>
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-6">
+              <label class="form-label" style="font-size:.85rem;font-weight:500;">开始时间</label>
+              <input type="text" name="start_time" id="editTaskStart" class="form-control" placeholder="YYYY-MM-DD HH:MM" style="font-size:.85rem;">
+            </div>
+            <div class="col-6">
+              <label class="form-label" style="font-size:.85rem;font-weight:500;">截止时间</label>
+              <input type="text" name="end_time" id="editTaskEnd" class="form-control" placeholder="YYYY-MM-DD HH:MM" style="font-size:.85rem;">
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label" style="font-size:.85rem;font-weight:500;">描述</label>
+            <textarea name="description" id="editTaskDesc" class="form-control" rows="3" style="font-size:.85rem;"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid var(--gray-100);">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-check-lg"></i> 保存修改</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 <script>
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function linkifyText(s) {
+  return s.replace(/(https?:\/\/[^\s<>"\')\]，。、！？]+)/g,
+    '<a href="$1" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:underline;">$1</a>');
+}
 function openTaskDrawer(id, title, desc, start, end, progress, status, note, attachment) {
   document.getElementById('drawerTitle').textContent = title;
   var descEl = document.getElementById('drawerDesc');
   if (desc && desc !== title) {
-    descEl.textContent = desc;
+    descEl.innerHTML = linkifyText(escapeHtml(desc)).replace(/\n/g, '<br>');
     descEl.style.display = 'block';
   } else { descEl.style.display = 'none'; }
   document.getElementById('drawerStart').textContent = start;
@@ -384,6 +440,16 @@ function openTaskDrawer(id, title, desc, start, end, progress, status, note, att
 function closeTaskDrawer() {
   document.getElementById('taskDrawer').classList.add('d-none');
   document.getElementById('drawerOverlay').classList.add('d-none');
+}
+function openEditTaskModal(el) {
+  var d = el.dataset;
+  document.getElementById('editTaskId').value = d.taskId;
+  document.getElementById('editTaskTitle').value = d.title || '';
+  document.getElementById('editTaskCategory').value = d.category || '工作';
+  document.getElementById('editTaskStart').value = d.startEdit || '';
+  document.getElementById('editTaskEnd').value = d.endEdit || '';
+  document.getElementById('editTaskDesc').value = d.descEdit || '';
+  new bootstrap.Modal(document.getElementById('editTaskModal')).show();
 }
 </script>
 
@@ -524,7 +590,7 @@ function doSearch(q, cat) {
         data.forEach(function(t) {
           var statusMap = {'pending':'进行中','completed':'已完成','approved':'已确认','rejected':'已驳回','abandoned':'已废弃'};
           var statusClass = 'status-' + t.status;
-          var catColor = t.category === '工作' ? 'var(--primary)' : t.category === '个人' ? 'var(--success)' : 'var(--warning)';
+          var catColor = t.category === '工作' ? 'var(--primary)' : t.category === '个人' ? 'var(--success)' : t.category === '会议' ? 'var(--meeting)' : t.category === '培训' ? 'var(--training)' : t.category === '考试' ? 'var(--exam)' : 'var(--warning)';
           var overdue = t.status === 'pending' && new Date(t.end_time) < new Date();
           var item = document.createElement('a');
           item.href = t.detail_url;

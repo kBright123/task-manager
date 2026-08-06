@@ -13,3 +13,6 @@ opencv-python-headless>=4.9.0
 pillow>=10.0.0
 requests>=2.31.0
 sochdb>=0.8.0
+# fasttext 官方包在 Linux 下无预编译 wheel,需 gcc 源码编译;使用社区预编译
+# wheel(fasttext-wheel)作为替代,导入名仍为 fasttext。
+fasttext-wheel==0.9.2

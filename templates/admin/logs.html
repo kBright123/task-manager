@@ -2,7 +2,6 @@
 {% block title %}后台管理{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-  <h1 style="font-size:1.5rem;font-weight:700;color:var(--gray-900);margin:0;">后台管理</h1>
   <div class="d-flex gap-2 align-items-center">
     <span class="badge" style="background:var(--gray-100);color:var(--gray-600);font-size:.7rem;">共 {{ total_logs }} 条</span>
     <span class="badge" style="background:var(--primary-light);color:var(--primary);font-size:.7rem;">{{ total_users }} 位用户操作</span>
@@ -16,54 +15,10 @@
   <li class="nav-item">
     <a class="nav-link active" href="{{ url_for('admin_logs') }}" style="font-size:.85rem;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);"><i class="bi bi-journal-text"></i> 操作日志</a>
   </li>
+  <li class="nav-item">
+    <a class="nav-link" href="{{ url_for('admin_emails') }}" style="font-size:.85rem;color:var(--gray-500);"><i class="bi bi-envelope"></i> 邮件记录</a>
+  </li>
 </ul>
-
-<div class="row g-3 mb-3">
-  <div class="col-md-3">
-    <div class="card p-3">
-      <div class="d-flex align-items-center justify-content-between">
-        <div>
-          <small class="text-muted" style="font-size:.7rem;">登录相关</small>
-          <div style="font-size:1.3rem;font-weight:700;">{{ action_counts.get('login', 0) + action_counts.get('login_fail', 0) + action_counts.get('logout', 0) }}</div>
-        </div>
-        <i class="bi bi-box-arrow-in-right" style="font-size:1.4rem;color:var(--primary);"></i>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card p-3">
-      <div class="d-flex align-items-center justify-content-between">
-        <div>
-          <small class="text-muted" style="font-size:.7rem;">知识库管理</small>
-          <div style="font-size:1.3rem;font-weight:700;">{{ action_counts.get('kb_upload', 0) + action_counts.get('kb_delete', 0) + action_counts.get('kb_reprocess', 0) + action_counts.get('kb_export', 0) + action_counts.get('kb_bulk_delete', 0) + action_counts.get('kb_bulk_reprocess', 0) + action_counts.get('kb_bulk_export', 0) + action_counts.get('kb_collection_create', 0) + action_counts.get('kb_collection_update', 0) + action_counts.get('kb_collection_delete', 0) + action_counts.get('kb_collection_assign', 0) }}</div>
-        </div>
-        <i class="bi bi-collection" style="font-size:1.4rem;color:var(--primary);"></i>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card p-3">
-      <div class="d-flex align-items-center justify-content-between">
-        <div>
-          <small class="text-muted" style="font-size:.7rem;">上传文档</small>
-          <div style="font-size:1.3rem;font-weight:700;">{{ action_counts.get('kb_upload', 0) }}</div>
-        </div>
-        <i class="bi bi-cloud-arrow-up" style="font-size:1.4rem;color:var(--primary);"></i>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card p-3">
-      <div class="d-flex align-items-center justify-content-between">
-        <div>
-          <small class="text-muted" style="font-size:.7rem;">删除文档</small>
-          <div style="font-size:1.3rem;font-weight:700;">{{ action_counts.get('kb_delete', 0) + action_counts.get('kb_bulk_delete', 0) }}</div>
-        </div>
-        <i class="bi bi-trash" style="font-size:1.4rem;color:var(--danger);"></i>
-      </div>
-    </div>
-  </div>
-</div>
 
 <div class="card mb-3">
   <div class="card-header py-2 px-3" style="border-bottom:1px solid var(--gray-100);">

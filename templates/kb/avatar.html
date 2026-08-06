@@ -13,11 +13,25 @@
   .chat-wrap { display: flex; flex-direction: column; gap: 8px;
     max-height: 60vh; overflow-y: auto; padding: 8px 0; }
   .chat-bubble { max-width: 82%; padding: 10px 14px; border-radius: 12px;
-    font-size: .88rem; line-height: 1.6; word-break: break-word; }
+    font-size: .88rem; line-height: 1.6; word-break: break-word; overflow-wrap: break-word;
+    flex-shrink: 0; }
   .chat-bubble.user { background: var(--primary); color: #fff;
     margin-left: auto; border-bottom-right-radius: 4px; }
   .chat-bubble.avatar { background: var(--gray-100); color: var(--gray-800);
     margin-right: auto; border-bottom-left-radius: 4px; }
+  .chat-bubble.avatar a { color: var(--primary); }
+  .md-body p { margin: 0 0 6px; }
+  .md-body p:last-child { margin-bottom: 0; }
+  .md-body h1, .md-body h2, .md-body h3, .md-body h4, .md-body h5, .md-body h6 { font-size: .95rem; font-weight: 700; margin: 8px 0 4px; }
+  .md-body ul, .md-body ol { margin: 0 0 6px; padding-left: 20px; }
+  .md-body li { margin: 2px 0; }
+  .md-body pre { background: var(--gray-200); padding: 8px 10px; border-radius: 8px; overflow-x: auto; font-size: .78rem; margin: 6px 0; }
+  .md-body code { background: var(--gray-200); padding: 1px 5px; border-radius: 4px; font-size: .8em; }
+  .md-body pre code { background: transparent; padding: 0; }
+  .md-body blockquote { border-left: 3px solid var(--primary-light); padding-left: 10px; color: var(--gray-500); margin: 6px 0; }
+  .md-body table { max-width: 100%; border-collapse: collapse; margin: 6px 0; }
+  .md-body th, .md-body td { border: 1px solid var(--gray-200); padding: 4px 8px; }
+  .md-body hr { border: none; border-top: 1px solid var(--gray-200); margin: 8px 0; }
   .chat-input-row { display: flex; gap: 8px; margin-top: 12px; }
   .chat-input-row input { flex: 1; }
   .chat-empty { text-align: center; padding: 40px 10px; color: var(--gray-400); }
@@ -56,6 +70,9 @@
 </div>
 {% endblock %}
 {% block extra_js %}
+<script src="https://cdn.bootcdn.net/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<script src="{{ url_for('static', filename='kb_markdown.js') }}"></script>
 <script>
 var chatMessages = [];
 
@@ -75,7 +92,11 @@ function submitAvatar() {
   }).then(function (r) { return r.json(); }).then(function (d) {
     loading.classList.add('d-none');
     if (d.ok) {
-      appendBubble('avatar', d.answer || '');
+      if (d.empty) {
+        appendEmptyHint(d.answer || '');
+      } else {
+        appendBubble('avatar', d.answer || '没有生成回答，请重试');
+      }
       (d.sources || []).forEach(function (s) {
         var a = document.createElement('a');
         a.className = 'source-tag';
@@ -94,16 +115,29 @@ function submitAvatar() {
   });
 }
 
+function appendEmptyHint(text) {
+  var wrap = document.getElementById('chatWrap');
+  var hint = document.createElement('div');
+  hint.className = 'chat-empty';
+  hint.innerHTML = '<i class="bi bi-inbox"></i><div></div>';
+  hint.lastElementChild.textContent = text;
+  wrap.appendChild(hint);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
 function appendBubble(role, text) {
   var wrap = document.getElementById('chatWrap');
   var bubble = document.createElement('div');
   bubble.className = 'chat-bubble ' + role;
-  if (window.marked && window.DOMPurify) {
-    bubble.innerHTML = DOMPurify.sanitize(marked.parse(text));
+  var content = document.createElement('div');
+  content.className = 'md-body';
+  var rendered = window.renderMarkdown ? window.renderMarkdown(text) : null;
+  if (rendered) {
+    content.innerHTML = rendered;
   } else {
-    bubble.textContent = text;
-    bubble.style.whiteSpace = 'pre-wrap';
+    content.innerHTML = window.mdLite ? window.mdLite(text) : String(text);
   }
+  bubble.appendChild(content);
   wrap.appendChild(bubble);
   wrap.scrollTop = wrap.scrollHeight;
 }

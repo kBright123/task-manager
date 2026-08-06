@@ -1,0 +1,21 @@
+<style>
+  .kb-tabs { display: flex; gap: 4px; background: var(--gray-100); padding: 4px;
+    border-radius: var(--radius-sm); margin-bottom: 14px; width: fit-content;
+    max-width: 100%; overflow-x: auto; }
+  .kb-tabs a { display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 18px; border-radius: 6px; font-size: .85rem; font-weight: 600;
+    color: var(--gray-500); text-decoration: none; white-space: nowrap; transition: all .15s; }
+  .kb-tabs a:hover { color: var(--gray-700); background: rgba(255,255,255,.6); }
+  .kb-tabs a.active { color: var(--primary); background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+</style>
+<div class="kb-tabs">
+  <a href="{{ url_for('kb.workbench') }}" class="{% if request.endpoint == 'kb.workbench' %}active{% endif %}">
+    <i class="bi bi-search"></i> 检索
+  </a>
+  <a href="{{ url_for('kb.ask') }}" class="{% if request.endpoint == 'kb.ask' %}active{% endif %}">
+    <i class="bi bi-person-fill"></i> 分身问答
+  </a>
+  <a href="{{ url_for('kb.index') }}" class="{% if request.endpoint in ('kb.index', 'kb.doc_detail') %}active{% endif %}">
+    <i class="bi bi-collection"></i> 文档管理
+  </a>
+</div>

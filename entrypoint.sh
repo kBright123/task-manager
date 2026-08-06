@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-chmod 644 /app/app.py /app/knowledge.py 2>/dev/null || true
+for f in /app/app.py /app/knowledge.py /app/classifier.py /app/reminder_worker.py; do
+  if [ ! -r "$f" ]; then
+    chmod 644 "$f" 2>/dev/null || true
+    if [ ! -r "$f" ]; then
+      echo "[entrypoint] ERROR: $f 不可读(bind mount 文件属主非当前用户)。" >&2
+      echo "[entrypoint] 请在宿主机执行: chmod 644 $f" >&2
+      exit 1
+    fi
+  fi
+done
 
 SOCHDB_PATH="${KB_SOCHDB_PATH:-/app/instance/kb_data/kb.soch}"
 mkdir -p "$(dirname "$SOCHDB_PATH")"
@@ -26,7 +35,7 @@ fi
 echo "[entrypoint] sochdb-server ready"
 
 if [ "${KB_AUTO_RELOAD:-0}" = "1" ]; then
-  echo "[entrypoint] starting kb_worker (auto-reload on)"
+  echo "[entrypoint] starting kb_worker + reminder_worker (auto-reload on)"
   python -u - <<'PY' &
 import os
 import signal
@@ -34,7 +43,8 @@ import subprocess
 import sys
 import time
 
-WATCHED = ('/app/knowledge.py',)
+WATCHED = ('/app/app.py', '/app/knowledge.py', '/app/classifier.py', '/app/reminder_worker.py')
+SCRIPTS = {'kb': 'knowledge.py', 'reminder': 'reminder_worker.py'}
 INTERVAL = 1.0
 stop = False
 
@@ -48,48 +58,49 @@ signal.signal(signal.SIGTERM, _sig)
 signal.signal(signal.SIGINT, _sig)
 
 
-def _spawn():
-    return subprocess.Popen([sys.executable, '-u', 'knowledge.py'], cwd='/app')
+def _spawn(name):
+    return subprocess.Popen([sys.executable, '-u', SCRIPTS[name]], cwd='/app')
 
 
-proc = _spawn()
+procs = {name: _spawn(name) for name in SCRIPTS}
 mtimes = {}
 try:
     while not stop:
         time.sleep(INTERVAL)
-        changed = proc.poll() is not None
+        changed = [name for name, proc in procs.items() if proc.poll() is not None]
         for path in WATCHED:
             try:
                 m = os.path.getmtime(path)
             except OSError:
                 m = None
             if path in mtimes and m is not None and m != mtimes[path]:
-                changed = True
+                changed = [name for name, proc in procs.items()
+                           if proc.poll() is None]
             mtimes[path] = m
-        if not changed:
-            continue
+        for name in set(changed):
+            proc = procs[name]
+            if proc.poll() is None:
+                print('[reloader] code changed, restarting ' + name, flush=True)
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+            procs[name] = _spawn(name)
+finally:
+    for _name, proc in procs.items():
         if proc.poll() is None:
-            print('[reloader] code changed, restarting kb_worker', flush=True)
             proc.terminate()
             try:
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 proc.kill()
-        else:
-            print('[reloader] kb_worker exited, restarting', flush=True)
-        proc = _spawn()
-finally:
-    if proc.poll() is None:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
 PY
   WORKER_PID=$!
 else
-  echo "[entrypoint] starting kb_worker"
+  echo "[entrypoint] starting kb_worker + reminder_worker"
   python knowledge.py &
+  python reminder_worker.py &
   WORKER_PID=$!
 fi
 

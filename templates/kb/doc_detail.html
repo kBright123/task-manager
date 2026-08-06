@@ -1,15 +1,20 @@
 {% extends "base.html" %}
 {% block title %}{{ doc.title }} - 知识库{% endblock %}
 {% block content %}
+{% include 'kb/_tabs.html' %}
 <nav class="mb-3">
-  <a href="{{ url_for('kb.workbench') }}" style="color:var(--primary);text-decoration:none;">
-    <i class="bi bi-arrow-left"></i> 返回工作台
+  <a href="{{ url_for('kb.index') }}" style="color:var(--primary);text-decoration:none;">
+    <i class="bi bi-arrow-left"></i> 返回文档列表
   </a>
 </nav>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
-    <h4 style="font-weight:700;color:var(--gray-900);margin:0;">{{ doc.title }}</h4>
+    <h4 style="font-weight:700;color:var(--gray-900);margin:0;">{{ doc.title }}
+      {% if doc.collection %}
+      <span class="badge" style="background:{{ doc.collection.color }}22;color:{{ doc.collection.color }};font-size:.65rem;vertical-align:middle;">{{ doc.collection.name }}{% if doc.auto_classified %} · 自动分类{% endif %}</span>
+      {% endif %}
+    </h4>
     <small class="text-muted">{{ doc.file_type|upper }} ·
       {{ "{:,}".format(doc.file_size) }} 字节 · 上传于 {{ doc.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
   </div>

@@ -2,7 +2,7 @@
 {% block title %}任务发布{% endblock %}
 {% block content %}
 
-{% macro task_row(task, is_other) %}
+{% macro task_row(task, is_other, show_check=False) %}
 {% set s = task_stats.get(task.id, {'total': 0, 'completed': 0, 'abandoned': 0, 'pending': 0}) %}
 {% set total_count = s['total'] %}
 {% set completed_count = s['completed'] %}
@@ -12,9 +12,14 @@
 {% set my_pending = my_assignment if my_assignment and my_assignment.status == 'pending' else None %}
 {% set my_completed = my_assignment if my_assignment and my_assignment.status != 'pending' else None %}
 <tr{% if abandoned_all %} style="opacity:.5;"{% endif %}>
+  {% if show_check %}
+  <td style="padding:4px 4px;width:34px;">
+    <input type="checkbox" class="form-check-input task-check" value="{{ task.id }}" style="margin-top:2px;">
+  </td>
+  {% endif %}
   <td style="padding:4px 10px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
     <a href="{{ url_for('admin_task_detail' if is_other else ('admin_task_detail' if is_admin else 'user_task_detail'), task_id=task.id) }}" style="font-weight:600;font-size:.8rem;color:var(--gray-800);text-decoration:none;" title="{{ task.title }}">{{ task.title[:20] }}{% if task.title|length > 20 %}…{% endif %}</a>
-    <div><span class="badge" style="background:{{ 'var(--primary)' if task.category == '工作' else 'var(--success)' if task.category == '个人' else 'var(--warning)' }};font-size:.5rem;">{{ task.category }}</span></div>
+    <div><span class="badge" style="background:{{ 'var(--primary)' if task.category == '工作' else 'var(--success)' if task.category == '个人' else 'var(--meeting)' if task.category == '会议' else 'var(--training)' if task.category == '培训' else 'var(--exam)' if task.category == '考试' else 'var(--warning)' }};font-size:.5rem;">{{ task.category }}</span></div>
   </td>
   <td style="padding:4px 8px;font-size:.68rem;white-space:nowrap;">
     <span style="color:var(--gray-600);">分配{{ total_count }}</span>
@@ -43,14 +48,10 @@
 <div class="row g-4">
   <div class="col-lg-7">
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 style="font-size:1.5rem;font-weight:700;color:var(--gray-900);margin:0;">发布任务</h1>
-</div>
-
 {% if preview %}
 {% if duplicate_tasks %}
-<div class="alert alert-warning py-2 px-3 mb-3" style="font-size:.82rem;border-left:4px solid #f59e0b;">
-  <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle"></i> 检测到相似任务（相似度 ≥ 85%），请确认是否继续发布</div>
+<div class="alert {% if duplicate_blocked %}alert-danger{% else %}alert-warning{% endif %} py-2 px-3 mb-3" style="font-size:.82rem;border-left:4px solid {% if duplicate_blocked %}#ef4444{% else %}#f59e0b{% endif %};">
+  <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle"></i> 与现有未完成任务相似度过高（相似度 ≥ 70%），{% if duplicate_blocked %}不允许发布，请修改后重新提交{% else %}请确认是否继续发布{% endif %}</div>
   {% for d in duplicate_tasks %}
   <div class="py-1 {% if not loop.last %}border-bottom{% endif %}" style="border-color:rgba(0,0,0,.06)!important;">
     <div class="d-flex justify-content-between align-items-center">
@@ -70,7 +71,7 @@
       {% if d.desc_sim >= 70 %}<span class="mx-1">·</span><span>描述 {{ d.desc_sim }}%</span>{% endif %}
     </div>
     {% if d.task.description %}
-    <div class="mt-1 p-1 rounded" style="background:rgba(0,0,0,.03);font-size:.7rem;color:var(--gray-600);max-height:40px;overflow:hidden;">{{ d.task.description[:100] }}{% if d.task.description|length > 100 %}…{% endif %}</div>
+    <div class="mt-1 p-1 rounded" style="background:rgba(0,0,0,.03);font-size:.7rem;color:var(--gray-600);max-height:40px;overflow:hidden;">{{ (d.task.description[:100] ~ ('…' if d.task.description|length > 100 else ''))|linkify }}</div>
     {% endif %}
   </div>
   {% endfor %}
@@ -84,7 +85,6 @@
   <div class="card-body py-3 px-3">
   <form method="POST">
     <input type="hidden" name="action" value="save">
-    {% if duplicate_tasks %}<input type="hidden" name="confirm_duplicate" value="1">{% endif %}
     <div class="row g-3">
       <div class="col-md-6 d-flex flex-column">
         <div class="mb-2">
@@ -104,7 +104,14 @@
         <div class="row g-2 mb-2">
           <div class="col-5">
             <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">类型</label>
-            <input type="text" name="category" class="form-control" value="{{ preview.category or '工作' }}" style="font-size:.84rem;padding:4px 8px;" placeholder="工作 / 个人">
+            <select name="category" class="form-select" style="font-size:.84rem;padding:4px 8px;">
+              <option value="工作" {% if preview.category == '工作' %}selected{% endif %}>工作</option>
+              <option value="个人" {% if preview.category == '个人' %}selected{% endif %}>个人</option>
+              <option value="会议" {% if preview.category == '会议' %}selected{% endif %}>会议</option>
+              <option value="培训" {% if preview.category == '培训' %}selected{% endif %}>培训</option>
+              <option value="考试" {% if preview.category == '考试' %}selected{% endif %}>考试</option>
+              {% if preview.category and preview.category not in ['工作', '个人', '会议', '培训', '考试'] %}<option value="{{ preview.category }}" selected>{{ preview.category }}</option>{% endif %}
+            </select>
           </div>
           <div class="col-7">
             <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">周期</label>
@@ -135,7 +142,7 @@
             <div class="d-flex flex-wrap gap-1">
               {% for g in user_groups %}
               <label class="form-check form-check-inline" style="font-size:.8rem;cursor:pointer;margin-right:6px;">
-                <input class="form-check-input" type="checkbox" name="group_ids" value="{{ g.id }}" style="margin-top:2px;">
+                <input class="form-check-input" type="checkbox" name="group_ids" value="{{ g.id }}" style="margin-top:2px;"{% if preview.group_ids and g.id|string in preview.group_ids %} checked{% endif %}>
                 {{ g.name }} <small style="color:var(--gray-400);font-size:.68rem;">({{ g.members|length }}人)</small>
               </label>
               {% endfor %}
@@ -156,8 +163,9 @@
             {% for u in users %}
             {% set checked_self = u.id == current_user.id %}
             {% set matched = preview.assignees and (u.name in preview.assignees or u.username in preview.assignees) %}
+            {% set matched_ids = preview.assignee_ids and (u.id|string in preview.assignee_ids) %}
             <label class="form-check form-check-inline" style="font-size:.8rem;cursor:pointer;margin-right:6px;">
-              <input class="form-check-input" type="checkbox" name="assignee_ids" value="{{ u.id }}" style="margin-top:2px;"{% if matched or checked_self %} checked{% endif %}{% if u.id == current_user.id %} data-self="1"{% endif %}>
+              <input class="form-check-input" type="checkbox" name="assignee_ids" value="{{ u.id }}" style="margin-top:2px;"{% if matched or matched_ids or checked_self %} checked{% endif %}{% if u.id == current_user.id %} data-self="1"{% endif %}>
               {{ u.name or u.username }}{% if u.id == current_user.id %} <small style="color:var(--gray-400);font-size:.68rem;">(自己)</small>{% endif %}
             </label>
             {% endfor %}
@@ -378,13 +386,22 @@ function applyCustomRecurrence() {
 {% if my_tasks %}
 <div class="card mb-3">
   <div class="card-header d-flex justify-content-between align-items-center py-2 px-3" style="background:var(--gray-50);">
-    <span style="font-size:.82rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-inbox"></i> 我创建的任务</span>
-    <span class="badge bg-secondary" style="font-size:.6rem;">{{ my_tasks|length }}</span>
+    <div class="d-flex align-items-center gap-2">
+      <span style="font-size:.82rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-inbox"></i> 我创建的任务</span>
+      <span class="badge bg-secondary" style="font-size:.6rem;">{{ my_tasks|length }}</span>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <span id="batchSelCount" style="font-size:.7rem;color:var(--gray-500);display:none;">已选 0</span>
+      <button class="btn btn-sm btn-outline-danger" id="batchDeleteBtn" style="padding:2px 10px;font-size:.72rem;display:none;" onclick="batchDeleteTasks()"><i class="bi bi-trash"></i> 批量删除</button>
+    </div>
   </div>
   <div class="table-responsive">
     <table class="table table-hover" style="font-size:.78rem;">
       <thead>
         <tr>
+          <th style="padding:6px 4px;width:34px;">
+            <input type="checkbox" class="form-check-input" id="taskCheckAll" style="margin-top:2px;" onchange="toggleCheckAll(this)">
+          </th>
           <th style="padding:6px 10px;">任务</th>
           <th style="padding:6px 8px;width:110px;">进度</th>
           <th style="padding:6px 8px;width:44px;">截止</th>
@@ -393,18 +410,18 @@ function applyCustomRecurrence() {
       </thead>
       <tbody id="taskTableBody">
         {% for task in my_tasks[:5] %}
-        {{ task_row(task, False) }}
+        {{ task_row(task, False, True) }}
         {% endfor %}
       </tbody>
       {% if my_tasks|length > 5 %}
       <tbody id="taskTableExtra" style="display:none;">
         {% for task in my_tasks[5:] %}
-        {{ task_row(task, False) }}
+        {{ task_row(task, False, True) }}
         {% endfor %}
       </tbody>
       <tfoot>
         <tr>
-          <td colspan="4" class="text-center py-1">
+          <td colspan="5" class="text-center py-1">
             <button class="btn btn-sm btn-link" style="font-size:.75rem;color:var(--primary);text-decoration:none;" data-total="{{ my_tasks|length }}" onclick="toggleAllTasks(this)">展开全部 ({{ my_tasks|length }}条)</button>
           </td>
         </tr>
@@ -477,6 +494,47 @@ function toggleAllTasks(btn) {
     extra.style.display = 'none';
     btn.textContent = '展开全部 (' + btn.dataset.total + '条)';
   }
+}
+function updateBatchUI() {
+  var checks = document.querySelectorAll('#taskTableBody .task-check, #taskTableExtra .task-check');
+  var count = Array.prototype.filter.call(checks, function (c) { return c.checked; }).length;
+  var sel = document.getElementById('batchSelCount');
+  var btn = document.getElementById('batchDeleteBtn');
+  if (count > 0) {
+    sel.style.display = 'inline';
+    sel.textContent = '已选 ' + count;
+    btn.style.display = 'inline-block';
+  } else {
+    sel.style.display = 'none';
+    btn.style.display = 'none';
+  }
+}
+function toggleCheckAll(el) {
+  document.querySelectorAll('#taskTableBody .task-check, #taskTableExtra .task-check')
+    .forEach(function (c) { c.checked = el.checked; });
+  updateBatchUI();
+}
+document.addEventListener('change', function (e) {
+  if (e.target.classList && e.target.classList.contains('task-check')) updateBatchUI();
+});
+function batchDeleteTasks() {
+  var ids = [];
+  document.querySelectorAll('#taskTableBody .task-check:checked, #taskTableExtra .task-check:checked')
+    .forEach(function (c) { ids.push(parseInt(c.value, 10)); });
+  if (!ids.length) return;
+  if (!confirm('确定删除选中的 ' + ids.length + ' 个任务吗？删除后无法恢复。')) return;
+  var form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '{{ url_for('user_batch_delete_tasks') }}';
+  ids.forEach(function (id) {
+    var inp = document.createElement('input');
+    inp.type = 'hidden';
+    inp.name = 'task_ids';
+    inp.value = id;
+    form.appendChild(inp);
+  });
+  document.body.appendChild(form);
+  form.submit();
 }
 </script>
 {% endblock %}

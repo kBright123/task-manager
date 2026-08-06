@@ -2,21 +2,17 @@
 {% block title %}知识库工作台 - 知行合一 + 数字分身{% endblock %}
 {% block extra_css %}
 <style>
-  .wb { display: flex; flex-direction: column; height: calc(100vh - var(--nav-height) - 88px); gap: 12px; }
+  .wb { display: flex; flex-direction: column; height: calc(100vh - var(--nav-height) - 148px); gap: 12px; }
   @media (max-width: 767px) { .wb { height: auto; } }
   .wb-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; }
+  @media (max-width: 767px) { .wb-top { flex-wrap: wrap; } }
   .wb-body { flex: 1; display: flex; gap: 12px; min-height: 0; }
-  @media (max-width: 767px) { .wb-body { flex-direction: column; } }
-  .wb-left { width: 40%; display: flex; flex-direction: column; gap: 12px; min-width: 0; overflow-y: auto; padding-right: 4px; }
-  @media (min-width: 768px) and (max-width: 1439px) { .wb-left { width: 42%; } }
-  @media (max-width: 767px) { .wb-left { width: 100%; } }
-  .wb-right { flex: 1; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-  @media (max-width: 767px) { .wb-right { display: none; } }
+  .wb-left { width: 100%; display: flex; flex-direction: column; gap: 12px; min-width: 0; overflow-y: auto; padding-right: 4px; }
 
   .preview-modal { position: fixed; inset: 0; z-index: 1050; display: none; }
   .preview-modal-mask { position: absolute; inset: 0; background: rgba(15, 23, 42, .55); }
-  .preview-modal-sheet { position: relative; margin: auto 0 0; width: 100%; max-height: 88vh; background: #fff; border-radius: 16px 16px 0 0; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 -8px 30px rgba(0, 0, 0, .18); animation: wbSheetUp .22s ease-out; }
-  @keyframes wbSheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .preview-modal-sheet { position: relative; margin: auto 0 auto auto; width: 100%; max-width: 760px; height: 100%; max-height: 100%; background: #fff; border-radius: 16px 0 0 16px; display: flex; flex-direction: column; overflow: hidden; box-shadow: -8px 0 30px rgba(0, 0, 0, .18); animation: wbSheetRight .22s ease-out; }
+  @keyframes wbSheetRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
   .preview-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--gray-100); font-weight: 600; font-size: .9rem; flex-shrink: 0; }
   .preview-modal-body { padding: 14px; overflow-y: auto; }
 
@@ -40,23 +36,31 @@
   .answer-body a { color: var(--primary); }
   .answer-body mark { background: #fef08a; padding: 0 2px; border-radius: 2px; }
 
-  .chat-input-row { display: flex; gap: 8px; margin-top: 12px; }
-  .chat-input-row input { flex: 1; }
   .source-tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 100px; font-size: .72rem; background: var(--primary-light); color: var(--primary); font-weight: 500; cursor: pointer; border: 1px solid transparent; text-decoration: none; }
   .source-tag:hover { border-color: var(--primary); }
-
-  .avatar-chat-wrap { display: flex; flex-direction: column; gap: 8px; max-height: 50vh; overflow-y: auto; padding: 8px 0; }
-  .avatar-bubble { max-width: 82%; padding: 10px 14px; border-radius: 12px; font-size: .88rem; line-height: 1.6; word-break: break-word; }
-  .avatar-bubble.user { background: var(--primary); color: #fff; margin-left: auto; border-bottom-right-radius: 4px; }
-  .avatar-bubble.avatar { background: var(--gray-100); color: var(--gray-800); margin-right: auto; border-bottom-left-radius: 4px; }
-  .avatar-empty { text-align: center; padding: 40px 10px; color: var(--gray-400); }
-  .avatar-empty i { font-size: 2rem; display: block; margin-bottom: 8px; }
-  .avatar-typing { color: var(--gray-400); font-size: .82rem; padding: 4px 0; }
 
   .result-group { border-left: 3px solid var(--gray-200); padding-left: 12px; }
   .result-group .doc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .result-page { border-left: 3px solid var(--gray-100); padding-left: 10px; margin-top: 8px; }
   .result-page mark { background: #fef08a; padding: 0 2px; border-radius: 2px; }
+  .result-snippet {
+    font-size: .8rem;
+    color: var(--gray-600);
+    line-height: 1.65;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 100px;
+    overflow: hidden;
+    position: relative;
+  }
+  .result-snippet::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 24px;
+    background: linear-gradient(transparent, #fff);
+    pointer-events: none;
+  }
 
   .spinner-sm { width: 16px; height: 16px; border: 2px solid var(--gray-200); border-top-color: var(--primary); border-radius: 50%; animation: wbSpin .8s linear infinite; }
   @keyframes wbSpin { to { transform: rotate(360deg); } }
@@ -67,9 +71,10 @@
 </style>
 {% endblock %}
 {% block content %}
+{% include 'kb/_tabs.html' %}
 <div class="wb">
   <div class="wb-top">
-    <div class="search-wrap" style="flex:1;position:relative;">
+    <div class="search-wrap" style="flex:1;position:relative;min-width:0;">
       <div class="input-group">
         <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
         <input type="text" id="askInput" class="form-control"
@@ -79,22 +84,10 @@
       </div>
       <div class="suggest-box d-none" id="suggestBox"></div>
     </div>
-    <div class="d-flex gap-2 align-items-center">
-      <div class="dropdown">
-        <button class="btn btn-outline-secondary btn-xs-custom" data-bs-toggle="dropdown" title="提示词模板">
-          <i class="bi bi-lightning"></i>
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end" id="promptTemplates"></ul>
-      </div>
-      <button class="btn btn-outline-secondary btn-xs-custom" onclick="exportResults()" title="导出结果">
-        <i class="bi bi-download"></i>
-      </button>
+    <div class="d-flex gap-2 align-items-center flex-shrink-0">
       <span id="queuePill" class="status-badge status-pending d-none">
         <span class="spinner-sm"></span><span id="queuePillText">处理中</span>
       </span>
-      <a href="{{ url_for('kb.index') }}" class="btn btn-outline-primary btn-xs-custom">
-        <i class="bi bi-gear"></i> 文档管理
-      </a>
     </div>
   </div>
 
@@ -103,22 +96,8 @@
       <div class="card" id="resultCard" style="flex:1;display:flex;flex-direction:column;min-height:0;">
         <div class="card-header d-flex justify-content-between align-items-center">
           <span id="resultTitle"><i class="bi bi-search"></i> 检索结果</span>
-          <button class="btn btn-primary btn-sm" id="aiBtn" style="display:none;" onclick="runAiAnswer()">
-            <i class="bi bi-stars"></i> AI 回答
-          </button>
         </div>
         <div class="card-body" style="padding:16px;overflow-y:auto;">
-          <div id="answerSection" style="display:none;">
-            <div id="answerLoading" class="loading-answer d-none">
-              <span class="spinner-sm"></span> AI 正在根据检索结果生成回答...
-            </div>
-            <div id="answerBody"></div>
-            <div class="mt-3 pt-2 border-top" id="sourcesWrap" style="display:none;">
-              <small class="text-muted" style="font-size:.72rem;font-weight:600;">引用来源</small>
-              <div class="d-flex flex-wrap gap-2 mt-2" id="sourcesBox"></div>
-            </div>
-            <hr style="margin:18px 0;border-top:2px solid var(--gray-100);">
-          </div>
           <div id="searchLoading" class="loading-answer d-none">
             <span class="spinner-sm"></span> 正在检索...
           </div>
@@ -126,40 +105,6 @@
             <div class="empty-tip">
               <i class="bi bi-search"></i>
               <div>输入关键词或问题开始检索</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="wb-right">
-      <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0;">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <ul class="nav nav-tabs card-header-tabs" style="border-bottom:none;">
-            <li class="nav-item">
-              <a class="nav-link active" data-bs-toggle="tab" href="#previewTab">预览</a>
-            </li>
-          </ul>
-        </div>
-        <div class="card-body tab-content p-0" style="flex:1;overflow:hidden;">
-          <div class="tab-pane fade show active" id="previewTab">
-            <div id="previewCard" style="display:none;">
-              <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
-                <span id="previewTitle"><i class="bi bi-file-earmark-image"></i> 原始文件预览</span>
-                <div class="d-flex gap-2 align-items-center">
-                  <a href="#" id="previewOpenNew" class="btn btn-xs-custom btn-outline-primary" target="_blank"><i class="bi bi-box-arrow-up-right"></i> 新窗口打开</a>
-                  <button class="btn btn-xs-custom btn-outline-secondary" onclick="closePreview()">关闭</button>
-                </div>
-              </div>
-              <div class="card-body" style="padding:16px;">
-                <div id="previewBody"><div class="loading-answer"><span class="spinner-sm"></span> 加载中...</div></div>
-              </div>
-            </div>
-            <div id="previewPlaceholder" style="flex:1;display:flex;align-items:center;justify-content:center;">
-              <div class="empty-tip">
-                <i class="bi bi-file-earmark-image"></i>
-                <div>在左侧检索结果中点击任意条目<br>查看对应原始文件</div>
-              </div>
             </div>
           </div>
         </div>
@@ -179,85 +124,28 @@
         <div class="preview-modal-body" id="previewModalBody"></div>
       </div>
     </div>
+    </div>
   </div>
-</div>
 {% endblock %}
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 <script>
 var lastQuery = '';
+var kbUsers = {{ kb_users|tojson }};
+
 function submitQuery() {
   var q = document.getElementById('askInput').value.trim();
   if (!q) { document.getElementById('askInput').focus(); return; }
+  document.getElementById('askInput').value = q;
   lastQuery = q;
   searchQuery(q);
 }
 </script>
 <script>
-function renderAnswer(question, d) {
-  var card = document.getElementById('resultCard');
-  card.style.display = '';
-  document.getElementById('resultTitle').innerHTML = '<i class="bi bi-chat-square-text"></i> AI 回答' + (d.cached ? ' <span class="badge badge-low">已缓存</span>' : '');
-  var body = document.getElementById('answerBody');
-  var raw = d.answer || '';
-  if (window.marked && window.DOMPurify) {
-    body.innerHTML = DOMPurify.sanitize(marked.parse(raw));
-  } else {
-    body.textContent = raw;
-    body.style.whiteSpace = 'pre-wrap';
-  }
-  var srcBox = document.getElementById('sourcesBox');
-  srcBox.innerHTML = '';
-  (d.sources || []).forEach(function (s) {
-    var a = document.createElement('a');
-    a.className = 'source-tag';
-    a.href = '{{ url_for('kb.doc_detail', doc_id=0) }}'.replace('0', s.doc_id);
-    a.innerHTML = '<i class="bi bi-file-earmark-text"></i> ' + s.title + ' · 第' + s.page + '页';
-    srcBox.appendChild(a);
-  });
-  document.getElementById('sourcesWrap').style.display = (d.sources || []).length ? 'block' : 'none';
-  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function runAiAnswer() {
-  var q = lastQuery;
-  if (!q) return;
-  var aiBtn = document.getElementById('aiBtn');
-  var loading = document.getElementById('answerLoading');
-  aiBtn.disabled = true;
-  var old = aiBtn.innerHTML;
-  aiBtn.innerHTML = '<span class="spinner-sm" style="display:inline-block;"></span> 生成中';
-  loading.classList.remove('d-none');
-  document.getElementById('answerSection').style.display = 'block';
-  document.getElementById('answerBody').innerHTML = '';
-  fetch('{{ url_for('kb.api_ask') }}', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question: q })
-  }).then(function (r) { return r.json(); }).then(function (d) {
-    aiBtn.disabled = false;
-    aiBtn.innerHTML = old;
-    loading.classList.add('d-none');
-    if (!d.ok) {
-      document.getElementById('answerBody').innerHTML = '<div class="empty-tip">生成失败: ' + (d.error || '未知错误') + '</div>';
-      return;
-    }
-    renderAnswer(q, d);
-  }).catch(function (e) {
-    aiBtn.disabled = false;
-    aiBtn.innerHTML = old;
-    loading.classList.add('d-none');
-    document.getElementById('answerBody').innerHTML = '<div class="empty-tip">生成失败: ' + e.message + '</div>';
-  });
-}
-
 function renderSearch(q, d) {
   var card = document.getElementById('resultCard');
   card.style.display = '';
   document.getElementById('resultTitle').innerHTML = '<i class="bi bi-search"></i> 检索结果' + (d.cached ? ' <span class="badge badge-low">已缓存</span>' : '');
   document.getElementById('searchLoading').classList.add('d-none');
-  document.getElementById('answerSection').style.display = 'none';
   var groups = d.groups || [];
   var body = document.getElementById('resultBody');
   if (!groups.length) {
@@ -272,7 +160,7 @@ function renderSearch(q, d) {
           '<span class="badge badge-medium">第 ' + p.page_no + ' 页</span>' +
           '<small class="text-muted" style="font-size:.7rem;">相关度 ' + Math.round(p.score * 100) + '%</small>' +
           '</div>' +
-          '<p class="mb-0 mt-1" style="font-size:.82rem;color:var(--gray-600);line-height:1.6;">' + (p.snippet || '') + '</p>' +
+          '<div class="result-snippet mt-1">' + (p.snippet || '') + '</div>' +
           '<small class="text-muted" style="font-size:.68rem;color:var(--primary)!important;"><i class="bi bi-file-earmark-image"></i> 点击查看原页</small>' +
           '</div>';
       }).join('');
@@ -285,7 +173,6 @@ function renderSearch(q, d) {
         pages + '</div>';
     }).join('');
   }
-  document.getElementById('aiBtn').style.display = groups.length ? '' : 'none';
   card.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -296,15 +183,14 @@ function searchQuery(q) {
   document.getElementById('resultTitle').innerHTML = '<i class="bi bi-search"></i> 检索结果';
   document.getElementById('searchLoading').classList.remove('d-none');
   document.getElementById('resultBody').innerHTML = '';
-  document.getElementById('answerSection').style.display = 'none';
-  document.getElementById('aiBtn').style.display = 'none';
   btn.disabled = true;
   var label = btn.innerHTML;
   btn.innerHTML = '<span class="spinner-sm" style="display:inline-block;"></span>';
+  var body = { q: q };
   fetch('{{ url_for('kb.api_search') }}', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ q: q })
+    body: JSON.stringify(body)
   }).then(function (r) { return r.json(); }).then(function (d) {
     btn.disabled = false;
     btn.innerHTML = label;
@@ -326,10 +212,6 @@ function closePreview() {
   var modal = document.getElementById('previewModal');
   if (modal) modal.style.display = 'none';
   document.body.style.overflow = '';
-  var card = document.getElementById('previewCard');
-  if (card) card.style.display = 'none';
-  var ph = document.getElementById('previewPlaceholder');
-  if (ph) ph.style.display = 'flex';
   if (window._previewObjUrl) { URL.revokeObjectURL(window._previewObjUrl); window._previewObjUrl = null; }
 }
 
@@ -347,9 +229,9 @@ function loadPreview(url, titleEl, bodyEl, openNew, pageNo) {
     if (window._previewObjUrl) { URL.revokeObjectURL(window._previewObjUrl); }
     window._previewObjUrl = objUrl;
     if (ct.indexOf('image/') === 0) {
-      bodyEl.innerHTML = '<div style="text-align:center;background:var(--gray-100);border-radius:var(--radius-sm);padding:12px;">' +
-        '<img src="' + objUrl + '" style="max-width:100%;max-height:70vh;border-radius:6px;box-shadow:var(--shadow);">' +
-        '<div class="text-muted mt-2" style="font-size:.75rem;">如需放大可点击右上角"新窗口打开"</div></div>';
+      bodyEl.innerHTML = '<div style="background:var(--gray-100);border-radius:var(--radius-sm);padding:10px;overflow:auto;">' +
+        '<img src="' + objUrl + '" style="width:auto;max-width:none;max-height:calc(100vh - 120px);display:block;margin:0 auto;border-radius:6px;box-shadow:var(--shadow);">' +
+        '<div class="text-muted mt-2" style="font-size:.75rem;text-align:center;">图片过宽可横向滚动，或点击右上角"新窗口打开"查看原图</div></div>';
     } else {
       blob.text().then(function (t) {
         bodyEl.innerHTML = '<pre style="white-space:pre-wrap;font-family:var(--font);font-size:.85rem;background:var(--gray-50);border-radius:var(--radius-sm);padding:12px;color:var(--gray-700);max-height:70vh;overflow-y:auto;">' +
@@ -364,23 +246,12 @@ function loadPreview(url, titleEl, bodyEl, openNew, pageNo) {
 
 function openPreview(docId, pageNo) {
   var url = '{{ url_for('kb.preview', doc_id=0) }}'.replace('/0', '/' + docId) + (pageNo ? '?page=' + pageNo : '');
-  if (window.matchMedia('(max-width: 767px)').matches) {
-    var modal = document.getElementById('previewModal');
-    modal.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-    loadPreview(url, document.getElementById('previewModalTitle'),
-                document.getElementById('previewModalBody'),
-                document.getElementById('previewModalOpen'), pageNo);
-  } else {
-    var card = document.getElementById('previewCard');
-    card.style.display = 'flex';
-    card.style.flexDirection = 'column';
-    document.getElementById('previewPlaceholder').style.display = 'none';
-    loadPreview(url, document.getElementById('previewTitle'),
-                document.getElementById('previewBody'),
-                document.getElementById('previewOpenNew'), pageNo);
-    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
+  var modal = document.getElementById('previewModal');
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  loadPreview(url, document.getElementById('previewModalTitle'),
+              document.getElementById('previewModalBody'),
+              document.getElementById('previewModalOpen'), pageNo);
 }
 </script>
 <script>
@@ -491,158 +362,10 @@ function openPreview(docId, pageNo) {
   window.runHistoryQuery = function (q) {
     document.getElementById('askInput').value = q;
     lastQuery = q;
-    var aiBtn = document.getElementById('aiBtn');
-    var loading = document.getElementById('answerLoading');
-    aiBtn.disabled = true;
-    document.getElementById('answerSection').style.display = 'block';
-    document.getElementById('answerBody').innerHTML = '';
-    document.getElementById('searchLoading').classList.add('d-none');
-    loading.classList.remove('d-none');
-    fetch('{{ url_for('kb.api_history_answer') }}?q=' + encodeURIComponent(q))
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        loading.classList.add('d-none');
-        aiBtn.disabled = false;
-        if (d.ok) { renderAnswer(q, d); return; }
-        searchQuery(q);
-      })
-      .catch(function () {
-        loading.classList.add('d-none');
-        aiBtn.disabled = false;
-        searchQuery(q);
-      });
+    searchQuery(q);
   };
 })();
 
-// ---- Prompt templates (localStorage) ----
-(function () {
-  var TPL_KEY = 'kb_prompt_templates';
-  var defaults = [
-    { name: '总结要点', prompt: '请总结以下资料的要点，用简洁的条目列出：' },
-    { name: '对比分析', prompt: '请对比以下资料中的不同观点，分析异同：' },
-    { name: '提取行动项', prompt: '请从以下资料中提取可执行的行动项：' },
-    { name: '通俗解释', prompt: '请用通俗易懂的语言解释以下概念：' },
-    { name: '生成大纲', prompt: '请根据以下资料生成一个结构化大纲：' }
-  ];
-  function load() {
-    try { return JSON.parse(localStorage.getItem(TPL_KEY)) || defaults; }
-    catch (e) { return defaults; }
-  }
-  function save(tpls) { localStorage.setItem(TPL_KEY, JSON.stringify(tpls)); }
-  var ul = document.getElementById('promptTemplates');
-  if (ul) {
-    function render() {
-      ul.innerHTML = '';
-      load().forEach(function (t, i) {
-        var li = document.createElement('li');
-        var a = document.createElement('a');
-        a.className = 'dropdown-item';
-        a.href = '#';
-        a.textContent = t.name;
-        a.onclick = function () {
-          document.getElementById('askInput').value = t.prompt;
-          document.getElementById('askInput').focus();
-          return false;
-        };
-        li.appendChild(a);
-        ul.appendChild(li);
-      });
-      var sep = document.createElement('li');
-      sep.innerHTML = '<hr class="dropdown-divider">';
-      ul.appendChild(sep);
-      var addLi = document.createElement('li');
-      var addA = document.createElement('a');
-      addA.className = 'dropdown-item';
-      addA.href = '#';
-      addA.innerHTML = '<i class="bi bi-plus"></i> 新建模板';
-      addA.onclick = function () {
-        var name = prompt('模板名称：');
-        if (!name) return false;
-        var prompt = prompt('提示词内容：');
-        if (!prompt) return false;
-        var tpls = load();
-        tpls.push({ name: name, prompt: prompt });
-        save(tpls);
-        render();
-        return false;
-      };
-      addLi.appendChild(addA);
-      ul.appendChild(addLi);
-    }
-    render();
-  }
-})();
-
-// ---- Export results as markdown ----
-function exportResults() {
-  var title = document.getElementById('resultTitle').textContent.trim();
-  var body = document.getElementById('answerBody').innerText;
-  var srcWrap = document.getElementById('sourcesWrap');
-  var sources = [];
-  if (srcWrap && srcWrap.style.display !== 'none') {
-    srcWrap.querySelectorAll('.source-tag').forEach(function (a) {
-      sources.push(a.textContent.trim());
-    });
-  }
-  var md = '# ' + title + '\n\n' + body;
-  if (sources.length) {
-    md += '\n\n## 引用来源\n\n' + sources.map(function (s) { return '- ' + s; }).join('\n');
-  }
-  var blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement('a');
-  a.href = url;
-  a.download = (title || 'knowledge-export') + '.md';
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 </script>
-<script>
-var avatarMessages = [];
-function submitAvatar() {
-  var input = document.getElementById('avatarInput');
-  var q = input.value.trim();
-  if (!q) return;
-  input.value = '';
-  appendAvatarBubble('user', q);
-  var empty = document.getElementById('avatarEmpty');
-  if (empty) empty.style.display = 'none';
-  var loading = document.getElementById('avatarLoading');
-  loading.classList.remove('d-none');
-  fetch('{{ url_for('kb.api_avatar_ask') }}', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question: q })
-  }).then(function(r) { return r.json(); }).then(function(d) {
-    loading.classList.add('d-none');
-    if (d.ok) {
-      appendAvatarBubble('avatar', d.answer || '');
-      (d.sources || []).forEach(function(s) {
-        var a = document.createElement('a');
-        a.className = 'source-tag';
-        a.href = '{{ url_for('kb.doc_detail', doc_id=0) }}'.replace('0', s.doc_id);
-        a.innerHTML = '<i class="bi bi-file-earmark-text"></i> ' + s.title + ' · 第' + s.page + '页';
-        var wrap = document.getElementById('avatarChatWrap');
-        var last = wrap.lastElementChild;
-        if (last) last.appendChild(a);
-      });
-    } else {
-      appendAvatarBubble('avatar', d.error || '回答生成失败');
-    }
-  }).catch(function() {
-    loading.classList.add('d-none');
-    appendAvatarBubble('avatar', '网络错误,请重试');
-  });
-}
-function appendAvatarBubble(role, text) {
-  var wrap = document.getElementById('avatarChatWrap');
-  var bubble = document.createElement('div');
-  bubble.className = 'avatar-bubble ' + role;
-  bubble.textContent = text;
-  bubble.style.whiteSpace = 'pre-wrap';
-  wrap.appendChild(bubble);
-  wrap.scrollTop = wrap.scrollHeight;
-}
 </script>
 {% endblock %}

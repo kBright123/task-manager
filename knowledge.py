@@ -140,6 +140,7 @@ def init_models(database):
         last_recognition_result = database.Column(database.String(20))
         recognition_count = database.Column(database.Integer, default=0)
         cancel = database.Column(database.Integer, default=0)
+        auto_classified = database.Column(database.Integer, default=0)
 
         collection = database.relationship('_KbCollection',
                                            backref='documents')
@@ -575,6 +576,60 @@ def _visible_doc_ids():
     return [r.id for r in rows]
 
 
+def _doc_ids_for_user(user_id):
+    """指定用户的文档范围:其本人集合(含私有)+ 公共集合 + 其上传文档。
+
+    用于分身问答 @ 其他用户时,基于对方知识库回答。
+    """
+    cols = db.session.query(KbCollection.id).filter(
+        db.or_(
+            KbCollection.visibility == 'public',
+            KbCollection.owner_id == user_id
+        )
+    )
+    rows = db.session.query(KbDocument.id).filter(
+        db.or_(
+            KbDocument.uploaded_by == user_id,
+            KbDocument.collection_id.in_(cols)
+        )
+    ).all()
+    return [r.id for r in rows]
+
+
+def _resolve_avatar_user(target_id):
+    """解析 @ 目标用户,返回 (user, avatar_name);无效则返回 (None, None)。"""
+    if not target_id:
+        return None, None
+    try:
+        from app import User
+    except Exception:
+        User = None
+    if User is None:
+        return None, None
+    try:
+        target = User.query.filter_by(id=int(target_id)).first()
+    except Exception:
+        return None, None
+    if target is None or getattr(target, 'is_disabled', False):
+        return None, None
+    return target, (target.name or target.username)
+
+
+def _kb_user_list():
+    """系统内非禁用用户列表(分身问答 @ 选择用)。"""
+    try:
+        from app import User
+    except Exception:
+        User = None
+    if User is None:
+        return []
+    users = User.query.filter(
+        db.or_(User.is_disabled == False, User.is_disabled.is_(None))  # noqa: E712
+    ).order_by(User.name, User.username).all()
+    return [{'id': u.id, 'username': u.username,
+             'name': u.name or u.username} for u in users]
+
+
 def search_pages(query, k=10, alpha=0.5, doc_ids=None):
     ns = ensure_schema()
     col = ns.collection(KB_PAGES_COLLECTION)
@@ -612,8 +667,59 @@ def search_pages(query, k=10, alpha=0.5, doc_ids=None):
     return out
 
 
+_OCR_NOISE_RE = re.compile(
+    r'^(?:'
+    r'\d{1,2}:\d{2}(?::\d{2})?$|'           # 时间戳 13:39 / 00:29:27
+    r'\d{1,3}\s*[/|｜]\s*\d{1,3}$|'          # 页码 1/6 1|6
+    r'第?\s*\d+\s*页$|'
+    r'(?:上一题|下一题|题卡|交卷|上一页|下一页|返回|确定|取消|上一项|下一项|保存|退出|开始答题|提交答案|答题卡|查看解析|收起)[:：]?$|'
+    r'[\[【][^\]】]{1,30}[\]】]$|'            # 标记符号 【选择题标记】
+    r'(?:单选题|多选题|判断题|填空题|问答题|案例分析题|材料题)[:：]?\s*\d*\s*分?$|'
+    r'[A-E]\.?\s*$|'                         # 孤立选项字母
+    r'\d+\.?\s*$|'                           # 孤立数字
+    r'\d+\s*分$|'                            # 孤立得分 15分
+    r'[-—•·*]\s*$'                           # 孤立分隔符
+    r')'
+)
+
+# 行内的界面残留词:整词删除(不留空格)
+_OCR_INLINE_WORDS = re.compile(
+    r'(?:\d{1,2}:\d{2}(?::\d{2})?\s*|'        # 行内时间戳
+    r'\d{1,3}\s*[/|｜]\s*\d{1,3}\s*|'          # 行内页码 1/6 1|6
+    r'第?\s*\d+\s*页\s*|'
+    r'(?:上一题|下一题|题卡|交卷|上一页|下一页|返回|确定|取消|上一项|下一项|保存|退出|开始答题|提交答案|答题卡|查看解析|收起)\s*|'
+    r'[\[【][^\]】]{1,30}[\]】]\s*|'            # 标记符号
+    r'(?:单选题|多选题|判断题|填空题|问答题|案例分析题|材料题)\s*)'  # 题型标签
+)
+
+def _clean_snippet_line(line):
+    """去除 OCR 界面噪音(时间戳/页码/按钮文字等),保留正文。
+
+    整行都是噪音 → 丢弃;行内含正文 → 只去掉行内的噪音词。
+    对超长行按中文标点断句,使片段更易读。
+    """
+    s = line.strip()
+    if not s:
+        return ''
+    if _OCR_NOISE_RE.match(s):
+        return ''
+    s = _OCR_INLINE_WORDS.sub('', s)
+    s = re.sub(r'\s{2,}', ' ', s)
+    s = s.strip()
+    if not s:
+        return ''
+    # 超过 80 字符的长行按中文标点断句
+    if len(s) > 80:
+        s = re.sub(r'([。！？；])\s*', r'\1\n', s)
+        s = re.sub(r'\n+', '\n', s)
+    return s
+
+
 def make_snippet(text, query, radius=140):
-    """截取 query 命中位置附近的文本片段,并高亮关键词。返回安全 HTML。"""
+    """截取 query 命中位置附近的文本片段,并高亮关键词。返回安全 HTML。
+
+    以换行为基本单元过滤 OCR 界面噪音,使片段按原文段落呈现。
+    """
     text = text or ''
     terms = [t for t in query.split() if t] or [query]
     pos = -1
@@ -628,10 +734,23 @@ def make_snippet(text, query, radius=140):
         start = max(0, pos - radius)
         end = min(len(text), pos + len(terms[0]) + radius)
         prefix = '…' if start > 0 else ''
-    snippet = prefix + text[start:end]
+    raw = text[start:end]
+
+    # 以换行为单元过滤噪音,并做 trim
+    lines = [l for l in raw.split('\n') if l.strip()]
+    kept = []
+    for l in lines:
+        cl = _clean_snippet_line(l)
+        if cl:
+            kept.append(cl)
+    if kept:
+        snippet = prefix + '\n'.join(kept)
+    else:
+        snippet = prefix + raw.strip()
     if end < len(text):
         snippet += '…'
-    escaped = markupsafe.escape(snippet)
+
+    escaped = markupsafe.escape(snippet).replace('\n', '<br>')
     for t in terms:
         if not t:
             continue
@@ -658,6 +777,7 @@ def group_results(results, query, max_pages_per_doc=3):
                 'page_no': r['page_no'],
                 'score': r['score'],
                 'snippet': make_snippet(r['text'], query),
+                'text': r['text'][:2000],
             })
     groups = list(groups.values())
     groups.sort(key=lambda g: g['best_score'], reverse=True)
@@ -1097,30 +1217,54 @@ def index():
 @login_required
 def workbench():
     q = (request.args.get('q') or '').strip()
-    return render_template('kb/workbench.html', q=q)
+    return render_template('kb/workbench.html', q=q, kb_users=_kb_user_list())
 
 
 @kb_bp.route('/api/ask', methods=['POST'])
 @login_required
 def api_ask():
-    """工作台 AI 回答:检索 + LLM 生成 Markdown 答案与引用来源(带缓存)。"""
+    """分身问答:基于检索结果整理总结,生成 Markdown 答案与引用来源(带缓存)。
+
+    前端已检索过(工作台左侧),可把命中页通过 sources 传入,后端直接据此
+    整理总结;未传 sources 时自行检索兜底。支持 @ 其他用户:传入
+    target_user_id 时基于对方知识库检索。"""
     data = request.get_json(silent=True) or {}
     question = (data.get('question') or '').strip()
     if not question:
         return jsonify({'ok': False, 'error': '请输入问题'}), 400
-    key = cache_key('ask', question)
+    target_user, avatar_name = _resolve_avatar_user(
+        data.get('target_user_id'))
+    if data.get('target_user_id') and target_user is None:
+        return jsonify({'ok': False, 'error': '目标用户不存在或已禁用'}), 404
+    scope = target_user.id if target_user else current_user.id
+    key = cache_key('ask', f'{scope}:{question}')
     cached = cache_get(key, KB_ASK_CACHE_TTL)
     if cached is not None:
         record_history('ask', question)
         return jsonify({'ok': True, 'cached': True,
+                        'avatar_name': avatar_name,
                         **json.loads(cached)})
     try:
-        hits = search_pages(question, k=KB_ASK_TOP_K, alpha=0.5,
-                            doc_ids=_visible_doc_ids())
-        sources = [{'title': h['title'], 'page': h['page_no'],
-                    'doc_id': h['doc_id'], 'text': h['text']} for h in hits]
+        supplied = data.get('sources')
+        if supplied:
+            sources = [{'title': s.get('title') or '',
+                        'page': s.get('page_no') or 1,
+                        'doc_id': s.get('doc_id') or 0,
+                        'text': s.get('text') or ''}
+                       for s in supplied if s.get('text')]
+            sources = sources[:KB_ASK_TOP_K]
+        else:
+            if target_user is not None:
+                doc_ids = _doc_ids_for_user(target_user.id)
+            else:
+                doc_ids = _visible_doc_ids()
+            hits = search_pages(question, k=KB_ASK_TOP_K, alpha=0.5,
+                                doc_ids=doc_ids)
+            sources = [{'title': h['title'], 'page': h['page_no'],
+                        'doc_id': h['doc_id'], 'text': h['text']} for h in hits]
         answer = llm_ask(question, sources)
-        payload = {'answer': answer, 'sources': sources[:5]}
+        payload = {'answer': answer, 'sources': sources[:5],
+                   'avatar_name': avatar_name}
         cache_set(key, json.dumps(payload, ensure_ascii=False))
         record_history('ask', question)
         return jsonify({'ok': True, 'cached': False, **payload})
@@ -1132,19 +1276,26 @@ def api_ask():
 @kb_bp.route('/api/search', methods=['POST'])
 @login_required
 def api_search():
-    """工作台关键词检索:按文档分组的 JSON 结果(含高亮片段,带缓存)。"""
+    """工作台关键词检索:按文档分组的 JSON 结果(含高亮片段,带缓存)。
+
+    支持 @ 其他用户:传入 target_user_id 时在其知识库范围内检索。"""
     data = request.get_json(silent=True) or {}
     q = (data.get('q') or '').strip()
     if not q:
         return jsonify({'ok': False, 'error': '请输入关键词'}), 400
-    key = cache_key('search', q)
+    target_user, _ = _resolve_avatar_user(data.get('target_user_id'))
+    scope = target_user.id if target_user else current_user.id
+    key = cache_key('search', f'{scope}:{q}')
     cached = cache_get(key, KB_SEARCH_CACHE_TTL)
     if cached is not None:
         return jsonify({'ok': True, 'cached': True,
                         **json.loads(cached)})
     try:
-        results = search_pages(q, k=30, alpha=0.5,
-                               doc_ids=_visible_doc_ids())
+        if target_user is not None:
+            doc_ids = _doc_ids_for_user(target_user.id)
+        else:
+            doc_ids = _visible_doc_ids()
+        results = search_pages(q, k=30, alpha=0.5, doc_ids=doc_ids)
         groups = group_results(results, q)
         payload = {'groups': groups}
         cache_set(key, json.dumps(payload, ensure_ascii=False))
@@ -1191,10 +1342,16 @@ def api_history_answer():
     q = (request.args.get('q') or '').strip()
     if not q:
         return jsonify({'ok': False, 'error': '缺少问题'}), 400
-    cached = cache_get(cache_key('ask', q), KB_ASK_CACHE_TTL)
+    target_user, avatar_name = _resolve_avatar_user(
+        request.args.get('target_user_id'))
+    scope = target_user.id if target_user else current_user.id
+    cached = cache_get(cache_key('ask', f'{scope}:{q}'), KB_ASK_CACHE_TTL)
     if cached is None:
         return jsonify({'ok': False, 'error': '暂无历史回答'}), 404
-    return jsonify({'ok': True, 'cached': True, **json.loads(cached)})
+    payload = json.loads(cached)
+    if 'avatar_name' not in payload or payload.get('avatar_name') is None:
+        payload['avatar_name'] = avatar_name
+    return jsonify({'ok': True, 'cached': True, **payload})
 
 
 @kb_bp.route('/api/queue')
@@ -1246,28 +1403,35 @@ def avatar():
 @kb_bp.route('/api/avatar/ask', methods=['POST'])
 @login_required
 def api_avatar_ask():
-    """数字分身问答:基于当前用户的私有知识库进行 RAG 检索与生成。"""
+    """数字分身问答:基于知识库进行 RAG 检索与生成。
+
+    支持 @ 其他用户:传入 target_user_id 时,基于对方知识库回答,
+    返回中附带 avatar_name 供前端展示"姓名·分身"。"""
     data = request.get_json(silent=True) or {}
     question = (data.get('question') or '').strip()
     if not question:
         return jsonify({'ok': False, 'error': '请输入问题'}), 400
-    # 构建用户可访问的文档 ID 列表:自己的私有集合 + 公共集合中的文档
-    visible_collections = db.session.query(KbCollection.id).filter(
-        db.or_(
-            KbCollection.visibility == 'public',
-            KbCollection.owner_id == current_user.id
-        )
-    )
-    doc_ids = [d.id for d in KbDocument.query.filter(
-        KbDocument.collection_id.in_(visible_collections)
-    ).all()]
+    target_user, avatar_name = _resolve_avatar_user(
+        data.get('target_user_id'))
+    if data.get('target_user_id') and target_user is None:
+        return jsonify({'ok': False, 'error': '目标用户不存在或已禁用'}), 404
+    scope_user_id = target_user.id if target_user else current_user.id
+    # 构建该用户可访问的文档 ID 列表:其本人上传文档 + 私有集合 + 公共集合。
+    # 必须包含 uploaded_by 项,否则未分类/被分类器归到他人集合的文档会不可见,
+    # 导致"明明有文档却提示知识库为空"。
+    doc_ids = _doc_ids_for_user(scope_user_id)
     if not doc_ids:
-        return jsonify({'ok': True, 'answer': '你的知识库暂时为空，'
-                        '请先上传文档到知识库。', 'sources': []})
-    key = cache_key('avatar', f'{current_user.id}:{question}')
+        who = avatar_name or '你的'
+        return jsonify({'ok': True, 'empty': True,
+                        'answer': f'{who}的知识库暂时为空，'
+                        '请先上传文档到知识库。', 'sources': [],
+                        'avatar_name': avatar_name})
+    key = cache_key('avatar',
+                    f'{current_user.id}:{scope_user_id}:{question}')
     cached = cache_get(key, KB_ASK_CACHE_TTL)
     if cached is not None:
         return jsonify({'ok': True, 'cached': True,
+                        'avatar_name': avatar_name,
                         **json.loads(cached)})
     try:
         hits = search_pages(question, k=KB_ASK_TOP_K, alpha=0.5,
@@ -1275,7 +1439,8 @@ def api_avatar_ask():
         sources = [{'title': h['title'], 'page': h['page_no'],
                     'doc_id': h['doc_id'], 'text': h['text']} for h in hits]
         answer = llm_ask(question, sources)
-        payload = {'answer': answer, 'sources': sources[:5]}
+        payload = {'answer': answer, 'sources': sources[:5],
+                   'avatar_name': avatar_name}
         cache_set(key, json.dumps(payload, ensure_ascii=False))
         return jsonify({'ok': True, 'cached': False, **payload})
     except Exception as e:
@@ -1373,24 +1538,46 @@ def api_collection_update(cid):
                                                 'owner_id': c.owner_id}})
 
 
-@kb_bp.route('/api/collections/<int:cid>', methods=['DELETE'])
+@kb_bp.route('/api/collections/<int:cid>', methods=['DELETE', 'POST'])
 @login_required
 def api_collection_delete(cid):
     c = db.session.get(KbCollection, cid)
     if not c:
+        if request.method == 'POST':
+            flash('集合不存在', 'danger')
+            return redirect(request.referrer or url_for('kb.index'))
         return jsonify({'ok': False, 'error': '集合不存在'}), 404
     if c.visibility == 'public' and current_user.role != 'admin':
+        if request.method == 'POST':
+            flash('仅管理员可管理公共知识库', 'danger')
+            return redirect(request.referrer or url_for('kb.index'))
         return jsonify({'ok': False,
                         'error': '仅管理员可管理公共知识库'}), 403
     if c.visibility == 'private' and c.owner_id != current_user.id \
             and current_user.role != 'admin':
+        if request.method == 'POST':
+            flash('权限不足', 'danger')
+            return redirect(request.referrer or url_for('kb.index'))
         return jsonify({'ok': False, 'error': '权限不足'}), 403
-    KbDocument.query.filter_by(collection_id=cid).update(
-        {KbDocument.collection_id: None})
-    db.session.delete(c)
+    try:
+        name = c.name
+        KbDocument.query.filter_by(collection_id=cid).update(
+            {KbDocument.collection_id: None})
+        db.session.delete(c)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logger.error('api_collection_delete failed: %s', e)
+        if request.method == 'POST':
+            flash(f'删除失败: {e}', 'danger')
+            return redirect(request.referrer or url_for('kb.index'))
+        return jsonify({'ok': False,
+                        'error': f'删除失败: {e}'}), 500
+    _log_op('kb_collection_delete', name, f'删除集合 #{cid}')
     db.session.commit()
-    _log_op('kb_collection_delete', c.name, f'删除集合 #{cid}')
-    db.session.commit()
+    if request.method == 'POST':
+        flash(f'已删除集合「{name}」', 'success')
+        return redirect(request.referrer or url_for('kb.index'))
     return jsonify({'ok': True})
 
 
@@ -1725,7 +1912,14 @@ def search():
 def ask():
     q = (request.form.get('question') or
          request.args.get('q') or '').strip()
-    return render_template('kb/ask.html', q=q)
+    return render_template('kb/ask.html', q=q, kb_users=_kb_user_list())
+
+
+@kb_bp.route('/api/users')
+@login_required
+def api_users():
+    """系统内用户列表(分身问答 @ 选择用)。"""
+    return jsonify({'ok': True, 'users': _kb_user_list()})
 
 
 @kb_bp.route('/status/<int:doc_id>')
@@ -1794,7 +1988,8 @@ def _ensure_doc_columns(conn):
                      ('last_recognition_type', 'VARCHAR(20)'),
                      ('last_recognition_result', 'VARCHAR(20)'),
                      ('recognition_count', 'INTEGER DEFAULT 0'),
-                     ('cancel', 'INTEGER DEFAULT 0')]:
+                     ('cancel', 'INTEGER DEFAULT 0'),
+                     ('auto_classified', 'INTEGER DEFAULT 0')]:
         if col not in cols:
             conn.execute(
                 f'ALTER TABLE kb_document ADD COLUMN {col} {ddl}')
@@ -1876,6 +2071,24 @@ def _check_cancel(conn, doc_id):
         raise _DocCancelled()
 
 
+def _auto_archive_document(conn, doc_id, pages):
+    """识别完成后自动分类并归档到对应合集(见 classifier.auto_archive)。"""
+    text = ' '.join(t for _, t in pages)
+    if not text.strip():
+        return
+    row = conn.execute(
+        'SELECT uploaded_by, title FROM kb_document WHERE id=?',
+        (doc_id,)).fetchone()
+    if not row:
+        return
+    from classifier import auto_archive
+    result = auto_archive(conn, doc_id, row[0], row[1] or '', text)
+    if result:
+        created, label, conf = result
+        logger.info('[doc %s] auto-classified -> %s (conf=%.2f, created=%s)',
+                    doc_id, label, conf, created)
+
+
 def _process_document(conn, row):
     doc_id, file_path, title, filename = row
     try:
@@ -1907,6 +2120,11 @@ def _process_document(conn, row):
         _record_recognition(conn, doc_id, 'success')
         _bump_data_version()
         logger.info('[doc %s] done: %d pages', doc_id, page_count)
+        try:
+            _auto_archive_document(conn, doc_id, pages)
+        except Exception as e:
+            logger.warning('[doc %s] auto-classify/archive failed: %s',
+                           doc_id, e)
         if KB_AUTO_SUMMARY:
             try:
                 first_text = pages[0][1] if pages else ''
@@ -1936,6 +2154,7 @@ def main():
     _requeue_stale(conn)
     logger.info('knowledge.worker started, polling every %.1fs',
                 KB_POLL_INTERVAL)
+    last_retrain_check = 0.0
     while True:
         try:
             row = _claim_next(conn)
@@ -1946,6 +2165,13 @@ def main():
         except Exception as e:
             logger.error('worker loop error: %s', e)
             time.sleep(KB_POLL_INTERVAL)
+        try:
+            if time.time() - last_retrain_check >= 60:
+                from classifier import maybe_retrain
+                maybe_retrain(conn)
+                last_retrain_check = time.time()
+        except Exception as e:
+            logger.warning('classifier retrain check failed: %s', e)
 
 
 if __name__ == '__main__':

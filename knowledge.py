@@ -1136,10 +1136,42 @@ def _log_op(action, target='', detail=''):
         logger.warning('_log_op failed: %s', e)
 
 
+def _collection_groups(collections, active_cid, active_group=''):
+    """把集合按一级类别分组,便于侧边栏折叠展示。
+
+    primary 取「一级·二级」名称的首段;无分隔的集合归入「未分类」组。
+    二级展示名经 classifier.short_subject 清理无效字符(JR∕T 0323— 等)
+    并缩减长度。active_cid/active_group 用于展开并高亮当前所在组。"""
+    from classifier import short_subject
+    groups = {}
+    for c in collections:
+        parts = [p for p in (c.name or '').strip().split('·') if p]
+        if len(parts) > 1:
+            primary = parts[0]
+            subject = short_subject('·'.join(parts[1:]))
+        else:
+            primary = ''
+            subject = short_subject((c.name or '').strip())
+        groups.setdefault(primary, []).append(
+            {'primary': primary, 'subject': subject, 'c': c})
+    out = []
+    for p, items in sorted(groups.items(),
+                           key=lambda kv: (kv[0] == '', kv[0])):
+        out.append({
+            'primary': p or '未分类',
+            'items': items,
+            'total': sum(len(v['c'].documents) for v in items),
+            'active': any(active_cid == v['c'].id for v in items)
+                      or bool(active_group and (p or '未分类') == active_group),
+        })
+    return out
+
+
 @kb_bp.route('/')
 @login_required
 def index():
     cid = request.args.get('collection', type=int)
+    group = (request.args.get('group') or '').strip()
     q = (request.args.get('q') or '').strip()
     page = request.args.get('page', 1, type=int)
     query = KbDocument.query
@@ -1155,6 +1187,15 @@ def index():
         )
     if cid:
         query = query.filter_by(collection_id=cid)
+    if group:
+        if group == '未分类':
+            sub = db.session.query(KbCollection.id).filter(
+                ~KbCollection.name.contains('·'))
+        else:
+            sub = db.session.query(KbCollection.id).filter(
+                db.or_(KbCollection.name == group,
+                       KbCollection.name.like(f'{group}·%')))
+        query = query.filter(KbDocument.collection_id.in_(sub))
     if q:
         like = f'%{q}%'
         query = query.filter(
@@ -1208,6 +1249,8 @@ def index():
     return render_template('kb/index.html', docs=docs,
                            q=q, page=page, pagination=pagination,
                            collections=collections, active_collection=cid,
+                           group=group,
+                           collection_groups=_collection_groups(collections, cid, group),
                            previews=previews, summaries=summaries,
                            manageable_ids=manageable_ids,
                            owner_names=owner_names)
@@ -1376,11 +1419,21 @@ def api_ids():
     """当前筛选(集合/搜索)下的全部文档 id,供跨页全选。"""
     cid = request.args.get('collection', type=int)
     q = (request.args.get('q') or '').strip()
+    group = (request.args.get('group') or '').strip()
     query = KbDocument.query
     if current_user.role != 'admin':
         query = query.filter(KbDocument.uploaded_by == current_user.id)
     if cid:
         query = query.filter_by(collection_id=cid)
+    if group:
+        if group == '未分类':
+            sub = db.session.query(KbCollection.id).filter(
+                ~KbCollection.name.contains('·'))
+        else:
+            sub = db.session.query(KbCollection.id).filter(
+                db.or_(KbCollection.name == group,
+                       KbCollection.name.like(f'{group}·%')))
+        query = query.filter(KbDocument.collection_id.in_(sub))
     if q:
         like = f'%{q}%'
         query = query.filter(
@@ -1612,6 +1665,34 @@ def api_collection_assign():
             else '移出集合')
     db.session.commit()
     return jsonify({'ok': True})
+
+
+@kb_bp.route('/api/collections/prune-empty', methods=['POST'])
+@login_required
+def api_collection_prune_empty():
+    """批量删除空集合(集合内无任何文档)。
+
+    仅删除当前用户有权限管理的集合:管理员可删公共及全部私有集合;
+    普通用户仅可删本人私有集合。"""
+    deletable = []
+    for c in KbCollection.query.all():
+        if KbDocument.query.filter_by(collection_id=c.id).count() > 0:
+            continue
+        if c.visibility == 'public' and current_user.role != 'admin':
+            continue
+        if c.visibility == 'private' and c.owner_id != current_user.id \
+                and current_user.role != 'admin':
+            continue
+        deletable.append(c)
+    names = [c.name for c in deletable]
+    for c in deletable:
+        db.session.delete(c)
+    db.session.commit()
+    _log_op('kb_collection_prune_empty', f'{len(deletable)} 个集合',
+            '批量删除空集合')
+    db.session.commit()
+    return jsonify({'ok': True, 'deleted': len(deletable),
+                    'names': names[:50]})
 
 
 @kb_bp.route('/upload', methods=['POST'])
@@ -1897,6 +1978,65 @@ def bulk():
         resp.headers['Content-Disposition'] = (
             'attachment; filename="knowledge-selection.json"')
         return resp
+    if action == 'auto_archive':
+        from classifier import classify, _pick_color
+        archived, created_names, skipped = [], [], 0
+        for doc in docs:
+            if doc.status != STATUS_DONE:
+                skipped += 1
+                continue
+            text = _doc_text(doc)
+            if not text.strip():
+                skipped += 1
+                continue
+            try:
+                label, _conf = classify(text, doc.title or '')
+            except Exception as e:
+                logger.warning('auto_archive classify doc %s failed: %s',
+                               doc.id, e)
+                skipped += 1
+                continue
+            if not label:
+                skipped += 1
+                continue
+            # 与原 classifier.auto_archive 语义一致:
+            # - 未归档 -> 分类并归档(auto_classified=1)
+            # - 自动分类过且类别变化 -> 迁移
+            # - 手动归档过 -> 不动
+            if doc.collection_id is None:
+                col = KbCollection.query.filter_by(name=label).first()
+                if col is None:
+                    col = KbCollection(name=label, color=_pick_color(label),
+                                       visibility='private',
+                                       owner_id=doc.uploaded_by)
+                    db.session.add(col)
+                    db.session.flush()
+                    created_names.append(label)
+                doc.collection_id = col.id
+                doc.auto_classified = 1
+                archived.append({'id': doc.id, 'label': label})
+            elif doc.auto_classified:
+                current = db.session.get(KbCollection, doc.collection_id)
+                if current and current.name != label:
+                    col = KbCollection.query.filter_by(name=label).first()
+                    if col is None:
+                        col = KbCollection(name=label,
+                                           color=_pick_color(label),
+                                           visibility='private',
+                                           owner_id=doc.uploaded_by)
+                        db.session.add(col)
+                        db.session.flush()
+                        created_names.append(label)
+                    doc.collection_id = col.id
+                    archived.append({'id': doc.id, 'label': label})
+        db.session.commit()
+        _bump_data_version()
+        _log_op('kb_bulk_auto_archive', f'{len(docs)} 个文档',
+                f'自动归档成功 {len(archived)} 个' +
+                (f'(跳过 {skipped} 个)' if skipped else ''))
+        db.session.commit()
+        return jsonify({'ok': True, 'archived': archived,
+                        'created': created_names, 'skipped': skipped})
     return jsonify({'ok': False, 'error': f'未知操作: {action}'}), 400
 
 

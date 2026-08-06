@@ -7,53 +7,77 @@
     <div class="card">
       <div class="card-header d-flex justify-content-between align-items-center">
         <span><i class="bi bi-folder2-open"></i> 集合</span>
-        <button class="btn btn-xs-custom btn-outline-primary" onclick="showCollectionModal()">
-          <i class="bi bi-plus"></i> 新建
-        </button>
+        <div class="d-flex gap-1 align-items-center">
+          <button class="btn btn-xs-custom btn-outline-secondary" onclick="pruneEmptyCollections()" title="批量删除空集合">
+            <i class="bi bi-trash"></i> 清空空集
+          </button>
+          <button class="btn btn-xs-custom btn-outline-primary" onclick="showCollectionModal()">
+            <i class="bi bi-plus"></i> 新建
+          </button>
+        </div>
       </div>
       <div class="card-body py-2">
         <a href="{{ url_for('kb.index') }}"
            class="d-flex justify-content-between align-items-center px-2 py-2 text-decoration-none rounded"
-           style="color:{% if not active_collection %}var(--primary);background:var(--primary-light);font-weight:600{% else %}var(--gray-600){% endif %}">
+           style="color:{% if not active_collection and not group %}var(--primary);background:var(--primary-light);font-weight:600{% else %}var(--gray-600){% endif %}">
           <span><i class="bi bi-archive"></i> 全部文档</span>
-          <span class="badge badge-low">{{ pagination.total if not active_collection else '' }}</span>
+          <span class="badge badge-low">{{ pagination.total if not active_collection and not group else '' }}</span>
         </a>
-        {% for c in collections %}
-        <div class="d-flex justify-content-between align-items-center px-2 py-2 rounded"
-             style="{% if active_collection == c.id %}background:var(--primary-light);{% endif %}">
-          <a href="{{ url_for('kb.index', collection=c.id) }}"
-             class="d-flex align-items-center gap-2 text-decoration-none flex-grow-1"
-             style="color:{% if active_collection == c.id %}var(--primary);font-weight:600{% else %}var(--gray-600){% endif %}">
-            <span style="width:10px;height:10px;border-radius:50%;background:{{ c.color }};flex-shrink:0;"></span>
-            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ c.name }}</span>
-            <span class="badge" style="font-size:.6rem;background:{{ 'var(--success)' if c.visibility == 'public' else 'var(--gray-400)' }};color:#fff;">{{ '公共' if c.visibility == 'public' else '个人' }}</span>
-            {% if c.visibility == 'private' and c.owner_id and c.owner_id != current_user.id %}
-            <small class="text-muted" style="font-size:.6rem;flex-shrink:0;">{{ owner_names.get(c.owner_id, '他人') }}</small>
-            {% endif %}
-            <span class="badge badge-low">{{ c.documents|length }}</span>
-          </a>
-          {% if current_user.role == 'admin' or (c.owner_id == current_user.id and c.visibility == 'private') %}
-          <div class="dropdown">
-            <button class="btn btn-xs-custom" data-bs-toggle="dropdown"
-                    style="background:transparent;border:none;color:var(--gray-400);padding:2px 6px;">
-              <i class="bi bi-three-dots-vertical"></i>
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end">
-              <li><a class="dropdown-item" href="#" onclick="showCollectionModal({{ c.id }}, {{ c.name|tojson }}, {{ c.color|tojson }}, {{ c.visibility|tojson }});return false;">
-                <i class="bi bi-pencil"></i> 重命名</a></li>
-              {% if c.visibility == 'public' and current_user.role == 'admin' or c.visibility == 'private' and c.owner_id == current_user.id %}
-              <li>
-                <form method="POST" action="{{ url_for('kb.api_collection_delete', cid=c.id) }}" class="d-inline"
-                      onsubmit='return confirm("删除集合「" + {{ c.name|tojson }} + "」?集合内的文档不会被删除。");'>
-                  <button type="submit" class="dropdown-item text-danger" style="width:100%;">
-                    <i class="bi bi-trash"></i> 删除
-                  </button>
-                </form>
-              </li>
-              {% endif %}
-            </ul>
+        {% for g in collection_groups %}
+        <div class="kb-group">
+          <div class="d-flex align-items-center gap-2 px-2 py-1 rounded kb-group-head"
+               role="button" data-bs-toggle="collapse" data-bs-target="#kbGroup{{ loop.index }}"
+               aria-expanded="{{ 'true' if g['active'] else 'false' }}"
+               style="{% if group == g['primary'] %}background:var(--primary-light);{% endif %}">
+            <i class="bi bi-chevron-right kb-group-caret"
+               style="font-size:.7rem;color:var(--gray-400);transition:transform .15s;{% if g['active'] %}transform:rotate(90deg);{% endif %}"></i>
+            <a href="{{ url_for('kb.index', group=g['primary']) }}" onclick="event.stopPropagation()"
+               class="text-decoration-none"
+               style="font-weight:600;font-size:.8rem;{% if group == g['primary'] %}color:var(--primary);{% else %}color:var(--gray-700);{% endif %}">{{ g['primary'] }}</a>
+            <span class="badge badge-low ms-auto">{{ g['total'] }}</span>
           </div>
-          {% endif %}
+          <div class="collapse{% if g['active'] %} show{% endif %}" id="kbGroup{{ loop.index }}">
+            {% for v in g['items'] %}
+            <div class="d-flex justify-content-between align-items-center px-2 py-2 rounded"
+                 style="{% if active_collection == v['c'].id %}background:var(--primary-light);{% endif %}">
+              <a href="{{ url_for('kb.index', collection=v['c'].id) }}"
+                 class="d-flex align-items-center gap-2 text-decoration-none flex-grow-1"
+                 style="color:{% if active_collection == v['c'].id %}var(--primary);font-weight:600{% else %}var(--gray-600){% endif %}">
+                <span style="width:10px;height:10px;border-radius:50%;background:{{ v['c'].color }};flex-shrink:0;"></span>
+                <span style="min-width:0;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                  {{ v['subject'] or v['primary'] }}
+                </span>
+                <span class="badge" style="font-size:.6rem;background:{{ 'var(--success)' if v['c'].visibility == 'public' else 'var(--gray-400)' }};color:#fff;">{{ '公共' if v['c'].visibility == 'public' else '个人' }}</span>
+                {% if v['c'].visibility == 'private' and v['c'].owner_id and v['c'].owner_id != current_user.id %}
+                <small class="text-muted" style="font-size:.6rem;flex-shrink:0;">{{ owner_names.get(v['c'].owner_id, '他人') }}</small>
+                {% endif %}
+                <span class="badge badge-low">{{ v['c'].documents|length }}</span>
+              </a>
+              {% if current_user.role == 'admin' or (v['c'].owner_id == current_user.id and v['c'].visibility == 'private') %}
+              <div class="dropdown">
+                <button class="btn btn-xs-custom" data-bs-toggle="dropdown"
+                        style="background:transparent;border:none;color:var(--gray-400);padding:2px 6px;">
+                  <i class="bi bi-three-dots-vertical"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                  <li><a class="dropdown-item" href="#" onclick="showCollectionModal({{ v['c'].id }}, {{ v['c'].name|tojson }}, {{ v['c'].color|tojson }}, {{ v['c'].visibility|tojson }});return false;">
+                    <i class="bi bi-pencil"></i> 重命名</a></li>
+                  {% if v['c'].visibility == 'public' and current_user.role == 'admin' or v['c'].visibility == 'private' and v['c'].owner_id == current_user.id %}
+                  <li>
+                    <form method="POST" action="{{ url_for('kb.api_collection_delete', cid=v['c'].id) }}" class="d-inline"
+                          onsubmit='return confirm("删除集合「" + {{ v['c'].name|tojson }} + "」?集合内的文档不会被删除。");'>
+                      <button type="submit" class="dropdown-item text-danger" style="width:100%;">
+                        <i class="bi bi-trash"></i> 删除
+                      </button>
+                    </form>
+                  </li>
+                  {% endif %}
+                </ul>
+              </div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
         </div>
         {% endfor %}
       </div>
@@ -95,21 +119,24 @@
     <div class="card">
       <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
         <span><i class="bi bi-collection"></i> 文档列表
+          {% if group %}<span class="text-muted">— 集合组「{{ group }}」</span>{% endif %}
           {% if active_collection %}<span class="text-muted">— {{ (collections|selectattr('id','equalto',active_collection)|first).name if collections|selectattr('id','equalto',active_collection)|first else '' }}</span>{% endif %}
           {% if q %}<span class="text-muted">— 搜索「{{ q }}」</span>{% endif %}
         </span>
         <div class="d-flex gap-2 align-items-center flex-wrap">
           <form method="GET" action="{{ url_for('kb.index') }}" class="d-flex gap-1 align-items-center" style="position:relative;">
             {% if active_collection %}<input type="hidden" name="collection" value="{{ active_collection }}">{% endif %}
+            {% if group %}<input type="hidden" name="group" value="{{ group }}">{% endif %}
             <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="搜索文档标题..." style="width:200px;">
             <button class="btn btn-xs-custom btn-outline-primary" type="submit"><i class="bi bi-search"></i></button>
-            {% if q %}<a href="{{ url_for('kb.index', collection=active_collection or None) }}" class="btn btn-xs-custom btn-outline-secondary" title="清除搜索"><i class="bi bi-x-lg"></i></a>{% endif %}
+            {% if q %}<a href="{{ url_for('kb.index', collection=active_collection or None, group=group or None) }}" class="btn btn-xs-custom btn-outline-secondary" title="清除搜索"><i class="bi bi-x-lg"></i></a>{% endif %}
           </form>
         </div>
       </div>
       <div class="card-body py-2 d-none align-items-center gap-2 flex-wrap" id="bulkBar" style="border-bottom:1px solid var(--gray-100);">
         <span style="font-weight:600;font-size:.85rem;" id="bulkCount">已选 0 项</span>
         <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkAssign()"><i class="bi bi-folder-plus"></i> 移动到集合</button>
+        <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkAutoArchive()"><i class="bi bi-stars"></i> 自动归档合集</button>
         <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkExport()"><i class="bi bi-download"></i> 导出选中</button>
         <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkExportTxt()"><i class="bi bi-filetype-txt"></i> 导出识别结果</button>
         <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkReprocess()"><i class="bi bi-arrow-repeat"></i> 重新识别</button>
@@ -235,12 +262,12 @@
         <nav>
           <ul class="pagination pagination-sm mb-0">
             <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
-              <a class="page-link" {% if pagination.has_prev %}href="{{ url_for('kb.index', collection=active_collection or None, q=q or None, page=pagination.prev_num) }}"{% endif %}>上一页</a>
+              <a class="page-link" {% if pagination.has_prev %}href="{{ url_for('kb.index', collection=active_collection or None, group=group or None, q=q or None, page=pagination.prev_num) }}"{% endif %}>上一页</a>
             </li>
             {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=1) %}
               {% if p %}
               <li class="page-item {{ 'active' if p == pagination.page }}">
-                <a class="page-link" href="{{ url_for('kb.index', collection=active_collection or None, q=q or None, page=p) }}">{{ p }}</a>
+                <a class="page-link" href="{{ url_for('kb.index', collection=active_collection or None, group=group or None, q=q or None, page=p) }}">{{ p }}</a>
               </li>
               {% else %}
               <li class="page-item disabled"><span class="page-link">…</span></li>
@@ -440,6 +467,7 @@
     var p = new URLSearchParams(window.location.search);
     var params = [];
     if (p.get('collection')) params.push('collection=' + encodeURIComponent(p.get('collection')));
+    if (p.get('group')) params.push('group=' + encodeURIComponent(p.get('group')));
     if (p.get('q')) params.push('q=' + encodeURIComponent(p.get('q')));
     fetch('{{ url_for('kb.api_ids') }}' + (params.length ? '?' + params.join('&') : ''))
       .then(function (r) { return r.json(); })
@@ -542,6 +570,19 @@
       showReprogress(ids);
     });
   };
+  window.bulkAutoArchive = function () {
+    var ids = selected();
+    if (!ids.length) return;
+    if (!confirm('确认对选中的 ' + ids.length + ' 个文档执行自动分类归档?\n未识别完成、无分类结果或已手动归档的文档将被跳过。')) return;
+    post('auto_archive', ids).then(function (d) {
+      if (!d.ok) { alert(d.error || '操作失败'); return; }
+      var msg = '自动归档完成:成功 ' + (d.archived || []).length + ' 个';
+      if (d.created && d.created.length) msg += '\n新建合集: ' + d.created.join('、');
+      if (d.skipped) msg += '\n跳过 ' + d.skipped + ' 个';
+      alert(msg);
+      location.reload();
+    });
+  };
   window.bulkExport = function () {
     var ids = selected();
     if (!ids.length) return;
@@ -635,6 +676,30 @@
         if (d.ok) location.reload(); else alert(d.error || '操作失败');
       }); }).catch(function (e) { alert('删除失败: ' + e.message); });
   };
+  window.pruneEmptyCollections = function () {
+    if (!confirm('删除所有没有文档的空集合?')) return;
+    fetch('{{ url_for('kb.api_collection_prune_empty') }}', { method: 'POST' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) { alert(d.error || '操作失败'); return; }
+        alert(d.deleted ? '已删除 ' + d.deleted + ' 个空集合' : '没有空集合');
+        location.reload();
+      }).catch(function () { alert('操作失败'); });
+  };
+})();
+</script>
+<script>
+(function groupFold() {
+  document.querySelectorAll('.kb-group-head').forEach(function (head) {
+    var caret = head.querySelector('.kb-group-caret');
+    if (!caret) return;
+    head.addEventListener('click', function () {
+      setTimeout(function () {
+        caret.style.transform = head.getAttribute('aria-expanded') === 'true'
+          ? 'rotate(90deg)' : 'rotate(0deg)';
+      }, 60);
+    });
+  });
 })();
 </script>
 {% endblock %}

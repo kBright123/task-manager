@@ -167,20 +167,17 @@
       <div class="d-flex align-items-center gap-1 mb-2">
         <div class="btn-group btn-group-sm" style="box-shadow:inset 0 0 0 1px var(--gray-200);border-radius:8px;overflow:hidden;">
           <button type="button" class="btn active kb-mode-btn" data-mode="kw" style="font-size:.74rem;padding:3px 12px;border:none;background:var(--primary);color:#fff;"><i class="bi bi-search"></i> 关键词检索</button>
-          <button type="button" class="btn kb-mode-btn" data-mode="ai" onclick="openFrame('{{ url_for('kb.ask') }}?frame=1', 'AI 智能问答')" style="font-size:.74rem;padding:3px 12px;border:none;color:var(--gray-500);"><i class="bi bi-stars"></i> AI 智能问答</button>
         </div>
-        <span style="font-size:.72rem;color:var(--gray-400);margin-left:auto;"><i class="bi bi-info-circle"></i> AI 问答将基于知识库检索生成回答</span>
       </div>
       <div class="search-wrap" style="position:relative;">
         <div class="input-group">
-          <input type="text" id="askInput" class="form-control" placeholder="输入关键词或问题，回车检索" autocomplete="off">
+          <input type="text" id="askInput" class="form-control" placeholder="输入关键词检索" autocomplete="off">
           <button class="btn btn-primary" id="askBtn" onclick="submitQuery()" disabled><i class="bi bi-send"></i></button>
         </div>
         <div class="suggest-box d-none" id="suggestBox"></div>
       </div>
       <div class="d-flex align-items-center gap-2 mt-2" style="font-size:.74rem;color:var(--gray-500);">
-        <i class="bi bi-question-circle" style="color:var(--primary);"></i><span>支持关键词检索与自然语言提问</span>
-        <a href="{{ url_for('kb.ask') }}" class="text-decoration-none ms-auto" style="color:var(--primary);font-size:.74rem;"><i class="bi bi-stars"></i> 分身问答</a>
+        <i class="bi bi-question-circle" style="color:var(--primary);"></i><span>支持关键词检索知识库</span>
       </div>
     </div>
     <div class="wb-result-body">
@@ -383,7 +380,7 @@ function closeFrame() {
     }).join('');
   }
   function pick(i) {
-    if (items[i]) { input.value = items[i].name; hide(); items[i].ask ? runHistoryQuery(items[i].name) : submitQuery(); }
+    if (items[i]) { input.value = items[i].name; hide(); submitQuery(); }
   }
   function showRecents() {
     clearTimeout(timer);
@@ -392,7 +389,7 @@ function closeFrame() {
       .then(function (d) {
         if (!d.ok || !d.items || !d.items.length) { hide(); return; }
         items = d.items.map(function (it) {
-          return { name: it.query, type: '最近', ask: true };
+          return { name: it.query, type: '最近' };
         });
         sel = -1;
         render();
@@ -525,23 +522,8 @@ function closeFrame() {
   var q = {{ q|tojson }};
   if (q) {
     document.getElementById('askInput').value = q;
-    if (window.location.search.indexOf('ask=1') !== -1) {
-      setTimeout(function () { if (window.runHistoryQuery) runHistoryQuery(q); }, 300);
-    } else {
-      setTimeout(submitQuery, 300);
-    }
+    setTimeout(submitQuery, 300);
   }
 })();
-</script>
-<script>
-(function historyQuery() {
-  window.runHistoryQuery = function (q) {
-    document.getElementById('askInput').value = q;
-    lastQuery = q;
-    searchQuery(q);
-  };
-})();
-
-</script>
 </script>
 {% endblock %}

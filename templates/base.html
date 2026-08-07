@@ -218,6 +218,10 @@
     .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 420px; max-width: 100vw; background: #fff; box-shadow: -8px 0 24px rgba(0,0,0,.1); z-index: 1100; animation: slideIn .25s ease-out; overflow-y: auto; }
     .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.3); z-index: 1050; }
     .task-fade-out { animation: fadeOut .3s ease forwards; }
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 36px 16px; color: var(--gray-400); }
+.empty-state svg { width: 84px; height: 84px; margin-bottom: 14px; opacity: .85; }
+.empty-state .es-title { font-size: .92rem; font-weight: 600; color: var(--gray-600); margin-bottom: 6px; }
+.empty-state .es-sub { font-size: .78rem; color: var(--gray-400); margin-bottom: 14px; max-width: 260px; line-height: 1.5; }
     .notification-dropdown::-webkit-scrollbar { width: 4px; }
     .notification-dropdown::-webkit-scrollbar-thumb { background: var(--gray-200); border-radius: 2px; }
   </style>
@@ -261,13 +265,14 @@
 <a href="{{ url_for('kb.workbench') }}" class="{% if request.endpoint in ('kb.workbench', 'kb.index', 'kb.doc_detail') %}active{% endif %}">
             <i class="bi bi-collection"></i> 知识库
           </a>
-          <a href="{{ url_for('kb.ask') }}" class="{% if request.endpoint == 'kb.ask' %}active{% endif %}">
-            <i class="bi bi-stars"></i> 分身问答
-          </a>
         {% if current_user.role == 'admin' %}
         <a href="{{ url_for('admin_users') }}" class="{% if request.endpoint in ('admin_users', 'admin_logs', 'admin_emails', 'admin_jobs') %}active{% endif %}">
           <i class="bi bi-gear"></i> 管理
         </a>
+        {% else %}
+        <span class="nav-item nav-item-disabled" title="仅管理员可见" style="pointer-events:none;opacity:.4;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:.9rem;color:var(--gray-500);cursor:not-allowed;">
+          <i class="bi bi-gear"></i> 管理
+        </span>
         {% endif %}
       </div>
       <div class="top-nav-right">
@@ -369,9 +374,6 @@
     </a>
 <a href="{{ url_for('kb.workbench') }}" class="{% if request.endpoint in ('kb.workbench', 'kb.index', 'kb.doc_detail') %}active{% endif %}">
             <i class="bi bi-collection"></i><span>知识库</span>
-          </a>
-          <a href="{{ url_for('kb.ask') }}" class="{% if request.endpoint == 'kb.ask' %}active{% endif %}">
-            <i class="bi bi-stars"></i><span>分身问答</span>
           </a>
     {% if current_user.role == 'admin' %}
     <a href="{{ url_for('admin_users') }}" class="{% if request.endpoint in ('admin_users', 'admin_logs', 'admin_jobs') %}active{% endif %}">

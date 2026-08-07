@@ -305,10 +305,11 @@
     {% endif %}
     {% if not today_tasks and not week_other and not other_pending %}
     <div class="card">
-      <div class="card-body text-center py-4" style="color:var(--gray-400);">
-        <i class="bi bi-emoji-smile" style="font-size:2rem;"></i>
-        <p class="mt-2 mb-0" style="font-size:.9rem;">暂无待办待办</p>
-        <a href="{{ url_for('user_tasks') }}" class="btn btn-primary btn-sm mt-2"><i class="bi bi-plus-circle"></i> 发布新待办</a>
+      <div class="empty-state">
+        <svg viewBox="0 0 96 96" fill="none"><circle cx="48" cy="48" r="42" fill="var(--gray-100)"/><path d="M30 40l12 12 16-18" stroke="var(--primary)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M48 66v-3a10 10 0 019-10z" transform="translate(48 40) translate(0 0)" fill="var(--gray-300)"/><circle cx="48" cy="62" r="9" fill="none" stroke="var(--gray-300)" stroke-width="3"/></svg>
+        <div class="es-title">还没有待办</div>
+        <div class="es-sub">点击下方「创建待办」开始规划，让今天的行动清晰可见。</div>
+        <a href="{{ url_for('user_tasks') }}" class="btn btn-primary btn-sm"><i class="bi bi-plus-circle"></i> 创建待办</a>
       </div>
     </div>
     {% endif %}

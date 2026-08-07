@@ -48,7 +48,11 @@
         </div>
       </div>
       {% else %}
-      <div style="text-align:center;color:var(--gray-400);padding:30px 0;font-size:.8rem;">暂无待办</div>
+      <div class="empty-state">
+        <svg viewBox="0 0 96 96" fill="none"><circle cx="48" cy="48" r="42" fill="var(--gray-100)"/><path d="M30 40l12 12 16-18" stroke="var(--primary)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M48 66v-3a10 10 0 019-10z" transform="translate(48 40) translate(0 0)" fill="var(--gray-300)"/><circle cx="48" cy="62" r="9" fill="none" stroke="var(--gray-300)" stroke-width="3"/></svg>
+        <div class="es-title">暂无待办</div>
+        <div class="es-sub">在下方输入框用一句话创建，例如「明天 9点 提醒张三 开会」。</div>
+      </div>
       {% endfor %}
       {% if is_admin and assignment_counts %}
       <hr style="margin:10px 0;border-color:var(--gray-100);">

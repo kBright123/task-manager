@@ -161,6 +161,8 @@ function verifyEmail() {
   var code = bindCodeEl.value.trim();
   if (!email) { showResult('请先输入邮箱地址', true); return; }
   if (!code) { showResult('请输入校验码', true); return; }
+  var btn = document.querySelector('button[onclick="verifyEmail()"]');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> 绑定中...'; }
   fetch('{{ url_for("profile_verify_email") }}', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -171,8 +173,9 @@ function verifyEmail() {
       setTimeout(function () { location.reload(); }, 800);
     } else {
       showResult(d.error || '绑定失败', true);
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg"></i> 确认绑定'; }
     }
-  }).catch(function () { showResult('网络错误，请重试', true); });
+  }).catch(function () { showResult('网络错误，请重试', true); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg"></i> 确认绑定'; } });
 }
 
 function unbindEmail() {

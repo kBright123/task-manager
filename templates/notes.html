@@ -46,18 +46,21 @@
   <!-- 中栏: 对话流 -->
   <div class="notes-panel">
     <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
-      <span style="font-weight:600;font-size:.85rem;"><i class="bi bi-journal-text" style="color:var(--primary);"></i> 笔记流</span>
+      <span style="font-weight:600;font-size:.85rem;"><i class="bi bi-journal-text" style="color:var(--primary);"></i> 笔记列表</span>
       <small class="text-muted" style="font-size:.72rem;" id="notesCount"></small>
     </div>
     <div class="note-timeline" id="noteTimeline"></div>
     <div class="card-footer" style="background:#fafafa;border-top:1px solid var(--gray-100);padding:10px 14px;">
-      <textarea id="noteInput" rows="2" class="form-control" style="font-size:.85rem;resize:none;border-radius:10px;" placeholder="随手记点什么... Ctrl+Enter 发送, Shift+Enter 换行"></textarea>
+      <textarea id="noteInput" rows="2" class="form-control" style="font-size:.85rem;resize:none;border-radius:10px;" placeholder="写一条新笔记，保存到选中的项目/标签下..."></textarea>
       <div class="d-flex justify-content-between align-items-center mt-2">
-        <select id="noteThreadSel" class="form-select form-select-sm" style="width:auto;max-width:200px;font-size:.8rem;">
-          <option value="">无上下文</option>
-          {% for t in threads %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
-        </select>
-        <button class="btn btn-sm btn-primary" id="sendNoteBtn" onclick="sendNote()" disabled><i class="bi bi-send"></i> 发送</button>
+        <div class="d-flex align-items-center gap-2" style="font-size:.72rem;color:var(--gray-500);">
+          <select id="noteThreadSel" class="form-select form-select-sm" style="width:auto;max-width:200px;font-size:.8rem;">
+            <option value="">无上下文</option>
+            {% for t in threads %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+          </select>
+          <span>保存到所选项目，留空则归入“全部笔记”</span>
+        </div>
+        <button class="btn btn-sm btn-primary" id="sendNoteBtn" onclick="sendNote()" disabled><i class="bi bi-send"></i> 保存笔记</button>
       </div>
     </div>
   </div>
@@ -66,7 +69,7 @@
   <div class="card h-100" style="border:1px solid var(--gray-200);border-radius:var(--radius);overflow:hidden;">
     <div class="card-header py-2 px-3" style="font-weight:600;font-size:.85rem;"><i class="bi bi-info-circle" style="color:var(--primary);"></i> 笔记详情</div>
     <div class="card-body" id="metaBody" style="font-size:.8rem;color:var(--gray-600);overflow-y:auto;">
-      <div style="text-align:center;color:var(--gray-400);padding:40px 0;">选中左侧笔记查看详情<br>或直接输入随手记</div>
+      <div style="text-align:center;color:var(--gray-400);padding:40px 0;">在中间列表点一条笔记查看详情<br>或在下框输入内容，点「保存笔记」存为一条新记录</div>
     </div>
   </div>
 </div>

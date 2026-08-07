@@ -85,6 +85,13 @@
     .bottom-nav a.active i { transform: scale(1.1); }
     .bottom-nav a .dot { position: absolute; top: 4px; right: 50%; transform: translateX(16px); width: 7px; height: 7px; border-radius: 50%; background: var(--danger); border: 2px solid #fff; }
 
+    /* Notification dropdown */
+    .notification-item { transition: background .15s; }
+    .notification-item:hover { background: var(--gray-50); }
+    .notification-item.unread { background: var(--primary-light); }
+    .notification-item.unread .unread-dot { display: inline-block; }
+    .unread-dot { display: none; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); flex-shrink: 0; margin-top: 6px; }
+
     /* 统一动效: 页面淡入 + 组件微过渡 */
     .app-container { animation: tmFadeIn .22s ease-out; }
     .top-nav, .bottom-nav { animation: tmFadeIn .2s ease-out; }
@@ -284,7 +291,7 @@
             <div style="padding:12px 16px;font-weight:600;font-size:.85rem;color:var(--gray-800);border-bottom:1px solid var(--gray-100);display:flex;justify-content:space-between;align-items:center;">
               <span>通知</span>
               {% if unread_notifications > 0 %}
-              <form method="POST" action="{{ url_for('read_all_notifications') }}" style="display:inline;">
+              <form method="POST" action="{{ url_for('read_all_notifications') }}" style="display:inline;" onsubmit="return confirm('确定将全部 {{ unread_notifications }} 条未读通知标记为已读？');">
                 <button class="btn btn-sm" style="font-size:.7rem;padding:2px 8px;color:var(--primary);background:var(--primary-light);border:none;border-radius:6px;">全部已读</button>
               </form>
               {% endif %}
@@ -292,13 +299,13 @@
             <div>
               {% if recent_notifications %}
                 {% for note in recent_notifications %}
-                <a href="{{ url_for('read_notification', note_id=note.id) }}" onclick="document.getElementById('notificationDropdown').classList.add('d-none')" style="display:flex;align-items:flex-start;gap:10px;padding:10px 16px;text-decoration:none;border-bottom:1px solid var(--gray-100);{% if not note.is_read %}background:var(--primary-light){% endif %}">
+                <a href="{{ url_for('read_notification', note_id=note.id) }}" onclick="document.getElementById('notificationDropdown').classList.add('d-none')" class="notification-item {% if not note.is_read %}unread{% endif %}" style="display:flex;align-items:flex-start;gap:10px;padding:10px 16px;text-decoration:none;border-bottom:1px solid var(--gray-100);">
                   <i class="bi bi-info-circle" style="color:var(--primary);font-size:1rem;margin-top:2px;"></i>
                   <div style="flex:1;min-width:0;">
-                    <div style="font-size:.8rem;color:var(--gray-700);">{{ note.message }}</div>
+                    <div style="font-size:.8rem;color:var(--gray-700);{% if not note.is_read %}font-weight:600{% endif %};">{{ note.message }}</div>
                     <small style="font-size:.65rem;color:var(--gray-400);">{{ note.created_at.strftime('%m-%d %H:%M') }}</small>
                   </div>
-                  {% if not note.is_read %}<span style="width:8px;height:8px;border-radius:50%;background:var(--primary);flex-shrink:0;margin-top:6px;"></span>{% endif %}
+                  {% if not note.is_read %}<span class="unread-dot" style="width:8px;height:8px;border-radius:50%;background:var(--primary);flex-shrink:0;margin-top:6px;"></span>{% endif %}
                 </a>
                 {% endfor %}
               {% else %}

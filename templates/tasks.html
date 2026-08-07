@@ -1,540 +1,475 @@
 {% extends "base.html" %}
-{% block title %}任务发布{% endblock %}
+{% block title %}待办{% endblock %}
+{% block extra_css %}
+<style>
+  .tasks-layout { display: grid; grid-template-columns: 240px 1fr 320px; gap: 16px; height: calc(100vh - 170px); }
+  @media (max-width: 1200px) { .tasks-layout { grid-template-columns: 220px 1fr; height: auto; } }
+  @media (max-width: 860px) { .tasks-layout { grid-template-columns: 1fr; } }
+  .tasks-panel { background: #fff; border: 1px solid var(--gray-200); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; }
+  .cat-head { display: flex; align-items: center; gap: 8px; padding: 9px 12px; cursor: pointer; border-radius: 8px; transition: background .15s; }
+  .cat-head:hover { background: var(--gray-50); }
+  .cat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .cat-item { padding: 6px 12px 6px 24px; font-size: .78rem; color: var(--gray-700); border-radius: 6px; cursor: pointer; text-decoration: none; display: flex; align-items: center; gap: 6px; }
+  .cat-item:hover { background: var(--gray-50); }
+  .cat-item .badge { font-size: .58rem; }
+  .cat-item.active { background: var(--primary-light); color: var(--primary); }
+</style>
+{% endblock %}
 {% block content %}
 
-{% macro task_row(task, is_other, show_check=False) %}
-{% set s = task_stats.get(task.id, {'total': 0, 'completed': 0, 'abandoned': 0, 'pending': 0}) %}
-{% set total_count = s['total'] %}
-{% set completed_count = s['completed'] %}
-{% set abandoned_count = s['abandoned'] %}
-{% set abandoned_all = abandoned_count == total_count if total_count > 0 else False %}
-{% set my_assignment = my_assignments.get(task.id) %}
-{% set my_pending = my_assignment if my_assignment and my_assignment.status == 'pending' else None %}
-{% set my_completed = my_assignment if my_assignment and my_assignment.status != 'pending' else None %}
-<tr{% if abandoned_all %} style="opacity:.5;"{% endif %}>
-  {% if show_check %}
-  <td style="padding:4px 4px;width:34px;">
-    <input type="checkbox" class="form-check-input task-check" value="{{ task.id }}" style="margin-top:2px;">
-  </td>
-  {% endif %}
-  <td style="padding:4px 10px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-    <a href="{{ url_for('admin_task_detail' if is_other else ('admin_task_detail' if is_admin else 'user_task_detail'), task_id=task.id) }}" style="font-weight:600;font-size:.8rem;color:var(--gray-800);text-decoration:none;" title="{{ task.title }}">{{ task.title[:20] }}{% if task.title|length > 20 %}…{% endif %}</a>
-    <div><span class="badge" style="background:{{ 'var(--primary)' if task.category == '工作' else 'var(--success)' if task.category == '个人' else 'var(--meeting)' if task.category == '会议' else 'var(--training)' if task.category == '培训' else 'var(--exam)' if task.category == '考试' else 'var(--warning)' }};font-size:.5rem;">{{ task.category }}</span></div>
-  </td>
-  <td style="padding:4px 8px;font-size:.68rem;white-space:nowrap;">
-    <span style="color:var(--gray-600);">分配{{ total_count }}</span>
-    <span style="color:var(--success);"> ✓{{ completed_count }}</span>
-    {% if abandoned_count %}<span style="color:var(--gray-400);"> ✗{{ abandoned_count }}</span>{% endif %}
-  </td>
-  <td style="padding:4px 8px;">
-    <small style="font-size:.65rem;">{{ task.end_time.strftime('%m-%d') }}</small>
-    {% if task.end_time < now and (is_other or not abandoned_all) %}<span class="badge bg-danger" style="font-size:.5rem;">逾期</span>{% endif %}
-  </td>
-  <td style="padding:4px 8px;">
-    <div class="d-flex gap-1" style="white-space:nowrap;">
-    <a href="{{ url_for('admin_task_detail' if is_other else ('admin_task_detail' if is_admin else 'user_task_detail'), task_id=task.id) }}" class="btn btn-sm btn-outline-primary" style="padding:1px 6px;font-size:.62rem;line-height:1.3;" title="查看任务详情"><i class="bi bi-eye"></i> 详情</a>
-    {% if my_pending %}
-    <form method="POST" action="{{ url_for('user_complete_task', assignment_id=my_pending.id) }}">
-      <button type="submit" class="btn btn-sm btn-outline-success" style="padding:1px 6px;font-size:.62rem;line-height:1.3;" title="标记任务为已完成">完成</button>
-    </form>
-    {% else %}
-    <span class="btn btn-sm btn-outline-secondary" style="padding:1px 6px;font-size:.62rem;line-height:1.3;opacity:.4;cursor:default;" title="{% if my_completed %}已完成{% else %}无待办{% endif %}">完成</span>
-    {% endif %}
+<div class="tasks-layout">
+  <!-- 左栏: 按类型分类折叠展示当前用户任务 -->
+  <div class="tasks-panel">
+    <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
+      <span style="font-size:.84rem;font-weight:600;"><i class="bi bi-tags" style="color:var(--primary);"></i> 待办分类</span>
+      <span class="badge bg-primary" style="font-size:.6rem;">{{ my_tasks|length + other_assigned|length }}</span>
     </div>
-  </td>
-</tr>
-{% endmacro %}
-
-<div class="row g-4">
-  <div class="col-lg-7">
-
-{% if preview %}
-{% if duplicate_tasks %}
-<div class="alert {% if duplicate_blocked %}alert-danger{% else %}alert-warning{% endif %} py-2 px-3 mb-3" style="font-size:.82rem;border-left:4px solid {% if duplicate_blocked %}#ef4444{% else %}#f59e0b{% endif %};">
-  <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle"></i> 与现有未完成任务相似度过高（相似度 ≥ 70%），{% if duplicate_blocked %}不允许发布，请修改后重新提交{% else %}请确认是否继续发布{% endif %}</div>
-  {% for d in duplicate_tasks %}
-  <div class="py-1 {% if not loop.last %}border-bottom{% endif %}" style="border-color:rgba(0,0,0,.06)!important;">
-    <div class="d-flex justify-content-between align-items-center">
-      <div>
-        <span style="font-size:.82rem;font-weight:600;">{{ d.task.title }}</span>
-        <small class="text-muted" style="font-size:.68rem;"> — {{ d.task.creator.name or d.task.creator.username }}</small>
+    <div class="card-body py-2 px-2" style="overflow-y:auto;">
+      {% for g in task_categories %}
+      {% set color = 'var(--primary)' if g.category == '工作' else 'var(--success)' if g.category == '个人' else 'var(--meeting)' if g.category == '会议' else 'var(--training)' if g.category == '培训' else 'var(--exam)' if g.category == '考试' else 'var(--warning)' %}
+      <div class="cat-group mb-1">
+        <div class="cat-head" onclick="this.nextElementSibling.classList.toggle('d-none');this.querySelector('.chev').classList.toggle('bi-chevron-down')">
+          <span class="chev bi bi-chevron-down" style="font-size:.62rem;color:var(--gray-400);"></span>
+          <span class="cat-dot" style="background:{{ color }};"></span>
+          <span style="font-weight:600;font-size:.8rem;color:var(--gray-700);flex:1;">{{ g.category }}</span>
+          <span class="badge" style="background:{{ color }};font-size:.58rem;">{{ g.tasks|length }}</span>
+        </div>
+        <div>
+          {% for t in g.tasks %}
+          {% set s = task_stats.get(t.id, {'total': 0, 'completed': 0}) %}
+          <a class="cat-item" href="#" onclick="loadTaskDetail({{ t.id }});return false;" data-task-id="{{ t.id }}" title="{{ t.title }}\n{{ t.description or '' }}">
+            <i class="bi bi-list-task" style="color:var(--gray-400);font-size:.7rem;"></i>
+            <span class="text-truncate" style="flex:1;">{{ t.title[:18] }}</span>
+            {% if s['total'] > 1 %}<span class="badge" style="background:var(--gray-100);color:var(--gray-500);font-size:.55rem;">{{ s['completed'] }}/{{ s['total'] }}</span>{% endif %}
+            {% if t.end_time < now %}<span class="badge bg-danger" style="font-size:.55rem;">逾期</span>{% endif %}
+            <small style="font-size:.6rem;color:var(--gray-400);">{{ t.end_time.strftime('%m-%d') }}</small>
+          </a>
+          {% endfor %}
+        </div>
       </div>
-      <span class="badge" style="background:{% if d.similarity >= 90 %}var(--danger){% else %}var(--warning){% endif %};font-size:.6rem;">相似度 {{ d.similarity }}%</span>
+      {% else %}
+      <div style="text-align:center;color:var(--gray-400);padding:30px 0;font-size:.8rem;">暂无待办</div>
+      {% endfor %}
+      {% if is_admin and assignment_counts %}
+      <hr style="margin:10px 0;border-color:var(--gray-100);">
+      <div class="px-2" style="font-size:.78rem;font-weight:600;color:var(--gray-700);margin-bottom:8px;"><i class="bi bi-pie-chart" style="color:var(--primary);"></i> 分配概览</div>
+      {% set user_task_counts = assignment_counts or {} %}
+      {% set max_count = user_task_counts.values()|max or 1 %}
+      {% for uname, count in (user_task_counts.items()|list)[:8] %}
+      <div class="d-flex align-items-center gap-2 mb-1" style="padding:0 4px;">
+        <span style="font-size:.68rem;min-width:50px;" class="text-truncate">{{ uname }}</span>
+        <div class="flex-grow-1"><div class="progress-custom" style="height:4px;"><div class="progress-custom-bar" style="width:{{ (count / max_count * 100)|round }}%;background:var(--primary);"></div></div></div>
+        <small style="font-size:.62rem;min-width:1.5em;text-align:right;">{{ count }}</small>
+      </div>
+      {% endfor %}
+      {% endif %}
     </div>
-    <div class="mt-1" style="font-size:.72rem;color:var(--gray-500);">
-      <span><i class="bi bi-tag"></i> {{ d.task.category }}</span>
-      <span class="mx-1">·</span>
-      <span><i class="bi bi-clock"></i> {{ d.task.start_time.strftime('%m-%d %H:%M') }}~{{ d.task.end_time.strftime('%m-%d %H:%M') }}</span>
-      <span class="mx-1">·</span>
-      <span>匹配：<span style="color:var(--primary);font-weight:500;">{{ d.match_type }}</span></span>
-      {% if d.title_sim >= 85 %}<span class="mx-1">·</span><span>标题 {{ d.title_sim }}%</span>{% endif %}
-      {% if d.desc_sim >= 70 %}<span class="mx-1">·</span><span>描述 {{ d.desc_sim }}%</span>{% endif %}
+  </div>
+
+  <!-- 中栏: 自然语言创建 -->
+  {% if preview %}
+  <div class="notes-panel" style="overflow-y:auto;">
+    {% if duplicate_tasks %}
+    <div class="alert {% if duplicate_blocked %}alert-danger{% else %}alert-warning{% endif %} py-2 px-3 mb-3" style="font-size:.82rem;border-left:4px solid {% if duplicate_blocked %}#ef4444{% else %}#f59e0b{% endif %};border-radius:0;">
+      <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle"></i> 与现有未完成待办相似度过高（相似度 ≥ 70%），{% if duplicate_blocked %}不允许发布，请修改后重新提交{% else %}请确认是否继续发布{% endif %}</div>
+      {% for d in duplicate_tasks %}
+      <div class="py-1 {% if not loop.last %}border-bottom{% endif %}" style="border-color:rgba(0,0,0,.06)!important;">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <span style="font-size:.82rem;font-weight:600;">{{ d.task.title }}</span>
+            <small class="text-muted" style="font-size:.68rem;"> — {{ d.task.creator.name or d.task.creator.username }}</small>
+          </div>
+          <span class="badge" style="background:{% if d.similarity >= 90 %}var(--danger){% else %}var(--warning){% endif %};font-size:.6rem;">相似度 {{ d.similarity }}%</span>
+        </div>
+        {% if d.task.description %}
+        <div class="mt-1 p-1 rounded" style="background:rgba(0,0,0,.03);font-size:.7rem;color:var(--gray-600);max-height:40px;overflow:hidden;">{{ (d.task.description[:100] ~ ('…' if d.task.description|length > 100 else ''))|linkify }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
     </div>
-    {% if d.task.description %}
-    <div class="mt-1 p-1 rounded" style="background:rgba(0,0,0,.03);font-size:.7rem;color:var(--gray-600);max-height:40px;overflow:hidden;">{{ (d.task.description[:100] ~ ('…' if d.task.description|length > 100 else ''))|linkify }}</div>
     {% endif %}
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
-<div class="card mb-4">
-  <div class="card-header d-flex justify-content-between align-items-center py-2 px-3" style="background:var(--primary);color:#fff;">
-    <span style="font-weight:600;font-size:.9rem;"><i class="bi bi-eye"></i> 解析结果 — 可编辑修改</span>
-    <span class="badge bg-light text-primary" style="font-size:.68rem;">待确认</span>
-  </div>
-  <div class="card-body py-3 px-3">
-  <form method="POST">
-    <input type="hidden" name="action" value="save">
-    <div class="row g-3">
-      <div class="col-md-6 d-flex flex-column">
-        <div class="mb-2">
-          <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">任务标题</label>
-          <input type="text" name="title" class="form-control" value="{{ preview.title }}" required style="font-size:.88rem;padding:6px 10px;">
-        </div>
-        <div class="row g-2 mb-2">
-          <div class="col-6">
-            <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">开始时间</label>
-            <input type="datetime-local" name="start_time" class="form-control" value="{{ preview.start_time.strftime('%Y-%m-%dT%H:%M') if preview.start_time else '' }}" required style="font-size:.84rem;padding:4px 8px;">
-          </div>
-          <div class="col-6">
-            <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">结束时间</label>
-            <input type="datetime-local" name="end_time" class="form-control" value="{{ preview.end_time.strftime('%Y-%m-%dT%H:%M') if preview.end_time else '' }}" required style="font-size:.84rem;padding:4px 8px;">
-          </div>
-        </div>
-        <div class="row g-2 mb-2">
-          <div class="col-5">
-            <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">类型</label>
-            <select name="category" class="form-select" style="font-size:.84rem;padding:4px 8px;">
-              <option value="工作" {% if preview.category == '工作' %}selected{% endif %}>工作</option>
-              <option value="个人" {% if preview.category == '个人' %}selected{% endif %}>个人</option>
-              <option value="会议" {% if preview.category == '会议' %}selected{% endif %}>会议</option>
-              <option value="培训" {% if preview.category == '培训' %}selected{% endif %}>培训</option>
-              <option value="考试" {% if preview.category == '考试' %}selected{% endif %}>考试</option>
-              {% if preview.category and preview.category not in ['工作', '个人', '会议', '培训', '考试'] %}<option value="{{ preview.category }}" selected>{{ preview.category }}</option>{% endif %}
-            </select>
-          </div>
-          <div class="col-7">
-            <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">周期</label>
-            <select class="form-select" id="recurrenceSelect" style="font-size:.84rem;padding:4px 8px;" onchange="updateRecurrence()">
-              <option value="" data-count="0" data-interval="0">不重复</option>
-              <option value="weekly" data-count="4" data-interval="7" {% if preview.recurrence == 'weekly' %}selected{% endif %}>每周（4期）</option>
-              <option value="monthly" data-count="3" data-interval="30" {% if preview.recurrence == 'monthly' %}selected{% endif %}>每月（3期）</option>
-              <option value="yearly" data-count="2" data-interval="365" {% if preview.recurrence == 'yearly' %}selected{% endif %}>每年（2期）</option>
-              <option value="custom" data-count="0" data-interval="0">自定义</option>
-            </select>
-            <span id="recurrenceCustom" class="d-none mt-1" style="display:flex;gap:4px;">
-              <input type="number" id="customInterval" class="form-control" style="width:70px;font-size:.78rem;padding:2px 6px;" placeholder="天数" min="1" value="7">
-              <input type="number" id="customCount" class="form-control" style="width:60px;font-size:.78rem;padding:2px 6px;" placeholder="期数" min="1" value="3">
-              <button type="button" class="btn btn-sm btn-outline-primary" style="font-size:.7rem;padding:2px 8px;" onclick="applyCustomRecurrence()">应用</button>
-            </span>
-            <span id="recurrenceHint" class="text-info" style="font-size:.75rem;">
-              {% if preview.recurrence %}<i class="bi bi-arrow-repeat"></i> {{ preview.recurrence_text }}，共 {{ preview.recurrence_count }} 期{% endif %}
-            </span>
-          </div>
-        </div>
-        <input type="hidden" name="recurrence" id="recurrenceInput" value="{{ preview.recurrence or '' }}">
-        <input type="hidden" name="recurrence_count" id="recurrenceCountInput" value="{{ preview.recurrence_count or '0' }}">
-        <input type="hidden" name="recurrence_interval_days" id="recurrenceIntervalInput" value="{{ preview.recurrence_interval_days or '0' }}">
-        <div class="flex-grow-1 mb-2">
-          {% if user_groups %}
+    <div class="card-header d-flex justify-content-between align-items-center py-2 px-3" style="background:var(--primary);color:#fff;">
+      <span style="font-weight:600;font-size:.9rem;"><i class="bi bi-eye"></i> 解析结果 — 可编辑修改</span>
+      <span class="badge bg-light text-primary" style="font-size:.68rem;">待确认</span>
+    </div>
+    <div class="card-body py-3 px-3">
+    <form method="POST">
+      <input type="hidden" name="action" value="save">
+      <div class="row g-3">
+        <div class="col-md-6 d-flex flex-column">
           <div class="mb-2">
-            <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">按群组分配</label>
-            <div class="d-flex flex-wrap gap-1">
-              {% for g in user_groups %}
-              <label class="form-check form-check-inline" style="font-size:.8rem;cursor:pointer;margin-right:6px;">
-                <input class="form-check-input" type="checkbox" name="group_ids" value="{{ g.id }}" style="margin-top:2px;"{% if preview.group_ids and g.id|string in preview.group_ids %} checked{% endif %}>
-                {{ g.name }} <small style="color:var(--gray-400);font-size:.68rem;">({{ g.members|length }}人)</small>
-              </label>
-              {% endfor %}
+            <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">待办标题</label>
+            <input type="text" name="title" class="form-control" value="{{ preview.title }}" required style="font-size:.88rem;padding:6px 10px;">
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-6">
+              <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">开始时间</label>
+              <input type="datetime-local" name="start_time" class="form-control" value="{{ preview.start_time.strftime('%Y-%m-%dT%H:%M') if preview.start_time else '' }}" required style="font-size:.84rem;padding:4px 8px;">
+            </div>
+            <div class="col-6">
+              <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">结束时间</label>
+              <input type="datetime-local" name="end_time" class="form-control" value="{{ preview.end_time.strftime('%Y-%m-%dT%H:%M') if preview.end_time else '' }}" required style="font-size:.84rem;padding:4px 8px;">
             </div>
           </div>
-          {% endif %}
-          <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">分配对象</label>
-          <div class="d-flex flex-wrap gap-1">
-            {% if is_admin %}
-            <label class="form-check form-check-inline" style="font-size:.8rem;cursor:pointer;margin-right:6px;">
-              <input type="checkbox" class="form-check-input" name="is_all" value="1" id="isAllCheck" style="margin-top:2px;"
-                     onchange="document.getElementById('userCheckboxes').classList.toggle('d-none')"
-                     {% if preview.is_all %}checked{% endif %}>
-              @所有人
-            </label>
+          <div class="row g-2 mb-2">
+            <div class="col-5">
+              <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">类型</label>
+              <select name="category" class="form-select" style="font-size:.84rem;padding:4px 8px;">
+                <option value="工作" {% if preview.category == '工作' %}selected{% endif %}>工作</option>
+                <option value="个人" {% if preview.category == '个人' %}selected{% endif %}>个人</option>
+                <option value="会议" {% if preview.category == '会议' %}selected{% endif %}>会议</option>
+                <option value="培训" {% if preview.category == '培训' %}selected{% endif %}>培训</option>
+                <option value="考试" {% if preview.category == '考试' %}selected{% endif %}>考试</option>
+                {% if preview.category and preview.category not in ['工作', '个人', '会议', '培训', '考试'] %}<option value="{{ preview.category }}" selected>{{ preview.category }}</option>{% endif %}
+              </select>
+            </div>
+            <div class="col-7">
+              <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">周期</label>
+              <select class="form-select" id="recurrenceSelect" style="font-size:.84rem;padding:4px 8px;" onchange="updateRecurrence()">
+                <option value="" data-count="0" data-interval="0">不重复</option>
+                <option value="weekly" data-count="4" data-interval="7" {% if preview.recurrence == 'weekly' %}selected{% endif %}>每周（4期）</option>
+                <option value="monthly" data-count="3" data-interval="30" {% if preview.recurrence == 'monthly' %}selected{% endif %}>每月（3期）</option>
+                <option value="yearly" data-count="2" data-interval="365" {% if preview.recurrence == 'yearly' %}selected{% endif %}>每年（2期）</option>
+                <option value="custom" data-count="0" data-interval="0">自定义</option>
+              </select>
+              <span id="recurrenceCustom" class="d-none mt-1" style="display:flex;gap:4px;">
+                <input type="number" id="customInterval" class="form-control" style="width:60px;font-size:.78rem;padding:2px 6px;" placeholder="天数" min="1" value="7">
+                <input type="number" id="customCount" class="form-control" style="width:52px;font-size:.78rem;padding:2px 6px;" placeholder="期数" min="1" value="3">
+                <button type="button" class="btn btn-sm btn-outline-primary" style="font-size:.7rem;padding:2px 8px;" onclick="applyCustomRecurrence()">应用</button>
+              </span>
+              <span id="recurrenceHint" class="text-info" style="font-size:.75rem;">
+                {% if preview.recurrence %}<i class="bi bi-arrow-repeat"></i> {{ preview.recurrence_text }}，共 {{ preview.recurrence_count }} 期{% endif %}
+              </span>
+            </div>
+          </div>
+          <input type="hidden" name="recurrence" id="recurrenceInput" value="{{ preview.recurrence or '' }}">
+          <input type="hidden" name="recurrence_count" id="recurrenceCountInput" value="{{ preview.recurrence_count or '0' }}">
+          <input type="hidden" name="recurrence_interval_days" id="recurrenceIntervalInput" value="{{ preview.recurrence_interval_days or '0' }}">
+          <div class="flex-grow-1 mb-2">
+            {% if user_groups %}
+            <div class="mb-2">
+              <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">按群组分配</label>
+              <div class="d-flex flex-wrap gap-1">
+                {% for g in user_groups %}
+                <label class="form-check form-check-inline" style="font-size:.8rem;cursor:pointer;margin-right:6px;">
+                  <input class="form-check-input" type="checkbox" name="group_ids" value="{{ g.id }}" style="margin-top:2px;"{% if preview.group_ids and g.id|string in preview.group_ids %} checked{% endif %}>
+                  {{ g.name }} <small style="color:var(--gray-400);font-size:.68rem;">({{ g.members|length }}人)</small>
+                </label>
+                {% endfor %}
+              </div>
+            </div>
             {% endif %}
-            <span id="userCheckboxes" class="d-flex flex-wrap gap-1 {% if preview.is_all %}d-none{% endif %}">
-            {% for u in users %}
-            {% set checked_self = u.id == current_user.id %}
-            {% set matched = preview.assignees and (u.name in preview.assignees or u.username in preview.assignees) %}
-            {% set matched_ids = preview.assignee_ids and (u.id|string in preview.assignee_ids) %}
-            <label class="form-check form-check-inline" style="font-size:.8rem;cursor:pointer;margin-right:6px;">
-              <input class="form-check-input" type="checkbox" name="assignee_ids" value="{{ u.id }}" style="margin-top:2px;"{% if matched or matched_ids or checked_self %} checked{% endif %}{% if u.id == current_user.id %} data-self="1"{% endif %}>
-              {{ u.name or u.username }}{% if u.id == current_user.id %} <small style="color:var(--gray-400);font-size:.68rem;">(自己)</small>{% endif %}
-            </label>
-            {% endfor %}
-            </span>
+            <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">分配对象</label>
+            <div class="d-flex flex-wrap gap-1">
+              {% if is_admin %}
+              <label class="form-check form-check-inline" style="font-size:.8rem;cursor:pointer;margin-right:6px;">
+                <input type="checkbox" class="form-check-input" name="is_all" value="1" id="isAllCheck" style="margin-top:2px;"
+                       onchange="updateIsAll()"
+                       {% if preview.is_all %}checked{% endif %}>
+                @所有人 <small style="color:var(--gray-400);font-size:.68rem;">可切换为下方手动分配</small>
+              </label>
+              {% endif %}
+              <span id="userCheckboxes" class="d-flex flex-wrap gap-1">
+              {% for u in users %}
+              {% set checked_self = u.id == current_user.id %}
+              {% set matched = preview.assignees and (u.name in preview.assignees or u.username in preview.assignees) %}
+              {% set matched_ids = preview.assignee_ids and (u.id|string in preview.assignee_ids) %}
+              <label class="form-check form-check-inline" style="font-size:.8rem;cursor:pointer;margin-right:6px;">
+                <input class="form-check-input" type="checkbox" name="assignee_ids" value="{{ u.id }}" style="margin-top:2px;"{% if matched or matched_ids or checked_self %} checked{% endif %}{% if u.id == current_user.id %} data-self="1"{% endif %}>
+                {{ u.name or u.username }}{% if u.id == current_user.id %} <small style="color:var(--gray-400);font-size:.68rem;">(自己)</small>{% endif %}
+              </label>
+              {% endfor %}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6 d-flex flex-column">
+          <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">待办描述</label>
+          <textarea name="description" class="form-control flex-grow-1" style="font-size:.84rem;padding:6px 10px;resize:none;min-height:240px;">{{ preview.raw_text }}</textarea>
+          <div class="d-flex gap-2 pt-2 justify-content-end">
+            <a href="{{ url_for('user_tasks') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-x"></i> 取消</a>
+            <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg"></i> 确认发布</button>
           </div>
         </div>
       </div>
-      <div class="col-md-6 d-flex flex-column">
-        <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">任务描述</label>
-        <textarea name="description" class="form-control flex-grow-1" style="font-size:.84rem;padding:6px 10px;resize:none;min-height:240px;">{{ preview.raw_text }}</textarea>
-        <div class="d-flex gap-2 pt-2 justify-content-end">
-          <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg"></i> 确认发布</button>
-          <a href="{{ url_for('user_tasks') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-x"></i> 取消</a>
-        </div>
-      </div>
-    </div>
-  </form>
-  </div>
-</div>
-<script>
-function updateRecurrence() {
-  var sel = document.getElementById('recurrenceSelect');
-  var opt = sel.options[sel.selectedIndex];
-  var custom = document.getElementById('recurrenceCustom');
-  if (opt.value === 'custom') {
-    custom.classList.remove('d-none');
-    document.getElementById('recurrenceInput').value = '';
-    document.getElementById('recurrenceCountInput').value = '0';
-    document.getElementById('recurrenceIntervalInput').value = '0';
-    document.getElementById('recurrenceHint').innerHTML = '';
-    return;
-  }
-  custom.classList.add('d-none');
-  document.getElementById('recurrenceInput').value = opt.value;
-  document.getElementById('recurrenceCountInput').value = opt.dataset.count;
-  document.getElementById('recurrenceIntervalInput').value = opt.dataset.interval;
-  var hint = document.getElementById('recurrenceHint');
-  if (opt.value) {
-    hint.innerHTML = '<i class="bi bi-arrow-repeat"></i> ' + opt.text;
-  } else {
-    hint.innerHTML = '';
-  }
-}
-function applyCustomRecurrence() {
-  var interval = parseInt(document.getElementById('customInterval').value) || 7;
-  var count = parseInt(document.getElementById('customCount').value) || 3;
-  document.getElementById('recurrenceInput').value = 'custom';
-  document.getElementById('recurrenceCountInput').value = count;
-  document.getElementById('recurrenceIntervalInput').value = interval;
-  document.getElementById('recurrenceHint').innerHTML = '<i class="bi bi-arrow-repeat"></i> 每' + interval + '天，共' + count + '期';
-}
-</script>
-    {% else %}
-    {% if sensitive_words %}
-    <div class="alert alert-danger py-2 px-3 mb-3" style="font-size:.82rem;border-left:4px solid var(--danger);">
-      <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle"></i> 输入内容包含敏感词，请修改后重试</div>
-      <div>涉及词汇：{% for w in sensitive_words %}<span class="badge bg-danger me-1" style="font-size:.7rem;">{{ w }}</span>{% endfor %}</div>
-      {% if sensitive_text %}<div class="mt-2 p-2 rounded" style="background:#fff;font-size:.82rem;word-break:break-all;">{{ sensitive_text|safe }}</div>{% endif %}
-    </div>
-    {% endif %}
-    {% if is_admin %}
-    <div class="card">
-      <div class="card-header py-2 px-3" style="background:var(--gray-50);">
-        <span style="font-size:.85rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-chat-dots"></i> 自然语言创建</span>
-      </div>
-      <div class="card-body py-3 px-3">
-        <form method="POST" class="d-flex gap-2">
-          <input type="hidden" name="action" value="preview">
-          <div style="position:relative;flex-grow:1;">
-            <textarea name="text" class="form-control" rows="4" id="adminTaskText" placeholder="例：开发登录功能 从明天上午9点开始 到下周五下午6点结束 发给张三、李四。支持每周/每月/每年周期任务" required style="font-size:.9rem;resize:none;">{% if original_text %}{{ original_text }}{% endif %}</textarea>
-            <div id="mentionDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:180px;overflow-y:auto;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:1000;margin-top:2px;"></div>
-          </div>
-          <button type="submit" class="btn btn-primary align-self-start" style="height:44px;white-space:nowrap;flex-shrink:0;padding:6px 18px;"><i class="bi bi-send"></i> 解析</button>
-        </form>
-        <div class="mt-2">
-          <small style="color:var(--gray-500);font-size:.72rem;"><i class="bi bi-info-circle"></i> 输入 @ 选择人员，支持自然语言时间/周期</small>
-        </div>
-      </div>
+    </form>
     </div>
     <script>
-    var mentionUsers = [
-      {id: 0, name: '所有人', keyword: '@所有人'},
-      {% for u in users %}
-      {id: {{ u.id }}, name: '{{ u.name or u.username }}', keyword: '{{ u.name or u.username }}'{% if u.name %}, uname: '{{ u.username }}'{% endif %}},
-      {% endfor %}
-    ];
+    function updateIsAll() {
+      var checked = document.getElementById('isAllCheck').checked;
+      document.querySelectorAll('#userCheckboxes input[type="checkbox"]').forEach(function(cb){
+        cb.checked = checked;
+      });
+      window._isAllToggled = true;
+    }
     (function(){
-      var ta = document.getElementById('adminTaskText');
-      var dd = document.getElementById('mentionDropdown');
-      if(!ta) return;
-      var atPos = -1, filter = '';
-      function updateDropdown(){
-        if(atPos < 0){ dd.style.display = 'none'; return; }
-        var f = filter.toLowerCase();
-        var items = mentionUsers.filter(function(u){
-          return u.keyword.toLowerCase().includes(f) || (u.uname && u.uname.includes(f));
-        });
-        if(!items.length){ dd.style.display = 'none'; return; }
-        dd.innerHTML = items.map(function(u, i){
-          var label = u.name;
-          if(u.uname) label += ' <small style="color:var(--gray-400)">@' + u.uname + '</small>';
-          return '<div class="mention-item" data-idx="' + i + '" style="padding:6px 12px;cursor:pointer;font-size:.82rem;' + (i===0?'background:var(--gray-50);':'') + '">' + label + '</div>';
-        }).join('');
-        dd.style.display = 'block';
-        var rect = ta.getBoundingClientRect();
-        var spaceBelow = window.innerHeight - rect.bottom;
-        var ddHeight = Math.min(180, items.length * 32 + 10);
-        dd.style.top = spaceBelow < ddHeight + 10 ? 'auto' : '100%';
-        dd.style.bottom = spaceBelow < ddHeight + 10 ? (rect.height + 4 + 'px') : 'auto';
-        dd.style.marginTop = spaceBelow < ddHeight + 10 ? '0' : '2px';
-        dd.querySelectorAll('.mention-item').forEach(function(el){
-          el.onclick = function(){
-            var idx = parseInt(el.dataset.idx);
-            insertMention(items[idx]);
-          };
-          el.onmouseenter = function(){
-            dd.querySelectorAll('.mention-item').forEach(function(e){e.style.background=''});
-            el.style.background = 'var(--gray-50)';
-          };
-        });
-      }
-      function insertMention(u){
-        var before = ta.value.substring(0, atPos);
-        var after = ta.value.substring(ta.selectionEnd);
-        var insert = u.id === 0 ? '@所有人 ' : '@' + u.keyword + ' ';
-        ta.value = before + insert + after;
-        ta.focus();
-        ta.selectionStart = ta.selectionEnd = atPos + insert.length;
-        atPos = -1; filter = '';
-        dd.style.display = 'none';
-      }
-      ta.addEventListener('input', function(){
-        var pos = ta.selectionStart;
-        var val = ta.value;
-        var searchStart = Math.max(0, pos - 20);
-        var textBefore = val.substring(searchStart, pos);
-        var idx = textBefore.lastIndexOf('@');
-        if(idx >= 0){
-          var afterAt = textBefore.substring(idx + 1);
-          if(!afterAt.includes(' ') && !afterAt.includes('\n')){
-            atPos = searchStart + idx;
-            filter = afterAt;
-            updateDropdown();
-            return;
-          }
-        }
-        atPos = -1;
-        dd.style.display = 'none';
-      });
-      ta.addEventListener('keydown', function(e){
-        if(dd.style.display !== 'block') return;
-        if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
-          e.preventDefault();
-          var items = dd.querySelectorAll('.mention-item');
-          var cur = dd.querySelector('.mention-item[style*="var(--gray-50)"]');
-          var idx = -1;
-          if(cur) idx = Array.from(items).indexOf(cur);
-          if(e.key === 'ArrowDown') idx = Math.min(idx + 1, items.length - 1);
-          else idx = Math.max(idx - 1, 0);
-          items.forEach(function(el){el.style.background=''});
-          items[idx].style.background = 'var(--gray-50)';
-          items[idx].scrollIntoView({block:'nearest'});
-        } else if(e.key === 'Enter' && atPos >= 0){
-          e.preventDefault();
-          var items = dd.querySelectorAll('.mention-item');
-          var cur = dd.querySelector('.mention-item[style*="var(--gray-50)"]');
-          if(cur){ cur.click(); }
-        } else if(e.key === 'Escape'){
-          dd.style.display = 'none'; atPos = -1;
+      var usersWrap = document.getElementById('userCheckboxes');
+      if (usersWrap) usersWrap.addEventListener('change', function(){
+        if (document.getElementById('isAllCheck').checked) {
+          document.getElementById('isAllCheck').checked = false;
         }
       });
-      ta.addEventListener('blur', function(){ setTimeout(function(){ dd.style.display = 'none'; }, 200); });
     })();
+    function updateRecurrence() {
+      var sel = document.getElementById('recurrenceSelect');
+      var opt = sel.options[sel.selectedIndex];
+      var custom = document.getElementById('recurrenceCustom');
+      if (opt.value === 'custom') {
+        custom.classList.remove('d-none');
+        document.getElementById('recurrenceInput').value = '';
+        document.getElementById('recurrenceCountInput').value = '0';
+        document.getElementById('recurrenceIntervalInput').value = '0';
+        document.getElementById('recurrenceHint').innerHTML = '';
+        return;
+      }
+      custom.classList.add('d-none');
+      document.getElementById('recurrenceInput').value = opt.value;
+      document.getElementById('recurrenceCountInput').value = opt.dataset.count;
+      document.getElementById('recurrenceIntervalInput').value = opt.dataset.interval;
+      var hint = document.getElementById('recurrenceHint');
+      if (opt.value) { hint.innerHTML = '<i class="bi bi-arrow-repeat"></i> ' + opt.text; }
+      else { hint.innerHTML = ''; }
+    }
+    function applyCustomRecurrence() {
+      var interval = parseInt(document.getElementById('customInterval').value) || 7;
+      var count = parseInt(document.getElementById('customCount').value) || 3;
+      document.getElementById('recurrenceInput').value = 'custom';
+      document.getElementById('recurrenceCountInput').value = count;
+      document.getElementById('recurrenceIntervalInput').value = interval;
+      document.getElementById('recurrenceHint').innerHTML = '<i class="bi bi-arrow-repeat"></i> 每' + interval + '天，共' + count + '期';
+    }
     </script>
-    {% else %}
-    <div class="card">
-      <div class="card-header py-2 px-3" style="background:var(--gray-50);">
-        <span style="font-size:.85rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-chat-dots"></i> 快速创建</span>
-      </div>
-      <div class="card-body py-3 px-3">
-        <form method="POST" class="d-flex gap-2">
-          <textarea name="text" class="form-control" rows="4" placeholder="学习Python 从今天下午2点到5点。支持每周/每月周期任务" required style="font-size:.9rem;resize:none;">{% if original_text %}{{ original_text }}{% endif %}</textarea>
-          <button type="submit" class="btn btn-primary align-self-start" style="height:44px;white-space:nowrap;flex-shrink:0;padding:6px 18px;"><i class="bi bi-plus-circle"></i> 创建</button>
-        </form>
-        <div class="mt-2">
-          <small style="color:var(--gray-500);font-size:.72rem;"><i class="bi bi-info-circle"></i> 输入自然语言，自动解析标题、时间、分配</small>
-        </div>
-      </div>
+  </div>
+  {% else %}
+  {% if sensitive_words %}
+  <div class="notes-panel alert alert-danger py-2 px-3 mb-3" style="font-size:.82rem;border-left:4px solid var(--danger);border-radius:0;min-height:0;">
+    <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle"></i> 输入内容包含敏感词，请修改后重试</div>
+    <div>涉及词汇：{% for w in sensitive_words %}<span class="badge bg-danger me-1" style="font-size:.7rem;">{{ w }}</span>{% endfor %}</div>
+    {% if sensitive_text %}<div class="mt-2 p-2 rounded" style="background:#fff;font-size:.82rem;word-break:break-all;">{{ sensitive_text|safe }}</div>{% endif %}
+  </div>
+  {% endif %}
+  <div class="tasks-panel">
+    <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
+      <span style="font-size:.85rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-chat-dots" style="color:var(--primary);"></i> 自然语言创建</span>
     </div>
-    {% endif %}
-    {% endif %}
-
-  </div>
-  <div class="col-lg-5">
-
-{% if rejected_tasks %}
-<div class="card mb-3 border-danger">
-  <div class="card-header d-flex justify-content-between align-items-center py-2 px-3" style="background:#fef2f2;">
-    <span style="color:var(--danger);font-weight:600;font-size:.82rem;"><i class="bi bi-exclamation-triangle"></i> 被驳回</span>
-    <span class="badge bg-danger" style="font-size:.6rem;">{{ rejected_tasks|length }}</span>
-  </div>
-  <div class="card-body py-2 px-3">
-    {% for a in rejected_tasks %}
-    <div class="d-flex justify-content-between align-items-center py-1 {% if not loop.last %}border-bottom{% endif %}" style="border-color:var(--gray-100)!important;">
-      <div>
-        <span style="font-size:.8rem;font-weight:600;">{{ a.task.title }}</span>
-        <small class="d-block text-danger" style="font-size:.68rem;"><i class="bi bi-x-circle"></i> {{ a.rejection_reason }}</small>
-      </div>
-      <form method="POST" action="{{ url_for('user_complete_task', assignment_id=a.id) }}">
-        <button type="submit" class="btn btn-sm btn-outline-success" style="padding:1px 8px;font-size:.65rem;">重交</button>
+    <div class="card-body py-3 px-3" style="display:flex;flex-direction:column;">
+      <form method="POST" class="d-flex gap-2">
+        <input type="hidden" name="action" value="preview">
+        <div style="position:relative;flex-grow:1;">
+          <textarea name="text" class="form-control" rows="5" id="adminTaskText" placeholder="例：开发登录功能 从明天上午9点开始 到下周五下午6点结束 发给张三、李四。支持每周/每月/每年周期待办" required style="font-size:.9rem;resize:none;">{% if original_text %}{{ original_text }}{% endif %}</textarea>
+          <div id="mentionDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:180px;overflow-y:auto;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:1000;margin-top:2px;"></div>
+        </div>
+        <button type="submit" class="btn btn-primary align-self-start" style="height:104px;white-space:nowrap;flex-shrink:0;padding:6px 18px;">{% if is_admin %}<i class="bi bi-send"></i> 解析{% else %}<i class="bi bi-plus-circle"></i> 创建{% endif %}</button>
       </form>
-    </div>
-    {% endfor %}
-  </div>
-</div>
-{% endif %}
-
-{% if my_tasks %}
-<div class="card mb-3">
-  <div class="card-header d-flex justify-content-between align-items-center py-2 px-3" style="background:var(--gray-50);">
-    <div class="d-flex align-items-center gap-2">
-      <span style="font-size:.82rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-inbox"></i> 我创建的任务</span>
-      <span class="badge bg-secondary" style="font-size:.6rem;">{{ my_tasks|length }}</span>
-    </div>
-    <div class="d-flex align-items-center gap-2">
-      <span id="batchSelCount" style="font-size:.7rem;color:var(--gray-500);display:none;">已选 0</span>
-      <button class="btn btn-sm btn-outline-danger" id="batchDeleteBtn" style="padding:2px 10px;font-size:.72rem;display:none;" onclick="batchDeleteTasks()"><i class="bi bi-trash"></i> 批量删除</button>
-    </div>
-  </div>
-  <div class="table-responsive">
-    <table class="table table-hover" style="font-size:.78rem;">
-      <thead>
-        <tr>
-          <th style="padding:6px 4px;width:34px;">
-            <input type="checkbox" class="form-check-input" id="taskCheckAll" style="margin-top:2px;" onchange="toggleCheckAll(this)">
-          </th>
-          <th style="padding:6px 10px;">任务</th>
-          <th style="padding:6px 8px;width:110px;">进度</th>
-          <th style="padding:6px 8px;width:44px;">截止</th>
-          <th style="padding:6px 8px;width:120px;">操作</th>
-        </tr>
-      </thead>
-      <tbody id="taskTableBody">
-        {% for task in my_tasks[:5] %}
-        {{ task_row(task, False, True) }}
-        {% endfor %}
-      </tbody>
-      {% if my_tasks|length > 5 %}
-      <tbody id="taskTableExtra" style="display:none;">
-        {% for task in my_tasks[5:] %}
-        {{ task_row(task, False, True) }}
-        {% endfor %}
-      </tbody>
-      <tfoot>
-        <tr>
-          <td colspan="5" class="text-center py-1">
-            <button class="btn btn-sm btn-link" style="font-size:.75rem;color:var(--primary);text-decoration:none;" data-total="{{ my_tasks|length }}" onclick="toggleAllTasks(this)">展开全部 ({{ my_tasks|length }}条)</button>
-          </td>
-        </tr>
-      </tfoot>
-      {% endif %}
-    </table>
-  </div>
-</div>
-{% endif %}
-
-{% if is_admin and all_tasks %}
-<div class="card mb-3">
-  <div class="card-header py-2 px-3" style="background:var(--gray-50);">
-    <span style="font-size:.82rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-pie-chart"></i> 分配概览</span>
-  </div>
-  <div class="card-body py-2 px-3">
-    {% set user_task_counts = assignment_counts or {} %}
-    {% set max_count = user_task_counts.values()|max or 1 %}
-    {% for uname, count in (user_task_counts.items()|list)[:8] %}
-    <div class="d-flex align-items-center gap-2 mb-1">
-      <span style="font-size:.7rem;min-width:56px;" class="text-truncate">{{ uname }}</span>
-      <div class="flex-grow-1">
-        <div class="progress-custom" style="height:5px;">
-          <div class="progress-custom-bar" style="width:{{ (count / max_count * 100)|round }}%;background:var(--primary);"></div>
-        </div>
+      <div class="mt-2">
+        <small style="color:var(--gray-500);font-size:.72rem;"><i class="bi bi-info-circle"></i> 输入 @ 选择人员，自动解析标题、时间、分配，支持每周/每月/每年周期待办</small>
       </div>
-      <small style="font-size:.65rem;min-width:2em;text-align:right;">{{ count }}</small>
     </div>
+  </div>
+  {% endif %}
+  <script>
+  var mentionUsers = [
+    {id: 0, name: '所有人', keyword: '@所有人'},
+    {% for u in users %}
+    {id: {{ u.id }}, name: '{{ u.name or u.username }}', keyword: '{{ u.name or u.username }}'{% if u.name %}, uname: '{{ u.username }}'{% endif %}},
     {% endfor %}
-  </div>
-</div>
-{% endif %}
+  ];
+  (function(){
+    var ta = document.getElementById('adminTaskText');
+    var dd = document.getElementById('mentionDropdown');
+    if(!ta) return;
+    var atPos = -1, filter = '';
+    function updateDropdown(){
+      if(atPos < 0){ dd.style.display = 'none'; return; }
+      var f = filter.toLowerCase();
+      var items = mentionUsers.filter(function(u){
+        return u.keyword.toLowerCase().includes(f) || (u.uname && u.uname.includes(f));
+      });
+      if(!items.length){ dd.style.display = 'none'; return; }
+      dd.innerHTML = items.map(function(u, i){
+        var label = u.name;
+        if(u.uname) label += ' <small style="color:var(--gray-400)">@' + u.uname + '</small>';
+        return '<div class="mention-item" data-idx="' + i + '" style="padding:6px 12px;cursor:pointer;font-size:.82rem;' + (i===0?'background:var(--gray-50);':'') + '">' + label + '</div>';
+      }).join('');
+      dd.style.display = 'block';
+      var rect = ta.getBoundingClientRect();
+      var spaceBelow = window.innerHeight - rect.bottom;
+      var ddHeight = Math.min(180, items.length * 32 + 10);
+      dd.style.top = spaceBelow < ddHeight + 10 ? 'auto' : '100%';
+      dd.style.bottom = spaceBelow < ddHeight + 10 ? (rect.height + 4 + 'px') : 'auto';
+      dd.style.marginTop = spaceBelow < ddHeight + 10 ? '0' : '2px';
+      dd.querySelectorAll('.mention-item').forEach(function(el){
+        el.onclick = function(){
+          var idx = parseInt(el.dataset.idx);
+          insertMention(items[idx]);
+        };
+        el.onmouseenter = function(){
+          dd.querySelectorAll('.mention-item').forEach(function(e){e.style.background=''});
+          el.style.background = 'var(--gray-50)';
+        };
+      });
+    }
+    function insertMention(u){
+      var before = ta.value.substring(0, atPos);
+      var after = ta.value.substring(ta.selectionEnd);
+      var insert = u.id === 0 ? '@所有人 ' : '@' + u.keyword + ' ';
+      ta.value = before + insert + after;
+      ta.focus();
+      ta.selectionStart = ta.selectionEnd = atPos + insert.length;
+      atPos = -1; filter = '';
+      dd.style.display = 'none';
+    }
+    ta.addEventListener('input', function(){
+      var pos = ta.selectionStart;
+      var val = ta.value;
+      var searchStart = Math.max(0, pos - 20);
+      var textBefore = val.substring(searchStart, pos);
+      var idx = textBefore.lastIndexOf('@');
+      if(idx >= 0){
+        var afterAt = textBefore.substring(idx + 1);
+        if(!afterAt.includes(' ') && !afterAt.includes('\n')){
+          atPos = searchStart + idx;
+          filter = afterAt;
+          updateDropdown();
+          return;
+        }
+      }
+      atPos = -1;
+      dd.style.display = 'none';
+    });
+    ta.addEventListener('keydown', function(e){
+      if(dd.style.display !== 'block') return;
+      if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+        e.preventDefault();
+        var items = dd.querySelectorAll('.mention-item');
+        var cur = dd.querySelector('.mention-item[style*="var(--gray-50)"]');
+        var idx = -1;
+        if(cur) idx = Array.from(items).indexOf(cur);
+        if(e.key === 'ArrowDown') idx = Math.min(idx + 1, items.length - 1);
+        else idx = Math.max(idx - 1, 0);
+        items.forEach(function(el){el.style.background=''});
+        items[idx].style.background = 'var(--gray-50)';
+        items[idx].scrollIntoView({block:'nearest'});
+      } else if(e.key === 'Enter' && atPos >= 0){
+        e.preventDefault();
+        var items = dd.querySelectorAll('.mention-item');
+        var cur = dd.querySelector('.mention-item[style*="var(--gray-50)"]');
+        if(cur){ cur.click(); }
+      } else if(e.key === 'Escape'){
+        dd.style.display = 'none'; atPos = -1;
+      }
+    });
+    ta.addEventListener('blur', function(){ setTimeout(function(){ dd.style.display = 'none'; }, 200); });
+  })();
+  </script>
 
-{% if other_assigned %}
-<div class="card mb-3">
-  <div class="card-header d-flex justify-content-between align-items-center py-2 px-3" style="background:var(--gray-50);">
-    <span style="font-size:.82rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-people"></i> 别人分配的任务</span>
-    <span class="badge bg-secondary" style="font-size:.6rem;">{{ other_assigned|length }}</span>
-  </div>
-  <div class="table-responsive">
-    <table class="table table-hover" style="font-size:.78rem;">
-      <thead>
-        <tr>
-          <th style="padding:6px 10px;">任务</th>
-          <th style="padding:6px 8px;width:110px;">进度</th>
-          <th style="padding:6px 8px;width:44px;">截止</th>
-          <th style="padding:6px 8px;width:120px;">操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for task in other_assigned %}
-        {{ task_row(task, True) }}
+  <!-- 右栏: 任务详情 -->
+  <div class="tasks-panel">
+    <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
+      <span style="font-size:.84rem;font-weight:600;"><i class="bi bi-info-circle" style="color:var(--primary);"></i> 任务详情</span>
+      <a href="{{ url_for('user_dashboard') }}" class="text-muted text-decoration-none" style="font-size:.72rem;"><i class="bi bi-arrow-left"></i> 返回</a>
+    </div>
+    <div class="card-body" id="taskDetailBody" style="font-size:.82rem;color:var(--gray-600);overflow-y:auto;">
+      {% if rejected_tasks %}
+      <div class="mb-3">
+        <div style="font-size:.72rem;color:var(--danger);font-weight:600;margin-bottom:6px;"><i class="bi bi-exclamation-triangle"></i> 被驳回待交</div>
+        {% for a in rejected_tasks %}
+        <div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid var(--gray-100);">
+          <div style="min-width:0;">
+            <div style="font-size:.82rem;font-weight:600;color:var(--gray-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ a.task.title }}</div>
+            <small class="d-block text-danger" style="font-size:.68rem;"><i class="bi bi-x-circle"></i> {{ a.rejection_reason }}</small>
+          </div>
+          <form method="POST" action="{{ url_for('user_complete_task', assignment_id=a.id) }}" class="ms-2">
+            <button type="submit" class="btn btn-sm btn-outline-success" style="padding:1px 8px;font-size:.65rem;">重交</button>
+          </form>
+        </div>
         {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-{% endif %}
-
+      </div>
+      {% endif %}
+      <div style="text-align:center;color:var(--gray-400);padding:40px 10px;" class="task-detail-empty">
+        <i class="bi bi-mouse" style="font-size:1.6rem;display:block;margin-bottom:10px;color:var(--gray-300);"></i>
+        点击左侧待办查看详情
+      </div>
+    </div>
   </div>
 </div>
 
 <script>
-function toggleAllTasks(btn) {
-  var extra = document.getElementById('taskTableExtra');
-  if (extra.style.display === 'none') {
-    extra.style.display = '';
-    btn.textContent = '收起';
-  } else {
-    extra.style.display = 'none';
-    btn.textContent = '展开全部 (' + btn.dataset.total + '条)';
+function loadTaskDetail(taskId) {
+  var body = document.getElementById('taskDetailBody');
+  if (!body) return;
+  document.querySelectorAll('.cat-item.active').forEach(function(el){el.classList.remove('active');});
+  var active = document.querySelector('.cat-item[data-task-id="' + taskId + '"]');
+  if (active) active.classList.add('active');
+  body.innerHTML = '<div style="text-align:center;color:var(--gray-400);padding:30px 10px;"><span class="spinner-border spinner-border-sm" style="width:1rem;height:1rem;"></span></div>';
+  fetch('{{ url_for('api_task_detail', task_id=0) }}'.replace('/0', '/' + taskId))
+    .then(function(r){return r.json();}).then(function(d){
+      if (!d.ok) { body.innerHTML = '<div style="text-align:center;color:var(--danger);padding:30px 10px;">' + (d.error||'加载失败') + '</div>'; return; }
+      renderTaskDetail(d.task, body);
+    }).catch(function(){ body.innerHTML = '<div style="text-align:center;color:var(--danger);padding:30px 10px;">加载失败</div>'; });
+}
+function fmtStatus(s) {
+  var m = {'pending':'进行中','completed':'已完成','approved':'已确认','rejected':'已驳回','abandoned':'已废弃'};
+  var c = {'pending':'var(--warning)','completed':'var(--success)','approved':'var(--success)','rejected':'var(--danger)','abandoned':'var(--gray-400)'};
+  return '<span class="badge" style="background:' + (c[s]||'var(--gray-400)') + ';font-size:.65rem;">' + (m[s]||s) + '</span>';
+}
+function renderTaskDetail(t, body){
+  body.innerHTML = '';
+  var card = document.createElement('div');
+  var head = document.createElement('div');
+  head.style.cssText = 'border-bottom:1px solid var(--gray-100);padding-bottom:12px;margin-bottom:12px;';
+  head.innerHTML = '<div style="font-size:1rem;font-weight:700;color:var(--gray-900);margin-bottom:8px;">' + esc(t.title) + '</div>' +
+    '<div class="d-flex flex-wrap gap-2 align-items-center">' +
+      '<span class="badge" style="background:var(--primary);font-size:.65rem;">' + esc(t.category) + '</span>' +
+      fmtStatus(t.status) + '</div>';
+  card.appendChild(head);
+  if (t.description && t.description !== t.title) {
+    var d = document.createElement('div');
+    d.style.cssText = 'font-size:.82rem;color:var(--gray-700);background:var(--gray-50);border-radius:8px;padding:10px 12px;margin-bottom:12px;white-space:pre-wrap;word-break:break-word;';
+    d.textContent = t.description;
+    card.appendChild(d);
   }
-}
-function updateBatchUI() {
-  var checks = document.querySelectorAll('#taskTableBody .task-check, #taskTableExtra .task-check');
-  var count = Array.prototype.filter.call(checks, function (c) { return c.checked; }).length;
-  var sel = document.getElementById('batchSelCount');
-  var btn = document.getElementById('batchDeleteBtn');
-  if (count > 0) {
-    sel.style.display = 'inline';
-    sel.textContent = '已选 ' + count;
-    btn.style.display = 'inline-block';
-  } else {
-    sel.style.display = 'none';
-    btn.style.display = 'none';
+  var info = document.createElement('div');
+  info.style.cssText = 'border:1px solid var(--gray-200);border-radius:8px;padding:10px 12px;margin-bottom:12px;';
+  info.innerHTML = metaRow('开始时间', t.start_time) + metaRow('截止时间', t.end_time) + metaRow('发布人', t.creator) + metaRow('创建时间', esc(t.created_at));
+  card.appendChild(info);
+  if (t.assignments && t.assignments.length) {
+    var assign = document.createElement('div');
+    var h = document.createElement('div');
+    h.style.cssText = 'font-size:.72rem;font-weight:600;color:var(--gray-500);margin:4px 0 6px;';
+    h.textContent = '分配对象 (' + t.assignments.length + ')';
+    assign.appendChild(h);
+    t.assignments.forEach(function(a){
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--gray-100);font-size:.8rem;color:var(--gray-700);';
+      row.innerHTML = '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(a.user) + (a.self?' <small style="color:var(--gray-400);">(自己)</small>':'') + '</span>' + fmtStatus(a.status) + (a.note?' · <small class="text-muted">'+esc(a.note)+'</small>':'');
+      assign.appendChild(row);
+    });
+    card.appendChild(assign);
   }
+  var stat = t.stats || {};
+  if (stat.total) {
+    var pr = document.createElement('div');
+    pr.style.cssText = 'font-size:.72rem;color:var(--gray-500);margin-top:8px;';
+    pr.textContent = '整体进度:已确认/已完成 ' + (stat.completed||0) + ' / ' + (stat.total||0) + (stat.pending? ' · 进行中 ' + stat.pending : '');
+    card.appendChild(pr);
+  }
+  var act2 = document.createElement('div');
+  act2.style.cssText = 'display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;';
+  var detailUrl = '{{ url_for("user_task_detail", task_id=0) }}'.replace('/0','/' + t.id);
+  act2.innerHTML = '<a class="btn btn-sm btn-outline-primary" style="font-size:.75rem;" href="' + detailUrl + '"><i class="bi bi-eye"></i> 详情页</a>';
+  card.appendChild(act2);
+  body.appendChild(card);
 }
-function toggleCheckAll(el) {
-  document.querySelectorAll('#taskTableBody .task-check, #taskTableExtra .task-check')
-    .forEach(function (c) { c.checked = el.checked; });
-  updateBatchUI();
+function metaRow(k, v){
+  return '<div style="display:flex;justify-content:space-between;padding:3px 0;"><small style="color:var(--gray-500);font-size:.72rem;flex-shrink:0;">'+k+'</small><span style="font-size:.8rem;color:var(--gray-800);text-align:right;">'+v+'</span></div>';
 }
-document.addEventListener('change', function (e) {
-  if (e.target.classList && e.target.classList.contains('task-check')) updateBatchUI();
+function esc(s){s=(s==null?'':String(s));var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var first = document.querySelector('.cat-item[data-task-id]');
+  if (first) loadTaskDetail(parseInt(first.getAttribute('data-task-id'), 10));
 });
-function batchDeleteTasks() {
-  var ids = [];
-  document.querySelectorAll('#taskTableBody .task-check:checked, #taskTableExtra .task-check:checked')
-    .forEach(function (c) { ids.push(parseInt(c.value, 10)); });
-  if (!ids.length) return;
-  if (!confirm('确定删除选中的 ' + ids.length + ' 个任务吗？删除后无法恢复。')) return;
-  var form = document.createElement('form');
-  form.method = 'POST';
-  form.action = '{{ url_for('user_batch_delete_tasks') }}';
-  ids.forEach(function (id) {
-    var inp = document.createElement('input');
-    inp.type = 'hidden';
-    inp.name = 'task_ids';
-    inp.value = id;
-    form.appendChild(inp);
-  });
-  document.body.appendChild(form);
-  form.submit();
-}
 </script>
 {% endblock %}

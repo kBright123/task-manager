@@ -74,8 +74,7 @@ KB_ASK_CACHE_TTL = int(os.environ.get('KB_ASK_CACHE_TTL', '3600'))
 KB_AUTO_SUMMARY = os.environ.get('KB_AUTO_SUMMARY', '1') == '1'
 
 ALLOWED_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg', '.bmp', '.tif',
-                      '.tiff', '.webp', '.txt', '.md', '.markdown'}
-
+                      '.tiff', '.webp', '.txt', '.md', '.markdown', '.html', '.htm'}
 TEXT_EXTENSIONS = {'.txt', '.md', '.markdown'}
 
 STATUS_QUEUED = 'queued'
@@ -189,6 +188,59 @@ def _get_ocr_engine():
     return _ocr_engine
 
 
+def _html_to_text(content):
+    """从 HTML 中提取可读正文:去掉 script/style/标签,块级标签换行。
+
+    使用标准库 html.parser,避免引入额外依赖。
+    """
+    from html.parser import HTMLParser
+
+    block_tags = {
+        'p', 'div', 'br', 'li', 'ul', 'ol', 'tr', 'section', 'article',
+        'header', 'footer', 'aside', 'nav', 'h1', 'h2', 'h3', 'h4', 'h5',
+        'h6', 'blockquote', 'pre', 'table', 'figure', 'figcaption', 'hr',
+        'form', 'table',
+    }
+    skip_tags = {'script', 'style', 'noscript', 'template'}
+
+    class _Extractor(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.parts = []
+            self.skip_depth = 0
+
+        def handle_starttag(self, tag, attrs):
+            if tag in skip_tags:
+                self.skip_depth += 1
+                return
+            if tag in block_tags:
+                self.parts.append('\n')
+
+        def handle_endtag(self, tag):
+            if tag in skip_tags:
+                if self.skip_depth:
+                    self.skip_depth -= 1
+                return
+            if tag in block_tags:
+                self.parts.append('\n')
+
+        def handle_data(self, data):
+            if self.skip_depth:
+                return
+            self.parts.append(data)
+
+    parser = _Extractor()
+    try:
+        parser.feed(content)
+        parser.close()
+    except Exception:
+        logger.warning('html parse fail, fallback to raw', exc_info=True)
+    raw = ''.join(parser.parts)
+    lines = [ln.strip() for ln in raw.split('\n')]
+    lines = [ln for ln in lines if ln]
+    return '\n'.join(lines)
+
+
 def ocr_file(file_path):
     lower = file_path.lower()
     if lower.endswith('.pdf'):
@@ -217,6 +269,10 @@ def ocr_file(file_path):
         with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
             content = f.read()
         return _chunk_text(content)
+    if lower.endswith(('.html', '.htm')):
+        with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+            content = f.read()
+        return _chunk_text(_html_to_text(content))
     image = Image.open(file_path)
     image.load()
     return [(1, ocr_image(image))]
@@ -958,6 +1014,24 @@ def get_recent_questions(limit=5):
         return []
 
 
+def get_recent_unified(user_id, limit=5):
+    """首页统一检索的历史(仅该用户,最近 top N)。"""
+    try:
+        conn = _cache_conn()
+        try:
+            rows = conn.execute(
+                'SELECT query FROM kb_history '
+                'WHERE kind=? AND user_id=? '
+                'ORDER BY last_at DESC LIMIT ?',
+                ('unified', user_id, limit)).fetchall()
+            return [r[0] for r in rows]
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.warning('get_recent_unified failed: %s', e)
+        return []
+
+
 # ---------------------------------------------------------------------------
 # LLM(opencode serve)
 # ---------------------------------------------------------------------------
@@ -1260,7 +1334,16 @@ def index():
 @login_required
 def workbench():
     q = (request.args.get('q') or '').strip()
-    return render_template('kb/workbench.html', q=q, kb_users=_kb_user_list())
+    if current_user.role == 'admin':
+        collections = KbCollection.query.order_by(KbCollection.name).all()
+    else:
+        collections = KbCollection.query.filter(
+            (KbCollection.visibility == 'public') |
+            (KbCollection.owner_id == current_user.id)
+        ).order_by(KbCollection.name).all()
+    return render_template('kb/workbench.html', q=q, kb_users=_kb_user_list(),
+                           collections=collections,
+                           collection_groups=_collection_groups(collections, None))
 
 
 @kb_bp.route('/api/ask', methods=['POST'])
@@ -1741,7 +1824,7 @@ def upload():
         flash(f'已加入识别队列 {len(added)} 个文件: {", ".join(added)}', 'success')
     if rejected:
         flash(f'跳过不支持的文件: {", ".join(rejected)}'
-              '(仅支持 PDF/图片/Markdown/文本)', 'warning')
+              '(仅支持 PDF/图片/Markdown/文本/HTML)', 'warning')
     return redirect(url_for('kb.index'))
 
 

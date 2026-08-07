@@ -1,13 +1,28 @@
 {% extends "base.html" %}
-{% block title %}知识库工作台 - 知行合一 + 数字分身{% endblock %}
+{% block title %}知识库工作台 - 知行合一{% endblock %}
 {% block extra_css %}
 <style>
-  .wb { display: flex; flex-direction: column; height: calc(100vh - var(--nav-height) - 148px); gap: 12px; }
-  @media (max-width: 767px) { .wb { height: auto; } }
-  .wb-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; }
-  @media (max-width: 767px) { .wb-top { flex-wrap: wrap; } }
-  .wb-body { flex: 1; display: flex; gap: 12px; min-height: 0; }
-  .wb-left { width: 100%; display: flex; flex-direction: column; gap: 12px; min-width: 0; overflow-y: auto; padding-right: 4px; }
+  .wb { display: grid; grid-template-columns: 220px 1fr; gap: 16px; height: calc(100vh - 170px); }
+  @media (max-width: 860px) { .wb { grid-template-columns: 1fr; height: auto; } }
+  .wb-panel { background:#fff; border:1px solid var(--gray-200); border-radius: var(--radius); overflow: hidden; display:flex; flex-direction:column; min-height: 0; }
+  .wb-col { display:flex; flex-direction:column; gap:16px; min-height:0; overflow-y:auto; }
+  .wb-main { display:flex; flex-direction:column; min-height:0; }
+  .wb-result-body { flex:1; overflow-y:auto; padding: 14px; }
+
+  .wb-cgroup { border-bottom:1px solid var(--gray-100); }
+  .wb-cgroup:last-child { border-bottom:none; }
+  .wb-cgroup-head { display:flex; align-items:center; gap:8px; padding:8px 10px; cursor:pointer; font-size:.8rem; color:var(--gray-700); border-radius:6px; }
+  .wb-cgroup-head:hover { background:var(--gray-50); }
+  .wb-cgroup-head .chev { margin-left:auto; transition: transform .15s; font-size:.7rem; color:var(--gray-400); }
+  .wb-cgroup.open .wb-cgroup-head { font-weight:600; color:var(--gray-800); }
+  .wb-cgroup.open .wb-cgroup-head .chev { transform: rotate(180deg); }
+  .wb-cgroup-body { display:none; padding:0 6px 8px 18px; }
+  .wb-cgroup.open .wb-cgroup-body { display:block; }
+  .wb-doc-item { display:flex; align-items:center; gap:6px; padding:6px 8px; font-size:.74rem; color:var(--gray-600); border-radius:6px; cursor:pointer; text-decoration:none; }
+  .wb-doc-item:hover { background:var(--primary-light); color:var(--primary); }
+  .wb-doc-item i { font-size:.72rem; color:var(--gray-400); }
+  .wb-doc-empty { padding:3px 10px; font-size:.72rem; color:var(--gray-400); font-style:italic; }
+  .wb-col-empty { padding:20px 10px; text-align:center; color:var(--gray-400); font-size:.78rem; }
 
   .preview-modal { position: fixed; inset: 0; z-index: 1050; display: none; }
   .preview-modal-mask { position: absolute; inset: 0; background: rgba(15, 23, 42, .55); }
@@ -15,6 +30,12 @@
   @keyframes wbSheetRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
   .preview-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--gray-100); font-weight: 600; font-size: .9rem; flex-shrink: 0; }
   .preview-modal-body { padding: 14px; overflow-y: auto; }
+
+  .wb-col-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; font-size: .8rem; color: var(--gray-700); border-radius: 6px; cursor: pointer; text-decoration: none; }
+  .wb-col-item:hover { background: var(--gray-50); }
+  .wb-col-item.active { background: var(--primary-light); color: var(--primary); font-weight: 600; }
+  .wb-upload-zone { border: 2px dashed var(--gray-300); background: var(--gray-50); cursor: pointer; transition: all .15s; border-radius: var(--radius-sm); padding: 12px 14px; text-align: center; }
+  .wb-upload-zone:hover { border-color: var(--primary); background: var(--primary-light); }
 
   .search-wrap { position: relative; }
   .suggest-box { position: absolute; top: 100%; left: 0; right: 0; background: #fff; border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); max-height: 260px; overflow-y: auto; z-index: 50; margin-top: 6px; padding: 6px; }
@@ -71,61 +92,131 @@
 </style>
 {% endblock %}
 {% block content %}
-{% include 'kb/_tabs.html' %}
 <div class="wb">
-  <div class="wb-top">
-    <div class="search-wrap" style="flex:1;position:relative;min-width:0;">
-      <div class="input-group">
-        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
-        <input type="text" id="askInput" class="form-control"
-               placeholder="输入关键词或问题"
-               autocomplete="off">
-        <button class="btn btn-primary" id="askBtn" onclick="submitQuery()"><i class="bi bi-send"></i></button>
+  <!-- 左栏: 文档集合(默认折叠) + 上传 -->
+  <div class="wb-col">
+    <div class="wb-panel">
+      <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
+        <span style="font-size:.84rem;font-weight:600;"><i class="bi bi-folder2-open" style="color:var(--primary);"></i> 文档集合</span>
+        <button class="btn btn-xs-custom btn-outline-primary" style="padding:1px 8px;font-size:.7rem;" onclick="openFrame('{{ url_for('kb.index') }}?frame=1', '文档管理')"><i class="bi bi-gear"></i> 管理</button>
       </div>
-      <div class="suggest-box d-none" id="suggestBox"></div>
+      <div class="card-body p-1 pt-2">
+        {% for c in collections %}
+        <div class="wb-cgroup">
+          <div class="wb-cgroup-head" onclick="this.parentElement.classList.toggle('open')">
+            <span style="width:8px;height:8px;border-radius:50%;background:{{ c.color }};flex-shrink:0;"></span>
+            <span class="text-truncate" style="flex:1;">{{ c.name }}</span>
+            <span class="badge" style="font-size:.55rem;background:var(--gray-100);color:var(--gray-500);">{{ c.documents|length }}</span>
+            <i class="bi bi-chevron-down chev"></i>
+          </div>
+          <div class="wb-cgroup-body">
+            {% for d in c.documents %}
+            <a class="wb-doc-item" href="javascript:void(0)" onclick="openDocDetail({{ d.id }}, '{{ d.title|replace('\\', '')|replace("'", "\\'") }}')">
+              <i class="bi bi-file-earmark-text"></i>
+              <span class="text-truncate">{{ d.title }}</span>
+            </a>
+            {% endfor %}
+            {% if not c.documents %}
+            <div class="wb-doc-empty">暂无文档</div>
+            {% endif %}
+          </div>
+        </div>
+        {% else %}
+        <div class="wb-col-empty">暂无集合，点击上传创建</div>
+        {% endfor %}
+      </div>
     </div>
-    <div class="d-flex gap-2 align-items-center flex-shrink-0">
+
+    <div class="wb-panel" style="flex:none;">
+      <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
+        <span style="font-size:.84rem;font-weight:600;"><i class="bi bi-cloud-upload" style="color:var(--primary);"></i> 上传</span>
+      </div>
+      <div class="card-body py-2 px-3">
+        <select id="uploadCollection" class="form-select form-select-sm mb-2" style="font-size:.78rem;width:100%;">
+          <option value="">(暂不分配)</option>
+          {% for c in collections %}
+          <option value="{{ c.id }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+        <div id="dropZone" style="border:2px dashed var(--gray-300);background:var(--gray-50);cursor:pointer;transition:all .15s;border-radius:var(--radius-sm);padding:14px 10px;text-align:center;">
+          <i class="bi bi-cloud-arrow-up" style="font-size:1.3rem;color:var(--primary);"></i>
+          <div style="font-weight:600;color:var(--gray-700);font-size:.8rem;">点击或拖拽上传</div>
+          <small style="color:var(--gray-400);font-size:.66rem;">PDF/图片/Markdown/文本/HTML</small>
+        </div>
+        <input type="file" id="dropFileInput" accept=".pdf,.png,.jpg,.jpeg,.bmp,.tif,.tiff,.webp,.txt,.md,.markdown,.html,.htm" multiple style="display:none;">
+        <div class="mt-2 d-none" id="queueCard" style="font-size:.7rem;color:var(--gray-500);">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <span class="spinner-border spinner-border-sm text-primary" style="width:.7rem;height:.7rem;"></span>
+            <span id="queueSummary">已完成 0/0</span>
+          </div>
+          <div class="progress-custom" style="height:4px;"><div class="progress-custom-bar" id="queueProgress" style="width:0%;background:var(--primary);"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右栏: 检索 + 结果 -->
+  <div class="wb-panel wb-main">
+    <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
+      <span style="font-size:.84rem;font-weight:600;"><i class="bi bi-search" style="color:var(--primary);"></i> 知识库检索</span>
       <span id="queuePill" class="status-badge status-pending d-none">
         <span class="spinner-sm"></span><span id="queuePillText">处理中</span>
       </span>
     </div>
-  </div>
-
-  <div class="wb-body">
-    <div class="wb-left">
-      <div class="card" id="resultCard" style="flex:1;display:flex;flex-direction:column;min-height:0;">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <span id="resultTitle"><i class="bi bi-search"></i> 检索结果</span>
+    <div class="card-body" style="display:flex;flex-direction:column;padding:14px 14px 0;min-height:0;">
+      <div class="search-wrap" style="position:relative;">
+        <div class="input-group">
+          <input type="text" id="askInput" class="form-control" placeholder="输入关键词或问题，回车检索" autocomplete="off">
+          <button class="btn btn-primary" id="askBtn" onclick="submitQuery()"><i class="bi bi-send"></i></button>
         </div>
-        <div class="card-body" style="padding:16px;overflow-y:auto;">
-          <div id="searchLoading" class="loading-answer d-none">
-            <span class="spinner-sm"></span> 正在检索...
-          </div>
-          <div id="resultBody">
-            <div class="empty-tip">
-              <i class="bi bi-search"></i>
-              <div>输入关键词或问题开始检索</div>
-            </div>
-          </div>
+        <div class="suggest-box d-none" id="suggestBox"></div>
+      </div>
+      <div class="d-flex align-items-center gap-2 mt-2" style="font-size:.74rem;color:var(--gray-500);">
+        <i class="bi bi-question-circle" style="color:var(--primary);"></i><span>支持关键词检索与自然语言提问</span>
+        <a href="{{ url_for('kb.ask') }}" class="text-decoration-none ms-auto" style="color:var(--primary);font-size:.74rem;"><i class="bi bi-stars"></i> 分身问答</a>
+      </div>
+    </div>
+    <div class="wb-result-body">
+      <div id="searchLoading" class="loading-answer d-none">
+        <span class="spinner-sm"></span> 正在检索...
+      </div>
+      <div id="resultBody">
+        <div class="empty-tip">
+          <i class="bi bi-search"></i>
+          <div>输入关键词或问题开始检索，结果展示在下方</div>
         </div>
       </div>
     </div>
+  </div>
 
-    <div class="preview-modal" id="previewModal">
-      <div class="preview-modal-mask" onclick="closePreview()"></div>
-      <div class="preview-modal-sheet">
-        <div class="preview-modal-head">
-          <span id="previewModalTitle"><i class="bi bi-file-earmark-image"></i> 原始文件预览</span>
-          <div class="d-flex gap-2 align-items-center flex-shrink-0">
-            <a href="#" id="previewModalOpen" class="btn btn-xs-custom btn-outline-primary" target="_blank"><i class="bi bi-box-arrow-up-right"></i> 新窗口打开</a>
-            <button class="btn btn-xs-custom btn-outline-secondary" onclick="closePreview()">关闭</button>
-          </div>
+  <div class="preview-modal" id="previewModal">
+    <div class="preview-modal-mask" onclick="closePreview()"></div>
+    <div class="preview-modal-sheet">
+      <div class="preview-modal-head">
+        <span id="previewModalTitle"><i class="bi bi-file-earmark-image"></i> 原始文件预览</span>
+        <div class="d-flex gap-2 align-items-center flex-shrink-0">
+          <a href="#" id="previewModalOpen" class="btn btn-xs-custom btn-outline-primary" target="_blank"><i class="bi bi-box-arrow-up-right"></i> 新窗口打开</a>
+          <button class="btn btn-xs-custom btn-outline-secondary" onclick="closePreview()">关闭</button>
         </div>
-        <div class="preview-modal-body" id="previewModalBody"></div>
       </div>
-    </div>
+      <div class="preview-modal-body" id="previewModalBody"></div>
     </div>
   </div>
+
+  <div class="preview-modal" id="frameModal">
+    <div class="preview-modal-mask" onclick="closeFrame()"></div>
+    <div class="preview-modal-sheet">
+      <div class="preview-modal-head">
+        <span id="frameModalTitle"><i class="bi bi-file-text"></i> 文档详情</span>
+        <div class="d-flex gap-2 align-items-center flex-shrink-0">
+          <a href="#" id="frameModalOpen" class="btn btn-xs-custom btn-outline-primary" target="_blank"><i class="bi bi-box-arrow-up-right"></i> 新窗口打开</a>
+          <button class="btn btn-xs-custom btn-outline-secondary" onclick="closeFrame()">关闭</button>
+        </div>
+      </div>
+      <iframe id="frameModalBody" src="about:blank" style="width:100%;flex:1;border:0;background:#fff;"></iframe>
+    </div>
+  </div>
+</div>
 {% endblock %}
 {% block extra_js %}
 <script>
@@ -142,9 +233,6 @@ function submitQuery() {
 </script>
 <script>
 function renderSearch(q, d) {
-  var card = document.getElementById('resultCard');
-  card.style.display = '';
-  document.getElementById('resultTitle').innerHTML = '<i class="bi bi-search"></i> 检索结果' + (d.cached ? ' <span class="badge badge-low">已缓存</span>' : '');
   document.getElementById('searchLoading').classList.add('d-none');
   var groups = d.groups || [];
   var body = document.getElementById('resultBody');
@@ -173,14 +261,11 @@ function renderSearch(q, d) {
         pages + '</div>';
     }).join('');
   }
-  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('resultBody').scrollTop = 0;
 }
 
 function searchQuery(q) {
   var btn = document.getElementById('askBtn');
-  var card = document.getElementById('resultCard');
-  card.style.display = '';
-  document.getElementById('resultTitle').innerHTML = '<i class="bi bi-search"></i> 检索结果';
   document.getElementById('searchLoading').classList.remove('d-none');
   document.getElementById('resultBody').innerHTML = '';
   btn.disabled = true;
@@ -252,6 +337,27 @@ function openPreview(docId, pageNo) {
   loadPreview(url, document.getElementById('previewModalTitle'),
               document.getElementById('previewModalBody'),
               document.getElementById('previewModalOpen'), pageNo);
+}
+</script>
+<script>
+function openDocDetail(id, title) {
+  openFrame('{{ url_for('kb.doc_detail', doc_id=0) }}'.replace('/0', '/' + id) + '?frame=1', title || '文档详情');
+}
+function openFrame(url, title) {
+  var modal = document.getElementById('frameModal');
+  if (!modal) return;
+  document.getElementById('frameModalTitle').textContent = title || '详情';
+  document.getElementById('frameModalOpen').href = url.split('?frame=1')[0];
+  document.getElementById('frameModalBody').src = url;
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+function closeFrame() {
+  var modal = document.getElementById('frameModal');
+  if (modal) modal.style.display = 'none';
+  document.body.style.overflow = '';
+  var f = document.getElementById('frameModalBody');
+  if (f) f.src = 'about:blank';
 }
 </script>
 <script>
@@ -337,6 +443,67 @@ function openPreview(docId, pageNo) {
         pillText.textContent = '已完成 ' + (d.counts.done || 0) + '/' + total;
       } else {
         pill.classList.add('d-none');
+      }
+      setTimeout(poll, 4000);
+    }).catch(function () { setTimeout(poll, 6000); });
+  }
+  poll();
+})();
+</script>
+<script>
+(function dropUpload() {
+  var zone = document.getElementById('dropZone');
+  if (!zone) return;
+  var fileInput = document.getElementById('dropFileInput');
+  function upload(files) {
+    var list = Array.prototype.filter.call(files, function (f) {
+      var ext = (f.name.split('.').pop() || '').toLowerCase();
+      return ['.pdf', '.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff', '.webp', '.txt', '.md', '.markdown', '.html', '.htm'].indexOf('.' + ext) !== -1;
+    });
+    if (!list.length) return;
+    var cidEl = document.getElementById('uploadCollection');
+    var cid = cidEl ? cidEl.value : '';
+    var fd = new FormData();
+    if (cid) fd.append('collection_id', cid);
+    list.forEach(function (f) { fd.append('file', f); });
+    fetch('{{ url_for('kb.upload') }}', { method: 'POST', body: fd })
+      .then(function (r) { if (r.ok) { location.reload(); } else { alert('上传失败'); } })
+      .catch(function () { alert('上传失败'); });
+  }
+  zone.addEventListener('click', function () { fileInput.click(); });
+  fileInput.addEventListener('change', function () { upload(fileInput.files); fileInput.value = ''; });
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    zone.addEventListener(ev, function (e) {
+      e.preventDefault(); e.stopPropagation();
+      zone.style.borderColor = 'var(--primary)'; zone.style.background = 'var(--primary-light)';
+    });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    zone.addEventListener(ev, function (e) {
+      e.preventDefault(); e.stopPropagation();
+      zone.style.borderColor = 'var(--gray-300)'; zone.style.background = 'var(--gray-50)';
+    });
+  });
+  zone.addEventListener('drop', function (e) { upload(e.dataTransfer.files); });
+})();
+</script>
+<script>
+(function pollQueueCard() {
+  var card = document.getElementById('queueCard');
+  if (!card) return;
+  function poll() {
+    fetch('{{ url_for('kb.api_queue') }}').then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.ok) return;
+      var c = d.counts;
+      var p = d.processing || 0;
+      var total = d.total || 0;
+      if (p > 0) {
+        card.classList.remove('d-none');
+        document.getElementById('queueSummary').textContent = '已完成 ' + (c.done || 0) + '/' + total;
+        document.getElementById('queueProgress').style.width =
+          (total ? Math.round((c.done || 0) / total * 100) : 0) + '%';
+      } else {
+        card.classList.add('d-none');
       }
       setTimeout(poll, 4000);
     }).catch(function () { setTimeout(poll, 6000); });

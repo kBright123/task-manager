@@ -25,7 +25,7 @@
     <span class="badge bg-info d-none d-sm-inline" style="font-size:.7rem;">完成率 {{ rate }}%</span>
     {% if task.creator_id == current_user.id or task.is_all %}
     <button type="button" class="btn btn-sm btn-outline-secondary" style="padding:3px 8px;font-size:.75rem;" onclick="openEditModal()" title="编辑"><i class="bi bi-pencil"></i></button>
-    <form method="POST" action="{{ url_for('admin_delete_task', task_id=task.id) }}" style="display:inline;" onsubmit="return confirm('确定删除任务「{{ task.title }}」吗？')">
+    <form method="POST" action="{{ url_for('admin_delete_task', task_id=task.id) }}" style="display:inline;" onsubmit="return confirm('确定删除待办「{{ task.title }}」吗？')">
       <button type="submit" class="btn btn-sm btn-outline-danger" style="padding:3px 8px;font-size:.75rem;" title="删除"><i class="bi bi-trash"></i></button>
     </form>
     {% endif %}
@@ -37,7 +37,7 @@
   <div class="col-lg-7">
     <!-- Basic Info Card -->
     <div class="card mb-3">
-      <div class="card-header py-2 px-3"><i class="bi bi-info-circle"></i> 任务信息</div>
+      <div class="card-header py-2 px-3"><i class="bi bi-info-circle"></i> 待办信息</div>
       <div class="card-body p-3">
         {% if task.description and task.description != task.title %}
         <p style="font-size:.88rem;color:var(--gray-600);margin-bottom:16px;">{{ task.description|linkify }}</p>
@@ -260,12 +260,12 @@ function openEditModal() {
     <div class="modal-content" style="border-radius:var(--radius);border:none;box-shadow:var(--shadow-lg);">
       <form method="POST" action="{{ url_for('admin_edit_task', task_id=task.id) }}">
         <div class="modal-header" style="border-bottom:1px solid var(--gray-100);">
-          <h5 class="modal-title" style="font-size:.95rem;font-weight:600;"><i class="bi bi-pencil"></i> 编辑任务</h5>
+          <h5 class="modal-title" style="font-size:.95rem;font-weight:600;"><i class="bi bi-pencil"></i> 编辑待办</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
           <div class="mb-3">
-            <label class="form-label" style="font-size:.85rem;font-weight:500;">任务标题</label>
+            <label class="form-label" style="font-size:.85rem;font-weight:500;">待办标题</label>
             <input type="text" name="title" class="form-control" value="{{ task.title }}" required style="font-size:.9rem;">
           </div>
           <div class="mb-3">

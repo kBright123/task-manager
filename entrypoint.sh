@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for f in /app/app.py /app/knowledge.py /app/classifier.py /app/reminder_worker.py; do
+for f in /app/app.py /app/knowledge.py /app/classifier.py /app/reminder_worker.py /app/notes.py /app/job_worker.py; do
   if [ ! -r "$f" ]; then
     chmod 644 "$f" 2>/dev/null || true
     if [ ! -r "$f" ]; then
@@ -35,7 +35,7 @@ fi
 echo "[entrypoint] sochdb-server ready"
 
 if [ "${KB_AUTO_RELOAD:-0}" = "1" ]; then
-  echo "[entrypoint] starting kb_worker + reminder_worker (auto-reload on)"
+  echo "[entrypoint] starting kb_worker + reminder_worker + job_worker (auto-reload on)"
   python -u - <<'PY' &
 import os
 import signal
@@ -43,8 +43,8 @@ import subprocess
 import sys
 import time
 
-WATCHED = ('/app/app.py', '/app/knowledge.py', '/app/classifier.py', '/app/reminder_worker.py')
-SCRIPTS = {'kb': 'knowledge.py', 'reminder': 'reminder_worker.py'}
+WATCHED = ('/app/app.py', '/app/knowledge.py', '/app/classifier.py', '/app/reminder_worker.py', '/app/notes.py', '/app/job_worker.py')
+SCRIPTS = {'kb': 'knowledge.py', 'reminder': 'reminder_worker.py', 'job': 'job_worker.py'}
 INTERVAL = 1.0
 stop = False
 
@@ -98,9 +98,10 @@ finally:
 PY
   WORKER_PID=$!
 else
-  echo "[entrypoint] starting kb_worker + reminder_worker"
+  echo "[entrypoint] starting kb_worker + reminder_worker + job_worker"
   python knowledge.py &
   python reminder_worker.py &
+  python job_worker.py &
   WORKER_PID=$!
 fi
 

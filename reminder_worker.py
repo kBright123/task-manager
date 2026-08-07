@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""任务提醒邮件后台进程(单实例)。
+"""待办提醒邮件后台进程(单实例)。
 
-- 会议/培训/考试任务截止前 1 小时提醒对应负责人
-- 每日 9:00 发送任务日报(逾期/今日截止/未完成)
+- 会议/培训/考试待办截止前 1 小时提醒对应负责人
+- 每日 9:00 发送待办日报(逾期/今日截止/未完成)
 """
 import logging
 import os
@@ -43,7 +43,7 @@ def _mark_sent(key):
 
 
 def _remind_deadline_tasks(now):
-    """会议/培训/考试任务,剩余时间落入 (0, 1h] 窗口时提醒未完成负责人。"""
+    """会议/培训/考试待办,剩余时间落入 (0, 1h] 窗口时提醒未完成负责人。"""
     upper = now + timedelta(hours=1)
     tasks = Task.query.filter(
         Task.category.in_(DEADLINE_CATEGORIES),
@@ -62,9 +62,9 @@ def _remind_deadline_tasks(now):
             if _already_sent(key):
                 continue
             mins = max(1, int((task.end_time - now).total_seconds() // 60))
-            subject = '【知行合一】任务即将截止:「%s」' % task.title
+            subject = '【知行合一】待办即将截止:「%s」' % task.title
             text = (
-                '任务「%s」(%s类)即将在 %d 分钟后截止。\n'
+                '待办「%s」(%s类)即将在 %d 分钟后截止。\n'
                 '截止时间: %s\n'
                 '描述: %s\n'
                 '请及时处理,以免逾期。'
@@ -72,7 +72,7 @@ def _remind_deadline_tasks(now):
                  task.end_time.strftime('%Y-%m-%d %H:%M'), task.description or '')
             html = (
                 '<div style="font-family:Microsoft YaHei,Arial,sans-serif;font-size:14px;color:#1e293b;">'
-                '<p>任务 <b>「%s」</b>(%s类)即将在 <b>%d 分钟</b>后截止。</p>'
+                '<p>待办 <b>「%s」</b>(%s类)即将在 <b>%d 分钟</b>后截止。</p>'
                 '<p>截止时间:<b>%s</b></p>'
                 '<p style="color:#94a3b8;font-size:12px;">请及时处理,以免逾期。</p></div>'
             ) % (task.title, task.category, mins, task.end_time.strftime('%Y-%m-%d %H:%M'))
@@ -86,7 +86,7 @@ def _remind_deadline_tasks(now):
 
 
 def _send_daily_summary(now):
-    """每日 9:00-9:10 向每个绑定邮箱的用户发送任务日报。"""
+    """每日 9:00-9:10 向每个绑定邮箱的用户发送待办日报。"""
     today = now.strftime('%Y-%m-%d')
     users = User.query.filter(
         User.email != '',
@@ -107,8 +107,8 @@ def _send_daily_summary(now):
         total = len(assigns)
         done = total - len(pending)
         rate = int(done / total * 100) if total else 0
-        lines = ['%s 的任务日报(%s)' % (user.name or user.username, today), '']
-        lines.append('共有任务 %d 项,已完成 %d 项,完成率 %d%%。' % (total, done, rate))
+        lines = ['%s 的待办日报(%s)' % (user.name or user.username, today), '']
+        lines.append('共有待办 %d 项,已完成 %d 项,完成率 %d%%。' % (total, done, rate))
         lines.append('')
         if overdue:
             lines.append('【已逾期】%d 项:' % len(overdue))
@@ -131,7 +131,7 @@ def _send_daily_summary(now):
                 + '<br>'.join('<b>%s</b>' % line if line.startswith('【') else line
                               for line in lines)
                 + '</div>')
-        ok, err = send_email(user.email, '【知行合一】任务日报 %s' % today, html, text, category='summary')
+        ok, err = send_email(user.email, '【知行合一】待办日报 %s' % today, html, text, category='summary')
         if ok:
             _mark_sent(key)
             logger.info('daily summary sent user=%s', user.id)

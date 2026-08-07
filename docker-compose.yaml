@@ -9,6 +9,8 @@ services:
       - ./knowledge.py:/app/knowledge.py
       - ./classifier.py:/app/classifier.py
       - ./reminder_worker.py:/app/reminder_worker.py
+      - ./notes.py:/app/notes.py
+      - ./job_worker.py:/app/job_worker.py
       - ./entrypoint.sh:/app/entrypoint.sh
       - ./templates:/app/templates
       - ./static:/app/static

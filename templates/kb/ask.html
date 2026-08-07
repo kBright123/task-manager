@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}分身问答 - 知行合一 + 数字分身{% endblock %}
+{% block title %}分身问答 - 知行合一{% endblock %}
 {% block extra_css %}
 <style>
   .ask-page { max-width: 100%; margin: 0 auto; padding: 0; height: calc(100vh - var(--nav-height) - 64px); display: flex; flex-direction: column; }
@@ -55,7 +55,6 @@
 {% endblock %}
 {% block content %}
 <div class="ask-page">
-  {% include 'kb/_tabs.html' %}
   <div id="avatarStatusChip" class="avatar-status-chip d-none">
     <i class="bi bi-person-fill"></i>
     <span>正在与 <b id="avatarStatusName" style="color:var(--primary);"></b>·分身 对话</span>

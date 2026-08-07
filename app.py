@@ -74,6 +74,10 @@ from knowledge import init_models, enable_sqlite_wal, kb_bp, \
 init_models(db)
 app.register_blueprint(kb_bp)
 
+from notes import init_models as notes_init_models, notes_bp
+notes_init_models(db)
+app.register_blueprint(notes_bp)
+
 
 @app.context_processor
 def inject_globals():
@@ -399,6 +403,22 @@ def get_same_group_users(user):
     ).distinct().all()
 
 
+def _count_notes():
+    """统计当前用户的随手记条数(含自动整理生成的报告)。"""
+    from notes import Note
+    if Note is None:
+        return 0
+    return Note.query.count()
+
+
+def _count_kb():
+    """统计知识库文档总数(含全部状态)。"""
+    from knowledge import KbDocument
+    if KbDocument is None:
+        return 0
+    return KbDocument.query.count()
+
+
 try:
     import fcntl
 except ImportError:
@@ -639,7 +659,7 @@ def seed_demo_data(force=False):
         for u in target_users:
             db.session.add(TaskAssignment(task_id=task.id, user_id=u.id))
             create_notification(u.id, 'task_assigned',
-                                f'你收到一个新任务：「{td["title"]}」', task.id)
+                                f'你收到一个新待办：「{td["title"]}」', task.id)
         if td.get('group'):
             g = Group.query.filter_by(name=td['group']).first()
             if g:
@@ -648,7 +668,7 @@ def seed_demo_data(force=False):
                     if m.id not in [u.id for u in target_users]:
                         db.session.add(TaskAssignment(task_id=task.id, user_id=m.id))
                         create_notification(m.id, 'task_assigned',
-                                            f'你收到一个新任务：「{td["title"]}」', task.id)
+                                            f'你收到一个新待办：「{td["title"]}」', task.id)
 
     # Mark some as completed with varying progress
     completed_tasks_data = [
@@ -815,7 +835,7 @@ def find_similar_tasks(title, description='', category='', start_time=None, end_
     if exclude_id:
         query = query.filter(Task.id != exclude_id)
     if unfinished_only:
-        # 仅与“未完成任务”比较:存在未完成分配(pending/rejected)即视为未完成
+        # 仅与“未完成待办”比较:存在未完成分配(pending/rejected)即视为未完成
         query = query.filter(Task.assignments.any(
             TaskAssignment.status.in_(['pending', 'rejected'])))
     # SQL pre-filter: only compare against tasks sharing a 2-char token with the
@@ -1140,7 +1160,7 @@ def extract_title_from_text(text):
         if c and len(c) >= 3 and not any(kw in c for kw in TITLE_BLOCK_WORDS):
             return c[:80]
 
-    return '未命名任务'
+    return '未命名待办'
 
 
 def parse_task_from_text(text):
@@ -1161,7 +1181,7 @@ def parse_task_from_text(text):
         '考试': ['考试', '测验', '笔试', '月考', '中考', '高考', '期中考', '期末考', '考级', '考核', '答辩'],
         '培训': ['培训', '训练', '课程', '集训', '学习班', '研修班', '岗前培训', '入职培训', '技能提升', '培训会'],
         '会议': ['会议', '开会', '例会', '晨会', '周会', '月会', '评审会', '研讨会', '复盘', '站会'],
-        '工作': ['工作', '项目', '任务', '报告', '汇报', '方案', '开发', '测试', '上线', '需求', '周报', '月报'],
+        '工作': ['工作', '项目', '待办', '报告', '汇报', '方案', '开发', '测试', '上线', '需求', '周报', '月报'],
         '个人': ['个人', '学习', '读书', '运动', '健身', '购物', '家务', '休息', '娱乐', '游戏', '电影', '旅游'],
     }
     for cat, keywords in category_keywords.items():
@@ -1498,7 +1518,10 @@ def admin_dashboard():
                            today_tasks=today_tasks, week_tasks=week_tasks,
                            all_pending=all_pending,
                            now=now_dt,
-                           is_admin=True)
+                           is_admin=True,
+                           users=get_same_group_users(current_user),
+                           note_count=_count_notes(),
+                           kb_count=_count_kb())
 
 
 @app.route('/admin/logs', methods=['GET'])
@@ -1832,7 +1855,7 @@ def admin_tasks():
 def admin_task_detail(task_id):
     task = db.session.get(Task, task_id)
     if not task:
-        flash('任务不存在', 'danger')
+        flash('待办不存在', 'danger')
         return redirect(url_for('user_tasks'))
     assignments = task.assignments.order_by(TaskAssignment.status).all()
     rate = get_completion_rate(task)
@@ -1858,17 +1881,17 @@ def admin_task_detail(task_id):
 def admin_edit_task(task_id):
     task = db.session.get(Task, task_id)
     if not task:
-        flash('任务不存在', 'danger')
+        flash('待办不存在', 'danger')
         return redirect(url_for('user_tasks'))
     if task.creator_id != current_user.id and current_user.role != 'admin':
-        flash('只有任务创建者或管理员可以编辑', 'danger')
+        flash('只有待办创建者或管理员可以编辑', 'danger')
         return redirect(request.referrer or url_for('user_tasks'))
     title = request.form.get('title', '').strip()
     category = request.form.get('category', '').strip() or '工作'
     start_str = request.form.get('start_time', '').strip()
     end_str = request.form.get('end_time', '').strip()
     if not title:
-        flash('任务标题不能为空', 'danger')
+        flash('待办标题不能为空', 'danger')
         return redirect(request.referrer or url_for('user_tasks'))
     try:
         task.title = title
@@ -1878,7 +1901,7 @@ def admin_edit_task(task_id):
         if end_str:
             task.end_time = datetime.strptime(end_str.replace('T', ' '), '%Y-%m-%d %H:%M')
         db.session.commit()
-        flash(f'任务 "{title}" 已更新', 'success')
+        flash(f'待办 "{title}" 已更新', 'success')
     except Exception as e:
         db.session.rollback()
         flash(f'更新失败：{str(e)}', 'danger')
@@ -1891,7 +1914,7 @@ def admin_edit_task(task_id):
 def admin_delete_task(task_id):
     task = db.session.get(Task, task_id)
     if not task:
-        flash('任务不存在', 'danger')
+        flash('待办不存在', 'danger')
         return redirect(url_for('user_tasks'))
     title = task.title
     Notification.query.filter_by(task_id=task_id).update(
@@ -1902,7 +1925,7 @@ def admin_delete_task(task_id):
         synchronize_session=False)
     db.session.delete(task)
     db.session.commit()
-    flash(f'任务 "{title}" 已删除', 'success')
+    flash(f'待办 "{title}" 已删除', 'success')
     return redirect(url_for('user_tasks'))
 
 
@@ -1911,15 +1934,15 @@ def admin_delete_task(task_id):
 def user_batch_delete_tasks():
     task_ids = [int(x) for x in request.form.getlist('task_ids') if x.isdigit()]
     if not task_ids:
-        flash('未选择任务', 'danger')
+        flash('未选择待办', 'danger')
         return redirect(url_for('user_tasks'))
     tasks = Task.query.filter(Task.id.in_(task_ids)).all()
     if not tasks:
-        flash('任务不存在', 'danger')
+        flash('待办不存在', 'danger')
         return redirect(url_for('user_tasks'))
     mine = [t for t in tasks if t.creator_id == current_user.id]
     if not mine:
-        flash('只能删除自己创建的任务', 'danger')
+        flash('只能删除自己创建的待办', 'danger')
         return redirect(url_for('user_tasks'))
     ids = [t.id for t in mine]
     Notification.query.filter(
@@ -1933,7 +1956,7 @@ def user_batch_delete_tasks():
     Task.query.filter(Task.id.in_(ids)).delete(
         synchronize_session=False)
     db.session.commit()
-    flash(f'已删除 {len(ids)} 个任务', 'success')
+    flash(f'已删除 {len(ids)} 个待办', 'success')
     return redirect(url_for('user_tasks'))
 
 
@@ -1944,7 +1967,7 @@ def user_batch_delete_tasks():
 def admin_reject_assignment(task_id, assignment_id):
     assignment = db.session.get(TaskAssignment, assignment_id)
     if not assignment or assignment.task_id != task_id:
-        flash('任务分配不存在', 'danger')
+        flash('待办分配不存在', 'danger')
         return redirect(url_for('admin_task_detail', task_id=task_id))
     reason = request.form.get('reason', '').strip()
     if not reason:
@@ -1966,7 +1989,7 @@ def admin_reject_assignment(task_id, assignment_id):
 def admin_approve_assignment(task_id, assignment_id):
     assignment = db.session.get(TaskAssignment, assignment_id)
     if not assignment or assignment.task_id != task_id:
-        flash('任务分配不存在', 'danger')
+        flash('待办分配不存在', 'danger')
         return redirect(url_for('admin_task_detail', task_id=task_id))
     if assignment.status == 'completed':
         assignment.status = 'approved'
@@ -1980,10 +2003,10 @@ def admin_approve_assignment(task_id, assignment_id):
 def abandon_task_all(task_id):
     task = db.session.get(Task, task_id)
     if not task:
-        flash('任务不存在', 'danger')
+        flash('待办不存在', 'danger')
         return redirect(request.referrer or url_for('user_dashboard'))
     if task.creator_id != current_user.id and current_user.role != 'admin':
-        flash('只有任务创建者或管理员可以废弃整个任务', 'danger')
+        flash('只有待办创建者或管理员可以废弃整个待办', 'danger')
         return redirect(request.referrer or url_for('user_dashboard'))
     now = datetime.now()
     for a in task.assignments:
@@ -1991,7 +2014,7 @@ def abandon_task_all(task_id):
             a.status = 'abandoned'
             a.abandoned_at = now
     db.session.commit()
-    flash(f'任务 "{task.title}" 已废弃（共 {task.assignments.count()} 人）', 'info')
+    flash(f'待办 "{task.title}" 已废弃（共 {task.assignments.count()} 人）', 'info')
     return redirect(request.referrer or url_for('user_dashboard'))
 
 
@@ -2053,7 +2076,10 @@ def user_dashboard():
                            today_tasks=today_tasks, week_tasks=week_tasks,
                             all_pending=all_pending,
                             now=now,
-                            is_admin=False)
+                            is_admin=False,
+                            users=get_same_group_users(current_user),
+                            note_count=_count_notes(),
+                            kb_count=_count_kb())
 
 
 @app.route('/api/group-members')
@@ -2099,6 +2125,386 @@ def api_search_tasks():
     return jsonify(results)
 
 
+@app.route('/api/unified-search')
+@login_required
+def api_unified_search():
+    """首页统一检索:待办 + 笔记 + 知识库,分类型返回。"""
+    q = request.args.get('q', '').strip()
+    if not q:
+        return jsonify({'ok': True, 'q': '', 'tasks': [], 'notes': [],
+                        'kb': [], 'total': 0})
+    pat = f'%{q}%'
+
+    try:
+        from knowledge import record_history
+        record_history('unified', q)
+    except Exception as _e:
+        app.logger.warning('record unified history failed: %s', _e)
+
+    # 待办(我参与的)
+    filters = [TaskAssignment.user_id == current_user.id]
+    filters.append(db.or_(
+        Task.title.like(pat), Task.description.like(pat),
+        TaskAssignment.note.like(pat)))
+    assigns = TaskAssignment.query.join(Task).filter(
+        *filters).order_by(Task.end_time.desc()).limit(20).all()
+    tasks = [{
+        'task_id': a.task.id,
+        'title': a.task.title,
+        'description': a.task.description or '',
+        'category': a.task.category,
+        'status': a.status,
+        'end_time': a.task.end_time.strftime('%Y-%m-%d %H:%M'),
+        'detail_url': url_for('user_task_detail', task_id=a.task.id),
+    } for a in assigns]
+
+    # 笔记(个人)
+    from notes import Note, parse_tags_json
+    notes = Note.query.filter(Note.user_id == current_user.id).filter(
+        db.or_(Note.title.like(pat), Note.content.like(pat))
+    ).order_by(Note.created_at.desc()).limit(20).all()
+    note_rows = [{
+        'id': n.id,
+        'title': n.title,
+        'content': (n.content or '')[:200],
+        'tags': parse_tags_json(n.tags),
+        'thread': n.thread.name if n.thread else '',
+        'created_at': n.created_at.strftime('%Y-%m-%d %H:%M') if
+        n.created_at else '',
+        'detail_url': url_for('notes.index'),
+    } for n in notes]
+
+    # 知识库(关键词检索,按当前用户可见范围)
+    kb = []
+    try:
+        import knowledge as _kb
+        visible = _kb._visible_doc_ids()  # None=全部(管理员)
+        res = _kb.keyword_search_pages(q, k=10)
+        grouped = _kb.group_results(res, q, max_pages_per_doc=2)
+        for g in grouped:
+            if visible is not None and g['doc_id'] not in visible:
+                continue
+            kb.append({
+                'doc_id': g['doc_id'],
+                'title': g['title'],
+                'filename': g['filename'],
+                'score': round(g['best_score'] * 100),
+                'pages': [{'page_no': p['page_no'],
+                           'snippet': str(p['snippet'])}
+                          for p in g['pages']],
+                'preview_url': url_for('kb.preview', doc_id=g['doc_id']) if
+                _has_preview(g['doc_id']) else '',
+                'detail_url': url_for('kb.doc_detail', doc_id=g['doc_id']),
+            })
+    except Exception as _e:
+        app.logger.warning('unified kb search failed: %s', _e)
+
+    total = len(tasks) + len(notes) + len(kb)
+    return jsonify({'ok': True, 'q': q, 'tasks': tasks, 'notes': note_rows,
+                    'kb': kb, 'total': total})
+
+
+@app.route('/api/unified-search/history')
+@login_required
+def api_unified_search_history():
+    """首页统一检索的历史(当前用户最近 top5)。"""
+    try:
+        from knowledge import get_recent_unified
+        items = get_recent_unified(current_user.id, 5)
+    except Exception as _e:
+        app.logger.warning('load unified history failed: %s', _e)
+        items = []
+    return jsonify({'ok': True, 'items': items})
+
+
+def _has_preview(doc_id):
+    """kub doc 预览链接一般均可用;做最小检出避免为每条再查询。"""
+    from knowledge import KbDocument
+    doc = db.session.get(KbDocument, doc_id)
+    if not doc or not doc.file_path:
+        return False
+    from knowledge import _resolve_stored_path
+    return os.path.exists(_resolve_stored_path(doc.file_path))
+
+
+@app.route('/api/quick-task/preview', methods=['POST'])
+@login_required
+def api_quick_task_preview():
+    """首页快速创建待办第一步：自然语言解析，返回待确认预览(与待办发布一致)。"""
+    data = request.get_json(silent=True) or {}
+    text = (data.get('text') or '').strip()
+    if len(text) < 2:
+        return jsonify({'ok': False, 'error': '待办描述至少 2 个字'}), 400
+    try:
+        parsed = parse_task_from_text(text)
+    except Exception as e:
+        logger.error('Quick task preview failed: %s', e, exc_info=True)
+        return jsonify({'ok': False, 'error': '解析待办失败，请检查输入格式'}), 400
+    title = (parsed.get('title') or '').strip()
+    if not title or title == '未命名待办' or len(title) < 2:
+        return jsonify({'ok': False, 'error': '无法提取待办标题（至少 2 个字）'}), 400
+
+    # 解析出可编辑的初始值
+    start = parsed.get('start_time') or datetime.now()
+    end = parsed.get('end_time') or (start + timedelta(days=1))
+    if end <= start:
+        end = start + timedelta(hours=1)
+
+    assignee_ids = []
+    if current_user.role == 'admin' and parsed.get('is_all', False):
+        is_all = True
+    else:
+        is_all = False
+        for name in parsed.get('assignees') or []:
+            u = User.query.filter(
+                db.or_(User.name == name, User.username == name)).first()
+            if u and not u.is_disabled and u.id != current_user.id:
+                assignee_ids.append(u.id)
+        assignee_ids.append(current_user.id)
+
+    return jsonify({
+        'ok': True,
+        'title': title,
+        'description': text,
+        'category': parsed.get('category') or '工作',
+        'start_time': start.strftime('%Y-%m-%dT%H:%M'),
+        'end_time': end.strftime('%Y-%m-%dT%H:%M'),
+        'is_all': is_all,
+        'assignee_ids': assignee_ids,
+        'recurrence_text': parsed.get('recurrence_text', ''),
+        'recurrence': parsed.get('recurrence') or '',
+        'recurrence_interval_days': parsed.get('recurrence_interval_days') or 0,
+        'recurrence_count': parsed.get('recurrence_count') or 0,
+        'text': text,
+    })
+
+
+@app.route('/api/quick-task', methods=['POST'])
+@login_required
+def api_quick_task():
+    """首页快速创建待办第二步：确认后创建(与待办发布一致)。"""
+    data = request.get_json(silent=True) or {}
+    title = (data.get('title') or '').strip()
+    if not title or len(title) < 2:
+        return jsonify({'ok': False, 'error': '待办标题至少 2 个字'}), 400
+    dt_fmt = '%Y-%m-%dT%H:%M'
+    try:
+        start = datetime.strptime(data.get('start_time', ''), dt_fmt)
+    except Exception:
+        start = datetime.now()
+    try:
+        end = datetime.strptime(data.get('end_time', ''), dt_fmt)
+    except Exception:
+        end = start + timedelta(days=1)
+    if end <= start:
+        end = start + timedelta(hours=1)
+    category = (data.get('category') or '').strip() or '工作'
+    description = (data.get('description') or '').strip() or title
+
+    is_all = current_user.role == 'admin' and bool(data.get('is_all'))
+    recurrence_interval_days = int(data.get('recurrence_interval_days') or 0)
+    recurrence_count = int(data.get('recurrence_count') or 0)
+    total = recurrence_count if recurrence_interval_days and recurrence_count > 0 else 1
+
+    assignee_ids = set()
+    if not is_all:
+        for uid in data.get('assignee_ids') or []:
+            try:
+                assignee_ids.add(int(uid))
+            except (TypeError, ValueError):
+                continue
+        assignee_ids.add(current_user.id)
+
+    created_titles = []
+    try:
+        for i in range(total):
+            offset = timedelta(days=recurrence_interval_days * i)
+            t_start = start + offset
+            t_end = end + offset
+            t_title = f'{title} (第{i+1}期/共{total}期)' if total > 1 else title
+            task = Task(title=t_title, description=description,
+                        category=category, start_time=t_start,
+                        end_time=t_end, creator_id=current_user.id,
+                        is_all=is_all)
+            db.session.add(task)
+            db.session.flush()
+            if is_all:
+                target_users = User.query.all()
+                for u in target_users:
+                    db.session.add(TaskAssignment(task_id=task.id, user_id=u.id))
+                    create_notification(u.id, 'task_assigned',
+                                        f'你收到一个新待办：「{t_title}」', task.id)
+            else:
+                for uid in assignee_ids:
+                    db.session.add(TaskAssignment(task_id=task.id, user_id=uid))
+                    create_notification(uid, 'task_assigned',
+                                        f'你收到一个新待办：「{t_title}」', task.id)
+            created_titles.append(t_title)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logger.error('Quick task creation failed: %s', e, exc_info=True)
+        return jsonify({'ok': False, 'error': '创建失败'}), 500
+    return jsonify({'ok': True, 'task_id': task.id,
+                    'url': url_for('user_task_detail', task_id=task.id),
+                    'created': created_titles})
+
+
+@app.route('/api/quick-note', methods=['POST'])
+@login_required
+def api_quick_note():
+    """首页随手记(走笔记自动整理管道)。"""
+    from notes import (Note, parse_tags_json, apply_rules, simhash,
+                       persist_md, find_duplicates, extract_title)
+    data = request.get_json(silent=True) or {}
+    content = (data.get('content') or '').strip()
+    if not content:
+        return jsonify({'ok': False, 'error': '内容不能为空'}), 400
+    title = (data.get('title') or '').strip() or extract_title(content)
+    tid = data.get('thread_id')
+    from notes import Thread
+    thread = None
+    if tid:
+        thread = Thread.query.filter_by(id=int(tid)).first()
+    note = Note(user_id=current_user.id,
+                thread_id=thread.id if thread else None,
+                title=title, content=content, tags='[]', version=1)
+    changes = apply_rules(note)
+    note.simhash = str(simhash(content))
+    db.session.add(note)
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': '保存失败'}), 500
+    persist_md(note)
+    dup = find_duplicates(note)
+    return jsonify({'ok': True, 'note_id': note.id, 'warnings': dup})
+
+
+@app.route('/api/jobs')
+@login_required
+def api_jobs():
+    """组织待办列表(管理页用,返回最近 job)。"""
+    from notes import NoteJob
+    jobs = NoteJob.query.order_by(NoteJob.created_at.desc()).limit(100).all()
+    return jsonify({'ok': True, 'jobs': [_job_dict(j) for j in jobs]})
+
+
+def _job_dict(j):
+    return {
+        'id': j.id,
+        'scope': j.scope,
+        'status': j.status,
+        'trigger': j.trigger,
+        'progress': j.progress,
+        'created_at': j.created_at.strftime('%Y-%m-%d %H:%M') if
+        j.created_at else '',
+        'started_at': j.started_at.strftime('%Y-%m-%d %H:%M') if
+        j.started_at else '',
+        'finished_at': j.finished_at.strftime('%Y-%m-%d %H:%M') if
+        j.finished_at else '',
+        'result': j.result or '',
+        'error': j.error or '',
+    }
+
+
+@app.route('/admin/jobs/trigger', methods=['POST'])
+@admin_required
+def admin_jobs_trigger():
+    """后台手动触发整理待办(入队后由 job_worker 执行)。"""
+    from notes import NoteJob
+    scope = request.form.get('scope', 'all')
+    target_ids = request.form.get('target', '').strip()
+    if scope not in ('all', 'notes', 'kb'):
+        scope = 'all'
+    # target 形如 'note:1,2' / 'kb:3,4' / 'thread:1'
+    job = NoteJob(scope=scope, target=target_ids, status='queued',
+                  trigger='manual', created_by=current_user.id)
+    db.session.add(job)
+    db.session.commit()
+    log_operation('job_trigger', f'{scope}:{target_ids}',
+                  f'手动触发整理待办 #{job.id}')
+    flash(f'已入队整理待办 #{job.id}({scope})', 'success')
+    return redirect(url_for('admin_jobs'))
+
+
+@app.route('/admin/jobs')
+@admin_required
+def admin_jobs():
+    """后台管理:定时任务/整理记录。"""
+    from notes import NoteJob
+    jobs = NoteJob.query.order_by(NoteJob.created_at.desc()).limit(200).all()
+    scope = request.args.get('scope', '')
+    status = request.args.get('status', '')
+    if scope:
+        jobs = [j for j in jobs if j.scope == scope]
+    if status:
+        jobs = [j for j in jobs if j.status == status]
+    return render_template('admin/jobs.html', jobs=jobs, scope=scope,
+                           status=status)
+
+
+@app.route('/admin/jobs/<int:job_id>/retry', methods=['POST'])
+@admin_required
+def admin_jobs_retry(job_id):
+    from notes import NoteJob
+    job = db.session.get(NoteJob, job_id)
+    if not job:
+        flash('待办不存在', 'danger')
+        return redirect(url_for('admin_jobs'))
+    job.status = 'queued'
+    job.error = ''
+    job.result = ''
+    job.progress = 0
+    job.created_at = datetime.utcnow()
+    job.started_at = None
+    job.finished_at = None
+    db.session.commit()
+    flash(f'已重新入队待办 #{job.id}', 'success')
+    return redirect(url_for('admin_jobs'))
+
+
+@app.route('/api/quick-upload', methods=['POST'])
+@login_required
+def api_quick_upload():
+    """首页快速上传知识(入知识库识别队列)。"""
+    import uuid as _uuid
+    import knowledge as _kb
+    from knowledge import KbDocument, STATUS_QUEUED
+    files = request.files.getlist('file')
+    files = [f for f in files if f and f.filename]
+    if not files:
+        return jsonify({'ok': False, 'error': '未选择文件'}), 400
+    upload_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'kb')
+    os.makedirs(upload_dir, exist_ok=True)
+    added, rejected = [], []
+    for f in files:
+        ext = os.path.splitext(f.filename)[1].lower()
+        if ext not in _kb.ALLOWED_EXTENSIONS:
+            rejected.append(f'{f.filename}({ext})')
+            continue
+        store_name = _uuid.uuid4().hex + ext
+        target = os.path.join(upload_dir, store_name)
+        f.save(target)
+        title = os.path.splitext(f.filename)[0] or '未命名文档'
+        doc = KbDocument(title=title, filename=f.filename, file_path=target,
+                         file_type=ext.lstrip('.'), file_size=os.path.getsize(
+                             target), status=STATUS_QUEUED,
+                         uploaded_by=current_user.id,
+                         last_recognition_type='upload')
+        db.session.add(doc)
+        added.append(title)
+    db.session.commit()
+    try:
+        _kb._bump_data_version()
+    except Exception:
+        pass
+    return jsonify({'ok': True, 'added': added,
+                    'rejected': rejected,
+                    'pending_url': url_for('kb.index')})
+
+
 @app.route('/api/summary')
 @login_required
 def api_summary():
@@ -2136,7 +2542,7 @@ def api_summary():
     if not assignments:
         return jsonify({
             'period': period, 'date': date_str, 'label': label,
-            'text': f'{label}暂无分配任务记录。',
+            'text': f'{label}暂无分配待办记录。',
             'total': 0, 'completed': 0, 'pending': 0,
             'abandoned': 0, 'rejected': 0, 'rate': 0, 'avg_progress': 0,
         })
@@ -2182,12 +2588,12 @@ def api_summary():
 
     lines = [f'{label}工作总结', '']
 
-    lines.append(f'本期共分配任务{total}项，已完成{len(completed)}项，完成率{rate}%，平均进度{avg_progress}%。')
+    lines.append(f'本期共分配待办{total}项，已完成{len(completed)}项，完成率{rate}%，平均进度{avg_progress}%。')
     lines.append('')
 
     overdue_in_period = [a for a in pending if a.task.end_time < now]
     if overdue_in_period:
-        lines.append(f'当前仍有{len(overdue_in_period)}项任务逾期未完成。')
+        lines.append(f'当前仍有{len(overdue_in_period)}项待办逾期未完成。')
         lines.append('')
 
     for cat in cat_order:
@@ -2201,14 +2607,14 @@ def api_summary():
         lines.append('')
 
     if rejected:
-        lines.append(f'【驳回任务】{len(rejected)}项。')
+        lines.append(f'【驳回待办】{len(rejected)}项。')
         for a in rejected:
             reason = f'，原因：{a.rejection_reason}' if a.rejection_reason else ''
             lines.append(f'- {a.task.title}{reason}')
         lines.append('')
 
     if abandoned:
-        lines.append(f'【废弃任务】{len(abandoned)}项。')
+        lines.append(f'【废弃待办】{len(abandoned)}项。')
         for a in abandoned:
             lines.append(f'- {a.task.title}')
         lines.append('')
@@ -2304,6 +2710,18 @@ def user_tasks():
         ctx = {'task_stats': stats, 'my_assignments': mine}
         if current_user.role == 'admin':
             ctx['assignment_counts'] = _assignment_counts_by_user()
+        order = ['工作', '个人', '会议', '培训', '考试']
+        seen = set()
+        groups = {c: [] for c in order}
+        all_t = list(my_tasks) + list(other_assigned or [])
+        for t in all_t:
+            if t.id in seen:
+                continue
+            seen.add(t.id)
+            groups.setdefault(t.category, []).append(t)
+        ctx['task_categories'] = [{'category': c, 'tasks': groups.get(c, [])}
+                                  for c in order + [k for k in groups if k not in order]
+                                  if groups.get(c)]
         return ctx
 
     if request.method == 'POST':
@@ -2344,7 +2762,7 @@ def user_tasks():
                 assignee_ids = request.form.getlist('assignee_ids')
                 group_ids = request.form.getlist('group_ids')
                 if not title:
-                    flash('任务标题不能为空', 'danger')
+                    flash('待办标题不能为空', 'danger')
                     return redirect(url_for('user_tasks'))
                 start_time = datetime.strptime(start_str.replace('T', ' '), '%Y-%m-%d %H:%M')
                 end_time = datetime.strptime(end_str.replace('T', ' '), '%Y-%m-%d %H:%M')
@@ -2403,7 +2821,7 @@ def user_tasks():
                         for u in target_users:
                             db.session.add(TaskAssignment(task_id=task.id, user_id=u.id))
                             create_notification(u.id, 'task_assigned',
-                                                f'你收到一个新任务：「{t_title}」', task.id)
+                                                f'你收到一个新待办：「{t_title}」', task.id)
                     else:
                         uid_set = set(int(x) for x in assignee_ids) if assignee_ids else set()
                         if group_ids:
@@ -2417,22 +2835,22 @@ def user_tasks():
                         for uid in uid_set:
                             db.session.add(TaskAssignment(task_id=task.id, user_id=uid))
                             create_notification(uid, 'task_assigned',
-                                                f'你收到一个新任务：「{t_title}」', task.id)
+                                                f'你收到一个新待办：「{t_title}」', task.id)
                     created_titles.append(t_title)
                 db.session.commit()
                 if total > 1:
-                    flash(f'周期任务创建成功！共创建 {total} 个任务', 'success')
+                    flash(f'周期待办创建成功！共创建 {total} 个待办', 'success')
                 else:
-                    flash(f'任务 "{title}" 创建成功！', 'success')
+                    flash(f'待办 "{title}" 创建成功！', 'success')
             except Exception as e:
                 db.session.rollback()
                 logger.error('User task creation failed: %s', e, exc_info=True)
-                flash('创建任务失败', 'danger')
+                flash('创建待办失败', 'danger')
             return redirect(url_for('user_tasks'))
         try:
             parsed = parse_task_from_text(text)
-            if not parsed.get('title') or parsed['title'] == '未命名任务' or len(parsed.get('title', '')) < 2:
-                flash('无法从描述中提取任务标题，请确保包含明确的任务名称（至少2个字）', 'danger')
+            if not parsed.get('title') or parsed['title'] == '未命名待办' or len(parsed.get('title', '')) < 2:
+                flash('无法从描述中提取待办标题，请确保包含明确的待办名称（至少2个字）', 'danger')
                 return redirect(url_for('user_tasks'))
             parsed['raw_text'] = text
             is_admin_user = current_user.role == 'admin'
@@ -2475,7 +2893,7 @@ def user_tasks():
         except Exception as e:
             db.session.rollback()
             logger.error('User task parsing failed: %s', e, exc_info=True)
-            flash('解析任务失败：请检查输入格式', 'danger')
+            flash('解析待办失败：请检查输入格式', 'danger')
             return redirect(url_for('user_tasks'))
 
     parsed = None
@@ -2552,14 +2970,14 @@ def user_todo():
 def user_complete_task(assignment_id):
     assignment = db.session.get(TaskAssignment, assignment_id)
     if not assignment or assignment.user_id != current_user.id:
-        flash('任务不存在', 'danger')
+        flash('待办不存在', 'danger')
         return redirect(request.referrer or url_for('user_dashboard'))
     assignment.status = 'completed'
     assignment.completed_at = datetime.now()
     assignment.rejection_reason = None
     assignment.progress = 100
     db.session.commit()
-    flash('任务已标记完成！', 'success')
+    flash('待办已标记完成！', 'success')
     return redirect(request.referrer or url_for('user_dashboard'))
 
 
@@ -2568,13 +2986,13 @@ def user_complete_task(assignment_id):
 def user_abandon_task(assignment_id):
     assignment = db.session.get(TaskAssignment, assignment_id)
     if not assignment or assignment.user_id != current_user.id:
-        flash('任务不存在', 'danger')
+        flash('待办不存在', 'danger')
         return redirect(request.referrer or url_for('user_dashboard'))
     assignment.status = 'abandoned'
     assignment.abandoned_at = datetime.now()
     assignment.rejection_reason = None
     db.session.commit()
-    flash('任务已标记为废弃', 'info')
+    flash('待办已标记为废弃', 'info')
     return redirect(request.referrer or url_for('user_dashboard'))
 
 
@@ -2583,7 +3001,7 @@ def user_abandon_task(assignment_id):
 def user_upload_attachment(assignment_id):
     assignment = db.session.get(TaskAssignment, assignment_id)
     if not assignment or assignment.user_id != current_user.id:
-        flash('任务不存在', 'danger')
+        flash('待办不存在', 'danger')
         return redirect(request.referrer or url_for('user_dashboard'))
     if 'file' not in request.files:
         flash('请选择文件', 'danger')
@@ -2611,7 +3029,7 @@ def user_upload_attachment(assignment_id):
 def user_task_detail(task_id):
     task = db.session.get(Task, task_id)
     if not task:
-        flash('任务不存在', 'danger')
+        flash('待办不存在', 'danger')
         return redirect(url_for('user_dashboard'))
     assignment = TaskAssignment.query.filter_by(
         user_id=current_user.id, task_id=task_id).first()
@@ -2626,20 +3044,64 @@ def user_task_detail(task_id):
                            now=datetime.now())
 
 
+@app.route('/api/task/<int:task_id>')
+@login_required
+def api_task_detail(task_id):
+    """待办内联详情(JSON):供待办页右侧面板展示。"""
+    task = db.session.get(Task, task_id)
+    if not task:
+        return jsonify({'ok': False, 'error': '待办不存在'}), 404
+    if current_user.role != 'admin' and \
+            not TaskAssignment.query.filter_by(
+                task_id=task.id, user_id=current_user.id).first():
+        return jsonify({'ok': False, 'error': '无权查看'}), 403
+    assignment = TaskAssignment.query.filter_by(
+        user_id=current_user.id, task_id=task.id).first()
+    assigns = TaskAssignment.query.filter(
+        TaskAssignment.task_id == task.id).all()
+    stats = _build_task_stats([task.id], current_user.id)[0].get(task.id, {})
+    return jsonify({
+        'ok': True,
+        'task': {
+            'id': task.id,
+            'title': task.title,
+            'description': task.description or '',
+            'category': task.category,
+            'status': assignment.status if assignment else '',
+            'progress': assignment.progress if assignment else 0,
+            'note': assignment.note if assignment else '',
+            'start_time': task.start_time.strftime('%Y-%m-%d %H:%M'),
+            'end_time': task.end_time.strftime('%Y-%m-%d %H:%M'),
+            'is_all': task.is_all,
+            'creator': task.creator.name or task.creator.username,
+            'created_at': task.created_at.strftime('%Y-%m-%d %H:%M')
+                          if task.created_at else '',
+            'assignments': [{
+                'user': a.user.name or a.user.username,
+                'status': a.status,
+                'progress': a.progress,
+                'note': a.note or '',
+                'self': a.user_id == current_user.id,
+            } for a in assigns],
+            'stats': stats,
+        }
+    })
+
+
 @app.route('/user/tasks/edit', methods=['POST'])
 @login_required
 def user_edit_task():
-    """修改任务信息:创建者、管理员或任务负责人可编辑。"""
+    """修改待办信息:创建者、管理员或待办负责人可编辑。"""
     task_id = request.form.get('task_id', type=int)
     task = db.session.get(Task, task_id)
     if not task:
-        flash('任务不存在', 'danger')
+        flash('待办不存在', 'danger')
         return redirect(request.referrer or url_for('user_dashboard'))
     is_assignee = TaskAssignment.query.filter_by(
         task_id=task.id, user_id=current_user.id).first() is not None
     if task.creator_id != current_user.id and current_user.role != 'admin' \
             and not is_assignee:
-        flash('只有任务创建者、管理员或任务负责人可以编辑', 'danger')
+        flash('只有待办创建者、管理员或待办负责人可以编辑', 'danger')
         return redirect(request.referrer or url_for('user_dashboard'))
     title = request.form.get('title', '').strip()
     category = request.form.get('category', '').strip() or '工作'
@@ -2647,7 +3109,7 @@ def user_edit_task():
     end_str = request.form.get('end_time', '').strip()
     description = request.form.get('description', '').strip()
     if not title:
-        flash('任务标题不能为空', 'danger')
+        flash('待办标题不能为空', 'danger')
         return redirect(request.referrer or url_for('user_dashboard'))
     try:
         task.title = title
@@ -2661,7 +3123,7 @@ def user_edit_task():
             task.end_time = datetime.strptime(
                 end_str.replace('T', ' '), '%Y-%m-%d %H:%M')
         db.session.commit()
-        flash(f'任务 "{title}" 已更新', 'success')
+        flash(f'待办 "{title}" 已更新', 'success')
     except Exception as e:
         db.session.rollback()
         flash(f'更新失败：{str(e)}', 'danger')
@@ -2673,7 +3135,7 @@ def user_edit_task():
 def user_update_assign_progress(assignment_id):
     assignment = db.session.get(TaskAssignment, assignment_id)
     if not assignment or assignment.user_id != current_user.id:
-        flash('任务不存在', 'danger')
+        flash('待办不存在', 'danger')
         return redirect(request.referrer or url_for('user_dashboard'))
     progress = request.form.get('progress', type=int)
     note = request.form.get('note', '').strip()
@@ -2702,7 +3164,7 @@ def user_update_assign_progress(assignment_id):
         assignment.status = 'completed'
         assignment.completed_at = datetime.now()
         assignment.rejection_reason = None
-        flash('恭喜，任务已完成！', 'success')
+        flash('恭喜，待办已完成！', 'success')
     elif progress is not None and progress < 100 and assignment.status == 'completed':
         assignment.status = 'pending'
         assignment.completed_at = None

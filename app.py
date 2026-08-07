@@ -26,6 +26,13 @@ app = Flask(__name__)
 try:
     from flask_compress import Compress
     Compress(app)
+    # 压缩阈值:>=512B 才压缩;压缩级别 6(省 CPU)
+    app.config['COMPRESS_MIMETYPES'] = [
+        'text/html', 'text/css', 'application/javascript', 'application/json',
+        'application/xml', 'image/svg+xml', 'text/plain']
+    app.config['COMPRESS_MIN_SIZE'] = 512
+    app.config['COMPRESS_LEVEL'] = 6
+    app.config['COMPRESS_ALGORITHM'] = ['gzip']
 except Exception:
     pass  # 未安装 Flask-Compress 时静默跳过,不影响启动
 
@@ -56,6 +63,8 @@ app.config['SECRET_KEY'] = os.environ.get(
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tasks.db'
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'instance', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 604800  # 静态资源缓存 7 天
+app.config['PERMANENT_SESSION_LIFETIME'] = 60 * 60 * 24 * 7
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 # 生产关闭模板自动重载(启用 Jinja2 模板缓存);开发(FLASK_DEBUG/KB_AUTO_RELOAD)才实时读盘

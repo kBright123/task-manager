@@ -79,6 +79,45 @@ ALLOWED_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg', '.bmp', '.tif',
                       '.tiff', '.webp', '.txt', '.md', '.markdown', '.html', '.htm'}
 TEXT_EXTENSIONS = {'.txt', '.md', '.markdown'}
 
+# 常见文件魔数(文件头),用于拦截"伪装成图片/文档的可执行文件"。
+_HEADER_SIGNATURES = {
+    '.pdf': (b'%PDF',),
+    '.png': (b'\x89PNG',),
+    '.jpg': (b'\xff\xd8\xff',),
+    '.jpeg': (b'\xff\xd8\xff',),
+    '.gif': (b'GIF87a', b'GIF89a'),
+    '.bmp': (b'BM',),
+    '.tif': (b'II*\x00', b'MM\x00*'),
+    '.tiff': (b'II*\x00', b'MM\x00*'),
+    '.webp': (b'RIFF',),
+    '.doc': (b'\xd0\xcf\x11\xe0', b'PK\x03\x04'),
+    '.docx': (b'PK\x03\x04',),
+    '.xls': (b'\xd0\xcf\x11\xe0',),
+    '.xlsx': (b'PK\x03\x04',),
+    '.zip': (b'PK\x03\x04',),
+}
+_TEXT_HEADER_EXTS = ('.txt', '.md', '.markdown', '.html', '.htm')
+
+
+def file_content_matches(filename, head):
+    """零依赖魔数校验:扩展名必须与文件内容一致。
+
+    head: 文件头字节(建议读取 8KB,兼顾文本类 NUL 检查)。
+    策略:
+    - 文本类扩展名:前 8KB 含 NUL 字节视为二进制伪装,拒绝。
+    - 有魔数定义的二进制类型:头部必须匹配,否则拒绝(拦截伪装可执行文件)。
+    - 无法校验的扩展名(如 .rar):保持原扩展名白名单策略,放行。
+    """
+    ext = os.path.splitext(filename or '')[1].lower()
+    if ext in _TEXT_HEADER_EXTS:
+        return b'\x00' not in head
+    if ext == '.webp':
+        return head[:4] == b'RIFF' and head[8:12] == b'WEBP'
+    sigs = _HEADER_SIGNATURES.get(ext)
+    if not sigs:
+        return True
+    return any(head.startswith(s) for s in sigs)
+
 STATUS_QUEUED = 'queued'
 STATUS_OCR = 'ocr'
 STATUS_EMBED = 'embedding'
@@ -1823,6 +1862,11 @@ def upload():
         ext = os.path.splitext(f.filename)[1].lower()
         if ext not in ALLOWED_EXTENSIONS:
             rejected.append(f'{f.filename}({ext})')
+            continue
+        head = f.stream.read(8192)
+        f.stream.seek(0)
+        if not file_content_matches(f.filename, head):
+            rejected.append(f'{f.filename}(内容与扩展名不匹配)')
             continue
         store_name = uuid.uuid4().hex + ext
         target = os.path.join(_kb_upload_dir(), store_name)

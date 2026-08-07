@@ -552,7 +552,7 @@
   window.bulkDelete = function () {
     var ids = selected();
     if (!ids.length) return;
-    if (!confirm('确认删除选中的 ' + ids.length + ' 个文档?')) return;
+    if (!confirm('将删除选中的 ' + ids.length + ' 个文档，同时清除其向量索引，此操作不可恢复。确定继续?')) return;
     post('delete', ids).then(function (d) {
       alert(d.ok ? '已删除 ' + d.deleted + ' 个文档' : (d.error || '删除失败'));
       if (d.ok) location.reload();

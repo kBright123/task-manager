@@ -3,7 +3,7 @@ import logging
 import contextlib
 from datetime import datetime, timedelta, date
 from flask import (Flask, render_template, request, redirect, url_for,
-                   flash, jsonify, send_from_directory)
+                   flash, jsonify, send_from_directory, g)
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import (LoginManager, UserMixin, login_user,
                          login_required, logout_user, current_user)
@@ -12,6 +12,7 @@ from werkzeug.utils import secure_filename
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, case
 import os
+import time
 
 VERSION = 'v0.7.0'
 
@@ -61,6 +62,8 @@ def _get_or_create_secret_key(root_path):
 app.config['SECRET_KEY'] = os.environ.get(
     'SECRET_KEY', _get_or_create_secret_key(app.root_path))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tasks.db'
+# SQLite 单写连接无需 pool_size;启用 pre_ping 检测失效连接,避免复用坏连接报错
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'instance', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 604800  # 静态资源缓存 7 天
@@ -88,8 +91,25 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
+
+@app.before_request
+def _req_timing_start():
+    g._req_start = time.monotonic()
+
+
+@app.after_request
+def _req_timing_log(resp):
+    start = getattr(g, '_req_start', None)
+    if start is not None:
+        dur = time.monotonic() - start
+        if dur > 1.0:
+            logger.warning('slow request %.1fs %s %s -> %s',
+                           dur, request.method, request.path, resp.status_code)
+    return resp
+
+
 from knowledge import init_models, enable_sqlite_wal, kb_bp, \
-    _resolve_stored_path
+    _resolve_stored_path, file_content_matches
 init_models(db)
 app.register_blueprint(kb_bp)
 
@@ -3049,6 +3069,11 @@ def user_upload_attachment(assignment_id):
         flash('请选择文件', 'danger')
         return redirect(request.referrer or url_for('user_dashboard'))
     if file and allowed_file(file.filename):
+        head = file.stream.read(8192)
+        file.stream.seek(0)
+        if not file_content_matches(file.filename, head):
+            flash('文件内容与扩展名不匹配，已拒绝上传', 'danger')
+            return redirect(request.referrer or url_for('user_dashboard'))
         filename = secure_filename(
             f"{current_user.id}_{assignment.id}_{file.filename}"
         )

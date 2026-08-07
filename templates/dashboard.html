@@ -71,11 +71,17 @@
     <span style="width:10px;height:10px;border-radius:50%;background:{{ 'var(--success)' if a.status == 'completed' else 'var(--danger)' if a.status == 'rejected' else 'var(--warning)' }};" title="状态:{{ a.status }}"></span>
     {% endif %}
     {% if a.status != 'completed' %}
-    <form action="{{ url_for('user_complete_task', assignment_id=a.id) }}" method="POST">
-      <button class="btn btn-sm btn-outline-success rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;padding:0;border-width:2px;" title="完成">
-        <i class="bi bi-check-lg" style="font-size:.75rem;"></i>
-      </button>
-    </form>
+    <span class="task-toggle" data-id="{{ a.id }}" data-title="{{ a.task.title }}" title="点击标记完成" style="cursor:pointer;">
+      <span style="width:20px;height:20px;border:2px solid var(--primary);border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:#fff;">
+        <i class="bi bi-check-lg" style="font-size:.78rem;color:var(--primary);opacity:0;"></i>
+      </span>
+    </span>
+    {% else %}
+    <span class="task-toggle task-toggle-on" data-id="{{ a.id }}" data-title="{{ a.task.title }}" title="点击取消完成" style="cursor:pointer;">
+      <span style="width:20px;height:20px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:var(--success);color:#fff;">
+        <i class="bi bi-check-lg" style="font-size:.78rem;"></i>
+      </span>
+    </span>
     {% endif %}
     </div>
   </div>
@@ -589,6 +595,29 @@ function openEditTaskModal(el) {
 <script>
 var _summaryDate = '';
 var _summaryPeriod = 'month';
+
+// 内联完成切换（AJAX）
+document.addEventListener('click', function (e) {
+  var t = e.target.closest('.task-toggle');
+  if (!t) return;
+  e.stopPropagation();
+  e.preventDefault();
+  var id = t.dataset.id;
+  fetch('/user/tasks/' + id + '/toggle', { method: 'POST' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d.ok) { if (window.toast) toast(d.error || '操作失败', 'danger'); return; }
+      if (window.toast) toast(d.status === 'completed' ? '已标记完成' : '已恢复待办', 'success');
+      var row = t.closest('.list-group-item');
+      if (row) {
+        row.style.borderLeftColor = d.status === 'completed' ? 'var(--success)' : 'var(--primary)';
+        row.style.opacity = d.status === 'completed' ? '.65' : '1';
+        var title = row.querySelector('span[style*="font-weight:600"]');
+        if (title) title.style.textDecoration = d.status === 'completed' ? 'line-through' : 'none';
+      }
+      setTimeout(function () { location.reload(); }, 400);
+    });
+});
 
 function openSummaryModal() {
   var now = new Date();

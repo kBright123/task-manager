@@ -2991,6 +2991,25 @@ def user_complete_task(assignment_id):
     return redirect(request.referrer or url_for('user_dashboard'))
 
 
+@app.route('/user/tasks/<int:assignment_id>/toggle', methods=['POST'])
+@login_required
+def user_toggle_task(assignment_id):
+    assignment = db.session.get(TaskAssignment, assignment_id)
+    if not assignment or assignment.user_id != current_user.id:
+        return jsonify(ok=False, error='待办不存在'), 404
+    if assignment.status == 'completed':
+        assignment.status = 'pending'
+        assignment.progress = 0
+        assignment.completed_at = None
+    else:
+        assignment.status = 'completed'
+        assignment.progress = 100
+        assignment.completed_at = datetime.now()
+        assignment.rejection_reason = None
+    db.session.commit()
+    return jsonify(ok=True, status=assignment.status, progress=assignment.progress)
+
+
 @app.route('/user/tasks/<int:assignment_id>/abandon', methods=['POST'])
 @login_required
 def user_abandon_task(assignment_id):

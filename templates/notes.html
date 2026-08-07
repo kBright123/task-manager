@@ -130,11 +130,13 @@ function sendNote(){
     body:JSON.stringify({content:content,thread_id:tid})}).then(r=>r.json()).then(function(d){
     if(d.ok){
       document.getElementById('noteInput').value='';
+      document.getElementById('noteInput').dispatchEvent(new Event('input'));
+      if(window.toast) toast('已发送','success');
       if(d.duplicates&&d.duplicates.length){
         showSys('<i class="bi bi-exclamation-triangle"></i> 疑似与「'+esc(d.duplicates[0].title)+'」('+esc(d.duplicates[0].date)+') 高度相似,相似度 '+d.duplicates[0].similarity+'%');
       }
       loadNotes(curThread);
-    } else {alert(d.error||'发送失败');}
+    } else { if (window.toast) toast(d.error||'发送失败','danger'); else alert(d.error||'发送失败'); }
   });
 }
 function showSys(html){

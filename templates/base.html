@@ -420,6 +420,42 @@
       var dd = document.getElementById('notificationDropdown');
       dd.classList.toggle('d-none');
     }
+
+    // 全局提交按钮 Loading（防重复提交）: POST/PUT 表单提交后禁用并显示"处理中..."
+    document.addEventListener('submit', function (e) {
+      var form = e.target;
+      if (form.method && form.method.toLowerCase() === 'get') return;
+      var btns = form.querySelectorAll('button[type="submit"], button.submit-able, input[type="submit"]');
+      for (var i = 0; i < btns.length; i++) {
+        var b = btns[i];
+        if (b.disabled) continue;
+        b.disabled = true;
+        var hasText = (b.textContent || '').replace(/\s+/g, ' ').trim().length > 0;
+        if (hasText && !(b.dataset && b.dataset.noLoading)) {
+          b.dataset.origLabel = b.innerHTML;
+          b.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> 处理中...';
+        }
+      }
+    }, true);
+
+    // 全局 Toast 提示
+    window.toast = function (message, type) {
+      type = type || 'info';
+      var c = document.getElementById('globalToast');
+      if (!c) {
+        c = document.createElement('div');
+        c.id = 'globalToast';
+        c.style.cssText = 'position:fixed;right:18px;bottom:76px;z-index:2000;display:flex;flex-direction:column;gap:8px;max-width:320px;';
+        document.body.appendChild(c);
+      }
+      var colors = { success: 'var(--success)', warning: 'var(--warning)', danger: 'var(--danger)', info: 'var(--primary)' };
+      var color = colors[type] || colors.info;
+      var el = document.createElement('div');
+      el.style.cssText = 'background:#fff;border:1px solid var(--gray-200);border-left:4px solid ' + color + ';border-radius:10px;box-shadow:var(--shadow-lg);padding:10px 14px;font-size:.83rem;color:var(--gray-700);animation:tmFadeIn .18s ease-out;';
+      el.textContent = message;
+      c.appendChild(el);
+      setTimeout(function () { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(function () { el.remove(); }, 320); }, 3000);
+    };
   </script>
   {% block extra_js %}{% endblock %}
 </body>

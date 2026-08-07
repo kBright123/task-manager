@@ -26,6 +26,19 @@ services:
       - PYTHONOPTIMIZE=1
       - KB_OPENCODE_BASE_URL=http://opencode:3000
       - KB_AUTO_RELOAD=1
+      # ---- 低资源优化(1核/512MB~1GB) ----
+      # 默认禁用 LLM 问答:分身问答/整理降级为关键词检索+FAQ,不再调用大模型
+      - KB_LLM_DISABLED=${KB_LLM_DISABLED:-1}
+      # 默认禁用 fastText 自动分类:文档/笔记改走纯关键词规则
+      - KB_CLASSIFIER_ENABLED=${KB_CLASSIFIER_ENABLED:-0}
+      # 默认禁用向量检索(fastembed+SochDB):检索降级为 SQLite 关键词匹配,省内存大头
+      - KB_VECTOR_DISABLED=${KB_VECTOR_DISABLED:-1}
+      # 邮件提醒扫描间隔(秒),从 60 提至 300 减少数据库/CPU 空转
+      - REMINDER_INTERVAL=${REMINDER_INTERVAL:-300}
+      # 后台 worker 按需开关(关闭可省约 20-200MB 内存)
+      - KB_WORKER_ENABLED=${KB_WORKER_ENABLED:-1}
+      - REMINDER_WORKER_ENABLED=${REMINDER_WORKER_ENABLED:-1}
+      - JOB_WORKER_ENABLED=${JOB_WORKER_ENABLED:-1}
       # 邮箱绑定 SMTP 配置(可选,未配置时校验码仅写入服务器日志)
       - MAIL_SERVER=${MAIL_SERVER:-}
       - MAIL_PORT=${MAIL_PORT:-465}

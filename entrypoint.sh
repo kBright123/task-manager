@@ -12,27 +12,36 @@ for f in /app/app.py /app/knowledge.py /app/classifier.py /app/reminder_worker.p
   fi
 done
 
-SOCHDB_PATH="${KB_SOCHDB_PATH:-/app/instance/kb_data/kb.soch}"
-mkdir -p "$(dirname "$SOCHDB_PATH")"
+if [ "${KB_VECTOR_DISABLED:-0}" = "1" ]; then
+  echo "[entrypoint] KB_VECTOR_DISABLED=1, skipping sochdb-server (vector DB)"
+  SOCHDB_PID=""
+else
+  SOCHDB_PATH="${KB_SOCHDB_PATH:-/app/instance/kb_data/kb.soch}"
+  mkdir -p "$(dirname "$SOCHDB_PATH")"
 
-SOCHDB_BIN=$(python -c \
-  "import glob, os, sochdb; print(glob.glob(os.path.join(sochdb.__path__[0], '_bin', '*', 'sochdb-server'))[0])")
+  SOCHDB_BIN=$(python -c \
+    "import glob, os, sochdb; print(glob.glob(os.path.join(sochdb.__path__[0], '_bin', '*', 'sochdb-server'))[0])")
 
-echo "[entrypoint] starting sochdb-server (db=$SOCHDB_PATH)"
-"$SOCHDB_BIN" --db "$SOCHDB_PATH" --log-level info &
-SOCHDB_PID=$!
+  echo "[entrypoint] starting sochdb-server (db=$SOCHDB_PATH)"
+  "$SOCHDB_BIN" --db "$SOCHDB_PATH" --log-level info &
+  SOCHDB_PID=$!
 
-SOCK="$SOCHDB_PATH/sochdb.sock"
-for _ in $(seq 1 60); do
-  [ -S "$SOCK" ] && break
-  sleep 0.5
-done
-if [ ! -S "$SOCK" ]; then
-  echo "[entrypoint] ERROR: sochdb-server socket not ready" >&2
-  kill "$SOCHDB_PID" 2>/dev/null || true
-  exit 1
+  SOCK="$SOCHDB_PATH/sochdb.sock"
+  for _ in $(seq 1 60); do
+    [ -S "$SOCK" ] && break
+    sleep 0.5
+  done
+  if [ ! -S "$SOCK" ]; then
+    echo "[entrypoint] ERROR: sochdb-server socket not ready" >&2
+    kill "$SOCHDB_PID" 2>/dev/null || true
+    exit 1
+  fi
+  echo "[entrypoint] sochdb-server ready"
 fi
-echo "[entrypoint] sochdb-server ready"
+
+KB_WORKER_ENABLED="${KB_WORKER_ENABLED:-1}"
+REMINDER_WORKER_ENABLED="${REMINDER_WORKER_ENABLED:-1}"
+JOB_WORKER_ENABLED="${JOB_WORKER_ENABLED:-1}"
 
 if [ "${KB_AUTO_RELOAD:-0}" = "1" ]; then
   echo "[entrypoint] starting kb_worker + reminder_worker + job_worker (auto-reload on)"
@@ -44,7 +53,12 @@ import sys
 import time
 
 WATCHED = ('/app/app.py', '/app/knowledge.py', '/app/classifier.py', '/app/reminder_worker.py', '/app/notes.py', '/app/job_worker.py')
-SCRIPTS = {'kb': 'knowledge.py', 'reminder': 'reminder_worker.py', 'job': 'job_worker.py'}
+SCRIPTS = {k: v for k, v in {
+    'kb': ('knowledge.py', 'KB_WORKER_ENABLED'),
+    'reminder': ('reminder_worker.py', 'REMINDER_WORKER_ENABLED'),
+    'job': ('job_worker.py', 'JOB_WORKER_ENABLED'),
+}.items() if os.environ.get(v[1], '1') == '1'}
+SCRIPTS = {k: v[0] for k, v in SCRIPTS.items()}
 INTERVAL = 1.0
 stop = False
 
@@ -98,16 +112,17 @@ finally:
 PY
   WORKER_PID=$!
 else
-  echo "[entrypoint] starting kb_worker + reminder_worker + job_worker"
-  python knowledge.py &
-  python reminder_worker.py &
-  python job_worker.py &
-  WORKER_PID=$!
+  echo "[entrypoint] starting background workers (kb=${KB_WORKER_ENABLED} reminder=${REMINDER_WORKER_ENABLED} job=${JOB_WORKER_ENABLED})"
+  WORKER_PIDS=()
+  if [ "${KB_WORKER_ENABLED:-1}" = "1" ]; then python knowledge.py & WORKER_PIDS+=("$!"); fi
+  if [ "${REMINDER_WORKER_ENABLED:-1}" = "1" ]; then python reminder_worker.py & WORKER_PIDS+=("$!"); fi
+  if [ "${JOB_WORKER_ENABLED:-1}" = "1" ]; then python job_worker.py & WORKER_PIDS+=("$!"); fi
 fi
 
 cleanup() {
   echo "[entrypoint] shutting down"
-  kill "$WORKER_PID" 2>/dev/null || true
+  for _pid in "${WORKER_PIDS[@]:-}"; do kill "$_pid" 2>/dev/null || true; done
+  if [ "${KB_AUTO_RELOAD:-0}" = "1" ]; then kill "$WORKER_PID" 2>/dev/null || true; fi
   kill "$SOCHDB_PID" 2>/dev/null || true
 }
 trap cleanup EXIT TERM INT

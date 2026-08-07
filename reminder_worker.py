@@ -24,7 +24,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger('reminder_worker')
 
-INTERVAL = int(os.environ.get('REMINDER_INTERVAL', '60'))
+INTERVAL = int(os.environ.get('REMINDER_INTERVAL', '300'))
 DEADLINE_CATEGORIES = ('会议', '培训', '考试')
 DONE_STATUS = ('completed', 'approved')
 

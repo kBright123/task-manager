@@ -54,6 +54,8 @@ KB_OPENCODE_PROVIDER = os.environ.get('KB_OPENCODE_PROVIDER', 'opencode')
 KB_OPENCODE_MODEL = os.environ.get('KB_OPENCODE_MODEL', 'deepseek-v4-flash-free')
 KB_OPENCODE_TIMEOUT = int(os.environ.get('KB_OPENCODE_TIMEOUT', '180'))
 KB_LLM_DISABLED = os.environ.get('KB_LLM_DISABLED', '0') == '1'
+# 低资源模式:禁用 fastembed 向量嵌入 + SochDB 向量库,检索降级为 SQLite 关键词匹配
+KB_VECTOR_DISABLED = os.environ.get('KB_VECTOR_DISABLED', '0') == '1'
 
 KB_OCR_DPI_SCALE = float(os.environ.get('KB_OCR_DPI_SCALE', '2.0'))
 KB_OCR_MIN_SIDE = int(os.environ.get('KB_OCR_MIN_SIDE', '1200'))
@@ -456,6 +458,8 @@ _embedder = None
 
 def get_embedder():
     global _embedder
+    if KB_VECTOR_DISABLED:
+        raise RuntimeError('KB_VECTOR_DISABLED=1,embedding disabled')
     if _embedder is None:
         from fastembed import TextEmbedding
         logger.info('loading embedding model %s ...', KB_EMBED_MODEL)
@@ -480,6 +484,8 @@ _sochdb = None
 
 def get_db():
     global _sochdb
+    if KB_VECTOR_DISABLED:
+        raise RuntimeError('KB_VECTOR_DISABLED=1 sochdb disabled')
     if _sochdb is None:
         from sochdb.database import Database
         os.makedirs(os.path.dirname(KB_SOCHDB_PATH) or '.', exist_ok=True)
@@ -492,6 +498,8 @@ _schema_ready = False
 
 def ensure_schema():
     global _schema_ready
+    if KB_VECTOR_DISABLED:
+        return None
     dbh = get_db()
     if not _schema_ready:
         try:
@@ -515,6 +523,8 @@ def page_doc_id(doc_id, page_no):
 
 
 def upsert_page(doc_id, page_no, title, filename, text):
+    if KB_VECTOR_DISABLED:
+        return
     ns = ensure_schema()
     col = ns.collection(KB_PAGES_COLLECTION)
     vec = embed_text(text or ' ')
@@ -530,6 +540,8 @@ def upsert_page(doc_id, page_no, title, filename, text):
 
 def upsert_pages_batch(doc_id, title, filename, pages):
     """一次批量嵌入并写入多页向量(避免每页一次模型推理)。"""
+    if KB_VECTOR_DISABLED:
+        return
     valid = [(page_no, text) for page_no, text in pages
              if text and text.strip()]
     if not valid:
@@ -550,6 +562,8 @@ def upsert_pages_batch(doc_id, title, filename, pages):
 
 
 def delete_page(doc_id, page_no):
+    if KB_VECTOR_DISABLED:
+        return
     ns = ensure_schema()
     col = ns.collection(KB_PAGES_COLLECTION)
     try:
@@ -687,6 +701,13 @@ def _kb_user_list():
 
 
 def search_pages(query, k=10, alpha=0.5, doc_ids=None):
+    kw_res = keyword_search_pages(query, k=k)
+    if doc_ids is not None:
+        kw_res = [r for r in kw_res if r['doc_id'] in doc_ids]
+    if KB_VECTOR_DISABLED:
+        return [{'id': page_doc_id(r['doc_id'], r['page_no']), 'score': r['score'],
+                 'doc_id': r['doc_id'], 'page_no': r['page_no'], 'title': r['title'],
+                 'filename': r['filename'], 'text': r['text']} for r in kw_res]
     ns = ensure_schema()
     col = ns.collection(KB_PAGES_COLLECTION)
     vec = embed_text(query)
@@ -2370,7 +2391,8 @@ def _process_document(conn, row):
 
 
 def main():
-    ensure_schema()
+    if not KB_VECTOR_DISABLED:
+        ensure_schema()
     conn = _connect()
     _ensure_doc_columns(conn)
     _reset_inflight(conn)

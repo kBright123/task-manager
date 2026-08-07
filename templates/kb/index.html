@@ -7,13 +7,18 @@
     <div class="card">
       <div class="card-header d-flex justify-content-between align-items-center">
         <span><i class="bi bi-folder2-open"></i> 集合</span>
-        <div class="d-flex gap-1 align-items-center">
-          <button class="btn btn-xs-custom btn-outline-secondary" onclick="pruneEmptyCollections()" title="批量删除空集合">
-            <i class="bi bi-trash"></i> 清空空集
-          </button>
-          <button class="btn btn-xs-custom btn-outline-primary" onclick="showCollectionModal()">
-            <i class="bi bi-plus"></i> 新建
-          </button>
+        <button class="btn btn-xs-custom btn-outline-secondary" type="button"
+                data-bs-toggle="collapse" data-bs-target="#kbManageActions"
+                aria-expanded="false" title="展开管理操作"><i class="bi bi-gear kb-manage-caret" style="font-size:.75rem;"></i></button>
+      </div>
+      <!-- 管理操作(默认折叠):检索用收藏夹树常显,管理按钮收起 -->
+      <div class="collapse" id="kbManageActions">
+        <div class="px-3 py-2 border-bottom" style="font-size:.74rem;color:var(--gray-500);">
+          <i class="bi bi-info-circle"></i> 管理: 新建/重命名/删除集合与清理
+        </div>
+        <div class="px-3 py-2 d-flex gap-2">
+          <button class="btn btn-xs-custom btn-outline-primary" onclick="showCollectionModal()" title="新建集合"><i class="bi bi-plus"></i> 新建</button>
+          <button class="btn btn-xs-custom btn-outline-secondary" onclick="pruneEmptyCollections()" title="批量删除空集合"><i class="bi bi-trash"></i> 清空空集</button>
         </div>
       </div>
       <div class="card-body py-2">
@@ -205,7 +210,14 @@
               <td><small class="text-muted">{{ doc.created_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
             </tr>
             {% else %}
-            <tr><td colspan="{{ 6 if current_user.role == 'admin' else 5 }}" class="text-center py-4 text-muted">暂无文档,上传 PDF/图片/Markdown/文本或 HTML 开始建立知识库</td></tr>
+            <tr><td colspan="{{ 6 if current_user.role == 'admin' else 5 }}" class="text-center py-4 text-muted">
+              <div class="empty-state">
+                <svg viewBox="0 0 96 96" fill="none"><rect x="16" y="12" width="64" height="72" rx="8" fill="var(--gray-100)" stroke="var(--gray-300)" stroke-width="2"/><path d="M32 30h32M32 44h32M32 58h20" stroke="var(--primary)" stroke-width="3" stroke-linecap="round"/><circle cx="66" cy="68" r="12" fill="#fff" stroke="var(--gray-300)" stroke-width="2"/><path d="M66 63v10M61 68h10" stroke="var(--primary)" stroke-width="3" stroke-linecap="round"/></svg>
+                <div class="es-title">还没有文档</div>
+                <div class="es-sub">上传 PDF / 图片 / Markdown / 文本或 HTML，开始建立你的知识库。</div>
+                <button class="btn btn-sm btn-primary" type="button" onclick="document.getElementById('dropFileInput').click()"><i class="bi bi-cloud-arrow-up"></i> 上传文档</button>
+              </div>
+            </td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -253,7 +265,14 @@
           </div>
         </div>
         {% else %}
-        <div class="text-center py-4 text-muted" style="font-size:.8rem;">暂无文档,上传 PDF/图片/Markdown/文本或 HTML 开始建立知识库</div>
+        <div class="text-center py-4 text-muted" style="font-size:.8rem;">
+          <div class="empty-state">
+            <svg viewBox="0 0 96 96" fill="none"><rect x="16" y="12" width="64" height="72" rx="8" fill="var(--gray-100)" stroke="var(--gray-300)" stroke-width="2"/><path d="M32 30h32M32 44h32M32 58h20" stroke="var(--primary)" stroke-width="3" stroke-linecap="round"/><circle cx="66" cy="68" r="12" fill="#fff" stroke="var(--gray-300)" stroke-width="2"/><path d="M66 63v10M61 68h10" stroke="var(--primary)" stroke-width="3" stroke-linecap="round"/></svg>
+            <div class="es-title">还没有文档</div>
+            <div class="es-sub">上传 PDF / 图片 / Markdown / 文本或 HTML，开始建立你的知识库。</div>
+            <button class="btn btn-sm btn-primary" type="button" onclick="document.getElementById('dropFileInput').click()"><i class="bi bi-cloud-arrow-up"></i> 上传文档</button>
+          </div>
+        </div>
         {% endfor %}
       </div>
       {% if pagination.pages > 1 %}
@@ -488,13 +507,29 @@
       }
     });
   });
-  function post(action, ids) {
-    return fetch('{{ url_for('kb.bulk') }}', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: action, doc_ids: ids })
-    }).then(function (r) { return r.json(); });
-  }
+   function post(action, ids) {
+     return fetch('{{ url_for('kb.bulk') }}', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify({ action: action, doc_ids: ids })
+     }).then(function (r) { return r.json(); });
+   }
+   function setBulkBusy(on) {
+     var bar = document.getElementById('bulkBar');
+     if (!bar) return;
+     bar.querySelectorAll('button').forEach(function (b) { b.disabled = on; });
+     var existing = document.getElementById('kbBulkSpinner');
+     if (on) {
+       if (!existing) {
+         var s = document.createElement('span'); s.id = 'kbBulkSpinner';
+         s.className = 'spinner-border spinner-border-sm text-primary';
+         s.style.cssText = 'width:.8rem;height:.8rem;';
+         bar.insertBefore(s, bar.firstChild);
+       }
+     } else {
+       if (existing) existing.remove();
+     }
+   }
   var reproTimer = null;
   var statusMap = {queued: '等待识别', ocr: 'OCR 中', embedding: '向量化中', graphing: '图谱抽取中', done: '已完成', failed: '失败'};
   function showReprogress(ids) {
@@ -553,35 +588,37 @@
     var ids = selected();
     if (!ids.length) return;
     if (!confirm('将删除选中的 ' + ids.length + ' 个文档，同时清除其向量索引，此操作不可恢复。确定继续?')) return;
+    setBulkBusy(true);
     post('delete', ids).then(function (d) {
       alert(d.ok ? '已删除 ' + d.deleted + ' 个文档' : (d.error || '删除失败'));
-      if (d.ok) location.reload();
-    });
+      if (d.ok) location.reload(); else setBulkBusy(false);
+    }).catch(function () { alert('网络错误，请重试'); setBulkBusy(false); });
   };
   window.bulkReprocess = function () {
     var ids = selected();
     if (!ids.length) return;
     if (!confirm('确认重新识别选中的 ' + ids.length + ' 个文档?')) return;
+    setBulkBusy(true);
     post('reprocess', ids).then(function (d) {
-      if (!d.ok) { alert(d.error || '操作失败'); return; }
-      var bar = document.getElementById('bulkBar');
+      if (!d.ok) { alert(d.error || '操作失败'); setBulkBusy(false); return; }
+      var bar = document.getElementById('bulkReprogress');
       bar.classList.add('d-none');
       bar.classList.remove('d-flex');
       showReprogress(ids);
-    });
+    }).catch(function () { alert('网络错误，请重试'); setBulkBusy(false); });
   };
   window.bulkAutoArchive = function () {
     var ids = selected();
     if (!ids.length) return;
     if (!confirm('确认对选中的 ' + ids.length + ' 个文档执行自动分类归档?\n未识别完成、无分类结果或已手动归档的文档将被跳过。')) return;
     post('auto_archive', ids).then(function (d) {
-      if (!d.ok) { alert(d.error || '操作失败'); return; }
+      if (!d.ok) { alert(d.error || '操作失败'); setBulkBusy(false); return; }
       var msg = '自动归档完成:成功 ' + (d.archived || []).length + ' 个';
       if (d.created && d.created.length) msg += '\n新建合集: ' + d.created.join('、');
       if (d.skipped) msg += '\n跳过 ' + d.skipped + ' 个';
       alert(msg);
       location.reload();
-    });
+    }).catch(function () { alert('网络错误，请重试'); setBulkBusy(false); });
   };
   window.bulkExport = function () {
     var ids = selected();

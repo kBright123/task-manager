@@ -1559,8 +1559,11 @@ def admin_dashboard():
                            now=now_dt,
                            is_admin=True,
                            users=get_same_group_users(current_user),
-                           note_count=_count_notes(),
-                           kb_count=_count_kb())
+                             note_count=_count_notes(),
+                             kb_count=_count_kb(),
+                             new_tasks_yesterday=new_tasks_yesterday,
+                             new_notes_yesterday=new_notes_yesterday,
+                             new_docs_yesterday=new_docs_yesterday)
 
 
 @app.route('/admin/logs', methods=['GET'])
@@ -2094,11 +2097,34 @@ def user_dashboard():
     week_start = now - timedelta(days=now.weekday())
     week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    yesterday_start = today_start - timedelta(days=1)
     today_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
     today_tasks = TaskAssignment.query.join(Task).filter(
         TaskAssignment.user_id == current_user.id, TaskAssignment.status == 'pending',
         Task.end_time >= today_start, Task.end_time <= today_end
     ).order_by(Task.end_time).all()
+    # 同比趋势:较前日新增的待办/随手记/知识库条目(创建时间落在前日)
+    new_tasks_yesterday = TaskAssignment.query.join(Task).filter(
+        TaskAssignment.user_id == current_user.id, TaskAssignment.status == 'pending',
+        Task.created_at >= yesterday_start, Task.created_at < today_start).count()
+    new_notes_yesterday = 0
+    new_docs_yesterday = 0
+    try:
+        from notes import Note
+        if Note is not None:
+            new_notes_yesterday = Note.query.filter(
+                Note.user_id == current_user.id,
+                Note.created_at >= yesterday_start, Note.created_at < today_start).count()
+    except Exception:
+        pass
+    try:
+        from knowledge import KbDocument
+        if KbDocument is not None:
+            new_docs_yesterday = KbDocument.query.filter(
+                KbDocument.created_at >= yesterday_start,
+                KbDocument.created_at < today_start).count()
+    except Exception:
+        pass
     week_tasks = TaskAssignment.query.join(Task).filter(
         TaskAssignment.user_id == current_user.id, TaskAssignment.status == 'pending',
         Task.end_time >= week_start, Task.end_time <= week_end
@@ -2113,12 +2139,15 @@ def user_dashboard():
                            upcoming=upcoming, overdue=overdue,
                            recent=recent,
                            today_tasks=today_tasks, week_tasks=week_tasks,
-                            all_pending=all_pending,
-                            now=now,
-                            is_admin=False,
-                            users=get_same_group_users(current_user),
-                            note_count=_count_notes(),
-                            kb_count=_count_kb())
+                           all_pending=all_pending,
+                           now=now,
+                           is_admin=False,
+                           users=get_same_group_users(current_user),
+                           note_count=_count_notes(),
+                           kb_count=_count_kb(),
+                           new_tasks_yesterday=new_tasks_yesterday,
+                           new_notes_yesterday=new_notes_yesterday,
+                           new_docs_yesterday=new_docs_yesterday)
 
 
 @app.route('/api/group-members')
@@ -2937,8 +2966,25 @@ def user_tasks():
 
     parsed = None
     is_admin_user = current_user.role == 'admin'
-    my_assigned_ids = {a.task_id for a in TaskAssignment.query.filter_by(user_id=current_user.id).all()}
+    show_completed = request.args.get('completed', '0') == '1'
+    # 默认仅展示当前用户视角下尚未完成的待办(completed 以外);?completed=1 显示全部
+    completed_ids = set() if show_completed else {
+        a.task_id for a in TaskAssignment.query.filter(
+            TaskAssignment.user_id == current_user.id,
+            TaskAssignment.status == 'completed').all()
+    }
+    if show_completed:
+        my_assigned_ids = {a.task_id for a in TaskAssignment.query.filter_by(user_id=current_user.id).all()}
+    else:
+        my_assigned_ids = {a.task_id for a in TaskAssignment.query.filter(
+            TaskAssignment.user_id == current_user.id,
+            TaskAssignment.status != 'completed').all()}
     other_assigned = Task.query.filter(Task.id.in_(my_assigned_ids), Task.creator_id != current_user.id).order_by(Task.created_at.desc()).all() if my_assigned_ids else []
+    # 过滤"由当前人创建"的已完成任务(其完成状态取当前人的分配)
+    mt = Task.query.filter_by(creator_id=current_user.id)
+    if completed_ids:
+        mt = mt.filter(~Task.id.in_(completed_ids))
+    my_tasks = mt.order_by(Task.created_at.desc()).all()
     template_data = {
         'rejected_tasks': rejected_tasks,
         'preview': parsed, 'users': users,
@@ -2948,6 +2994,7 @@ def user_tasks():
         'now': datetime.now(),
         'is_admin': is_admin_user,
         'user_groups': user_groups,
+        'show_completed': show_completed,
     }
     template_data.update(_stats_context())
     if is_admin_user:
@@ -3133,8 +3180,10 @@ def api_task_detail(task_id):
             'status': assignment.status if assignment else '',
             'progress': assignment.progress if assignment else 0,
             'note': assignment.note if assignment else '',
-            'start_time': task.start_time.strftime('%Y-%m-%d %H:%M'),
-            'end_time': task.end_time.strftime('%Y-%m-%d %H:%M'),
+            'start_time': (task.start_time.strftime('%Y-%m-%d %H:%M')
+                           if task.start_time else ''),
+            'end_time': (task.end_time.strftime('%Y-%m-%d %H:%M')
+                         if task.end_time else ''),
             'is_all': task.is_all,
             'creator': task.creator.name or task.creator.username,
             'created_at': task.created_at.strftime('%Y-%m-%d %H:%M')

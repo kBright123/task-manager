@@ -71,13 +71,13 @@
     <span style="width:10px;height:10px;border-radius:50%;background:{{ 'var(--success)' if a.status == 'completed' else 'var(--danger)' if a.status == 'rejected' else 'var(--warning)' }};" title="状态:{{ a.status }}"></span>
     {% endif %}
     {% if a.status != 'completed' %}
-    <span class="task-toggle" data-id="{{ a.id }}" data-title="{{ a.task.title }}" title="点击标记完成" style="cursor:pointer;">
+    <span class="task-toggle" data-id="{{ a.id }}" data-title="{{ a.task.title }}" title="点击标记完成" style="cursor:pointer;" onclick="return toggleTaskStatus(this);">
       <span style="width:20px;height:20px;border:2px solid var(--primary);border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:#fff;">
         <i class="bi bi-check-lg" style="font-size:.78rem;color:var(--primary);opacity:0;"></i>
       </span>
     </span>
     {% else %}
-    <span class="task-toggle task-toggle-on" data-id="{{ a.id }}" data-title="{{ a.task.title }}" title="点击取消完成" style="cursor:pointer;">
+    <span class="task-toggle task-toggle-on" data-id="{{ a.id }}" data-title="{{ a.task.title }}" title="点击取消完成" style="cursor:pointer;" onclick="return toggleTaskStatus(this);">
       <span style="width:20px;height:20px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:var(--success);color:#fff;">
         <i class="bi bi-check-lg" style="font-size:.78rem;"></i>
       </span>
@@ -89,29 +89,32 @@
 {% endmacro %}
 
 <div class="stat-grid stat-grid-3 mb-4">
-  <a href="{{ url_for('user_tasks') }}" class="stat-card card-lift" style="background:linear-gradient(135deg,#3b82f6,#2563eb);padding:14px 18px;text-decoration:none;">
+  <a href="{{ url_for('user_tasks') }}" class="stat-card card-lift" style="background:linear-gradient(135deg,#007a33,#006633);padding:14px 18px;text-decoration:none;">
     <div class="d-flex justify-content-between align-items-center">
       <div>
         <div class="stat-num" style="font-size:1.5rem;">{{ all_pending|length }}</div>
         <div class="stat-label">待处理任务</div>
+        <div class="stat-trend">较前日{% if new_tasks_yesterday > 0 %}<span class="text-success">↑{{ new_tasks_yesterday }}</span>{% elif new_tasks_yesterday < 0 %}<span class="text-danger">↓{{ -new_tasks_yesterday }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</div>
       </div>
       <i class="bi bi-check2-square" style="font-size:1.5rem;opacity:.85;"></i>
     </div>
   </a>
-  <a href="{{ url_for('notes.index') }}" class="stat-card card-lift" style="background:linear-gradient(135deg,#4f83f1,#3b6ae0);padding:14px 18px;text-decoration:none;">
+  <a href="{{ url_for('notes.index') }}" class="stat-card card-lift" style="background:linear-gradient(135deg,#2e8b57,#007a33);padding:14px 18px;text-decoration:none;">
     <div class="d-flex justify-content-between align-items-center">
       <div>
         <div class="stat-num" style="font-size:1.5rem;">{{ note_count }}</div>
         <div class="stat-label">随手记</div>
+        <div class="stat-trend">较前日{% if new_notes_yesterday > 0 %}<span class="text-success">↑{{ new_notes_yesterday }}</span>{% elif new_notes_yesterday < 0 %}<span class="text-danger">↓{{ -new_notes_yesterday }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</div>
       </div>
       <i class="bi bi-journal-text" style="font-size:1.5rem;opacity:.85;"></i>
     </div>
   </a>
-  <a href="{{ url_for('kb.workbench') }}" class="stat-card card-lift" style="background:linear-gradient(135deg,#2563eb,#1d4ed8);padding:14px 18px;text-decoration:none;">
+  <a href="{{ url_for('kb.workbench') }}" class="stat-card card-lift" style="background:linear-gradient(135deg,#008060,#006633);padding:14px 18px;text-decoration:none;">
     <div class="d-flex justify-content-between align-items-center">
       <div>
         <div class="stat-num" style="font-size:1.5rem;">{{ kb_count }}</div>
         <div class="stat-label">知识库条目</div>
+        <div class="stat-trend">较前日{% if new_docs_yesterday > 0 %}<span class="text-success">↑{{ new_docs_yesterday }}</span>{% elif new_docs_yesterday < 0 %}<span class="text-danger">↓{{ -new_docs_yesterday }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</div>
       </div>
       <i class="bi bi-collection" style="font-size:1.5rem;opacity:.85;"></i>
     </div>
@@ -148,7 +151,45 @@
       </span>
       <span class="badge bg-primary" id="searchCount" style="font-size:.65rem;">0</span>
     </div>
-    <div class="card-body" id="searchResultBody" style="max-height:520px;overflow-y:auto;padding:8px;"></div>
+    <div class="card-body p-0" style="max-height:540px;">
+      <div class="d-flex" style="height:100%;">
+        <!-- 左: 结果列表 -->
+        <div id="searchResultListWrap" class="d-flex flex-column" style="flex:1;min-width:0;max-height:520px;overflow-y:auto;padding:8px;">
+          <div id="searchResultBody" style="padding:0;"></div>
+        </div>
+        <!-- 分隔条 -->
+        <div class="vr" id="searchPreviewDivider" style="display:none;width:1px;background:var(--gray-200);cursor:col-resize;"></div>
+        <!-- 右: 预览面板 -->
+        <div id="searchPreviewWrap" class="d-none d-lg-flex flex-column" style="width:340px;max-height:520px;border-left:1px solid var(--gray-200);">
+          <div class="px-3 py-2 border-bottom" style="font-size:.8rem;font-weight:600;color:var(--gray-600);">
+            <i class="bi bi-eye"></i> 预览
+            <button class="btn btn-sm btn-outline-secondary ms-2" style="padding:0px 6px;font-size:.68rem;" onclick="closeSearchPreview()" title="返回列表"><i class="bi bi-x-lg"></i></button>
+          </div>
+          <div id="searchPreviewBody" style="flex:1;overflow-y:auto;padding:14px;font-size:.82rem;color:var(--gray-700);">
+            <div style="text-align:center;color:var(--gray-400);padding:30px 10px;">
+              <i class="bi bi-cursor" style="font-size:1.4rem;display:block;margin-bottom:8px;"></i>
+              点击结果可在此预览
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="p-2 border-top d-lg-none" id="searchPreviewMobileBar" style="display:none;">
+      <button class="btn btn-sm btn-outline-secondary" onclick="closeSearchPreview()"><i class="bi bi-arrow-left"></i> 返回列表</button>
+    </div>
+  </div>
+</div>
+
+<!-- 知识库文档详情: 右侧滑出 -->
+<div class="offcanvas offcanvas-end" id="kbDocDrawer" tabindex="-1" aria-labelledby="kbDocDrawerTitle" style="width:100%;max-width:420px;">
+  <div class="offcanvas-header py-2 px-3">
+    <h6 class="m-0" id="kbDocDrawerTitle"><i class="bi bi-file-earmark-text"></i> 文档详情</h6>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="关闭"></button>
+  </div>
+  <div class="offcanvas-body p-3" id="kbDocDrawerBody" style="font-size:.82rem;">
+    <div style="text-align:center;color:var(--gray-400);padding:30px 10px;">
+      <span class="spinner-border spinner-border-sm"></span> 加载中...
+    </div>
   </div>
 </div>
 
@@ -597,16 +638,13 @@ function openEditTaskModal(el) {
 var _summaryDate = '';
 var _summaryPeriod = 'month';
 
-// 内联完成切换（AJAX）
-document.addEventListener('click', function (e) {
-  var t = e.target.closest('.task-toggle');
-  if (!t) return;
-  e.stopPropagation();
-  e.preventDefault();
+// 内联完成切换（AJAX):直接绑定在任务框上,避免 actions 单元格的 stopPropagation 吞掉事件
+function toggleTaskStatus(el){
+  var t = el.closest('.task-toggle');
   var id = t.dataset.id;
   fetch('/user/tasks/' + id + '/toggle', { method: 'POST' })
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
+    .then(function (r){return r.json();})
+    .then(function (d){
       if (!d.ok) { if (window.toast) toast(d.error || '操作失败', 'danger'); return; }
       if (window.toast) toast(d.status === 'completed' ? '已标记完成' : '已恢复待办', 'success');
       var row = t.closest('.list-group-item');
@@ -617,8 +655,9 @@ document.addEventListener('click', function (e) {
         if (title) title.style.textDecoration = d.status === 'completed' ? 'line-through' : 'none';
       }
       setTimeout(function () { location.reload(); }, 400);
-    });
-});
+    }).catch(function(){ if (window.toast) toast('操作失败','danger'); });
+  return false;
+}
 
 function openSummaryModal() {
   var now = new Date();
@@ -804,10 +843,12 @@ function esc(s){s=(s==null?'':String(s));var d=document.createElement('div');d.t
 function unifiedSearch() {
   var q = document.getElementById('unifiedSearchInput').value.trim();
   if (!q) return;
+  var btn = document.getElementById('unifiedSearchBtn');
   var badge = document.getElementById('searchCount');
   var body = document.getElementById('searchResultBody');
   document.getElementById('searchResults').classList.remove('d-none');
   badge.textContent = '...'; badge.classList.add('bg-primary');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:.7rem;height:.7rem;"></span> 检索中'; }
   fetch('/api/unified-search?q=' + encodeURIComponent(q))
     .then(function(r){return r.json();})
     .then(function(d){
@@ -815,16 +856,22 @@ function unifiedSearch() {
       badge.textContent = d.total;
       body.innerHTML = renderSections(d);
       body.scrollIntoView({behavior:'smooth',block:'start'});
+    }).catch(function(){
+      body.innerHTML = '<div class="text-center py-4" style="color:var(--danger);">检索失败，请重试</div>';
+    }).finally(function(){
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-search"></i> 检索'; }
     });
 }
 function renderSections(d){
   var statusMap = {'pending':'进行中','completed':'已完成','approved':'已确认','rejected':'已驳回','abandoned':'已废弃'};
   var out = '';
+  window.__searchResults = window.__searchResults || [];
   if(d.tasks.length){
     out += sectionHead(d.tasks.length, '待办', 'var(--primary)');
     out += '<div class="list-group list-group-flush mb-3">' + d.tasks.map(function(t){
       var cs = t.category==='工作'?'var(--primary)':t.category==='个人'?'var(--success)':t.category==='会议'?'var(--meeting)':t.category==='培训'?'var(--training)':'var(--warning)';
-      return '<a href="'+t.detail_url+'" class="list-group-item d-flex align-items-center gap-2 py-2 px-3 text-decoration-none" style="color:var(--gray-800);">'+
+      var idx = window.__searchResults.push({type:'task',obj:t})-1;
+      return '<a href="'+t.detail_url+'" target="_blank" onclick="openSearchPreview('+idx+');return false;" class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-2 px-3 text-decoration-none" style="color:var(--gray-800);">'+
         '<div class="flex-grow-1" style="min-width:0;"><div style="font-weight:600;font-size:.85rem;" class="text-truncate">'+esc(t.title)+'</div>'+
         '<small class="text-muted" style="font-size:.72rem;">'+esc(t.end_time)+' 截止 · '+esc(statusMap[t.status]||t.status)+'</small></div>'+
         '<span class="badge" style="background:'+cs+';font-size:.6rem;flex-shrink:0;">'+esc(t.category)+'</span></div>';
@@ -832,28 +879,83 @@ function renderSections(d){
   }
   if(d.notes.length){
     out += sectionHead(d.notes.length, '笔记', 'var(--success)');
-    out += '<div class="mb-3">' + d.notes.map(function(n){
+    out += '<div class="list-group list-group-flush mb-3">' + d.notes.map(function(n){
       var tags=(n.tags||[]).map(function(t){return '<span style="display:inline-block;padding:1px 8px;border-radius:100px;background:#d1fae5;color:#059669;font-size:.68rem;margin-right:4px;">'+esc(t)+'</span>';}).join('');
-      return '<div class="note-bubble" style="border:1px solid var(--gray-200);border-radius:10px;padding:10px 12px;margin-bottom:8px;">'+
-        '<div style="font-weight:600;font-size:.9rem;">'+esc(n.title)+'</div>'+
-        '<div style="font-size:.8rem;color:var(--gray-600);margin-top:4px;">'+esc((n.content||'').slice(0,140))+'</div>'+
-        '<div style="margin-top:6px;">'+tags+'<small class="text-muted" style="font-size:.68rem;"> · '+esc(n.thread||'无上下文')+'</small></div></div>';
+      var idx = window.__searchResults.push({type:'note',obj:n})-1;
+      return '<a href="'+n.detail_url+'" target="_blank" onclick="openSearchPreview('+idx+');return false;" class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-2 px-3 text-decoration-none" style="color:var(--gray-800);vertical-align:middle;">'+
+        '<div class="flex-grow-1" style="min-width:0;">'+
+        '<div style="font-weight:600;font-size:.88rem;" class="text-truncate">'+esc(n.title)+'</div>'+
+        '<div style="font-size:.78rem;color:var(--gray-600);margin-top:2px;">'+tags+'<span class="text-muted"> · '+esc(n.thread||'无上下文')+'</span></div>'+
+        '</div></div>';
     }).join('') + '</div>';
   }
   if(d.kb.length){
     out += sectionHead(d.kb.length, '知识库', 'var(--warning)');
-    out += '<div class="mb-3">' + d.kb.map(function(k){
-      return '<div style="border:1px solid var(--gray-200);border-radius:10px;padding:10px 12px;margin-bottom:8px;">'+
-        '<a href="'+k.detail_url+'" style="font-weight:600;font-size:.9rem;color:var(--gray-800);text-decoration:none;">'+esc(k.title)+'</a>'+
-        '<span style="font-size:.7rem;color:var(--warning);"> 相关度 '+k.score+'%</span>'+
-        (k.pages&&k.pages[0]?'<div style="font-size:.8rem;color:var(--gray-600);margin-top:4px;">'+esc(k.pages[0].snippet.replace(/<[^>]+>/g,'').slice(0,160))+'</div>':'')+
-        (k.preview_url?'<a href="'+k.preview_url+'" target="_blank" class="btn btn-sm btn-outline-primary mt-1" style="padding:1px 10px;font-size:.7rem;">查看原件</a>':'')+
-        '</div>';
+    out += '<div class="list-group list-group-flush mb-3">' + d.kb.map(function(k){
+      var idx = window.__searchResults.push({type:'kb',obj:k})-1;
+      return '<a href="'+k.detail_url+'" target="_blank" onclick="openSearchPreview('+idx+');return false;" class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-2 px-3 text-decoration-none" style="color:var(--gray-800);">'+
+        '<div class="flex-grow-1" style="min-width:0;">'+
+        '<div style="font-weight:600;font-size:.88rem;" class="text-truncate">'+esc(k.title)+'</div>'+
+        '<small class="text-muted" style="font-size:.72rem;">'+esc((k.pages&&k.pages[0]?k.pages[0].snippet.replace(/<[^>]+>/g,'').slice(0,140):''))+'</small>'+
+        '</div>'+
+        '<span class="badge" style="background:var(--warning);font-size:.6rem;flex-shrink:0;">'+esc(k.score)+'%</span></div>';
     }).join('') + '</div>';
   }
   if(!d.tasks.length && !d.notes.length && !d.kb.length)
     out='<div class="text-center py-4" style="color:var(--gray-400);"><i class="bi bi-search" style="font-size:1.6rem;display:block;margin-bottom:8px;"></i>未找到相关内容</div>';
   return out;
+}
+/* 统一检索:点击结果在右侧预览面板展示,不跳转页面 */
+function openSearchPreview(idx){
+  var data = window.__searchResults && window.__searchResults[idx];
+  var p = document.getElementById('searchPreviewBody');
+  var listWrap = document.getElementById('searchResultListWrap');
+  if(!p||!data) return;
+  document.getElementById('searchPreviewWrap').classList.remove('d-none').classList.add('d-flex');
+  document.getElementById('searchPreviewMobileBar').style.display = 'flex';
+  if(listWrap) listWrap.classList.add('d-none');
+  var t=data.type, o=data.obj;
+  var html='';
+  if(t==='task'){
+    var statusMap={'pending':'进行中','completed':'已完成','approved':'已确认','rejected':'已驳回','abandoned':'已废弃'};
+    html='<div style="font-weight:700;font-size:1.05rem;color:var(--gray-900);margin-bottom:8px;">'+esc(o.title)+'</div>'+
+      '<div class="mb-2"><span class="badge" style="background:'+(o.category==='工作'?'var(--primary)':o.category==='个人'?'var(--success)':o.category==='会议'?'var(--meeting)':o.category==='培训'?'var(--training)':o.category==='考试'?'var(--exam)':'var(--warning)')+';">'+esc(o.category)+'</span> '+
+      '<small class="text-muted">'+esc(o.end_time)+' 截止 · '+esc(statusMap[o.status]||o.status)+'</small></div>'+
+      (o.description?'<div style="font-size:.8rem;color:var(--gray-600);white-space:pre-wrap;margin-bottom:12px;">'+esc(o.description)+'</div>':'')+
+      '<a href="'+o.detail_url+'" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i> 打开详情页</a>';
+  } else if(t==='note'){
+    html='<div style="font-weight:700;font-size:1.05rem;color:var(--gray-900);margin-bottom:8px;">'+esc(o.title||'(无标题)')+'</div>'+
+      '<div style="font-size:.82rem;color:var(--gray-700);white-space:pre-wrap;margin-bottom:12px;">'+esc((o.content||'').slice(0,400))+((o.content||'').length>400?'…':'')+'</div>'+
+      (o.thread?'<div class="mb-2"><span class="text-muted">上下文:</span>'+esc(o.thread)+'</div>':'')+
+      '<a href="'+o.detail_url+'" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-journal-text"></i> 打开笔记页</a>';
+  } else if(t==='kb'){
+    html='<div style="font-weight:700;font-size:1.05rem;color:var(--gray-900);margin-bottom:8px;">'+esc(o.title)+'</div>'+
+      '<div class="mb-2"><span class="text-muted">相关度 '+esc(o.score)+'%</span></div>'+
+      (o.pages&&o.pages[0]?'<div style="font-size:.8rem;color:var(--gray-600);white-space:pre-wrap;margin-bottom:12px;">'+esc(o.pages[0].snippet.replace(/<[^>]+>/g,''))+'</div>':'')+
+      '<div class="d-flex gap-2"><a href="'+o.detail_url+'" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye"></i> 打开详情</a>'+(o.preview_url?'<a href="#" onclick="openKbDocDrawer('+o.doc_id+');return false;" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye-slash"></i> 查看原件</a>':'')+'</div>';
+  }
+  p.innerHTML = html;
+}
+function closeSearchPreview(){
+  document.getElementById('searchPreviewWrap').classList.add('d-none');
+  document.getElementById('searchPreviewMobileBar').style.display='none';
+  var lw=document.getElementById('searchResultListWrap');
+  if(lw) lw.classList.remove('d-none');
+}
+/* 知识库:从右侧滑出查看原始文档(iframe 嵌入 kb.preview) */
+function openKbDocDrawer(docId){
+  var drawerEl=document.getElementById('kbDocDrawer');
+  var body=document.getElementById('kbDocDrawerBody');
+  if(!drawerEl||!body) return;
+  body.innerHTML='<div style="text-align:center;color:var(--gray-400);padding:20px;"><span class="spinner-border spinner-border-sm"></span> 加载中...</div>';
+  var inst=new bootstrap.Offcanvas(drawerEl);
+  inst.show();
+  var iframe=document.createElement('iframe');
+  iframe.src='{{ url_for("kb.preview", doc_id=0) }}'.replace('/0','/'+docId);
+  iframe.style.cssText='width:100%;height:100%;border:0;font-size:.8rem;';
+  iframe.onload=function(){ body.innerHTML=''; body.appendChild(iframe); };
+  // 直接挂载,onload 触发后替换加载态
+  body.innerHTML=''; body.appendChild(iframe);
 }
 function sectionHead(n, label, color){
   return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><i class="bi bi-folder" style="color:'+color+';"></i>'+

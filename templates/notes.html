@@ -97,7 +97,12 @@ function collectTags(list){
 function renderNotes(list){
   var tl=document.getElementById('noteTimeline');
   document.getElementById('notesCount').textContent='共 '+list.length+' 条';
-  if(!list.length){tl.innerHTML='<div style="text-align:center;color:var(--gray-400);padding:40px 0;">暂无笔记</div>';return;}
+  if(!list.length){tl.innerHTML='<div class="empty-state">'+
+    '<svg viewBox="0 0 96 96" fill="none"><path d="M30 12h30l14 14v58H30z" fill="var(--gray-100)" stroke="var(--gray-300)" stroke-width="2"/><path d="M59 13v15h14" fill="var(--gray-100)" stroke="var(--gray-300)" stroke-width="2"/><path d="M40 44h26M40 56h26M40 68h18" stroke="var(--primary)" stroke-width="3" stroke-linecap="round"/></svg>'+
+    '<div class="es-title">还没有笔记</div>'+
+    '<div class="es-sub">在下方输入框写一条记录，可保存到选中的项目或标签下。</div>'+
+    '<button class="btn btn-sm btn-primary" onclick="document.getElementById(\'noteInput\').focus()"><i class="bi bi-pencil-square"></i> 开始记录</button>'+
+    '</div>';return;}
   tl.innerHTML=list.map(function(n){
     var tags=(n.tags||[]).map(function(t){return '<span class="pill" onclick="loadByTag(\''+esc(t)+'\')">'+esc(t)+'</span>';}).join('');
     return '<div class="note-bubble"><div class="meta"><i class="bi bi-clock"></i> '+esc(n.created_at)+
@@ -130,18 +135,24 @@ function loadByTag(tag){
 function sendNote(){
   var content=document.getElementById('noteInput').value.trim();
   if(!content)return;
+  var btn=document.getElementById('sendNoteBtn');
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> 保存中...';}
   var tid=document.getElementById('noteThreadSel').value||null;
   fetch('/notes/api/notes',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({content:content,thread_id:tid})}).then(r=>r.json()).then(function(d){
     if(d.ok){
       document.getElementById('noteInput').value='';
       document.getElementById('noteInput').dispatchEvent(new Event('input'));
-      if(window.toast) toast('已发送','success');
+      if(window.toast) toast('已保存','success');
       if(d.duplicates&&d.duplicates.length){
         showSys('<i class="bi bi-exclamation-triangle"></i> 疑似与「'+esc(d.duplicates[0].title)+'」('+esc(d.duplicates[0].date)+') 高度相似,相似度 '+d.duplicates[0].similarity+'%');
       }
       loadNotes(curThread);
-    } else { if (window.toast) toast(d.error||'发送失败','danger'); else alert(d.error||'发送失败'); }
+    } else { if (window.toast) toast(d.error||'保存失败','danger'); else alert(d.error||'保存失败'); }
+    if(btn){btn.disabled=false;btn.innerHTML='<i class="bi bi-send"></i> 保存笔记';}
+  }).catch(function(){
+    if (window.toast) toast('网络错误，请重试','danger'); else alert('网络错误，请重试');
+    if(btn){btn.disabled=false;btn.innerHTML='<i class="bi bi-send"></i> 保存笔记';}
   });
 }
 function showSys(html){

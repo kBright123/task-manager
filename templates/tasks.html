@@ -2,8 +2,8 @@
 {% block title %}待办{% endblock %}
 {% block extra_css %}
 <style>
-  .tasks-layout { display: grid; grid-template-columns: 240px 1fr 320px; gap: 16px; height: calc(100vh - 170px); }
-  @media (max-width: 1200px) { .tasks-layout { grid-template-columns: 220px 1fr; height: auto; } }
+  .tasks-layout { display: grid; grid-template-columns: 240px 1fr 320px; gap: 16px; height: auto; min-height: calc(100vh - 170px); }
+  @media (max-width: 1200px) { .tasks-layout { grid-template-columns: 220px 1fr; } }
   @media (max-width: 860px) { .tasks-layout { grid-template-columns: 1fr; } }
   .tasks-panel { background: #fff; border: 1px solid var(--gray-200); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; }
   .cat-head { display: flex; align-items: center; gap: 8px; padding: 9px 12px; cursor: pointer; border-radius: 8px; transition: background .15s; background: var(--gray-50); border: 1px solid var(--gray-100); }
@@ -13,8 +13,10 @@
   .cat-item:hover { background: var(--gray-50); }
   .cat-item .badge { font-size: .58rem; }
   .cat-item.active { background: var(--primary-light); color: var(--primary); }
-  .cat-item.overdue { color: var(--danger); }
-  .cat-item.overdue .text-truncate { color: var(--danger); }
+   .cat-item.overdue { color: var(--danger); }
+   .cat-item.overdue .text-truncate { color: var(--danger); }
+   /* 自然语言创建固定在面板顶部,滚动时始终可见 */
+   .tasks-layout > .notes-panel { position: sticky; top: 14px; align-self: start; }
 </style>
 {% endblock %}
 {% block content %}
@@ -24,7 +26,13 @@
   <div class="tasks-panel">
     <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
       <span style="font-size:.84rem;font-weight:600;"><i class="bi bi-tags" style="color:var(--primary);"></i> 待办分类</span>
-      <span class="badge bg-primary" style="font-size:.6rem;">{{ my_tasks|length + other_assigned|length }}</span>
+      <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-primary" style="font-size:.6rem;">{{ my_tasks|length + other_assigned|length }}</span>
+        <label class="d-flex align-items-center gap-1 mb-0" style="font-size:.72rem;color:var(--gray-600);cursor:pointer;">
+          <input type="checkbox" id="toggleCompleted" value="1" onchange="location.href=this.checked?'?completed=1':location.pathname" {% if show_completed %}checked{% endif %} style="margin:0;">
+          <span>显示已完成</span>
+        </label>
+      </div>
     </div>
     <div class="card-body py-2 px-2" style="overflow-y:auto;">
       {% for g in task_categories %}

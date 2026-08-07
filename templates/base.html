@@ -9,16 +9,21 @@
   <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.11.2/font/bootstrap-icons.min.css">
   <style>
     :root {
-      --primary: #4f46e7;
-      --primary-light: #eef2ff;
-      --primary-dark: #3730a3;
+      --primary: #006633;
+      --primary-light: #e6f4ea;
+      --primary-dark: #004d26;
       --success: #10b981;
       --warning: #f59e0b;
       --danger: #ef4444;
-      --meeting: #0ea5e9;
-      --exam: #8b5cf6;
-      --training: #f59e0b;
+      --meeting: #0ea5e5;   /* 分类: 会议(cyan) */
+      --exam: #8b5cf6;      /* 分类: 考试(紫) */
+      --training: #0d9488;  /* 分类: 培训(teal) — 与 --warning 解耦 */
+      /* 色彩语义约定:
+         状态徽标(status): 进行中=warning/amber, 已完成=success/green, 驳回/逾期=danger/red
+         优先级(priority): 低=gray, 中=info-blue, 高=warning/amber, 紧急=danger/red(仅限优先级)
+         分类(category): 使用本套柔和专色 --meeting/--exam/--training/primary/success,不直接复用状态徽标色 */
       --gray-50: #f8fafc;
+
       --gray-100: #f1f5f9;
       --gray-200: #e2e8f0;
       --gray-300: #cbd5e1;
@@ -123,6 +128,7 @@
     .stat-card .stat-icon { font-size: 1.4rem; margin-bottom: 6px; opacity: .9; }
     .stat-card .stat-num { font-size: 1.6rem; font-weight: 800; line-height: 1.2; }
     .stat-card .stat-label { font-size: .78rem; opacity: .8; margin-top: 2px; }
+    .stat-card .stat-trend { font-size: .68rem; opacity: .8; margin-top: 2px; }
 
     /* Buttons */
     .btn { font-family: var(--font); border-radius: var(--radius-sm); font-weight: 500; transition: all .15s; position: relative; overflow: hidden; }

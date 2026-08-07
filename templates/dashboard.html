@@ -61,11 +61,15 @@
     </div>
     <small class="text-muted" style="font-size:.78rem;">{{ a.task.end_time.strftime('%m-%d %H:%M') }} 截止</small>
   </div>
-  <div class="d-flex align-items-center gap-2 flex-shrink-0" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()">
+<div class="d-flex align-items-center gap-2 flex-shrink-0" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()">
+    {% if a.task.category == '项目' or a.progress and a.progress > 0 %}
     <form action="{{ url_for('user_update_assign_progress', assignment_id=a.id) }}" method="POST" class="d-flex align-items-center gap-2" style="min-width:100px;">
       <input type="range" name="progress" value="{{ a.progress }}" min="0" max="100" class="flex-grow-1" style="width:60px;min-width:60px;" onchange="this.form.submit()" title="拖动以更新进度">
       <small class="fw-bold" style="font-size:.82rem;min-width:2.2em;color:var(--primary);">{{ a.progress }}%</small>
     </form>
+    {% else %}
+    <span style="width:10px;height:10px;border-radius:50%;background:{{ 'var(--success)' if a.status == 'completed' else 'var(--danger)' if a.status == 'rejected' else 'var(--warning)' }};" title="状态:{{ a.status }}"></span>
+    {% endif %}
     {% if a.status != 'completed' %}
     <form action="{{ url_for('user_complete_task', assignment_id=a.id) }}" method="POST">
       <button class="btn btn-sm btn-outline-success rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;padding:0;border-width:2px;" title="完成">
@@ -78,27 +82,34 @@
 {% endif %}
 {% endmacro %}
 
-<div class="stat-grid stat-grid-4 mb-4">
-  <div class="stat-card card-lift" style="background:#e0f2fe;padding:12px 16px;">
-    <div class="stat-icon" style="font-size:1.2rem;margin-bottom:4px;color:#0284c7;"><i class="bi bi-calendar-day"></i></div>
-    <div class="stat-num" style="font-size:1.4rem;color:#0c4a6e;">{{ today_tasks|length }}</div>
-    <div class="stat-label" style="font-size:.72rem;color:#0284c7;">今日待办</div>
-  </div>
-  <div class="stat-card card-lift" style="background:#ede9fe;padding:12px 16px;">
-    <div class="stat-icon" style="font-size:1.2rem;margin-bottom:4px;color:#7c3aed;"><i class="bi bi-inbox"></i></div>
-    <div class="stat-num" style="font-size:1.4rem;color:#4c1d95;">{{ all_pending|length }}</div>
-    <div class="stat-label" style="font-size:.72rem;color:#7c3aed;">剩余待办</div>
-  </div>
-  <div class="stat-card card-lift" style="background:#d1fae5;padding:12px 16px;">
-    <div class="stat-icon" style="font-size:1.2rem;margin-bottom:4px;color:#059669;"><i class="bi bi-journal-text"></i></div>
-    <div class="stat-num" style="font-size:1.4rem;color:#064e3b;">{{ note_count }}</div>
-    <div class="stat-label" style="font-size:.72rem;color:#059669;">随手记</div>
-  </div>
-  <div class="stat-card card-lift" style="background:#faf5ff;padding:12px 16px;">
-    <div class="stat-icon" style="font-size:1.2rem;margin-bottom:4px;color:#a855f7;"><i class="bi bi-collection"></i></div>
-    <div class="stat-num" style="font-size:1.4rem;color:#6b21a8;">{{ kb_count }}</div>
-    <div class="stat-label" style="font-size:.72rem;color:#a855f7;">知识库</div>
-  </div>
+<div class="stat-grid stat-grid-3 mb-4">
+  <a href="{{ url_for('user_tasks') }}" class="stat-card card-lift" style="background:linear-gradient(135deg,#3b82f6,#2563eb);padding:14px 18px;text-decoration:none;">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <div class="stat-num" style="font-size:1.5rem;">{{ all_pending|length }}</div>
+        <div class="stat-label">待处理任务</div>
+      </div>
+      <i class="bi bi-check2-square" style="font-size:1.5rem;opacity:.85;"></i>
+    </div>
+  </a>
+  <a href="{{ url_for('notes.index') }}" class="stat-card card-lift" style="background:linear-gradient(135deg,#4f83f1,#3b6ae0);padding:14px 18px;text-decoration:none;">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <div class="stat-num" style="font-size:1.5rem;">{{ note_count }}</div>
+        <div class="stat-label">随手记</div>
+      </div>
+      <i class="bi bi-journal-text" style="font-size:1.5rem;opacity:.85;"></i>
+    </div>
+  </a>
+  <a href="{{ url_for('kb.workbench') }}" class="stat-card card-lift" style="background:linear-gradient(135deg,#2563eb,#1d4ed8);padding:14px 18px;text-decoration:none;">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <div class="stat-num" style="font-size:1.5rem;">{{ kb_count }}</div>
+        <div class="stat-label">知识库条目</div>
+      </div>
+      <i class="bi bi-collection" style="font-size:1.5rem;opacity:.85;"></i>
+    </div>
+  </a>
 </div>
 
 <div class="row g-3 mb-4">

@@ -69,7 +69,7 @@
       <div id="chatLoading" class="chat-typing d-none"><span class="spinner-border spinner-border-sm" style="width:1rem;height:1rem;"></span> 分身思考中...</div>
       <div class="chat-input-row">
         <input type="text" id="chatInput" class="form-control" placeholder="输入问题;输入 @用户名 切换分身" autocomplete="off" onkeydown="handleMentionKeydown(this,event)">
-        <button class="btn btn-primary" onclick="submitChat()"><i class="bi bi-send"></i></button>
+        <button class="btn btn-primary" id="chatSendBtn" onclick="submitChat()" disabled><i class="bi bi-send"></i></button>
       </div>
     </div>
   </div>
@@ -217,6 +217,7 @@ function submitChat() {
   if (!q) return;
   q = parseAvatarTarget(q);
   input.value = '';
+  input.dispatchEvent(new Event('input'));
   appendBubble('user', q);
   document.getElementById('chatEmpty').style.display = 'none';
   var loading = document.getElementById('chatLoading');
@@ -280,8 +281,13 @@ function appendBubble(role, text) {
 }
 
 (function autoRun() {
+  var chatBtn = document.getElementById('chatSendBtn');
+  document.getElementById('chatInput').addEventListener('input', function (e) {
+    if (chatBtn) chatBtn.disabled = !e.target.value.trim();
+  });
   if (initialQ) {
     document.getElementById('chatInput').value = initialQ;
+    if (chatBtn) chatBtn.disabled = false;
     setTimeout(function () { submitChat(); }, 300);
   }
 })();

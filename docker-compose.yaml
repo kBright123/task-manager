@@ -17,8 +17,13 @@ services:
       - task-data:/app/instance
       - task-uploads:/app/instance/uploads
     restart: unless-stopped
+    mem_limit: 512m
+    memswap_limit: 512m
+    cpus: '0.75'
     environment:
       - TZ=Asia/Shanghai
+      - FLASK_ENV=production
+      - PYTHONOPTIMIZE=1
       - KB_OPENCODE_BASE_URL=http://opencode:3000
       - KB_AUTO_RELOAD=1
       # 邮箱绑定 SMTP 配置(可选,未配置时校验码仅写入服务器日志)

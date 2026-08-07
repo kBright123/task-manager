@@ -23,6 +23,12 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+try:
+    from flask_compress import Compress
+    Compress(app)
+except Exception:
+    pass  # 未安装 Flask-Compress 时静默跳过,不影响启动
+
 def _get_or_create_secret_key(root_path):
     """Persist a random SECRET_KEY in instance/ so sessions survive restarts,
     unless SECRET_KEY is provided via env (docker-compose already sets one)."""
@@ -52,6 +58,10 @@ app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'instance', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
+# 生产关闭模板自动重载(启用 Jinja2 模板缓存);开发(FLASK_DEBUG/KB_AUTO_RELOAD)才实时读盘
+app.config['TEMPLATES_AUTO_RELOAD'] = (
+    os.environ.get('FLASK_DEBUG') == '1'
+    or os.environ.get('KB_AUTO_RELOAD', '0') == '1')
 
 # 邮件(SMTP)配置,用于邮箱绑定验证码;未配置时校验码仅写入日志
 app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', '')

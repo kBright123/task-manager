@@ -112,7 +112,7 @@ cleanup() {
 }
 trap cleanup EXIT TERM INT
 
-GUNICORN_ARGS="--bind 0.0.0.0:5000 --workers 4 --timeout 120"
+GUNICORN_ARGS="--bind 0.0.0.0:5000 --workers 2 --threads 4 --timeout 120"
 if [ "${KB_AUTO_RELOAD:-0}" = "1" ]; then
   GUNICORN_ARGS="$GUNICORN_ARGS --reload"
 fi

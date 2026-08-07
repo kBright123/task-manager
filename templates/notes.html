@@ -55,7 +55,7 @@
           <option value="">无上下文</option>
           {% for t in threads %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
         </select>
-        <button class="btn btn-sm btn-primary" onclick="sendNote()"><i class="bi bi-send"></i> 发送</button>
+        <button class="btn btn-sm btn-primary" id="sendNoteBtn" onclick="sendNote()" disabled><i class="bi bi-send"></i> 发送</button>
       </div>
     </div>
   </div>
@@ -178,6 +178,10 @@ function createThread(){
 }
 document.getElementById('noteInput').addEventListener('keydown',function(e){
   if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();sendNote();}
+});
+document.getElementById('noteInput').addEventListener('input',function(e){
+  var btn=document.getElementById('sendNoteBtn');
+  if(btn) btn.disabled=!e.target.value.trim();
 });
 loadNotes('');
 </script>

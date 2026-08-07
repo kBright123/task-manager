@@ -57,9 +57,10 @@
     .top-nav-logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem; color: var(--gray-900); text-decoration: none; }
     .top-nav-logo i { font-size: 1.4rem; color: var(--primary); }
     .top-nav-links { display: flex; align-items: center; gap: 4px; }
-    .top-nav-links a { display: flex; align-items: center; gap: 6px; padding: 8px 16px; font-size: .9rem; font-weight: 500; color: var(--gray-500); text-decoration: none; border-radius: var(--radius-sm); transition: all .15s; }
+    .top-nav-links a { display: flex; align-items: center; gap: 6px; padding: 8px 16px; font-size: .9rem; font-weight: 500; color: var(--gray-500); text-decoration: none; border-radius: var(--radius-sm); transition: all .15s; position: relative; }
     .top-nav-links a:hover { background: var(--gray-100); color: var(--gray-700); }
-    .top-nav-links a.active { color: var(--primary); background: var(--primary-light); }
+    .top-nav-links a.active { color: var(--primary); font-weight: 700; font-size: 1rem; }
+    .top-nav-links a.active::after { content: ''; position: absolute; left: 14px; right: 14px; bottom: 4px; height: 3px; border-radius: 2px; background: var(--primary); }
     .top-nav-right { display: flex; align-items: center; gap: 12px; }
     .top-nav-right .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: .75rem; font-weight: 600; cursor: pointer; }
     .nav-notification { position: relative; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); color: var(--gray-500); cursor: pointer; transition: all .15s; text-decoration: none; }
@@ -84,6 +85,19 @@
     .bottom-nav a.active i { transform: scale(1.1); }
     .bottom-nav a .dot { position: absolute; top: 4px; right: 50%; transform: translateX(16px); width: 7px; height: 7px; border-radius: 50%; background: var(--danger); border: 2px solid #fff; }
 
+    /* 统一动效: 页面淡入 + 组件微过渡 */
+    .app-container { animation: tmFadeIn .22s ease-out; }
+    .top-nav, .bottom-nav { animation: tmFadeIn .2s ease-out; }
+    @keyframes tmFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .modal .modal-dialog { transition: transform .18s ease, opacity .18s ease; }
+    .modal:not(.show) .modal-dialog { transform: translateY(10px); opacity: 0; }
+    .btn { transition: filter .15s, transform .12s, box-shadow .15s, background-color .15s, color .15s, border-color .15s; }
+    .btn:not(:disabled):active { transform: scale(.97); }
+    .btn:disabled { cursor: not-allowed; opacity: .55; }
+    .form-control, .form-select { transition: border-color .15s, box-shadow .15s; }
+    .form-control:focus, .form-select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+    .fade-row { animation: tmFadeIn .2s ease-out; }
+
     /* Cards */
     .card { background: #fff; border: none; border-radius: var(--radius); box-shadow: var(--shadow); transition: box-shadow .2s; }
     .card:hover { box-shadow: var(--shadow-lg); }
@@ -94,8 +108,9 @@
     /* Stat Cards */
     .stat-grid { display: grid; gap: 16px; }
     .stat-grid-4 { grid-template-columns: repeat(4, 1fr); }
-    @media (max-width: 767px) { .stat-grid-4 { grid-template-columns: repeat(2, 1fr); gap: 10px; } }
-    @media (min-width: 768px) and (max-width: 1023px) { .stat-grid-4 { grid-template-columns: repeat(2, 1fr); } }
+    .stat-grid-3 { grid-template-columns: repeat(3, 1fr); }
+    @media (max-width: 767px) { .stat-grid-4 { grid-template-columns: repeat(2, 1fr); gap: 10px; } .stat-grid-3 { grid-template-columns: 1fr; gap: 10px; } }
+    @media (min-width: 768px) and (max-width: 1023px) { .stat-grid-4 { grid-template-columns: repeat(2, 1fr); } .stat-grid-3 { grid-template-columns: repeat(3, 1fr); } }
     .stat-card { padding: 18px 20px; border-radius: var(--radius); color: #fff; cursor: pointer; transition: transform .15s, box-shadow .15s; }
     .stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
     .stat-card .stat-icon { font-size: 1.4rem; margin-bottom: 6px; opacity: .9; }

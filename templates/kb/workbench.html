@@ -164,10 +164,17 @@
       </span>
     </div>
     <div class="card-body" style="display:flex;flex-direction:column;padding:14px 14px 0;min-height:0;">
+      <div class="d-flex align-items-center gap-1 mb-2">
+        <div class="btn-group btn-group-sm" style="box-shadow:inset 0 0 0 1px var(--gray-200);border-radius:8px;overflow:hidden;">
+          <button type="button" class="btn active kb-mode-btn" data-mode="kw" style="font-size:.74rem;padding:3px 12px;border:none;background:var(--primary);color:#fff;"><i class="bi bi-search"></i> 关键词检索</button>
+          <button type="button" class="btn kb-mode-btn" data-mode="ai" onclick="openFrame('{{ url_for('kb.ask') }}?frame=1', 'AI 智能问答')" style="font-size:.74rem;padding:3px 12px;border:none;color:var(--gray-500);"><i class="bi bi-stars"></i> AI 智能问答</button>
+        </div>
+        <span style="font-size:.72rem;color:var(--gray-400);margin-left:auto;"><i class="bi bi-info-circle"></i> AI 问答将基于知识库检索生成回答</span>
+      </div>
       <div class="search-wrap" style="position:relative;">
         <div class="input-group">
           <input type="text" id="askInput" class="form-control" placeholder="输入关键词或问题，回车检索" autocomplete="off">
-          <button class="btn btn-primary" id="askBtn" onclick="submitQuery()"><i class="bi bi-send"></i></button>
+          <button class="btn btn-primary" id="askBtn" onclick="submitQuery()" disabled><i class="bi bi-send"></i></button>
         </div>
         <div class="suggest-box d-none" id="suggestBox"></div>
       </div>
@@ -407,6 +414,8 @@ function closeFrame() {
   });
   input.addEventListener('input', function () {
     var v = input.value.trim();
+    var btn = document.getElementById('askBtn');
+    if (btn) btn.disabled = !v;
     clearTimeout(timer);
     if (!v) { showRecents(); return; }
     timer = setTimeout(function () { showSuggest(v); }, 200);

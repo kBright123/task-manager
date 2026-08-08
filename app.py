@@ -2195,14 +2195,25 @@ def api_search_tasks():
     return jsonify(results)
 
 
-@app.route('/api/unified-search')
-@login_required
-def api_unified_search():
-    """首页统一检索:待办 + 笔记 + 知识库,分类型返回。"""
-    q = request.args.get('q', '').strip()
+def _kb_path(name):
+    """集合名(可能形如 '一级·二级')转展示路径: '/一级/二级'。"""
+    if not name:
+        return ''
+    parts = [p for p in str(name).split('·') if p]
+    return '/' + '/'.join(parts)
+
+
+def _unified_search_data(q):
+    """统一检索:待办 + 笔记 + 知识库,分类型返回 dict(API 与检索结果页复用)。
+
+    每个条目携带精简的展示字段,前端仅渲染「标题 + 一行元信息」:
+    - 知识库: path(集合路径)/score
+    - 待办:   priority(高/中/低)/end_date(截止 MM-DD)
+    - 随手记: date(创建 MM-DD)/thread
+    """
+    q = (q or '').strip()
     if not q:
-        return jsonify({'ok': True, 'q': '', 'tasks': [], 'notes': [],
-                        'kb': [], 'total': 0})
+        return {'q': '', 'tasks': [], 'notes': [], 'kb': [], 'total': 0}
     pat = f'%{q}%'
 
     try:
@@ -2211,6 +2222,8 @@ def api_unified_search():
     except Exception as _e:
         app.logger.warning('record unified history failed: %s', _e)
 
+    now = datetime.now()
+
     # 待办(我参与的)
     filters = [TaskAssignment.user_id == current_user.id]
     filters.append(db.or_(
@@ -2218,15 +2231,26 @@ def api_unified_search():
         TaskAssignment.note.like(pat)))
     assigns = TaskAssignment.query.join(Task).filter(
         *filters).order_by(Task.end_time.desc()).limit(20).all()
-    tasks = [{
-        'task_id': a.task.id,
-        'title': a.task.title,
-        'description': a.task.description or '',
-        'category': a.task.category,
-        'status': a.status,
-        'end_time': a.task.end_time.strftime('%Y-%m-%d %H:%M'),
-        'detail_url': url_for('user_task_detail', task_id=a.task.id),
-    } for a in assigns]
+    tasks = []
+    for a in assigns:
+        end = a.task.end_time
+        if end < now:
+            pri = '高'
+        elif end - now < timedelta(hours=48):
+            pri = '中'
+        else:
+            pri = '低'
+        tasks.append({
+            'task_id': a.task.id,
+            'title': a.task.title,
+            'description': a.task.description or '',
+            'category': a.task.category,
+            'status': a.status,
+            'end_time': end.strftime('%Y-%m-%d %H:%M'),
+            'priority': pri,
+            'end_date': end.strftime('%m-%d'),
+            'detail_url': url_for('user_task_detail', task_id=a.task.id),
+        })
 
     # 笔记(个人)
     from notes import Note, parse_tags_json
@@ -2241,7 +2265,8 @@ def api_unified_search():
         'thread': n.thread.name if n.thread else '',
         'created_at': n.created_at.strftime('%Y-%m-%d %H:%M') if
         n.created_at else '',
-        'detail_url': url_for('notes.index'),
+        'date': n.created_at.strftime('%m-%d') if n.created_at else '',
+        'detail_url': url_for('notes.index', note_id=n.id),
     } for n in notes]
 
     # 知识库(关键词检索,按当前用户可见范围)
@@ -2251,6 +2276,19 @@ def api_unified_search():
         visible = _kb._visible_doc_ids()  # None=全部(管理员)
         res = _kb.keyword_search_pages(q, k=10)
         grouped = _kb.group_results(res, q, max_pages_per_doc=2)
+        doc_ids = [g['doc_id'] for g in grouped]
+        coll_names = {}
+        if doc_ids:
+            try:
+                from knowledge import KbCollection as _KbCollection
+                from knowledge import KbDocument as _KbDoc
+                coll_names = dict(
+                    db.session.query(_KbDoc.id, _KbCollection.name)
+                    .join(_KbCollection,
+                          _KbDoc.collection_id == _KbCollection.id)
+                    .filter(_KbDoc.id.in_(doc_ids)).all())
+            except Exception as _e:
+                app.logger.warning('unified kb path failed: %s', _e)
         for g in grouped:
             if visible is not None and g['doc_id'] not in visible:
                 continue
@@ -2265,26 +2303,62 @@ def api_unified_search():
                 'preview_url': url_for('kb.preview', doc_id=g['doc_id']) if
                 _has_preview(g['doc_id']) else '',
                 'detail_url': url_for('kb.doc_detail', doc_id=g['doc_id']),
+                'path': _kb_path(coll_names.get(g['doc_id'], '')),
             })
     except Exception as _e:
         app.logger.warning('unified kb search failed: %s', _e)
 
     total = len(tasks) + len(notes) + len(kb)
-    return jsonify({'ok': True, 'q': q, 'tasks': tasks, 'notes': note_rows,
-                    'kb': kb, 'total': total})
+    return {'q': q, 'tasks': tasks, 'notes': note_rows, 'kb': kb,
+            'total': total}
+
+
+@app.route('/api/unified-search')
+@login_required
+def api_unified_search():
+    """统一检索:待办 + 笔记 + 知识库,分类型返回(下拉/全屏检索共用)。"""
+    data = _unified_search_data(request.args.get('q', ''))
+    return jsonify({'ok': True, **data})
+
+
+@app.route('/search')
+@login_required
+def unified_search_page():
+    """统一检索独立结果页(检索结果各组「查看全部 ›」的落地页)。"""
+    q = (request.args.get('q') or '').strip()
+    data = _unified_search_data(q)
+    return render_template('search.html', q=q, data=data)
 
 
 @app.route('/api/unified-search/history')
 @login_required
 def api_unified_search_history():
-    """首页统一检索的历史(当前用户最近 top5)。"""
+    """首页统一检索的历史(当前用户最近 top5) + 热门标签。"""
     try:
         from knowledge import get_recent_unified
         items = get_recent_unified(current_user.id, 5)
     except Exception as _e:
         app.logger.warning('load unified history failed: %s', _e)
         items = []
-    return jsonify({'ok': True, 'items': items})
+    return jsonify({'ok': True, 'items': items, 'hot': _hot_tags()})
+
+
+def _hot_tags(limit=6):
+    """当前用户笔记中使用最多的标签(热门标签,供检索输入前推荐)。"""
+    from collections import Counter
+    from notes import Note, parse_tags_json
+    cnt = Counter()
+    try:
+        notes = Note.query.filter_by(user_id=current_user.id).all()
+        for n in notes:
+            for t in parse_tags_json(n.tags):
+                t = (t or '').strip()
+                if t:
+                    cnt[t] += 1
+    except Exception as _e:
+        app.logger.warning('load hot tags failed: %s', _e)
+        return []
+    return [t for t, _c in cnt.most_common(limit)]
 
 
 def _has_preview(doc_id):
@@ -3086,6 +3160,10 @@ def api_task_detail(task_id):
                 'status': a.status,
                 'progress': a.progress,
                 'note': a.note or '',
+                'attachment': a.attachment or '',
+                'completed_at': a.completed_at.strftime('%Y-%m-%d %H:%M')
+                               if a.completed_at else '',
+                'rejection_reason': a.rejection_reason or '',
                 'self': a.user_id == current_user.id,
             } for a in assigns],
             'stats': stats,

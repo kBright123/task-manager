@@ -71,15 +71,82 @@
     .nav-notification { position: relative; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); color: var(--gray-500); cursor: pointer; transition: all .15s; text-decoration: none; }
     .nav-notification:hover { background: var(--gray-100); color: var(--gray-700); }
     .nav-notification .dot { position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); border: 2px solid #fff; }
+    /* 顶栏统一检索 */
+    .top-nav-search { position: relative; width: 300px; }
+    .top-nav-search .input-group { flex-wrap: nowrap; }
+    .top-nav-search .form-control { background: var(--gray-100); border: none; box-shadow: none; border-radius: 8px 0 0 8px; font-size: .88rem; }
+    .top-nav-search .form-control::placeholder { color: var(--gray-400); }
+    .top-nav-search .btn { border-radius: 0 8px 8px 0; }
+    .top-nav-search .btn:disabled { opacity: .55; }
     @media (max-width: 767px) {
       .top-nav-links { display: none; }
       .top-nav-inner { padding: 0 12px; }
       .top-nav-right { gap: 8px; }
       .top-nav-logo { font-size: .95rem; }
       .top-nav-logo i { font-size: 1.15rem; }
-      .today-str { display: none !important; }
+      .top-nav-search { display: none; }
+      .nav-search-btn { display: flex; }
+      .top-nav-user-name { display: none; }
       .role-badge { display: none !important; }
     }
+    /* 统一检索浮层(桌面下拉 / 全屏共用) */
+    .us-group-head { display: flex; align-items: center; gap: 6px; padding: 10px 14px 6px; font-size: .75rem; font-weight: 700; color: var(--gray-600); }
+    .us-sec + .us-sec { border-top: 1px solid var(--gray-100); }
+    .us-count { min-width: 20px; text-align: center; color: #fff; border-radius: 100px; font-size: .62rem; padding: 1px 6px; }
+    .us-r-item { display: flex; align-items: center; gap: 10px; padding: 9px 14px; text-decoration: none; color: var(--gray-800); cursor: pointer; }
+    .us-r-item:hover, .us-r-item.us-active { background: var(--gray-50); }
+    .us-item-main { flex: 1; min-width: 0; }
+    .us-item-title { font-weight: 600; font-size: .88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .us-item-title mark { background: #fef08a; padding: 0 2px; border-radius: 2px; }
+    .us-item-sub { font-size: .72rem; color: var(--gray-500); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .us-item-ico { font-size: 1rem; flex-shrink: 0; line-height: 1.3; }
+    .us-pri { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+    .us-score { font-size: .64rem; color: var(--warning); font-weight: 700; flex-shrink: 0; margin-top: 6px; }
+    .us-empty { padding: 22px 14px 8px; font-size: .8rem; color: var(--gray-400); text-align: center; }
+    .us-empty i { font-size: 1.4rem; display: block; margin-bottom: 8px; opacity: .6; }
+    .us-empty-sub { padding: 0 14px 20px; font-size: .72rem; color: var(--gray-400); text-align: center; }
+    .us-more { display: block; padding: 6px 14px 10px; font-size: .74rem; color: var(--primary); text-decoration: none; }
+    .us-more:hover { color: var(--primary-dark); }
+    .us-foot-link { display: flex; align-items: center; gap: 6px; width: 100%; font-size: .74rem; color: var(--primary); text-decoration: none; padding: 8px 12px; }
+    .us-foot-link:hover { color: var(--primary-dark); }
+    .us-item { display: flex; align-items: center; gap: 8px; padding: 10px 14px; cursor: pointer; font-size: .85rem; color: var(--gray-700); }
+    .us-item:hover { background: var(--gray-50); }
+    .us-item i.bi-clock-history { color: var(--primary); font-size: .78rem; flex-shrink: 0; }
+    .us-item-tag { font-size: .62rem; padding: 1px 6px; border-radius: 100px; background: var(--gray-100); color: var(--gray-500); margin-left: auto; flex-shrink: 0; }
+    .us-hist-head { display: flex; align-items: center; gap: 6px; padding: 10px 14px 2px; font-size: .72rem; font-weight: 700; color: var(--gray-500); }
+    .us-hot-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 14px 12px; }
+    .us-hot-chip { font-size: .72rem; padding: 3px 10px; border-radius: 100px; background: var(--gray-100); border: 1px solid var(--gray-200); color: var(--gray-600); cursor: pointer; }
+    .us-hot-chip:hover { background: var(--primary-light); border-color: var(--primary-light); color: var(--primary); }
+    .pri-hi { color: #dc2626; }
+    .pri-mid { color: #d97706; }
+    .pri-low { color: #16a34a; }
+    /* 骨架屏(检索加载) */
+    .us-skeleton { padding: 10px 14px; }
+    .sk-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; }
+    .sk-dot { width: 22px; height: 22px; border-radius: 6px; background: var(--gray-100); flex-shrink: 0; }
+    .sk-main { flex: 1; min-width: 0; }
+    .sk-line { height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-200) 50%, var(--gray-100) 75%); background-size: 200% 100%; animation: skShimmer 1.2s infinite; }
+    .sk-thin { height: 9px; margin-top: 6px; }
+    @keyframes skShimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+    /* 移动端顶栏精简: 隐藏内联搜索框,仅保留图标 */
+    .nav-search-btn { display: none; width: 36px; height: 36px; border: none; background: transparent; color: var(--gray-600); font-size: 1.05rem; border-radius: var(--radius-sm); align-items: center; justify-content: center; cursor: pointer; }
+    .nav-search-btn:hover { background: var(--gray-100); color: var(--gray-700); }
+    /* 全屏检索(移动端) */
+    .fs-search { position: fixed; inset: 0; z-index: 2050; background: var(--gray-50); display: flex; flex-direction: column; }
+    .fs-search-bar { display: flex; align-items: center; gap: 6px; padding: 10px 12px; padding-top: calc(10px + env(safe-area-inset-top)); background: #fff; border-bottom: 1px solid var(--gray-200); }
+    .fs-btn { width: 38px; height: 38px; border: none; background: transparent; color: var(--gray-600); font-size: 1.15rem; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer; }
+    .fs-btn:hover { background: var(--gray-100); }
+    .fs-input-wrap { flex: 1; display: flex; align-items: center; gap: 8px; background: var(--gray-100); border-radius: 10px; padding: 0 12px; height: 40px; min-width: 0; }
+    .fs-input-wrap > i { color: var(--gray-400); font-size: .9rem; }
+    .fs-input-wrap input { flex: 1; border: none; background: transparent; outline: none; font-size: .95rem; color: var(--gray-800); min-width: 0; }
+    .fs-input-wrap input::placeholder { color: var(--gray-400); }
+    .fs-clear { border: none; background: transparent; color: var(--gray-400); padding: 2px; font-size: .9rem; flex-shrink: 0; cursor: pointer; }
+    .fs-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .fs-hint { padding: 60px 20px; text-align: center; color: var(--gray-400); }
+    .fs-hint i { font-size: 2.2rem; display: block; margin-bottom: 12px; opacity: .6; }
+    .fs-hint div { font-size: .8rem; }
+    .fs-body .us-sec { background: #fff; border-radius: 12px; overflow: hidden; margin: 0 12px 12px; }
+    .fs-body .us-sec + .us-sec { border-top: none; }
 
     /* Mobile Bottom Nav */
     .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: var(--bottom-nav-height); background: #fff; border-top: 1px solid var(--gray-200); z-index: 1000; display: none; }
@@ -289,7 +356,24 @@
         {% endif %}
       </div>
       <div class="top-nav-right">
-        <span class="today-str" style="font-size:.78rem;color:var(--gray-500);white-space:nowrap;">{{ today_str }}</span>
+        <button type="button" class="nav-search-btn" id="navSearchBtn" title="搜索" aria-label="搜索"><i class="bi bi-search"></i></button>
+        <div id="unifiedSearchWrap" class="top-nav-search">
+          <div class="input-group">
+            <input type="text" id="unifiedSearchInput" class="form-control" placeholder="检索待办、随手记、知识库..." autocomplete="off">
+            <button class="btn btn-primary px-3" id="unifiedSearchBtn" type="button" style="white-space:nowrap;"><i class="bi bi-search"></i> <span class="us-btn-label">检索</span></button>
+          </div>
+          <div id="unifiedSuggestBox" class="d-none"
+               style="position:absolute;top:calc(100% + 6px);left:0;right:0;background:#fff;border:1px solid var(--gray-200);border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.14);z-index:60;overflow:hidden;">
+            <div id="unifiedSuggestList"></div>
+          </div>
+          <div id="unifiedSearchOverlay" class="d-none" style="position:absolute;top:calc(100% + 6px);left:0;right:0;background:#fff;border:1px solid var(--gray-200);border-radius:10px;box-shadow:0 16px 40px rgba(15,23,42,.18);z-index:60;overflow:hidden;">
+            <div id="unifiedSearchBody" style="max-height:min(60vh,460px);overflow-y:auto;"></div>
+            <div id="unifiedSearchFooter" class="d-flex align-items-center justify-content-between px-3 py-2 border-top" style="font-size:.75rem;color:var(--primary);cursor:pointer;background:#fff;">
+              <span id="unifiedSearchFooterText"><i class="bi bi-list"></i> 按 Enter 查看全部结果</span>
+              <span id="unifiedSearchFooterCount" class="text-muted"></span>
+            </div>
+          </div>
+        </div>
         <div class="nav-notification" id="notificationBell" style="position:relative;cursor:pointer;" onclick="toggleNotificationDropdown()">
           <i class="bi bi-bell"></i>
           {% if unread_notifications > 0 %}<span class="dot" style="position:absolute;top:4px;right:4px;width:9px;height:9px;background:var(--danger);border:2px solid #fff;border-radius:50%;"></span>{% endif %}
@@ -328,7 +412,7 @@
         </div>
         <div class="user-badge d-flex align-items-center gap-2" style="cursor:pointer;position:relative;" onclick="this.querySelector('.user-dropdown').classList.toggle('d-none')">
           <span class="avatar" style="width:32px;height:32px;font-size:.75rem;">{{ (current_user.name or current_user.username)[0]|upper }}</span>
-          <span style="font-size:.85rem;font-weight:500;">{{ current_user.name or current_user.username }}</span>
+          <span class="top-nav-user-name" style="font-size:.85rem;font-weight:500;">{{ current_user.name or current_user.username }}</span>
           {% if current_user.role == 'admin' %}
           <span class="role-badge" style="font-size:.6rem;padding:1px 6px;border-radius:100px;background:var(--primary-light);color:var(--primary);font-weight:600;">管理员</span>
           {% endif %}
@@ -394,6 +478,19 @@
     </a>
     {% endif %}
   </nav>
+
+  <!-- 全屏检索(移动端) -->
+  <div id="fullscreenSearch" class="fs-search d-none" role="dialog" aria-modal="true">
+    <div class="fs-search-bar">
+      <button type="button" class="fs-btn" id="fsBackBtn" aria-label="关闭搜索"><i class="bi bi-x-lg"></i></button>
+      <div class="fs-input-wrap">
+        <i class="bi bi-search"></i>
+        <input type="text" id="fsSearchInput" placeholder="检索待办、随手记、知识库..." autocomplete="off">
+        <button type="button" class="fs-clear" id="fsClearBtn" aria-label="清空"><i class="bi bi-x-circle"></i></button>
+      </div>
+    </div>
+    <div class="fs-body" id="fsBody"></div>
+  </div>
   {% endif %}
   {% endif %}
 
@@ -472,6 +569,14 @@
       setTimeout(function () { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(function () { el.remove(); }, 320); }, 3000);
     };
   </script>
+  <script>
+  window.SEARCH_CONFIG = {
+    api: '{{ url_for("api_unified_search") }}',
+    historyApi: '{{ url_for("api_unified_search_history") }}',
+    resultsPage: '{{ url_for("unified_search_page") }}'
+  };
+  </script>
+  <script src="{{ url_for('static', filename='js/search.js') }}" defer></script>
   {% block extra_js %}{% endblock %}
 </body>
 </html>

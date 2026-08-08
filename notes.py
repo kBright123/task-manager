@@ -326,8 +326,9 @@ def index():
         or_(NoteRule.user_id == current_user.id,
             NoteRule.user_id.is_(None))
     ).order_by(NoteRule.sort).all()
+    note_id = request.args.get('note_id', type=int)
     return render_template('notes.html', threads=threads, recent=recent,
-                           rules=rules)
+                           rules=rules, note_id=note_id)
 
 
 @notes_bp.route('/api/threads')

@@ -433,7 +433,13 @@ function renderTaskDetail(t, body){
   var card = document.createElement('div');
   var head = document.createElement('div');
   head.style.cssText = 'border-bottom:1px solid var(--gray-100);padding-bottom:12px;margin-bottom:12px;';
-  head.innerHTML = '<div style="font-size:1rem;font-weight:700;color:var(--gray-900);margin-bottom:8px;">' + esc(t.title) + '</div>' +
+  var headBtns = '';
+  if (t.can_edit) {
+    headBtns = '<button type="button" class="btn btn-xs-custom btn-outline-secondary" style="font-size:.72rem;flex-shrink:0;" onclick="openTaskEditModal(' + t.id + ')" title="编辑待办"><i class="bi bi-pencil"></i> 编辑</button>';
+  }
+  head.innerHTML = '<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;">' +
+      '<div style="font-size:1rem;font-weight:700;color:var(--gray-900);flex:1;min-width:0;word-break:break-word;">' + esc(t.title) + '</div>' +
+      headBtns + '</div>' +
     '<div class="d-flex flex-wrap gap-2 align-items-center">' +
       '<span class="badge" style="background:var(--primary);font-size:.65rem;">' + esc(t.category) + '</span>' +
       fmtStatus(t.status) + '</div>';
@@ -441,7 +447,7 @@ function renderTaskDetail(t, body){
   if (t.description && t.description !== t.title) {
     var d = document.createElement('div');
     d.style.cssText = 'font-size:.82rem;color:var(--gray-700);background:var(--gray-50);border-radius:8px;padding:10px 12px;margin-bottom:12px;white-space:pre-wrap;word-break:break-word;';
-    d.textContent = t.description;
+    d.innerHTML = linkify(t.description);
     card.appendChild(d);
   }
   var info = document.createElement('div');
@@ -452,12 +458,17 @@ function renderTaskDetail(t, body){
     var assign = document.createElement('div');
     var h = document.createElement('div');
     h.style.cssText = 'font-size:.72rem;font-weight:600;color:var(--gray-500);margin:4px 0 6px;';
-    h.textContent = '分配对象 (' + t.assignments.length + ')';
+    h.textContent = '分配对象与进度 (' + t.assignments.length + ')';
     assign.appendChild(h);
     t.assignments.forEach(function(a){
       var row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--gray-100);font-size:.8rem;color:var(--gray-700);';
-      row.innerHTML = '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(a.user) + (a.self?' <small style="color:var(--gray-400);">(自己)</small>':'') + '</span>' + fmtStatus(a.status) + (a.note?' · <small class="text-muted">'+esc(a.note)+'</small>':'');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--gray-100);font-size:.8rem;color:var(--gray-700);flex-wrap:wrap;';
+      var extra = '';
+      if (a.progress > 0) extra += '<small class="text-muted" style="font-size:.68rem;">进度 ' + a.progress + '%</small>';
+      if (a.attachment) extra += '<a class="text-muted" style="font-size:.68rem;text-decoration:none;" href="' + '{{ url_for('download_file', filename='__F__') }}'.replace('__F__', a.attachment) + '" target="_blank"><i class="bi bi-paperclip"></i> 附件</a>';
+      if (a.completed_at) extra += '<small class="text-success" style="font-size:.68rem;">完成于 ' + esc(a.completed_at) + '</small>';
+      if (a.rejection_reason) extra += '<small class="text-danger" style="font-size:.68rem;" title="' + esc(a.rejection_reason).replace(/"/g,'&quot;') + '"><i class="bi bi-x-circle"></i> 驳回: ' + esc(a.rejection_reason) + '</small>';
+      row.innerHTML = '<span style="flex:1;min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(a.user) + (a.self?' <small style="color:var(--gray-400);">(自己)</small>':'') + '</span>' + fmtStatus(a.status) + (a.note?' <small class="text-muted">'+linkify(a.note)+'</small>':'') + extra;
       assign.appendChild(row);
     });
     card.appendChild(assign);
@@ -469,32 +480,19 @@ function renderTaskDetail(t, body){
     pr.textContent = '整体进度:已确认/已完成 ' + (stat.completed||0) + ' / ' + (stat.total||0) + (stat.pending? ' · 进行中 ' + stat.pending : '');
     card.appendChild(pr);
   }
-  var act2 = document.createElement('div');
-  act2.style.cssText = 'display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;';
-  var detailUrl = '{{ url_for("user_task_detail", task_id=0) }}'.replace('/0','/' + t.id);
-  var btns = '<a class="btn btn-sm btn-outline-primary" style="font-size:.75rem;" href="' + detailUrl + '"><i class="bi bi-eye"></i> 详情页</a>';
-  var doneCount = 0;
-  (t.assignments||[]).forEach(function(a){
-    if (a.status === 'completed' || a.status === 'approved') doneCount++;
-  });
-  if (t.can_edit) {
-    btns += '<button class="btn btn-sm btn-outline-secondary" style="font-size:.75rem;" onclick="openTaskEditModal(' + t.id + ')"><i class="bi bi-pencil"></i> 编辑</button>';
-  }
-  if (t.can_delete) {
-    btns += '<button class="btn btn-sm btn-outline-secondary" style="font-size:.75rem;" onclick="openTaskAssignModal(' + t.id + ',\'' + esc(t.title).replace(/'/g,"\\'") + '\')"><i class="bi bi-person-plus"></i> 增加分配人</button>';
-    if (doneCount > 0) {
-      btns += '<button class="btn btn-sm btn-outline-warning" style="font-size:.75rem;" onclick="reopenTask(' + t.id + ')"><i class="bi bi-arrow-counterclockwise"></i> 重新打开</button>';
-    }
-    btns += '<button class="btn btn-sm btn-outline-danger" style="font-size:.75rem;" onclick="deleteTask(' + t.id + ')"><i class="bi bi-trash"></i> 删除</button>';
-  }
-  act2.innerHTML = btns;
-  card.appendChild(act2);
   body.appendChild(card);
 }
 function metaRow(k, v){
   return '<div style="display:flex;justify-content:space-between;padding:3px 0;"><small style="color:var(--gray-500);font-size:.72rem;flex-shrink:0;">'+k+'</small><span style="font-size:.8rem;color:var(--gray-800);text-align:right;">'+v+'</span></div>';
 }
 function esc(s){s=(s==null?'':String(s));var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+function linkify(s){
+  if (!s) return '';
+  var e = esc(s);
+  return e.replace(/(https?:\/\/[^\s<>"')，。、！？）\]]+)/g, function(m){
+    return '<a href="' + m + '" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:underline;word-break:break-all;">' + m + '</a>';
+  });
+}
 var activeUsers = [{id:0,name:'-- 请选择 --'}];
 {% for u in users %}
 activeUsers.push({id: {{ u.id }}, name: '{{ u.name or u.username }}'{% if u.id == current_user.id %}, self: true{% endif %}});
@@ -510,6 +508,30 @@ function openTaskEditModal(id){
       document.getElementById('editTaskStart').value = t.start_dt || '';
       document.getElementById('editTaskEnd').value = t.end_dt || '';
       document.getElementById('editTaskDesc').value = t.description || '';
+      var canDelete = !!t.can_delete;
+      document.getElementById('assignSection').style.display = canDelete ? '' : 'none';
+      document.getElementById('dangerSection').style.display = canDelete ? '' : 'none';
+      var assigned = {};
+      (t.assignments||[]).forEach(function(a){ assigned['u'+a.user_id] = true; });
+      var list = document.getElementById('editAssignList');
+      list.innerHTML = '';
+      activeUsers.forEach(function(u){
+        if (u.id === 0) return;
+        var self = u.self ? ' <small style="color:var(--gray-400);">(自己)</small>' : '';
+        var label = document.createElement('label');
+        label.style.cssText = 'display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:.82rem;color:var(--gray-700);cursor:pointer;';
+        label.innerHTML = '<input type="checkbox" class="edit-assign-cb" value="' + u.id + '"' +
+          (assigned['u'+u.id] ? ' checked' : '') + '>' + esc(u.name) + self;
+        list.appendChild(label);
+      });
+      if (list.children.length === 0) {
+        list.innerHTML = '<div style="color:var(--gray-400);font-size:.78rem;">暂无可分配的用户</div>';
+      }
+      var doneCount = 0;
+      (t.assignments||[]).forEach(function(a){
+        if (a.status === 'completed' || a.status === 'approved') doneCount++;
+      });
+      document.getElementById('reopenBtn').style.display = (canDelete && doneCount > 0) ? '' : 'none';
       new bootstrap.Modal(document.getElementById('editTaskModal')).show();
     });
 }
@@ -522,48 +544,25 @@ function saveTaskEdit(){
     end_time: document.getElementById('editTaskEnd').value,
     description: document.getElementById('editTaskDesc').value
   };
-  fetch('{{ url_for('api_task_edit', task_id=0) }}'.replace('/0','/' + id), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)})
+  var doAssign = function () {
+    var ids = [];
+    document.querySelectorAll('#editAssignList .edit-assign-cb:checked').forEach(function(el){ ids.push(el.value); });
+    if (!ids.length) return Promise.resolve({ok: true, added: []});
+    return fetch('{{ url_for('api_task_assign', task_id=0) }}'.replace('/0','/' + id),
+        {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({user_ids: ids})})
+      .then(function(r){return r.json();});
+  };
+  fetch('{{ url_for('api_task_edit', task_id=0) }}'.replace('/0','/' + id),
+      {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)})
     .then(function(r){return r.json();}).then(function(d){
-      if(d.ok){
-        bootstrap.Modal.getInstance(document.getElementById('editTaskModal')).hide();
-        loadTaskDetail(parseInt(id, 10));
-      } else {
-        alert(d.error || '保存失败');
-      }
-    });
-}
-function openTaskAssignModal(id){
-  var body = document.getElementById('assignUserList');
-  body.innerHTML = '';
-  var checked = 0;
-  activeUsers.forEach(function(u){
-    if (u.id === 0) return;
-    var self = u.self ? ' <small style="color:var(--gray-400)">(自己)</small>' : '';
-    var div = document.createElement('label');
-    div.style.cssText = 'display:block;padding:6px 10px;font-size:.82rem;color:var(--gray-700);cursor:pointer;';
-    div.innerHTML = '<input type="checkbox" class="assign-user-cb" value="' + u.id + '" style="margin-right:6px;">' + esc(u.name) + self;
-    body.appendChild(div);
-    checked++;
-  });
-  if (!checked) body.innerHTML = '<div style="text-align:center;color:var(--gray-400);padding:16px;">暂无可分配的用户</div>';
-  document.getElementById('assignTaskId').value = id;
-  new bootstrap.Modal(document.getElementById('assignTaskModal')).show();
-}
-function submitTaskAssign(){
-  var id = document.getElementById('assignTaskId').value;
-  var ids = [];
-  document.querySelectorAll('#assignUserList .assign-user-cb:checked').forEach(function(el){ ids.push(el.value); });
-  fetch('{{ url_for('api_task_assign', task_id=0) }}'.replace('/0','/' + id), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({user_ids: ids})})
-    .then(function(r){return r.json();}).then(function(d){
-      bootstrap.Modal.getInstance(document.getElementById('assignTaskModal')).hide();
-      if (d.ok) {
-        loadTaskDetail(parseInt(id, 10));
-        if (d.added && d.added.length) alert('已分配: ' + d.added.join('、'));
-        else if (!d.added || !d.added.length) alert('没有新增分配人(可能都已分配)');
-      } else {
-        alert(d.error || '分配失败');
-      }
-    });
+      if(!d.ok){ alert(d.error || '保存失败'); return; }
+      return doAssign();
+    }).then(function(d){
+      bootstrap.Modal.getInstance(document.getElementById('editTaskModal')).hide();
+      loadTaskDetail(parseInt(id, 10));
+      if (d && d.added && d.added.length) alert('已分配: ' + d.added.join('、'));
+      else if (d && d.added && !d.added.length) alert('没有新增分配人(可能都已分配)');
+    }).catch(function(e){ alert('保存失败: ' + e.message); });
 }
 function deleteTask(id){
   if(!confirm('确定删除该待办？此操作不可恢复。')) return;
@@ -583,15 +582,15 @@ function reopenTask(id){
 }
 </script>
 
-<!-- 编辑待办模态框 -->
+<!-- 编辑待办模态框(编辑/分配/删除/重新打开 合并) -->
 <div class="modal fade" id="editTaskModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header py-2 px-3">
-        <span style="font-size:.9rem;font-weight:600;">编辑待办</span>
+        <span style="font-size:.9rem;font-weight:600;"><i class="bi bi-pencil"></i> 编辑待办</span>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body" style="font-size:.85rem;">
+      <div class="modal-body" style="font-size:.85rem;max-height:68vh;overflow-y:auto;">
         <input type="hidden" id="editTaskId">
         <div class="mb-2">
           <label class="form-label" style="font-size:.8rem;">标题</label>
@@ -611,32 +610,28 @@ function reopenTask(id){
             <input type="datetime-local" class="form-control form-control-sm" id="editTaskEnd">
           </div>
         </div>
-        <div class="mb-1">
+        <div class="mb-2">
           <label class="form-label" style="font-size:.8rem;">描述</label>
           <textarea class="form-control form-control-sm" id="editTaskDesc" rows="3"></textarea>
+        </div>
+        <div id="assignSection" class="mb-2">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <label class="form-label" style="font-size:.8rem;margin:0;">分配人员(勾选可新增)</label>
+            <small class="text-muted" style="font-size:.68rem;">已分配默认勾选,新增会发送通知</small>
+          </div>
+          <div id="editAssignList" class="d-flex flex-wrap gap-1" style="border:1px solid var(--gray-200);border-radius:8px;padding:6px;background:var(--gray-50);"></div>
+        </div>
+        <div id="dangerSection" class="pt-2 border-top" style="border-color:var(--gray-100)!important;">
+          <label class="form-label" style="font-size:.8rem;color:var(--gray-500);">危险操作</label>
+          <div class="d-flex gap-2 flex-wrap">
+            <button type="button" class="btn btn-sm btn-outline-warning" id="reopenBtn" style="font-size:.75rem;" onclick="reopenTask(document.getElementById('editTaskId').value)"><i class="bi bi-arrow-counterclockwise"></i> 重新打开</button>
+            <button type="button" class="btn btn-sm btn-outline-danger" style="font-size:.75rem;" onclick="deleteTask(document.getElementById('editTaskId').value)"><i class="bi bi-trash"></i> 删除</button>
+          </div>
         </div>
       </div>
       <div class="modal-footer py-2 px-3">
         <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
-        <button type="button" class="btn btn-sm btn-primary" onclick="saveTaskEdit()">保存</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- 增加分配人模态框 -->
-<div class="modal fade" id="assignTaskModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header py-2 px-3">
-        <span style="font-size:.9rem;font-weight:600;">增加分配人</span>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body" style="font-size:.85rem;max-height:60vh;overflow-y:auto;" id="assignUserList"></div>
-      <div class="modal-footer py-2 px-3">
-        <input type="hidden" id="assignTaskId">
-        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
-        <button type="button" class="btn btn-sm btn-primary" onclick="submitTaskAssign()">分配</button>
+        <button type="button" class="btn btn-sm btn-primary" onclick="saveTaskEdit()"><i class="bi bi-check-lg"></i> 保存</button>
       </div>
     </div>
   </div>

@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}搜索「{{ q }}」- 知行合一{% endblock %}
+{% block extra_css %}
+<style>
+  .sr-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .sr-title { font-size: 1.02rem; font-weight: 700; color: var(--gray-900); margin: 0; }
+  .sr-title small { font-weight: 500; color: var(--gray-400); font-size: .78rem; margin-left: 6px; }
+  .sr-group-head { display: flex; align-items: center; gap: 8px; padding: 10px 16px; font-size: .78rem; font-weight: 700; color: var(--gray-600); }
+  .sr-group-count { min-width: 20px; text-align: center; background: var(--gray-100); color: var(--gray-500); border-radius: 100px; font-size: .64rem; padding: 1px 6px; margin-left: auto; }
+  .sr-item { display: flex; align-items: center; gap: 10px; padding: 11px 16px; text-decoration: none; color: var(--gray-800); border-bottom: 1px solid var(--gray-100); transition: background .15s; }
+  .sr-item:last-child { border-bottom: none; }
+  .sr-item:hover { background: var(--gray-50); }
+  .sr-item-ico { font-size: 1rem; flex-shrink: 0; }
+  .sr-item-main { flex: 1; min-width: 0; }
+  .sr-item-title { font-weight: 600; font-size: .88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sr-item-meta { font-size: .72rem; color: var(--gray-500); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sr-item-meta .pri-hi { color: #dc2626; }
+  .sr-item-meta .pri-mid { color: #d97706; }
+  .sr-item-meta .pri-low { color: #16a34a; }
+  .sr-empty { padding: 46px 16px; text-align: center; color: var(--gray-400); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="sr-head">
+  <a href="{{ url_for('user_dashboard') }}" class="btn btn-sm btn-outline-secondary" style="padding:4px 10px;"><i class="bi bi-arrow-left"></i></a>
+  <h5 class="sr-title"><i class="bi bi-search" style="color:var(--primary);"></i> 搜索「{{ q }}」<small>共 {{ data.total }} 条结果</small></h5>
+</div>
+
+{% if not q %}
+<div class="card">
+  <div class="sr-empty">
+    <i class="bi bi-search" style="font-size:2rem;display:block;margin-bottom:10px;"></i>
+    <div style="font-weight:600;color:var(--gray-600);margin-bottom:4px;">请输入关键词</div>
+    <div style="font-size:.78rem;">支持检索待办、随手记与知识库文档</div>
+  </div>
+</div>
+{% elif data.total == 0 %}
+<div class="card">
+  <div class="empty-state">
+    <svg viewBox="0 0 96 96" fill="none"><circle cx="48" cy="48" r="40" fill="var(--gray-100)"/><circle cx="42" cy="42" r="13" stroke="var(--gray-300)" stroke-width="3" fill="#fff"/><path d="M52 52l14 14" stroke="var(--primary)" stroke-width="4" stroke-linecap="round"/></svg>
+    <div class="es-title">暂无匹配结果</div>
+    <div class="es-sub">没有找到与「{{ q }}」相关的内容，试试更换关键词或减少搜索条件。</div>
+    <a href="{{ url_for('user_dashboard') }}" class="btn btn-sm btn-primary"><i class="bi bi-house"></i> 返回首页</a>
+  </div>
+</div>
+{% else %}
+<div class="row g-3">
+  <div class="col-12 col-lg-4">
+    {% if data.kb %}
+    <div class="card mb-3">
+      <div class="sr-group-head"><i class="bi bi-collection" style="color:var(--warning);"></i> 知识库<span class="sr-group-count">{{ data.kb|length }}</span></div>
+      <div>
+        {% for k in data.kb %}
+        <a href="{{ k.detail_url }}" class="sr-item">
+          <span class="sr-item-ico">📄</span>
+          <span class="sr-item-main">
+            <span class="sr-item-title d-block">{{ k.title }}</span>
+            <span class="sr-item-meta d-block">{% if k.path %}{{ k.path }}{% else %}未分类{% endif %} · {{ k.score }}%</span>
+          </span>
+          <i class="bi bi-chevron-right" style="color:var(--gray-300);font-size:.72rem;flex-shrink:0;"></i>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  <div class="col-12 col-lg-4">
+    {% if data.tasks %}
+    <div class="card mb-3">
+      <div class="sr-group-head"><i class="bi bi-check2-square" style="color:var(--primary);"></i> 待办<span class="sr-group-count">{{ data.tasks|length }}</span></div>
+      <div>
+        {% for t in data.tasks %}
+        <a href="{{ t.detail_url }}" class="sr-item">
+          <span class="sr-item-ico">✅</span>
+          <span class="sr-item-main">
+            <span class="sr-item-title d-block">{{ t.title }}</span>
+            <span class="sr-item-meta d-block">
+              {% if t.priority == '高' %}<span class="pri-hi">🔴 高</span>
+              {% elif t.priority == '中' %}<span class="pri-mid">🟡 中</span>
+              {% else %}<span class="pri-low">🟢 低</span>{% endif %}
+              · {{ t.end_date }} 截止
+            </span>
+          </span>
+          <i class="bi bi-chevron-right" style="color:var(--gray-300);font-size:.72rem;flex-shrink:0;"></i>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  <div class="col-12 col-lg-4">
+    {% if data.notes %}
+    <div class="card mb-3">
+      <div class="sr-group-head"><i class="bi bi-journal-text" style="color:var(--success);"></i> 随手记<span class="sr-group-count">{{ data.notes|length }}</span></div>
+      <div>
+        {% for n in data.notes %}
+        <a href="{{ n.detail_url }}" class="sr-item">
+          <span class="sr-item-ico">📝</span>
+          <span class="sr-item-main">
+            <span class="sr-item-title d-block">{{ n.title or '(无标题)' }}</span>
+            <span class="sr-item-meta d-block">{{ n.date }} 创建{% if n.thread %} · {{ n.thread }}{% endif %}</span>
+          </span>
+          <i class="bi bi-chevron-right" style="color:var(--gray-300);font-size:.72rem;flex-shrink:0;"></i>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

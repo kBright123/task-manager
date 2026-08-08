@@ -1,304 +1,298 @@
 {% extends "base.html" %}
 {% block title %}文档管理 - 知识库{% endblock %}
+{% block extra_css %}
+<style>
+  /* 页头统计 */
+  .kb-stat { display:inline-flex; align-items:center; gap:6px; background:#fff; border:1px solid var(--gray-200); border-radius:100px; padding:6px 14px; font-size:.8rem; font-weight:600; color:var(--gray-700); box-shadow:var(--shadow-sm); }
+  .kb-stat i { color:var(--primary); }
+
+  /* 侧边栏: 悬停编辑/删除 */
+  .kb-coll-row { display:flex; align-items:center; border-radius:8px; }
+  .kb-coll-row:hover { background:var(--gray-50); }
+  .kb-coll-row .kb-coll-link { flex:1; min-width:0; }
+  .kb-coll-acts { display:none; gap:2px; flex-shrink:0; padding-right:4px; }
+  .kb-coll-row:hover .kb-coll-acts { display:flex; }
+  .kb-coll-acts button { background:transparent; border:none; padding:4px 6px; color:var(--gray-400); border-radius:6px; font-size:.8rem; }
+  .kb-coll-acts button:hover { background:var(--gray-100); color:var(--gray-700); }
+
+  /* 上传区折叠 */
+  .kb-collapse-head { cursor:pointer; user-select:none; }
+  .kb-collapse-head .kb-upload-caret { transition:transform .2s; color:var(--gray-400); }
+  .kb-collapse-head.collapsed .kb-upload-caret { transform:rotate(-90deg); }
+  .kb-uprow { display:flex; align-items:center; gap:10px; font-size:.78rem; color:var(--gray-600); }
+  .kb-uprow .progress-custom { flex:1; }
+
+  /* 文档表格: 虚拟滚动 + 列宽 */
+  .kb-table { --w-cb:46px; --w-type:92px; --w-pages:60px; --w-status:132px; --w-time:134px; --w-ops:64px; }
+  .kb-thead { display:flex; align-items:center; background:var(--gray-50); border-bottom:1px solid var(--gray-200); font-size:.75rem; font-weight:600; color:var(--gray-500); }
+  .kb-thead .kb-col { position:relative; padding:9px 12px; box-sizing:border-box; }
+  .kb-col { flex-shrink:0; box-sizing:border-box; }
+  .kb-cb { width:var(--w-cb); }
+  .kb-title { flex:1 1 auto; min-width:170px; }
+  .kb-type { width:var(--w-type); }
+  .kb-pages { width:var(--w-pages); }
+  .kb-status { width:var(--w-status); }
+  .kb-time { width:var(--w-time); }
+  .kb-ops { width:var(--w-ops); }
+  .kb-resize { position:absolute; right:-4px; top:0; bottom:0; width:8px; cursor:col-resize; z-index:2; }
+  .kb-resize::after { content:''; position:absolute; left:3px; top:20%; bottom:20%; width:2px; background:var(--gray-200); border-radius:2px; opacity:0; }
+  .kb-resize:hover::after { opacity:1; }
+  .kb-vs { overflow-y:auto; overflow-x:hidden; position:relative; }
+  .kb-row-layer { position:relative; }
+  .kb-row { position:absolute; left:0; right:0; display:flex; align-items:center; border-bottom:1px solid var(--gray-100); font-size:.85rem; color:var(--gray-800); }
+  .kb-row:hover { background:var(--gray-50); }
+  .kb-row .kb-col { padding:0 12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .kb-title-link { color:var(--gray-800); font-weight:600; text-decoration:none; cursor:pointer; }
+  .kb-title-link:hover { color:var(--primary); }
+  .kb-col-badge { display:inline-block; margin-left:6px; padding:0 8px; border-radius:100px; font-size:.64rem; vertical-align:1px; }
+  .kb-drop .dropdown-menu { font-size:.82rem; }
+  .kb-foot { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+
+  /* 状态标签 */
+  .status-badge.status-queued, .status-badge.status-ocr,
+  .status-badge.status-embedding, .status-badge.status-graphing { background:#fff7ed; color:#c2410c; }
+  .status-badge.status-done { background:#d1fae5; color:#065f46; }
+  .status-badge.status-failed { background:#fef2f2; color:#dc2626; }
+
+  /* 预览弹窗 */
+  .kb-prev-img { max-width:100%; max-height:70vh; border-radius:8px; }
+  .kb-prev-text { background:var(--gray-50); border-radius:8px; padding:12px; font-size:.8rem; white-space:pre-wrap; word-break:break-word; max-height:70vh; overflow:auto; }
+  .kb-prev-frame { width:100%; height:70vh; border:1px solid var(--gray-200); border-radius:8px; background:#fff; }
+
+  /* 批量操作栏 */
+  .kb-bulk { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:8px 12px; border-bottom:1px solid var(--gray-100); }
+
+  /* 移动卡片 */
+  .kb-mcard { border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.05); }
+</style>
+{% endblock %}
 {% block content %}
-<h4 style="font-weight:700;color:var(--gray-900);margin:0 0 14px;"><i class="bi bi-collection" style="color:var(--primary);"></i> 文档管理</h4>
-<div class="row g-3 mb-3">
-  <div class="col-12 col-lg-3">
-    <div class="card">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-folder2-open"></i> 集合</span>
-        <button class="btn btn-xs-custom btn-outline-secondary" type="button"
-                data-bs-toggle="collapse" data-bs-target="#kbManageActions"
-                aria-expanded="false" title="展开管理操作"><i class="bi bi-gear kb-manage-caret" style="font-size:.75rem;"></i></button>
-      </div>
-      <!-- 管理操作(默认折叠):检索用收藏夹树常显,管理按钮收起 -->
-      <div class="collapse" id="kbManageActions">
-        <div class="px-3 py-2 border-bottom" style="font-size:.74rem;color:var(--gray-500);">
-          <i class="bi bi-info-circle"></i> 管理: 新建/重命名/删除集合与清理
+<div class="kb-page">
+  <!-- Header 统计 -->
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <h4 style="font-weight:700;color:var(--gray-900);margin:0;"><i class="bi bi-collection" style="color:var(--primary);"></i> 知识库管理</h4>
+    <div class="d-flex gap-2 flex-wrap">
+      <span class="kb-stat"><i class="bi bi-files"></i> 总文档 {{ total_docs }}</span>
+      <span class="kb-stat"><i class="bi bi-folder2-open"></i> 文档集 {{ collection_count }}</span>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <!-- 左侧: 文档集 -->
+    <div class="col-12 col-lg-3">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-folder2-open"></i> 文档集</span>
+          <span class="badge badge-low" id="kbCollCount">{{ collection_count }}</span>
         </div>
-        <div class="px-3 py-2 d-flex gap-2">
-          <button class="btn btn-xs-custom btn-outline-primary" onclick="showCollectionModal()" title="新建集合"><i class="bi bi-plus"></i> 新建</button>
-          <button class="btn btn-xs-custom btn-outline-secondary" onclick="pruneEmptyCollections()" title="批量删除空集合"><i class="bi bi-trash"></i> 清空空集</button>
-        </div>
-      </div>
-      <div class="card-body py-2">
-        <a href="{{ url_for('kb.index') }}"
-           class="d-flex justify-content-between align-items-center px-2 py-2 text-decoration-none rounded"
-           style="color:{% if not active_collection and not group %}var(--primary);background:var(--primary-light);font-weight:600{% else %}var(--gray-600){% endif %}">
-          <span><i class="bi bi-archive"></i> 全部文档</span>
-          <span class="badge badge-low">{{ pagination.total if not active_collection and not group else '' }}</span>
-        </a>
-        {% for g in collection_groups %}
-        <div class="kb-group">
-          <div class="d-flex align-items-center gap-2 px-2 py-1 rounded kb-group-head"
-               role="button" data-bs-toggle="collapse" data-bs-target="#kbGroup{{ loop.index }}"
-               aria-expanded="{{ 'true' if g['active'] else 'false' }}"
-               style="{% if group == g['primary'] %}background:var(--primary-light);{% endif %}">
-            <i class="bi bi-chevron-right kb-group-caret"
-               style="font-size:.7rem;color:var(--gray-400);transition:transform .15s;{% if g['active'] %}transform:rotate(90deg);{% endif %}"></i>
-            <a href="{{ url_for('kb.index', group=g['primary']) }}" onclick="event.stopPropagation()"
-               class="text-decoration-none"
-               style="font-weight:600;font-size:.8rem;{% if group == g['primary'] %}color:var(--primary);{% else %}color:var(--gray-700);{% endif %}">{{ g['primary'] }}</a>
-            <span class="badge badge-low ms-auto">{{ g['total'] }}</span>
-          </div>
-          <div class="collapse{% if g['active'] %} show{% endif %}" id="kbGroup{{ loop.index }}">
-            {% for v in g['items'] %}
-            <div class="d-flex justify-content-between align-items-center px-2 py-2 rounded"
-                 style="{% if active_collection == v['c'].id %}background:var(--primary-light);{% endif %}">
-              <a href="{{ url_for('kb.index', collection=v['c'].id) }}"
-                 class="d-flex align-items-center gap-2 text-decoration-none flex-grow-1"
-                 style="color:{% if active_collection == v['c'].id %}var(--primary);font-weight:600{% else %}var(--gray-600){% endif %}">
-                <span style="width:10px;height:10px;border-radius:50%;background:{{ v['c'].color }};flex-shrink:0;"></span>
-                <span style="min-width:0;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-                  {{ v['subject'] or v['primary'] }}
-                </span>
-                <span class="badge" style="font-size:.6rem;background:{{ 'var(--success)' if v['c'].visibility == 'public' else 'var(--gray-400)' }};color:#fff;">{{ '公共' if v['c'].visibility == 'public' else '个人' }}</span>
-                {% if v['c'].visibility == 'private' and v['c'].owner_id and v['c'].owner_id != current_user.id %}
-                <small class="text-muted" style="font-size:.6rem;flex-shrink:0;">{{ owner_names.get(v['c'].owner_id, '他人') }}</small>
-                {% endif %}
-                <span class="badge badge-low">{{ v['c'].documents|length }}</span>
-              </a>
-              {% if current_user.role == 'admin' or (v['c'].owner_id == current_user.id and v['c'].visibility == 'private') %}
-              <div class="dropdown">
-                <button class="btn btn-xs-custom" data-bs-toggle="dropdown"
-                        style="background:transparent;border:none;color:var(--gray-400);padding:2px 6px;">
-                  <i class="bi bi-three-dots-vertical"></i>
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end">
-                  <li><a class="dropdown-item" href="#" onclick="showCollectionModal({{ v['c'].id }}, {{ v['c'].name|tojson }}, {{ v['c'].color|tojson }}, {{ v['c'].visibility|tojson }});return false;">
-                    <i class="bi bi-pencil"></i> 重命名</a></li>
-                  {% if v['c'].visibility == 'public' and current_user.role == 'admin' or v['c'].visibility == 'private' and v['c'].owner_id == current_user.id %}
-                  <li>
-                    <form method="POST" action="{{ url_for('kb.api_collection_delete', cid=v['c'].id) }}" class="d-inline"
-                          onsubmit='return confirm("删除集合「" + {{ v['c'].name|tojson }} + "」?集合内的文档不会被删除。");'>
-                      <button type="submit" class="dropdown-item text-danger" style="width:100%;">
-                        <i class="bi bi-trash"></i> 删除
-                      </button>
-                    </form>
-                  </li>
-                  {% endif %}
-                </ul>
-              </div>
-              {% endif %}
+        <div class="card-body py-2" style="overflow-y:auto;">
+          <a href="{{ url_for('kb.index') }}" class="kb-coll-row px-2 py-2 mb-1 text-decoration-none"
+             style="{% if not active_collection and not group %}background:var(--primary-light);{% endif %}">
+            <span class="kb-coll-link d-flex align-items-center gap-2" style="font-weight:600;font-size:.84rem;color:{% if not active_collection and not group %}var(--primary){% else %}var(--gray-600){% endif %};">
+              <i class="bi bi-archive"></i> 全部文档
+              <span class="badge badge-low ms-auto" style="font-size:.62rem;">{{ total_docs }}</span>
+            </span>
+          </a>
+          {% for g in collection_groups %}
+          <div class="kb-group">
+            <div class="d-flex align-items-center gap-2 px-2 py-1 rounded kb-group-head"
+                 role="button" data-bs-toggle="collapse" data-bs-target="#kbGroup{{ loop.index }}"
+                 aria-expanded="{{ 'true' if g['active'] else 'false' }}"
+                 style="{% if group == g['primary'] %}background:var(--primary-light);{% endif %}">
+              <i class="bi bi-chevron-right kb-group-caret"
+                 style="font-size:.7rem;color:var(--gray-400);transition:transform .15s;{% if g['active'] %}transform:rotate(90deg);{% endif %}"></i>
+              <a href="{{ url_for('kb.index', group=g['primary']) }}" onclick="event.stopPropagation()"
+                 class="text-decoration-none"
+                 style="font-weight:600;font-size:.8rem;{% if group == g['primary'] %}color:var(--primary);{% else %}color:var(--gray-700);{% endif %}">{{ g['primary'] }}</a>
+              <span class="badge badge-low ms-auto">{{ g['total'] }}</span>
             </div>
-            {% endfor %}
+            <div class="collapse{% if g['active'] %} show{% endif %}" id="kbGroup{{ loop.index }}">
+              {% for v in g['items'] %}
+              <div class="kb-coll-row px-2 py-1 mb-1 {% if active_collection == v['c'].id %}coll-active{% endif %}"
+                   style="{% if active_collection == v['c'].id %}background:var(--primary-light);{% endif %}">
+                <a href="{{ url_for('kb.index', collection=v['c'].id) }}"
+                   class="kb-coll-link d-flex align-items-center gap-2 text-decoration-none"
+                   style="color:{% if active_collection == v['c'].id %}var(--primary);font-weight:600{% else %}var(--gray-600){% endif %};">
+                  <span style="width:10px;height:10px;border-radius:50%;background:{{ v['c'].color }};flex-shrink:0;"></span>
+                  <span style="min-width:0;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ v['subject'] or v['primary'] }}</span>
+                  {% if v['c'].visibility == 'private' and v['c'].owner_id and v['c'].owner_id != current_user.id %}
+                  <small class="text-muted" style="font-size:.6rem;flex-shrink:0;">{{ owner_names.get(v['c'].owner_id, '他人') }}</small>
+                  {% endif %}
+                  <span class="badge badge-low" style="font-size:.6rem;">{{ v['c'].documents|length }}</span>
+                </a>
+                {% if current_user.role == 'admin' or (v['c'].owner_id == current_user.id and v['c'].visibility == 'private') %}
+                <div class="kb-coll-acts">
+                  <button type="button" title="重命名" onclick="showCollectionModal({{ v['c'].id }}, {{ v['c'].name|tojson }}, {{ v['c'].color|tojson }}, {{ v['c'].visibility|tojson }})"><i class="bi bi-pencil"></i></button>
+                  <button type="button" title="删除" onclick="deleteCollection({{ v['c'].id }}, {{ v['c'].name|tojson }})"><i class="bi bi-trash"></i></button>
+                </div>
+                {% endif %}
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="card-footer d-flex gap-2 py-2">
+          <button class="btn btn-sm btn-primary flex-grow-1" onclick="showCollectionModal()"><i class="bi bi-plus"></i> 新建文档集</button>
+          <button class="btn btn-sm btn-outline-secondary" title="清理空集合" onclick="pruneEmptyCollections()"><i class="bi bi-trash"></i></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右侧: 搜索 + 列表 -->
+    <div class="col-12 col-lg-9">
+
+      <!-- 上传区(可折叠) -->
+      <div class="card mb-3">
+        <div class="card-header kb-collapse-head d-flex justify-content-between align-items-center" onclick="toggleUploadBody()">
+          <span><i class="bi bi-cloud-upload" style="color:var(--primary);"></i> 上传文档</span>
+          <i class="bi bi-chevron-down kb-upload-caret"></i>
+        </div>
+        <div class="card-body py-3" id="uploadBody">
+          <div class="d-flex align-items-center gap-2 mb-2 flex-wrap" style="font-size:.8rem;color:var(--gray-600);">
+            <span style="white-space:nowrap;"><i class="bi bi-folder2-open"></i> 上传到集合</span>
+            <select id="uploadCollection" class="form-select form-select-sm" style="width:auto;max-width:220px;font-size:.8rem;">
+              <option value="">(暂不分配)</option>
+              {% for c in collections %}
+              <option value="{{ c.id }}">{{ c.name }}（{{ '公共' if c.visibility == 'public' else '个人' }}）</option>
+              {% endfor %}
+            </select>
+            <small class="text-muted" style="font-size:.7rem;">普通用户仅可上传到自己的个人集合 · 大于 10MB 自动分片</small>
+          </div>
+          <div id="dropZone" style="border:2px dashed var(--gray-300);background:var(--gray-50);cursor:pointer;transition:all .15s;border-radius:var(--radius-sm);padding:8px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <i class="bi bi-cloud-arrow-up" style="font-size:1.1rem;color:var(--primary);flex-shrink:0;"></i>
+            <span style="font-weight:600;color:var(--gray-700);font-size:.85rem;white-space:nowrap;">拖拽文件到此处,或点击选择文件</span>
+            <small class="text-muted ms-auto" style="font-size:.72rem;">支持 PDF / 图片 / Markdown / 文本 / HTML,可多选</small>
+          </div>
+          <input type="file" id="dropFileInput" accept=".pdf,.png,.jpg,.jpeg,.bmp,.tif,.tiff,.webp,.txt,.md,.markdown,.html,.htm" multiple style="display:none;">
+          <div class="mt-3 d-none" id="uploadProgressCard">
+            <div id="uploadProgressList" class="d-flex flex-column gap-2"></div>
+          </div>
+          <div class="mt-3 pt-3 border-top d-none" id="queueCard">
+            <div class="d-flex align-items-center gap-3 mb-2">
+              <span class="spinner-border spinner-border-sm text-primary" style="width:1rem;height:1rem;"></span>
+              <span style="font-weight:600;" id="queueSummary">已完成 0/0 文件</span>
+              <div class="flex-grow-1"><div class="progress-custom"><div class="progress-custom-bar" id="queueProgress" style="width:0%;background:var(--primary);"></div></div></div>
+            </div>
+            <div class="text-muted" style="font-size:.78rem;" id="queueDetail">等待识别 0 · OCR 中 0 · 向量化中 0</div>
           </div>
         </div>
-        {% endfor %}
+      </div>
+
+      <!-- 文档列表 -->
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <span><i class="bi bi-collection"></i> 文档列表
+            {% if group %}<span class="text-muted">— 集合组「{{ group }}」</span>{% endif %}
+            {% if active_collection %}<span class="text-muted">— {{ (collections|selectattr('id','equalto',active_collection)|first).name if collections|selectattr('id','equalto',active_collection)|first else '' }}</span>{% endif %}
+            <span class="text-muted" id="kbDocCount"></span>
+          </span>
+          <div style="position:relative;">
+            <i class="bi bi-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--gray-400);font-size:.8rem;"></i>
+            <input type="text" id="kbSearch" value="{{ q }}" class="form-control form-control-sm" placeholder="搜索文档标题…(Ctrl+F)" style="padding-left:28px;width:220px;" autocomplete="off">
+          </div>
+        </div>
+
+        <!-- 批量操作栏 -->
+        <div id="bulkBar" class="kb-bulk d-none">
+          <span style="font-weight:600;font-size:.85rem;" id="bulkCount">已选 0 项</span>
+          <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkAssign()"><i class="bi bi-folder-plus"></i> 移动</button>
+          <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkExport()"><i class="bi bi-download"></i> 导出</button>
+          <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkExportTxt()"><i class="bi bi-filetype-txt"></i> 导出结果</button>
+          <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkReprocess()"><i class="bi bi-arrow-repeat"></i> 重新识别</button>
+          <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkAutoArchive()"><i class="bi bi-stars"></i> 自动归档</button>
+          <button class="btn btn-xs-custom btn-outline-danger" onclick="bulkDelete()"><i class="bi bi-trash"></i> 删除</button>
+          <button class="btn btn-xs-custom" style="background:transparent;border:none;color:var(--gray-400);" onclick="kbClearSel()">取消</button>
+        </div>
+        <div id="bulkReprogress" class="kb-bulk d-none">
+          <span class="spinner-border spinner-border-sm text-primary" style="width:1rem;height:1rem;"></span>
+          <span style="font-weight:600;font-size:.85rem;" id="reprogressText">重新识别中...</span>
+        </div>
+
+        <!-- 桌面表格(虚拟滚动) -->
+        <div class="kb-table d-none d-md-block">
+          <div class="kb-thead" id="kbThead">
+            <div class="kb-col kb-cb"><input type="checkbox" id="kbSelAll" onchange="kbSelAll(this.checked)"></div>
+            <div class="kb-col kb-title">文档</div>
+            <div class="kb-col kb-type">类型<span class="kb-resize" data-col="type" title="拖拽调整列宽"></span></div>
+            <div class="kb-col kb-pages">页数<span class="kb-resize" data-col="pages" title="拖拽调整列宽"></span></div>
+            <div class="kb-col kb-status">状态<span class="kb-resize" data-col="status" title="拖拽调整列宽"></span></div>
+            <div class="kb-col kb-time">上传时间<span class="kb-resize" data-col="time" title="拖拽调整列宽"></span></div>
+            <div class="kb-col kb-ops"></div>
+          </div>
+          <div class="kb-vs" id="kbVS">
+            <div class="kb-row-layer" id="kbRows"></div>
+          </div>
+          <div id="kbEmpty" class="text-center d-none" style="padding:40px 16px;">
+            <div class="empty-state">
+              <svg viewBox="0 0 96 96" fill="none"><rect x="16" y="12" width="64" height="72" rx="8" fill="var(--gray-100)" stroke="var(--gray-300)" stroke-width="2"/><path d="M32 30h32M32 44h32M32 58h20" stroke="var(--primary)" stroke-width="3" stroke-linecap="round"/><circle cx="66" cy="68" r="12" fill="#fff" stroke="var(--gray-300)" stroke-width="2"/><path d="M66 63v10M61 68h10" stroke="var(--primary)" stroke-width="3" stroke-linecap="round"/></svg>
+              <div class="es-title" id="kbEmptyTitle">还没有文档</div>
+              <div class="es-sub" id="kbEmptySub">上传 PDF / 图片 / Markdown / 文本或 HTML，开始建立你的知识库。</div>
+              <button class="btn btn-sm btn-primary" type="button" onclick="document.getElementById('dropFileInput').click()"><i class="bi bi-cloud-arrow-up"></i> 上传文档</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 移动端卡片 -->
+        <div class="d-md-none px-3 pb-3" id="kbCards"></div>
+
+        <div class="card-footer kb-foot">
+          <small class="text-muted">共 <span id="kbTotal">0</span> 篇文档</small>
+          <small class="text-muted" style="font-size:.68rem;"><kbd>Ctrl+A</kbd> 全选 · <kbd>Ctrl+F</kbd> 搜索 · <kbd>Delete</kbd> 删除</small>
+        </div>
       </div>
     </div>
   </div>
-  <div class="col-12 col-lg-9">
-    <div class="card mb-3">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-cloud-upload"></i> 上传文档</span>
+</div>
+
+<!-- 预览弹窗 -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title" id="previewTitle" style="font-size:.9rem;"></h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="card-body py-3">
-        <div class="d-flex align-items-center gap-2 mb-2" style="font-size:.8rem;color:var(--gray-600);">
-          <span style="white-space:nowrap;"><i class="bi bi-folder2-open"></i> 上传到集合</span>
-          <select id="uploadCollection" class="form-select form-select-sm" style="width:auto;max-width:220px;font-size:.8rem;">
-            <option value="">(暂不分配)</option>
-            {% for c in collections %}
-            <option value="{{ c.id }}">{{ c.name }}（{{ '公共' if c.visibility == 'public' else '个人' }}）</option>
-            {% endfor %}
-          </select>
-          <small class="text-muted" style="font-size:.7rem;">普通用户仅可上传到自己的个人集合</small>
-        </div>
-        <div id="dropZone" style="border:2px dashed var(--gray-300);background:var(--gray-50);cursor:pointer;transition:all .15s;border-radius:var(--radius-sm);padding:8px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <i class="bi bi-cloud-arrow-up" style="font-size:1.1rem;color:var(--primary);flex-shrink:0;"></i>
-          <span style="font-weight:600;color:var(--gray-700);font-size:.85rem;white-space:nowrap;">拖拽文件到此处,或点击选择文件</span>
-          <small class="text-muted ms-auto" style="font-size:.72rem;">支持 PDF / 图片 / Markdown / 文本 / HTML,可多选</small>
-        </div>
-        <input type="file" id="dropFileInput" accept=".pdf,.png,.jpg,.jpeg,.bmp,.tif,.tiff,.webp,.txt,.md,.markdown,.html,.htm" multiple style="display:none;">
-        <div class="mt-3 pt-3 border-top d-none" id="queueCard">
-          <div class="d-flex align-items-center gap-3 mb-2">
-            <span class="spinner-border spinner-border-sm text-primary" style="width:1rem;height:1rem;"></span>
-            <span style="font-weight:600;" id="queueSummary">已完成 0/0 文件</span>
-            <div class="flex-grow-1"><div class="progress-custom"><div class="progress-custom-bar" id="queueProgress" style="width:0%;background:var(--primary);"></div></div></div>
-          </div>
-          <div class="text-muted" style="font-size:.78rem;" id="queueDetail">等待识别 0 · OCR 中 0 · 向量化中 0</div>
-        </div>
+      <div class="modal-body" id="previewBody" style="background:var(--gray-50);"></div>
+      <div class="modal-footer py-2">
+        <a href="#" class="btn btn-sm btn-outline-primary" id="previewDetailLink"><i class="bi bi-box-arrow-up-right"></i> 打开详情</a>
       </div>
     </div>
+  </div>
+</div>
 
-    <div class="card">
-      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <span><i class="bi bi-collection"></i> 文档列表
-          {% if group %}<span class="text-muted">— 集合组「{{ group }}」</span>{% endif %}
-          {% if active_collection %}<span class="text-muted">— {{ (collections|selectattr('id','equalto',active_collection)|first).name if collections|selectattr('id','equalto',active_collection)|first else '' }}</span>{% endif %}
-          {% if q %}<span class="text-muted">— 搜索「{{ q }}」</span>{% endif %}
-        </span>
-        <div class="d-flex gap-2 align-items-center flex-wrap">
-          <form method="GET" action="{{ url_for('kb.index') }}" class="d-flex gap-1 align-items-center" style="position:relative;">
-            {% if active_collection %}<input type="hidden" name="collection" value="{{ active_collection }}">{% endif %}
-            {% if group %}<input type="hidden" name="group" value="{{ group }}">{% endif %}
-            <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="搜索文档标题..." style="width:200px;">
-            <button class="btn btn-xs-custom btn-outline-primary" type="submit"><i class="bi bi-search"></i></button>
-            {% if q %}<a href="{{ url_for('kb.index', collection=active_collection or None, group=group or None) }}" class="btn btn-xs-custom btn-outline-secondary" title="清除搜索"><i class="bi bi-x-lg"></i></a>{% endif %}
-          </form>
-        </div>
+<!-- 通用确认弹窗 -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title" id="confirmTitle" style="font-size:.9rem;">确认</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="card-body py-2 d-none align-items-center gap-2 flex-wrap" id="bulkBar" style="border-bottom:1px solid var(--gray-100);">
-        <span style="font-weight:600;font-size:.85rem;" id="bulkCount">已选 0 项</span>
-        <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkAssign()"><i class="bi bi-folder-plus"></i> 移动到集合</button>
-        <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkAutoArchive()"><i class="bi bi-stars"></i> 自动归档合集</button>
-        <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkExport()"><i class="bi bi-download"></i> 导出选中</button>
-        <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkExportTxt()"><i class="bi bi-filetype-txt"></i> 导出识别结果</button>
-        <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkReprocess()"><i class="bi bi-arrow-repeat"></i> 重新识别</button>
-        <button class="btn btn-xs-custom btn-outline-danger" onclick="bulkDelete()"><i class="bi bi-trash"></i> 删除选中</button>
-        <button class="btn btn-xs-custom" style="background:transparent;border:none;color:var(--gray-400);" onclick="toggleAll(false)">取消</button>
+      <div class="modal-body" id="confirmBody" style="font-size:.84rem;color:var(--gray-700);"></div>
+      <div class="modal-footer">
+        <button class="btn btn-sm" data-bs-dismiss="modal" style="background:var(--gray-100);color:var(--gray-600);">取消</button>
+        <button class="btn btn-sm btn-danger" id="confirmOk">确认</button>
       </div>
-      <div class="card-body py-2 d-none align-items-center gap-2" id="bulkReprogress" style="border-bottom:1px solid var(--gray-100);">
-        <span class="spinner-border spinner-border-sm text-primary" style="width:1rem;height:1rem;"></span>
-        <span style="font-weight:600;font-size:.85rem;" id="reprogressText">重新识别中...</span>
-      </div>
-      <div class="table-responsive d-none d-md-block">
-        <table class="table table-hover">
-          <thead>
-            <tr>
-              {% if current_user.role == 'admin' or docs %}<th style="width:34px;"><input type="checkbox" id="checkAll" onchange="toggleAll(this.checked)"></th>{% endif %}
-              <th>文档</th>
-              <th style="width:90px;">类型</th>
-              <th style="width:70px;">页数</th>
-              <th style="width:150px;">状态</th>
-              <th style="width:130px;">上传时间</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for doc in docs %}
-            <tr data-doc-id="{{ doc.id }}">
-              {% if current_user.role == 'admin' or doc.id in manageable_ids %}<td><input type="checkbox" class="doc-check" value="{{ doc.id }}" onchange="refreshBulk()"></td>{% elif current_user.role != 'admin' %}<td></td>{% endif %}
-              <td>
-                <a href="{{ url_for('kb.doc_detail', doc_id=doc.id) }}" style="color:var(--gray-800);text-decoration:none;font-weight:600;">
-                  {{ doc.title }}
-                </a>
-                {% if doc.collection %}
-                <span class="badge" style="background:{{ doc.collection.color }}22;color:{{ doc.collection.color }};margin-left:4px;">{{ doc.collection.name }}</span>
-                {% endif %}
-                {% set prev = previews.get(doc.id) %}
-                {% if prev %}
-                <small class="text-muted d-block" style="max-width:460px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.75rem;">{{ prev[:120] }}</small>
-                {% endif %}
-                {% set s = summaries.get(doc.id) %}
-                {% if s %}
-                <small class="text-muted d-block" style="max-width:460px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.72rem;color:var(--primary);">{{ s[:100] }}</small>
-                {% endif %}
-              </td>
-              <td><span class="badge badge-low">{{ doc.file_type|upper }}</span></td>
-              <td>{{ doc.page_count if doc.page_count else '-' }}</td>
-              <td>
-                <div class="d-flex align-items-center gap-1 flex-wrap">
-                  <span class="status-badge status-{{ doc.status }}" data-status="{{ doc.id }}">
-                    {% if doc.status == 'queued' %}等待识别
-                    {% elif doc.status == 'ocr' %}OCR 中
-                    {% elif doc.status == 'embedding' %}向量化中
-                    {% elif doc.status == 'graphing' %}图谱抽取中
-                    {% elif doc.status == 'done' %}已完成
-                    {% elif doc.status == 'failed' %}失败
-                    {% endif %}
-                  </span>
-                  {% if doc.last_recognition_at %}
-                  <small class="text-muted" style="font-size:.68rem;white-space:nowrap;">
-                    {{ '重识' if doc.last_recognition_type == 'reprocess' else '新传' }}
-                    ·{{ doc.last_recognition_at.strftime('%m-%d %H:%M') }}
-                    {% if doc.recognition_count > 1 %}·第{{ doc.recognition_count }}次{% endif %}
-                  </small>
-                  {% endif %}
-                </div>
-                {% if doc.error %}<small class="text-muted d-block" style="font-size:.68rem;">{{ doc.error[:60] }}</small>{% endif %}
-              </td>
-              <td><small class="text-muted">{{ doc.created_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
-            </tr>
-            {% else %}
-            <tr><td colspan="{{ 6 if current_user.role == 'admin' else 5 }}" class="text-center py-4 text-muted">
-              <div class="empty-state">
-                <svg viewBox="0 0 96 96" fill="none"><rect x="16" y="12" width="64" height="72" rx="8" fill="var(--gray-100)" stroke="var(--gray-300)" stroke-width="2"/><path d="M32 30h32M32 44h32M32 58h20" stroke="var(--primary)" stroke-width="3" stroke-linecap="round"/><circle cx="66" cy="68" r="12" fill="#fff" stroke="var(--gray-300)" stroke-width="2"/><path d="M66 63v10M61 68h10" stroke="var(--primary)" stroke-width="3" stroke-linecap="round"/></svg>
-                <div class="es-title">还没有文档</div>
-                <div class="es-sub">上传 PDF / 图片 / Markdown / 文本或 HTML，开始建立你的知识库。</div>
-                <button class="btn btn-sm btn-primary" type="button" onclick="document.getElementById('dropFileInput').click()"><i class="bi bi-cloud-arrow-up"></i> 上传文档</button>
-              </div>
-            </td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+    </div>
+  </div>
+</div>
 
-      <!-- Mobile Cards -->
-      <div class="d-md-none px-3 pb-3" id="kbCardList">
-        <div class="d-flex align-items-center gap-2 mb-2" style="font-size:.8rem;">
-          <input type="checkbox" id="checkAllMobile" onchange="toggleAll(this.checked)">
-          <label for="checkAllMobile" class="mb-0 text-muted" style="cursor:pointer;">全选</label>
-        </div>
-        {% for doc in docs %}
-        <div class="card mb-2" style="border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.05);" data-doc-id="{{ doc.id }}">
-          <div class="card-body p-3">
-            <div class="d-flex align-items-start gap-2">
-              {% if current_user.role == 'admin' or doc.id in manageable_ids %}<input type="checkbox" class="doc-check mt-1" value="{{ doc.id }}" onchange="refreshBulk()">{% endif %}
-              <div class="flex-grow-1" style="min-width:0;">
-                <a href="{{ url_for('kb.doc_detail', doc_id=doc.id) }}" style="color:var(--gray-800);text-decoration:none;font-weight:600;font-size:.88rem;">{{ doc.title }}</a>
-                {% if doc.collection %}
-                <span class="badge" style="background:{{ doc.collection.color }}22;color:{{ doc.collection.color }};margin-left:4px;">{{ doc.collection.name }}</span>
-                {% endif %}
-                <div class="d-flex align-items-center gap-2 mt-1 flex-wrap">
-                  <span class="badge badge-low">{{ doc.file_type|upper }}</span>
-                  <span class="status-badge status-{{ doc.status }}" data-status="{{ doc.id }}">
-                    {% if doc.status == 'queued' %}等待识别
-                    {% elif doc.status == 'ocr' %}OCR 中
-                    {% elif doc.status == 'embedding' %}向量化中
-                    {% elif doc.status == 'graphing' %}图谱抽取中
-                    {% elif doc.status == 'done' %}已完成
-                    {% elif doc.status == 'failed' %}失败
-                    {% endif %}
-                  </span>
-                  {% if doc.last_recognition_at %}
-                  <small class="text-muted" style="font-size:.68rem;white-space:nowrap;">
-                    {{ '重识' if doc.last_recognition_type == 'reprocess' else '新传' }}
-                    ·{{ doc.last_recognition_at.strftime('%m-%d %H:%M') }}
-                    {% if doc.recognition_count > 1 %}·第{{ doc.recognition_count }}次{% endif %}
-                  </small>
-                  {% endif %}
-                  <small class="text-muted" style="font-size:.68rem;">{{ doc.created_at.strftime('%m-%d %H:%M') }}</small>
-                </div>
-                {% if doc.error %}<small class="text-muted d-block" style="font-size:.7rem;">{{ doc.error[:60] }}</small>{% endif %}
-              </div>
-            </div>
-          </div>
-        </div>
-        {% else %}
-        <div class="text-center py-4 text-muted" style="font-size:.8rem;">
-          <div class="empty-state">
-            <svg viewBox="0 0 96 96" fill="none"><rect x="16" y="12" width="64" height="72" rx="8" fill="var(--gray-100)" stroke="var(--gray-300)" stroke-width="2"/><path d="M32 30h32M32 44h32M32 58h20" stroke="var(--primary)" stroke-width="3" stroke-linecap="round"/><circle cx="66" cy="68" r="12" fill="#fff" stroke="var(--gray-300)" stroke-width="2"/><path d="M66 63v10M61 68h10" stroke="var(--primary)" stroke-width="3" stroke-linecap="round"/></svg>
-            <div class="es-title">还没有文档</div>
-            <div class="es-sub">上传 PDF / 图片 / Markdown / 文本或 HTML，开始建立你的知识库。</div>
-            <button class="btn btn-sm btn-primary" type="button" onclick="document.getElementById('dropFileInput').click()"><i class="bi bi-cloud-arrow-up"></i> 上传文档</button>
-          </div>
-        </div>
-        {% endfor %}
+<!-- 重命名弹窗 -->
+<div class="modal fade" id="renameModal" tabindex="-1">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title" style="font-size:.9rem;">重命名文档</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      {% if pagination.pages > 1 %}
-      <div class="card-body py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <small class="text-muted">共 {{ pagination.total }} 篇文档</small>
-        <nav>
-          <ul class="pagination pagination-sm mb-0">
-            <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
-              <a class="page-link" {% if pagination.has_prev %}href="{{ url_for('kb.index', collection=active_collection or None, group=group or None, q=q or None, page=pagination.prev_num) }}"{% endif %}>上一页</a>
-            </li>
-            {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=1) %}
-              {% if p %}
-              <li class="page-item {{ 'active' if p == pagination.page }}">
-                <a class="page-link" href="{{ url_for('kb.index', collection=active_collection or None, group=group or None, q=q or None, page=p) }}">{{ p }}</a>
-              </li>
-              {% else %}
-              <li class="page-item disabled"><span class="page-link">…</span></li>
-              {% endif %}
-            {% endfor %}
-            <li class="page-item {{ 'disabled' if not pagination.has_next }}">
-              <a class="page-link" {% if pagination.has_next %}href="{{ url_for('kb.index', collection=active_collection or None, q=q or None, page=pagination.next_num) }}"{% endif %}>下一页</a>
-            </li>
-          </ul>
-        </nav>
+      <div class="modal-body">
+        <input type="text" id="renameInput" class="form-control" placeholder="文档标题">
       </div>
-      {% endif %}
+      <div class="modal-footer">
+        <button class="btn btn-sm" data-bs-dismiss="modal" style="background:var(--gray-100);color:var(--gray-600);">取消</button>
+        <button class="btn btn-sm btn-primary" onclick="kbRenameSave()">保存</button>
+      </div>
     </div>
   </div>
 </div>
@@ -350,46 +344,549 @@
 {% endblock %}
 {% block extra_js %}
 <script>
-(function dropUpload() {
+window.KB_INIT = {{ docs_json|safe }};
+window.KB_FILTER = {collection: {{ active_collection or 'null' }}, group: {{ group|tojson }}, q: {{ q|tojson }}};
+window.KB_URLS = {
+  docs: '{{ url_for('kb.api_docs') }}',
+  upload: '{{ url_for('kb.upload') }}',
+  chunk: '{{ url_for('kb.api_upload_chunk') }}',
+  complete: '{{ url_for('kb.api_upload_complete') }}',
+  bulk: '{{ url_for('kb.bulk') }}',
+  queue: '{{ url_for('kb.api_queue') }}',
+  exportTxt: '{{ url_for('kb.export_txt') }}',
+  assign: '{{ url_for('kb.api_collection_assign') }}'
+};
+</script>
+<script>
+/* ============ 状态 & 渲染(虚拟滚动) ============ */
+(function () {
+  var ROW_H = 54;
+  var state = window.__kb = {
+    docs: window.KB_INIT || [],
+    sel: new Set(),
+    filter: window.KB_FILTER
+  };
+  var VS = document.getElementById('kbVS');
+  var ROWS = document.getElementById('kbRows');
+  var selAll = document.getElementById('kbSelAll');
+
+  function esc(s) { s = (s == null ? '' : String(s)); var d = document.createElement('div'); d.textContent = s; return d.innerHTML.replace(/"/g, '&quot;'); }
+  var COL_KEYS = ['cb', 'type', 'pages', 'status', 'time'];
+
+  /* 列宽(记忆) */
+  (function colWidths() {
+    var KEY = 'kb_col_widths';
+    try {
+      var saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+      Object.keys(saved).forEach(function (k) {
+        document.querySelector('.kb-table').style.setProperty('--w-' + k, saved[k] + 'px');
+      });
+    } catch (e) {}
+    document.querySelectorAll('.kb-resize').forEach(function (h) {
+      h.addEventListener('mousedown', function (ev) {
+        ev.preventDefault();
+        var col = h.getAttribute('data-col');
+        var root = document.querySelector('.kb-table');
+        var startX = ev.clientX;
+        var startW = parseFloat(getComputedStyle(root).getPropertyValue('--w-' + col)) || 90;
+        function onMove(e) {
+          var w = Math.max(48, startW + (e.clientX - startX));
+          root.style.setProperty('--w-' + col, w + 'px');
+        }
+        function onUp() {
+          var w = parseFloat(getComputedStyle(root).getPropertyValue('--w-' + col));
+          try {
+            var saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+            saved[col] = w;
+            localStorage.setItem(KEY, JSON.stringify(saved));
+          } catch (e) {}
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+    });
+  })();
+
+  function findDoc(id) { id = Number(id); for (var i = 0; i < state.docs.length; i++) if (state.docs[i].id === id) return state.docs[i]; return null; }
+
+  function rowHtml(d, i) {
+    var cb = d.can_manage
+      ? '<input type="checkbox" class="doc-check" value="' + d.id + '"' + (state.sel.has(String(d.id)) ? ' checked' : '') + ' onchange="window.__kb && kbSelToggle(this)">'
+      : '';
+    var col = d.collection_name
+      ? '<span class="kb-col-badge" style="background:' + esc(d.collection_color) + '22;color:' + esc(d.collection_color) + ';">' + esc(d.collection_name) + '</span>'
+      : '';
+    var ops = d.can_manage
+      ? '<div class="dropdown kb-drop"><button class="btn btn-xs-custom" data-bs-toggle="dropdown" style="background:transparent;border:none;color:var(--gray-400);padding:2px 8px;"><i class="bi bi-three-dots-vertical"></i></button>' +
+        '<ul class="dropdown-menu dropdown-menu-end">' +
+        '<li><a class="dropdown-item" href="#" onclick="kbRename(' + d.id + ');return false;"><i class="bi bi-pencil"></i> 重命名</a></li>' +
+        '<li><a class="dropdown-item" href="#" onclick="kbReprocessOne(' + d.id + ');return false;"><i class="bi bi-arrow-repeat"></i> 重新识别</a></li>' +
+        '<li><a class="dropdown-item" href="#" onclick="window.open(\'' + d.detail_url + '\');return false;"><i class="bi bi-box-arrow-up-right"></i> 打开详情</a></li>' +
+        '<li><hr class="dropdown-divider"></li>' +
+        '<li><a class="dropdown-item text-danger" href="#" onclick="kbDeleteOne(' + d.id + ');return false;"><i class="bi bi-trash"></i> 删除</a></li>' +
+        '</ul></div>'
+      : '';
+    return '<div class="kb-row" style="top:' + (i * ROW_H) + 'px" data-id="' + d.id + '">' +
+      '<div class="kb-col kb-cb">' + cb + '</div>' +
+      '<div class="kb-col kb-title"><a class="kb-title-link" onclick="kbPreview(' + d.id + ');return false;" title="点击预览">' + esc(d.title) + '</a>' + col + '</div>' +
+      '<div class="kb-col kb-type"><span class="badge badge-low">' + esc(d.file_type) + '</span></div>' +
+      '<div class="kb-col kb-pages">' + (d.page_count || '-') + '</div>' +
+      '<div class="kb-col kb-status"><span class="status-badge status-' + esc(d.status) + '" data-status="' + d.id + '">' + esc(d.status_label) + '</span></div>' +
+      '<div class="kb-col kb-time">' + esc(d.created_short) + '</div>' +
+      '<div class="kb-col kb-ops">' + ops + '</div>' +
+      '</div>';
+  }
+
+  function draw() {
+    var total = state.docs.length;
+    if (!total) return;
+    var st = VS.scrollTop;
+    var vh = VS.clientHeight || 560;
+    var start = Math.max(0, Math.floor(st / ROW_H) - 6);
+    var end = Math.min(total, Math.ceil((st + vh) / ROW_H) + 6);
+    var html = '';
+    for (var i = start; i < end; i++) html += rowHtml(state.docs[i], i);
+    ROWS.innerHTML = html;
+  }
+
+  function render() {
+    var total = state.docs.length;
+    document.getElementById('kbTotal').textContent = total;
+    document.getElementById('kbDocCount').textContent = '共 ' + total + ' 条';
+    var empty = document.getElementById('kbEmpty');
+    var vs = document.getElementById('kbVS');
+    empty.classList.toggle('d-none', total > 0);
+    vs.classList.toggle('d-none', total === 0);
+    renderMobile();
+    if (!total) { ROWS.innerHTML = ''; return; }
+    ROWS.style.height = (total * ROW_H) + 'px';
+    VS.style.height = total > 100 ? 'min(520px, calc(100vh - 330px))' : 'auto';
+    VS.scrollTop = 0;
+    draw();
+  }
+
+  /* 移动端卡片 */
+  function renderMobile() {
+    var c = document.getElementById('kbCards');
+    var list = state.docs;
+    if (!list.length) {
+      c.innerHTML = '<div class="text-center py-4 text-muted" style="font-size:.8rem;">暂无文档</div>';
+      return;
+    }
+    c.innerHTML = list.map(function (d) {
+      var cb = d.can_manage
+        ? '<input type="checkbox" class="doc-check mt-1" value="' + d.id + '"' + (state.sel.has(String(d.id)) ? ' checked' : '') + ' onchange="kbSelToggle(this)">'
+        : '';
+      return '<div class="card kb-mcard mb-2" data-id="' + d.id + '"><div class="card-body p-3">' +
+        '<div class="d-flex align-items-start gap-2">' + cb +
+        '<div class="flex-grow-1" style="min-width:0;">' +
+        '<a class="kb-title-link" style="font-size:.88rem;" onclick="kbPreview(' + d.id + ');return false;">' + esc(d.title) + '</a>' +
+        (d.collection_name ? '<span class="kb-col-badge" style="background:' + esc(d.collection_color) + '22;color:' + esc(d.collection_color) + ';">' + esc(d.collection_name) + '</span>' : '') +
+        '<div class="d-flex align-items-center gap-2 mt-1 flex-wrap" style="font-size:.72rem;">' +
+        '<span class="badge badge-low">' + esc(d.file_type) + '</span>' +
+        '<span class="status-badge status-' + esc(d.status) + '" data-status="' + d.id + '">' + esc(d.status_label) + '</span>' +
+        (d.page_count ? '<span class="text-muted">' + d.page_count + ' 页</span>' : '') +
+        '<small class="text-muted">' + esc(d.created_short) + '</small></div></div></div></div></div>';
+    }).join('');
+  }
+
+  /* 加载文档(实时搜索/操作后刷新) */
+  function kbLoad(done) {
+    var params = [];
+    var f = state.filter;
+    if (f.collection) params.push('collection=' + f.collection);
+    if (f.group) params.push('group=' + encodeURIComponent(f.group));
+    if (f.q) params.push('q=' + encodeURIComponent(f.q));
+    fetch(window.KB_URLS.docs + (params.length ? '?' + params.join('&') : ''))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) { if (window.toast) toast(d.error || '加载失败', 'danger'); return; }
+        state.docs = d.docs;
+        state.sel.clear();
+        render();
+        kbRefreshBar();
+        kbPollStatus();
+        if (done) done();
+      }).catch(function () {
+        if (window.toast) toast('加载失败', 'danger');
+        if (done) done();
+      });
+  }
+
+  /* 实时搜索(防抖 300ms) */
+  var sTimer = null;
+  var sInput = document.getElementById('kbSearch');
+  sInput.addEventListener('input', function () {
+    clearTimeout(sTimer);
+    sTimer = setTimeout(function () {
+      state.filter.q = sInput.value.trim();
+      var p = new URLSearchParams(window.location.search);
+      p.set('q', state.filter.q || '');
+      if (!state.filter.q) p.delete('q');
+      if (state.filter.collection) p.set('collection', state.filter.collection);
+      if (state.filter.group) p.set('group', state.filter.group);
+      history.replaceState(null, '', '/kb?' + p.toString());
+      kbLoad();
+    }, 300);
+  });
+
+  /* localStorage 记住上次文档集 */
+  (function remember() {
+    var p = new URLSearchParams(window.location.search);
+    if (p.get('collection') || p.get('group') || p.get('q')) {
+      try { localStorage.setItem('kb_last_filter', JSON.stringify({ collection: p.get('collection'), group: p.get('group') })); } catch (e) {}
+      return;
+    }
+    try {
+      var saved = JSON.parse(localStorage.getItem('kb_last_filter') || 'null');
+      if (saved && (saved.collection || saved.group)) {
+        var qs = [];
+        if (saved.collection) qs.push('collection=' + encodeURIComponent(saved.collection));
+        if (saved.group) qs.push('group=' + encodeURIComponent(saved.group));
+        location.replace('/kb?' + qs.join('&'));
+      }
+    } catch (e) {}
+  })();
+
+  /* 键盘快捷键: Ctrl+A 全选 / Ctrl+F 搜索 / Delete 删除 */
+  document.addEventListener('keydown', function (e) {
+    var tag = (e.target.tagName || '').toLowerCase();
+    var typing = tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable;
+    if (e.key === 'F' && (e.ctrlKey || e.metaKey) && !typing) {
+      e.preventDefault();
+      sInput.focus(); sInput.select();
+      return;
+    }
+    if (e.key === 'a' && (e.ctrlKey || e.metaKey) && !typing) {
+      e.preventDefault();
+      kbSelAll(true);
+      return;
+    }
+    if (e.key === 'Delete' && !typing && state.sel.size) {
+      e.preventDefault();
+      window.bulkDelete();
+    }
+  });
+
+  window.kbSelToggle = function (box) {
+    if (box.checked) state.sel.add(String(box.value)); else state.sel.delete(String(box.value));
+    kbRefreshBar();
+  };
+  window.kbSelAll = function (checked) {
+    if (!checked) { state.sel.clear(); }
+    else {
+      state.docs.forEach(function (d) { if (d.can_manage) state.sel.add(String(d.id)); });
+    }
+    render();
+    kbRefreshBar();
+  };
+  window.kbClearSel = function () { state.sel.clear(); render(); kbRefreshBar(); };
+
+  function kbRefreshBar() {
+    var n = state.sel.size;
+    var bar = document.getElementById('bulkBar');
+    bar.classList.toggle('d-none', n === 0);
+    bar.classList.toggle('d-flex', n > 0);
+    document.getElementById('bulkCount').textContent = '已选 ' + n + ' 项';
+    if (selAll) {
+      var manageable = state.docs.filter(function (d) { return d.can_manage; }).length;
+      selAll.checked = n > 0 && n === manageable;
+    }
+  }
+  window.kbRefreshBar = kbRefreshBar;
+
+  /* 状态轮询(虚拟列表可见行) */
+  var _statusTimer = null;
+  window.kbPollStatus = function () {
+    clearTimeout(_statusTimer);
+    var pending = [];
+    document.querySelectorAll('.status-badge[data-status]').forEach(function (b) {
+      if (!/status-(done|failed)/.test(b.className)) pending.push(b.getAttribute('data-status'));
+    });
+    if (!pending.length) return;
+    var map = { queued: '等待识别', ocr: 'OCR 中', embedding: '向量化中', graphing: '图谱抽取中', done: '已完成', failed: '失败' };
+    var remain = pending.length;
+    pending.forEach(function (id) {
+      fetch('/kb/status/' + id).then(function (r) { return r.json(); }).then(function (d) {
+        if (d && d.ok) {
+          document.querySelectorAll('.status-badge[data-status="' + id + '"]').forEach(function (b) {
+            b.className = 'status-badge status-' + d.status;
+            b.textContent = map[d.status] || d.status;
+          });
+        }
+        remain--; if (remain === 0) _statusTimer = setTimeout(kbPollStatus, 3000);
+      }).catch(function () { remain--; if (remain === 0) _statusTimer = setTimeout(kbPollStatus, 3000); });
+    });
+  };
+
+  VS.addEventListener('scroll', function () { if (state.docs.length) requestAnimationFrame(draw); }, { passive: true });
+
+  /* 集合链接: 保存筛选到 localStorage */
+  document.querySelectorAll('.kb-coll-link').forEach(function (a) {
+    a.addEventListener('click', function () {
+      try {
+        var p = new URLSearchParams(a.getAttribute('href'));
+        localStorage.setItem('kb_last_filter', JSON.stringify({ collection: p.get('collection'), group: p.get('group') }));
+      } catch (e) {}
+    });
+  });
+
+  window.__kbLoad = kbLoad;
+  render();
+  kbRefreshBar();
+  kbPollStatus();
+})();
+</script>
+<script>
+/* ============ 预览 / 重命名 / 确认弹窗 ============ */
+(function () {
+  function esc(s) { s = (s == null ? '' : String(s)); var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  function doc(id) {
+    var list = window.__kb && window.__kb.docs || [];
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return null;
+  }
+  var IMG = ['PDF', 'PNG', 'JPG', 'JPEG', 'BMP', 'TIF', 'TIFF', 'WEBP'];
+
+  window.kbPreview = function (id) {
+    var d = doc(id);
+    if (!d) return;
+    document.getElementById('previewTitle').textContent = d.title;
+    var link = document.getElementById('previewDetailLink');
+    link.href = d.detail_url;
+    var body = document.getElementById('previewBody');
+    body.innerHTML = '<div class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm"></span> 加载中...</div>';
+    new bootstrap.Modal(document.getElementById('previewModal')).show();
+    var ft = (d.file_type || '').toUpperCase();
+    if (IMG.indexOf(ft) !== -1) {
+      body.innerHTML = '<div class="text-center"><img src="' + d.preview_url + '" class="kb-prev-img" alt="预览" onerror="this.closest(\'div\').innerHTML=\'<div class=text-center text-muted py-5>无法预览该文件</div>\'"></div>';
+    } else if (ft === 'HTML' || ft === 'HTM') {
+      body.innerHTML = '<iframe class="kb-prev-frame" src="' + d.preview_url + '" sandbox=""></iframe>';
+    } else {
+      fetch(d.preview_url).then(function (r) {
+        if (!r.ok) throw new Error('load fail');
+        return r.text();
+      }).then(function (t) {
+        body.innerHTML = '<pre class="kb-prev-text">' + esc(t.slice(0, 50000)) + '</pre>';
+      }).catch(function () {
+        body.innerHTML = '<div class="text-center text-muted py-5">无法预览该文件</div>';
+      });
+    }
+  };
+
+  /* 通用确认弹窗 */
+  var confirmCb = null;
+  window.kbConfirm = function (title, bodyHtml, okText, onOk) {
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmBody').innerHTML = bodyHtml;
+    document.getElementById('confirmOk').textContent = okText || '确认';
+    confirmCb = onOk;
+    new bootstrap.Modal(document.getElementById('confirmModal')).show();
+  };
+  document.getElementById('confirmOk').addEventListener('click', function () {
+    bootstrap.Modal.getInstance(document.getElementById('confirmModal')).hide();
+    if (confirmCb) { var cb = confirmCb; confirmCb = null; cb(); }
+  });
+
+  /* 重命名 */
+  var renameId = null;
+  window.kbRename = function (id) {
+    var d = doc(id);
+    if (!d) return;
+    renameId = id;
+    document.getElementById('renameInput').value = d.title;
+    new bootstrap.Modal(document.getElementById('renameModal')).show();
+    setTimeout(function () { document.getElementById('renameInput').focus(); document.getElementById('renameInput').select(); }, 100);
+  };
+  window.kbRenameSave = function () {
+    var title = document.getElementById('renameInput').value.trim();
+    if (!renameId || !title) return;
+    fetch('/kb/api/docs/' + renameId, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: title })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      bootstrap.Modal.getInstance(document.getElementById('renameModal')).hide();
+      if (!d.ok) { if (window.toast) toast(d.error || '保存失败', 'danger'); return; }
+      if (window.toast) toast('已重命名', 'success');
+      window.__kbLoad();
+    }).catch(function () { if (window.toast) toast('网络错误', 'danger'); });
+  };
+
+  window.kbDeleteOne = function (id) {
+    var d = doc(id);
+    var name = d ? d.title : '';
+    window.kbConfirm('删除文档', '确定删除「' + esc(name) + '」?<br><small class="text-muted">将同时清除向量索引，此操作不可恢复。</small>', '删除', function () {
+      fetch('/kb/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', doc_ids: [id] })
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.ok) { if (window.toast) toast(d.error || '删除失败', 'danger'); return; }
+        if (window.toast) toast('已删除', 'success');
+        window.__kbLoad();
+      }).catch(function () { if (window.toast) toast('网络错误', 'danger'); });
+    });
+  };
+  window.kbReprocessOne = function (id) {
+    window.kbConfirm('重新识别', '确认重新识别该文档?', '开始', function () {
+      fetch('/kb/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reprocess', doc_ids: [id] })
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.ok) { if (window.toast) toast(d.error || '操作失败', 'danger'); return; }
+        if (window.toast) toast('已加入识别队列', 'success');
+        window.__kbLoad();
+      }).catch(function () { if (window.toast) toast('网络错误', 'danger'); });
+    });
+  };
+
+  /* 上传区折叠 */
+  window.toggleUploadBody = function () {
+    var head = document.querySelector('.kb-collapse-head');
+    var body = document.getElementById('uploadBody');
+    head.classList.toggle('collapsed');
+    body.classList.toggle('d-none');
+  };
+})();
+</script>
+<script>
+/* ============ 上传(单请求 + 分片 >10MB) ============ */
+(function () {
   var zone = document.getElementById('dropZone');
   if (!zone) return;
   var fileInput = document.getElementById('dropFileInput');
-  var form = document.createElement('form');
-  form.method = 'POST';
-  form.action = '{{ url_for('kb.upload') }}';
-  form.enctype = 'multipart/form-data';
-  form.style.display = 'none';
-  document.body.appendChild(form);
-  function upload(files) {
-    var list = Array.prototype.filter.call(files, function (f) {
-      var ext = (f.name.split('.').pop() || '').toLowerCase();
-      return ['.pdf', '.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff', '.webp', '.txt', '.md', '.markdown', '.html', '.htm'].indexOf('.' + ext) !== -1;
-    });
-    if (!list.length) return;
-    var cidEl = document.getElementById('uploadCollection');
-    var cid = cidEl ? cidEl.value : '';
-    var fd = new FormData();
-    if (cid) fd.append('collection_id', cid);
-    list.forEach(function (f) { fd.append('file', f); });
-    form.innerHTML = '';
-    fetch(form.action, { method: 'POST', body: fd })
-      .then(function (r) { if (r.ok) { location.reload(); } else { alert('上传失败'); } })
-      .catch(function () { alert('上传失败'); });
+  var ALLOWED = ['.pdf', '.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff', '.webp', '.txt', '.md', '.markdown', '.html', '.htm'];
+  var CHUNK_THRESHOLD = 10 * 1024 * 1024;
+  var CHUNK_SIZE = 5 * 1024 * 1024;
+
+  function ext(f) { return (f.name.split('.').pop() || '').toLowerCase(); }
+  function esc(s) { s = (s == null ? '' : String(s)); var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  function cid() { var el = document.getElementById('uploadCollection'); return el ? el.value : ''; }
+
+  var card = document.getElementById('uploadProgressCard');
+  var list = document.getElementById('uploadProgressList');
+  var pct = {};
+
+  function showCard() { card.classList.remove('d-none'); }
+  function hideCard() { card.classList.add('d-none'); pct = {}; list.innerHTML = ''; }
+
+  function addFileRow(f) {
+    var row = document.createElement('div');
+    row.className = 'kb-uprow';
+    row.innerHTML = '<span class="text-truncate" style="max-width:220px;">' + esc(f.name) + '</span>' +
+      '<div class="progress-custom" style="height:6px;"><div class="progress-custom-bar" style="width:0%;background:var(--primary);"></div></div>' +
+      '<small class="kb-pct" style="width:44px;text-align:right;">0%</small>';
+    list.appendChild(row);
+    pct[f.name] = { row: row, bar: row.querySelector('.progress-custom-bar'), label: row.querySelector('.kb-pct') };
   }
+  function setPct(name, p) {
+    var o = pct[name];
+    if (!o) return;
+    o.bar.style.width = Math.round(p * 100) + '%';
+    o.label.textContent = Math.round(p * 100) + '%';
+  }
+
+  function uploadSingle(f, done) {
+    var fd = new FormData();
+    if (cid()) fd.append('collection_id', cid());
+    fd.append('file', f);
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', window.KB_URLS.upload);
+    xhr.upload.onprogress = function (e) { if (e.lengthComputable) setPct(f.name, e.loaded / e.total); };
+    xhr.onload = function () {
+      var d = null;
+      try { d = JSON.parse(xhr.responseText); } catch (e) {}
+      if (xhr.status >= 200 && xhr.status < 300 && d && d.ok) { setPct(f.name, 1); }
+      else if (window.toast) toast((d && d.error) || '上传失败', 'danger');
+      done();
+    };
+    xhr.onerror = function () { if (window.toast) toast('网络错误，请重试', 'danger'); done(); };
+    xhr.send(fd);
+  }
+
+  function uploadChunked(f, done) {
+    var uploadId = 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    var total = Math.max(1, Math.ceil(f.size / CHUNK_SIZE));
+    var idx = 0;
+    function next() {
+      var start = idx * CHUNK_SIZE;
+      var blob = f.slice(start, Math.min(f.size, start + CHUNK_SIZE));
+      var fd = new FormData();
+      fd.append('upload_id', uploadId);
+      fd.append('index', idx);
+      fd.append('total', total);
+      fd.append('file', blob, f.name);
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', window.KB_URLS.chunk);
+      xhr.onload = function () {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          idx++;
+          setPct(f.name, idx / total);
+          if (idx < total) next(); else complete();
+        } else { if (window.toast) toast(f.name + ' 分片上传失败', 'danger'); done(); }
+      };
+      xhr.onerror = function () { if (window.toast) toast('网络错误，请重试', 'danger'); done(); };
+      xhr.send(fd);
+    }
+    function complete() {
+      var fd = new FormData();
+      fd.append('upload_id', uploadId);
+      fd.append('filename', f.name);
+      fd.append('total', total);
+      if (cid()) fd.append('collection_id', cid());
+      fetch(window.KB_URLS.complete, { method: 'POST', body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d.ok) { if (window.toast) toast(d.error || '合并失败', 'danger'); }
+          else setPct(f.name, 1);
+          done();
+        }).catch(function () { if (window.toast) toast('网络错误，请重试', 'danger'); done(); });
+    }
+    next();
+  }
+
+  function upload(files) {
+    var fList = Array.prototype.filter.call(files, function (f) {
+      return ALLOWED.indexOf('.' + ext(f)) !== -1;
+    });
+    if (!fList.length) { if (window.toast) toast('没有支持的文件', 'warning'); return; }
+    fList.forEach(addFileRow);
+    showCard();
+    var total = fList.length;
+    var doneCount = 0;
+    fList.forEach(function (f) {
+      var fin = function () {
+        doneCount++;
+        if (doneCount === total) {
+          if (window.toast) toast('上传完成，已加入识别队列', 'success');
+          setTimeout(function () {
+            hideCard();
+            window.__kbLoad();
+            var head = document.querySelector('.kb-collapse-head');
+            if (head && !head.classList.contains('collapsed')) { head.classList.add('collapsed'); document.getElementById('uploadBody').classList.add('d-none'); }
+          }, 600);
+        }
+      };
+      if (f.size > CHUNK_THRESHOLD) uploadChunked(f, fin); else uploadSingle(f, fin);
+    });
+  }
+
   zone.addEventListener('click', function () { fileInput.click(); });
   fileInput.addEventListener('change', function () { upload(fileInput.files); fileInput.value = ''; });
   ['dragenter', 'dragover'].forEach(function (ev) {
     zone.addEventListener(ev, function (e) {
-      e.preventDefault();
-      e.stopPropagation();
+      e.preventDefault(); e.stopPropagation();
       zone.style.borderColor = 'var(--primary)';
       zone.style.background = 'var(--primary-light)';
     });
   });
   ['dragleave', 'drop'].forEach(function (ev) {
     zone.addEventListener(ev, function (e) {
-      e.preventDefault();
-      e.stopPropagation();
+      e.preventDefault(); e.stopPropagation();
       zone.style.borderColor = 'var(--gray-300)';
       zone.style.background = 'var(--gray-50)';
     });
@@ -398,18 +895,230 @@
 })();
 </script>
 <script>
-(function pollQueue() {
+/* ============ 批量操作 & 集合操作 ============ */
+(function () {
+  function selected() { return Array.from(window.__kb.sel); }
+  function setBulkBusy(on) {
+    var bar = document.getElementById('bulkBar');
+    if (!bar) return;
+    bar.querySelectorAll('button').forEach(function (b) { b.disabled = on; });
+    var s = document.getElementById('kbBulkSpinner');
+    if (on && !s) {
+      var el = document.createElement('span'); el.id = 'kbBulkSpinner';
+      el.className = 'spinner-border spinner-border-sm text-primary';
+      el.style.cssText = 'width:.8rem;height:.8rem;';
+      bar.insertBefore(el, bar.firstChild);
+    } else if (!on && s) { s.remove(); }
+  }
+  function post(action, ids) {
+    return fetch(window.KB_URLS.bulk, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: action, doc_ids: ids })
+    }).then(function (r) { return r.json(); });
+  }
+  function reload() { window.__kbLoad(); }
+
+  window.bulkDelete = function () {
+    var ids = selected();
+    if (!ids.length) return;
+    window.kbConfirm('删除文档', '确定删除选中的 <b>' + ids.length + '</b> 个文档?<br><small class="text-muted">将同时清除向量索引，此操作不可恢复。</small>', '删除', function () {
+      setBulkBusy(true);
+      post('delete', ids.map(Number)).then(function (d) {
+        setBulkBusy(false);
+        if (!d.ok) { if (window.toast) toast(d.error || '删除失败', 'danger'); return; }
+        if (window.toast) toast('已删除 ' + (d.deleted || 0) + ' 个文档', 'success');
+        reload();
+      }).catch(function () { setBulkBusy(false); if (window.toast) toast('网络错误', 'danger'); });
+    });
+  };
+
+  var reproTimer = null;
+  var statusMap = { queued: '等待识别', ocr: 'OCR 中', embedding: '向量化中', graphing: '图谱抽取中', done: '已完成', failed: '失败' };
+  function showReprogress(ids) {
+    var bar = document.getElementById('bulkReprogress');
+    bar.classList.remove('d-none'); bar.classList.add('d-flex');
+    document.getElementById('reprogressText').textContent = '重新识别中 ' + ids.length + ' 个文档...';
+    clearTimeout(reproTimer);
+    pollReprogress(ids);
+  }
+  function pollReprogress(ids) {
+    var updated = 0;
+    var states = { queued: 0, ocr: 0, embedding: 0, graphing: 0, done: 0, failed: 0 };
+    ids.forEach(function (id) {
+      fetch('/kb/status/' + id).then(function (r) { return r.json(); }).then(function (d) {
+        if (d && d.ok) {
+          states[d.status] = (states[d.status] || 0) + 1;
+          document.querySelectorAll('.status-badge[data-status="' + id + '"]').forEach(function (b) {
+            b.className = 'status-badge status-' + d.status;
+            b.textContent = statusMap[d.status] || d.status;
+          });
+        } else states.queued++;
+        updated++;
+        if (updated !== ids.length) return;
+        var fin = (states.done || 0) + (states.failed || 0);
+        document.getElementById('reprogressText').textContent = fin === ids.length
+          ? '重新识别完成 ' + (states.done || 0) + '/' + ids.length
+          : '重新识别中 已完成 ' + (states.done || 0) + '/' + ids.length +
+            (states.queued ? ' · 等待 ' + states.queued : '') +
+            (states.ocr ? ' · OCR ' + states.ocr : '') +
+            (states.embedding ? ' · 向量 ' + states.embedding : '') +
+            (states.failed ? ' · 失败 ' + states.failed : '');
+        clearTimeout(reproTimer);
+        reproTimer = fin === ids.length
+          ? setTimeout(function () {
+              document.getElementById('bulkReprogress').classList.add('d-none');
+              reload();
+            }, 1500)
+          : setTimeout(function () { pollReprogress(ids); }, 2000);
+      }).catch(function () {
+        updated++;
+        if (updated === ids.length) {
+          clearTimeout(reproTimer);
+          reproTimer = setTimeout(function () { pollReprogress(ids); }, 2000);
+        }
+      });
+    });
+  }
+  window.bulkReprocess = function () {
+    var ids = selected();
+    if (!ids.length) return;
+    window.kbConfirm('重新识别', '确认重新识别选中的 <b>' + ids.length + '</b> 个文档?', '开始', function () {
+      setBulkBusy(true);
+      post('reprocess', ids.map(Number)).then(function (d) {
+        setBulkBusy(false);
+        if (!d.ok) { if (window.toast) toast(d.error || '操作失败', 'danger'); return; }
+        showReprogress(ids);
+      }).catch(function () { setBulkBusy(false); if (window.toast) toast('网络错误', 'danger'); });
+    });
+  };
+  window.bulkAutoArchive = function () {
+    var ids = selected();
+    if (!ids.length) return;
+    window.kbConfirm('自动归档', '确认对选中的 <b>' + ids.length + '</b> 个文档执行自动分类归档?<br><small class="text-muted">未识别完成、无分类结果或已手动归档的文档将被跳过。</small>', '开始', function () {
+      setBulkBusy(true);
+      post('auto_archive', ids.map(Number)).then(function (d) {
+        setBulkBusy(false);
+        if (!d.ok) { if (window.toast) toast(d.error || '操作失败', 'danger'); return; }
+        var msg = '自动归档完成:成功 ' + (d.archived || []).length + ' 个';
+        if (d.created && d.created.length) msg += '，新建合集: ' + d.created.join('、');
+        if (d.skipped) msg += '，跳过 ' + d.skipped + ' 个';
+        if (window.toast) toast(msg, 'success');
+        reload();
+      }).catch(function () { setBulkBusy(false); if (window.toast) toast('网络错误', 'danger'); });
+    });
+  };
+  window.bulkExport = function () {
+    var ids = selected();
+    if (!ids.length) return;
+    post('export', ids.map(Number)).then(function (r) {
+      var el = document.createElement('a');
+      el.href = URL.createObjectURL(new Blob([JSON.stringify(r, null, 2)], { type: 'application/json' }));
+      el.download = 'knowledge-selection.json';
+      document.body.appendChild(el);
+      el.click();
+      setTimeout(function () { URL.revokeObjectURL(el.href); el.remove(); }, 100);
+    }).catch(function () { if (window.toast) toast('导出失败', 'danger'); });
+  };
+  window.bulkExportTxt = function () {
+    var ids = selected();
+    if (!ids.length) return;
+    window.location.href = window.KB_URLS.exportTxt + '?ids=' + ids.join(',');
+  };
+  window.bulkAssign = function () {
+    var ids = selected();
+    if (!ids.length) return;
+    window._assignIds = ids.map(Number);
+    new bootstrap.Modal(document.getElementById('assignModal')).show();
+  };
+  window.doAssign = function () {
+    var csel = document.getElementById('assignSelect');
+    var cid = csel.value;
+    var ids = window._assignIds || [];
+    if (!ids.length) return;
+    fetch(window.KB_URLS.assign, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ doc_ids: ids, collection_id: cid ? Number(cid) : null })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      bootstrap.Modal.getInstance(document.getElementById('assignModal')).hide();
+      if (!d.ok) { if (window.toast) toast(d.error || '操作失败', 'danger'); return; }
+      if (window.toast) toast('已移动', 'success');
+      reload();
+    }).catch(function () { if (window.toast) toast('网络错误', 'danger'); });
+  };
+
+  /* 集合操作 */
+  var editingId = null;
+  window.showCollectionModal = function (id, name, color, visibility) {
+    editingId = id || null;
+    document.getElementById('collectionName').value = name || '';
+    document.getElementById('collectionColor').value = color || '#8b5cf6';
+    document.getElementById('collectionModalTitle').textContent = id ? '重命名集合' : '新建文档集';
+    var visEl = document.getElementById('collectionVisibility');
+    if (currentUserRole === 'admin') {
+      visEl.style.display = 'block';
+      visEl.value = visibility || 'private';
+    } else { visEl.style.display = 'none'; }
+    new bootstrap.Modal(document.getElementById('collectionModal')).show();
+  };
+  window.saveCollection = function () {
+    var name = document.getElementById('collectionName').value.trim();
+    var color = document.getElementById('collectionColor').value;
+    var visibility = document.getElementById('collectionVisibility').value;
+    if (!name) { if (window.toast) toast('请输入集合名称', 'warning'); return; }
+    var url = editingId
+      ? '{{ url_for('kb.api_collection_update', cid=0) }}'.replace(/0$/, editingId)
+      : '{{ url_for('kb.api_collection_create') }}';
+    var method = editingId ? 'PUT' : 'POST';
+    fetch(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, color: color, visibility: visibility })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      bootstrap.Modal.getInstance(document.getElementById('collectionModal')).hide();
+      if (!d.ok) { if (window.toast) toast(d.error || '操作失败', 'danger'); return; }
+      if (window.toast) toast(editingId ? '已重命名' : '已创建', 'success');
+      location.reload();
+    }).catch(function () { if (window.toast) toast('网络错误', 'danger'); });
+  };
+  window.deleteCollection = function (id, name) {
+    window.kbConfirm('删除文档集', '确定删除集合「' + esc(name) + '」?<br><small class="text-muted">集合内的文档不会被删除。</small>', '删除', function () {
+      fetch('{{ url_for('kb.api_collection_delete', cid=0) }}'.replace(/0$/, id), { method: 'DELETE' })
+        .then(function (r) { return r.text(); }).then(function (t) {
+          var d; try { d = JSON.parse(t); } catch (e) { throw new Error('服务器响应异常'); }
+          if (!d.ok) { if (window.toast) toast(d.error || '操作失败', 'danger'); return; }
+          if (window.toast) toast('已删除', 'success');
+          location.reload();
+        }).catch(function () { if (window.toast) toast('删除失败', 'danger'); });
+    });
+  };
+  window.pruneEmptyCollections = function () {
+    window.kbConfirm('清理空集合', '删除所有没有文档的空集合?', '清理', function () {
+      fetch('{{ url_for('kb.api_collection_prune_empty') }}', { method: 'POST' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d.ok) { if (window.toast) toast(d.error || '操作失败', 'danger'); return; }
+          if (window.toast) toast(d.deleted ? '已删除 ' + d.deleted + ' 个空集合' : '没有空集合', 'success');
+          location.reload();
+        }).catch(function () { if (window.toast) toast('操作失败', 'danger'); });
+    });
+  };
+  function esc(s) { s = (s == null ? '' : String(s)); var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+})();
+</script>
+<script>
+/* ============ 队列轮询(识别进度) ============ */
+(function () {
   var card = document.getElementById('queueCard');
   if (!card) return;
-  var reprogress = document.getElementById('bulkReprogress');
   function poll() {
-    fetch('{{ url_for('kb.api_queue') }}').then(function (r) { return r.json(); }).then(function (d) {
+    fetch(window.KB_URLS.queue).then(function (r) { return r.json(); }).then(function (d) {
       if (!d.ok) return;
       var c = d.counts;
       var p = d.processing || 0;
       var total = d.total || 0;
-      var reprocessing = reprogress && reprogress.classList.contains('d-flex');
-      if (p > 0 && !reprocessing) {
+      if (p > 0) {
         card.classList.remove('d-none');
         document.getElementById('queueSummary').textContent = '已完成 ' + (c.done || 0) + '/' + total + ' 文件';
         document.getElementById('queueDetail').textContent =
@@ -424,319 +1133,6 @@
     }).catch(function () { setTimeout(poll, 6000); });
   }
   poll();
-})();
-</script>
-<script>
-(function pollStatus() {
-  var badges = document.querySelectorAll('.status-badge[data-status]');
-  var pending = [];
-  badges.forEach(function (b) {
-    var s = b.className;
-    if (!/status-(done|failed)/.test(s)) pending.push(b.getAttribute('data-status'));
-  });
-  if (!pending.length) return;
-  var done = 0;
-  pending.forEach(function (id) {
-    fetch('/kb/status/' + id).then(function (r) { return r.json(); }).then(function (d) {
-      if (!d.ok) return;
-      var map = {queued: '等待识别', ocr: 'OCR 中', embedding: '向量化中', graphing: '图谱抽取中', done: '已完成', failed: '失败'};
-      document.querySelectorAll('.status-badge[data-status="' + id + '"]').forEach(function (badge) {
-        if (!badge) return;
-        badge.className = 'status-badge status-' + d.status;
-        badge.textContent = map[d.status] || d.status;
-      });
-      done++;
-      if (done === pending.length) setTimeout(pollStatus, 3000);
-    }).catch(function () { done++; if (done === pending.length) setTimeout(pollStatus, 3000); });
-  });
-})();
-</script>
-<script>
-(function bulkOps() {
-  var selAllIds = null;
-  function selected() {
-    if (selAllIds) return selAllIds.slice();
-    return Array.prototype.map.call(
-      document.querySelectorAll('.doc-check:checked'),
-      function (c) { return c.value; });
-  }
-  function setBar(on) {
-    var bar = document.getElementById('bulkBar');
-    bar.classList.toggle('d-flex', on);
-    bar.classList.toggle('d-none', !on);
-  }
-  window.refreshBulk = function () {
-    var n = selected().length;
-    setBar(n > 0);
-    document.getElementById('bulkCount').textContent = '已选 ' + n + ' 项';
-    var boxes = document.querySelectorAll('.doc-check');
-    var all = selAllIds ? selAllIds.length > 0 : (boxes.length > 0 && n === boxes.length);
-    var checkAll = document.getElementById('checkAll');
-    if (checkAll) checkAll.checked = all;
-    var checkAllMobile = document.getElementById('checkAllMobile');
-    if (checkAllMobile) checkAllMobile.checked = all;
-  };
-  window.toggleAll = function (checked) {
-    if (!checked) {
-      selAllIds = null;
-      document.querySelectorAll('.doc-check').forEach(function (c) { c.checked = false; });
-      refreshBulk();
-      return;
-    }
-    var p = new URLSearchParams(window.location.search);
-    var params = [];
-    if (p.get('collection')) params.push('collection=' + encodeURIComponent(p.get('collection')));
-    if (p.get('group')) params.push('group=' + encodeURIComponent(p.get('group')));
-    if (p.get('q')) params.push('q=' + encodeURIComponent(p.get('q')));
-    fetch('{{ url_for('kb.api_ids') }}' + (params.length ? '?' + params.join('&') : ''))
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        if (!d.ok) { alert(d.error || '获取文档列表失败'); return; }
-        selAllIds = d.ids.map(String);
-        document.querySelectorAll('.doc-check').forEach(function (c) { c.checked = true; });
-        refreshBulk();
-      });
-  };
-  document.querySelectorAll('.doc-check').forEach(function (c) {
-    c.addEventListener('change', function () {
-      if (selAllIds) {
-        if (!c.checked) {
-          selAllIds = selAllIds.filter(function (id) { return id !== c.value; });
-          refreshBulk();
-        }
-      }
-    });
-  });
-   function post(action, ids) {
-     return fetch('{{ url_for('kb.bulk') }}', {
-       method: 'POST',
-       headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify({ action: action, doc_ids: ids })
-     }).then(function (r) { return r.json(); });
-   }
-   function setBulkBusy(on) {
-     var bar = document.getElementById('bulkBar');
-     if (!bar) return;
-     bar.querySelectorAll('button').forEach(function (b) { b.disabled = on; });
-     var existing = document.getElementById('kbBulkSpinner');
-     if (on) {
-       if (!existing) {
-         var s = document.createElement('span'); s.id = 'kbBulkSpinner';
-         s.className = 'spinner-border spinner-border-sm text-primary';
-         s.style.cssText = 'width:.8rem;height:.8rem;';
-         bar.insertBefore(s, bar.firstChild);
-       }
-     } else {
-       if (existing) existing.remove();
-     }
-   }
-  var reproTimer = null;
-  var statusMap = {queued: '等待识别', ocr: 'OCR 中', embedding: '向量化中', graphing: '图谱抽取中', done: '已完成', failed: '失败'};
-  function showReprogress(ids) {
-    var bar = document.getElementById('bulkReprogress');
-    bar.classList.remove('d-none');
-    bar.classList.add('d-flex');
-    document.getElementById('reprogressText').textContent = '重新识别中 ' + ids.length + ' 个文档...';
-    clearTimeout(reproTimer);
-    reproTimer = setTimeout(function () { pollReprogress(ids); }, 1500);
-  }
-  function pollReprogress(ids) {
-    var updated = 0;
-    var states = {queued: 0, ocr: 0, embedding: 0, graphing: 0, done: 0, failed: 0};
-    ids.forEach(function (id) {
-      fetch('/kb/status/' + id).then(function (r) { return r.json(); }).then(function (d) {
-        if (d && d.ok) {
-          states[d.status] = (states[d.status] || 0) + 1;
-          document.querySelectorAll('.status-badge[data-status="' + id + '"]').forEach(function (badge) {
-            badge.className = 'status-badge status-' + d.status;
-            badge.textContent = statusMap[d.status] || d.status;
-          });
-        } else {
-          states.queued++;
-        }
-        updated++;
-        if (updated !== ids.length) return;
-        var fin = (states.done || 0) + (states.failed || 0);
-        var text = '重新识别中 已完成 ' + (states.done || 0) + '/' + ids.length +
-          (states.queued ? ' · 等待识别 ' + states.queued : '') +
-          (states.ocr ? ' · OCR 中 ' + states.ocr : '') +
-          (states.embedding ? ' · 向量化中 ' + states.embedding : '') +
-          (states.graphing ? ' · 图谱抽取中 ' + states.graphing : '') +
-          (states.failed ? ' · 失败 ' + states.failed : '');
-        if (fin === ids.length) {
-          text = '重新识别完成 ' + (states.done || 0) + '/' + ids.length;
-          clearTimeout(reproTimer);
-          reproTimer = setTimeout(function () {
-            document.getElementById('bulkReprogress').classList.add('d-none');
-            location.reload();
-          }, 1500);
-        } else {
-          clearTimeout(reproTimer);
-          reproTimer = setTimeout(function () { pollReprogress(ids); }, 2000);
-        }
-        document.getElementById('reprogressText').textContent = text;
-      }).catch(function () {
-        updated++;
-        if (updated === ids.length) {
-          clearTimeout(reproTimer);
-          reproTimer = setTimeout(function () { pollReprogress(ids); }, 2000);
-        }
-      });
-    });
-  }
-  window.bulkDelete = function () {
-    var ids = selected();
-    if (!ids.length) return;
-    if (!confirm('将删除选中的 ' + ids.length + ' 个文档，同时清除其向量索引，此操作不可恢复。确定继续?')) return;
-    setBulkBusy(true);
-    post('delete', ids).then(function (d) {
-      alert(d.ok ? '已删除 ' + d.deleted + ' 个文档' : (d.error || '删除失败'));
-      if (d.ok) location.reload(); else setBulkBusy(false);
-    }).catch(function () { alert('网络错误，请重试'); setBulkBusy(false); });
-  };
-  window.bulkReprocess = function () {
-    var ids = selected();
-    if (!ids.length) return;
-    if (!confirm('确认重新识别选中的 ' + ids.length + ' 个文档?')) return;
-    setBulkBusy(true);
-    post('reprocess', ids).then(function (d) {
-      if (!d.ok) { alert(d.error || '操作失败'); setBulkBusy(false); return; }
-      var bar = document.getElementById('bulkReprogress');
-      bar.classList.add('d-none');
-      bar.classList.remove('d-flex');
-      showReprogress(ids);
-    }).catch(function () { alert('网络错误，请重试'); setBulkBusy(false); });
-  };
-  window.bulkAutoArchive = function () {
-    var ids = selected();
-    if (!ids.length) return;
-    if (!confirm('确认对选中的 ' + ids.length + ' 个文档执行自动分类归档?\n未识别完成、无分类结果或已手动归档的文档将被跳过。')) return;
-    post('auto_archive', ids).then(function (d) {
-      if (!d.ok) { alert(d.error || '操作失败'); setBulkBusy(false); return; }
-      var msg = '自动归档完成:成功 ' + (d.archived || []).length + ' 个';
-      if (d.created && d.created.length) msg += '\n新建合集: ' + d.created.join('、');
-      if (d.skipped) msg += '\n跳过 ' + d.skipped + ' 个';
-      alert(msg);
-      location.reload();
-    }).catch(function () { alert('网络错误，请重试'); setBulkBusy(false); });
-  };
-  window.bulkExport = function () {
-    var ids = selected();
-    if (!ids.length) return;
-    post('export', ids).then(function (r) {
-      var el = document.createElement('a');
-      el.href = URL.createObjectURL(new Blob([JSON.stringify(r, null, 2)], { type: 'application/json' }));
-      el.download = 'knowledge-selection.json';
-      document.body.appendChild(el);
-      el.click();
-      setTimeout(function () { URL.revokeObjectURL(el.href); el.remove(); }, 100);
-    });
-  };
-  window.bulkExportTxt = function () {
-    var ids = selected();
-    if (!ids.length) return;
-    window.location.href = '{{ url_for('kb.export_txt') }}' + '?ids=' + ids.join(',');
-  };
-  window.bulkAssign = function () {
-    var ids = selected();
-    if (!ids.length) return;
-    window._assignIds = ids;
-    new bootstrap.Modal(document.getElementById('assignModal')).show();
-  };
-  window.assignDoc = function (docId) {
-    window._assignIds = [docId];
-    new bootstrap.Modal(document.getElementById('assignModal')).show();
-  };
-  window.stopDoc = function (docId) {
-    if (!confirm('确认停止该文档的识别?')) return;
-    var f = document.createElement('form');
-    f.method = 'POST';
-    f.action = '{{ url_for('kb.doc_cancel', doc_id=0) }}'.replace('/0', '/' + docId);
-    document.body.appendChild(f);
-    f.submit();
-  };
-  window.doAssign = function () {
-    var cid = document.getElementById('assignSelect').value;
-    var ids = window._assignIds || [];
-    if (!ids.length) return;
-    fetch('{{ url_for('kb.api_collection_assign') }}', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ doc_ids: ids.map(Number), collection_id: cid ? Number(cid) : null })
-    }).then(function (r) { return r.json(); }).then(function (d) {
-      bootstrap.Modal.getInstance(document.getElementById('assignModal')).hide();
-      if (d.ok) location.reload(); else alert(d.error || '操作失败');
-    });
-  };
-})();
-</script>
-<script>
-(function collectionOps() {
-  var editingId = null;
-  window.showCollectionModal = function (id, name, color, visibility) {
-    editingId = id || null;
-    document.getElementById('collectionName').value = name || '';
-    document.getElementById('collectionColor').value = color || '#8b5cf6';
-    document.getElementById('collectionModalTitle').textContent = id ? '重命名集合' : '新建集合';
-    var visEl = document.getElementById('collectionVisibility');
-    if (currentUserRole === 'admin') {
-      visEl.style.display = 'block';
-      visEl.value = visibility || 'private';
-    } else {
-      visEl.style.display = 'none';
-    }
-    new bootstrap.Modal(document.getElementById('collectionModal')).show();
-  };
-  window.saveCollection = function () {
-    var name = document.getElementById('collectionName').value.trim();
-    var color = document.getElementById('collectionColor').value;
-    var visibility = document.getElementById('collectionVisibility').value;
-    if (!name) { alert('请输入集合名称'); return; }
-    var url = editingId
-      ? '{{ url_for('kb.api_collection_update', cid=0) }}'.replace(/0$/, editingId)
-      : '{{ url_for('kb.api_collection_create') }}';
-    var method = editingId ? 'PUT' : 'POST';
-    fetch(url, {
-      method: method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, color: color, visibility: visibility })
-    }).then(function (r) { return r.json(); }).then(function (d) {
-      bootstrap.Modal.getInstance(document.getElementById('collectionModal')).hide();
-      if (d.ok) location.reload(); else alert(d.error || '操作失败');
-    });
-  };
-  window.deleteCollection = function (id, name) {
-    if (!confirm('删除集合「' + name + '」?集合内的文档不会被删除。')) return;
-    fetch('{{ url_for('kb.api_collection_delete', cid=0) }}'.replace(/0$/, id), { method: 'DELETE' })
-      .then(function (r) { return r.text().then(function (t) {
-        var d; try { d = JSON.parse(t); } catch (e) { throw new Error('服务器响应异常: HTTP ' + r.status + ' ' + t.slice(0, 200)); }
-        if (d.ok) location.reload(); else alert(d.error || '操作失败');
-      }); }).catch(function (e) { alert('删除失败: ' + e.message); });
-  };
-  window.pruneEmptyCollections = function () {
-    if (!confirm('删除所有没有文档的空集合?')) return;
-    fetch('{{ url_for('kb.api_collection_prune_empty') }}', { method: 'POST' })
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        if (!d.ok) { alert(d.error || '操作失败'); return; }
-        alert(d.deleted ? '已删除 ' + d.deleted + ' 个空集合' : '没有空集合');
-        location.reload();
-      }).catch(function () { alert('操作失败'); });
-  };
-})();
-</script>
-<script>
-(function groupFold() {
-  document.querySelectorAll('.kb-group-head').forEach(function (head) {
-    var caret = head.querySelector('.kb-group-caret');
-    if (!caret) return;
-    head.addEventListener('click', function () {
-      setTimeout(function () {
-        caret.style.transform = head.getAttribute('aria-expanded') === 'true'
-          ? 'rotate(90deg)' : 'rotate(0deg)';
-      }, 60);
-    });
-  });
 })();
 </script>
 {% endblock %}

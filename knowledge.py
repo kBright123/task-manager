@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import sqlite3
 import sys
 import time
@@ -1307,7 +1308,61 @@ def index():
     cid = request.args.get('collection', type=int)
     group = (request.args.get('group') or '').strip()
     q = (request.args.get('q') or '').strip()
-    page = request.args.get('page', 1, type=int)
+    docs = _build_docs_query(cid, group, q).all()
+    if current_user.role == 'admin':
+        collections = KbCollection.query.order_by(KbCollection.name).all()
+    else:
+        collections = KbCollection.query.filter(
+            (KbCollection.visibility == 'public') |
+            (KbCollection.owner_id == current_user.id)
+        ).order_by(KbCollection.name).all()
+
+    owner_names = {}
+    if current_user.role == 'admin':
+        owner_ids = {c.owner_id for c in collections if c.owner_id}
+        if owner_ids:
+            try:
+                from app import User
+            except Exception:
+                User = None
+            if User is not None:
+                owner_names = {
+                    u.id: (u.name or u.username)
+                    for u in User.query.filter(User.id.in_(owner_ids)).all()}
+    if current_user.role == 'admin':
+        manageable_ids = {d.id for d in docs}
+    else:
+        manageable_ids = {
+            d.id for d in docs if d.uploaded_by == current_user.id}
+    if current_user.role == 'admin':
+        total_docs = KbDocument.query.count()
+    else:
+        total_docs = KbDocument.query.filter(
+            db.or_(
+                KbDocument.uploaded_by == current_user.id,
+                KbDocument.collection_id.in_(
+                    db.session.query(KbCollection.id)
+                    .filter(KbCollection.visibility == 'public')
+                )
+            )
+        ).count()
+    collection_count = len(collections)
+    return render_template('kb/index.html', docs=docs,
+                           q=q,
+                           collections=collections, active_collection=cid,
+                           group=group,
+                           collection_groups=_collection_groups(collections, cid, group),
+                           manageable_ids=manageable_ids,
+                           owner_names=owner_names,
+                           total_docs=total_docs,
+                           collection_count=collection_count,
+                           docs_json=json.dumps(
+                               [_doc_row(d) for d in docs],
+                               ensure_ascii=False))
+
+
+def _build_docs_query(cid, group, q):
+    """构建当前用户可见的文档查询(可叠加 集合/分组/关键词 过滤)。"""
     query = KbDocument.query
     if current_user.role != 'admin':
         query = query.filter(
@@ -1334,60 +1389,67 @@ def index():
         like = f'%{q}%'
         query = query.filter(
             KbDocument.title.ilike(like) | KbDocument.filename.ilike(like))
-    pagination = db.paginate(
-        query.order_by(KbDocument.created_at.desc()),
-        page=page, per_page=10, error_out=False)
-    docs = pagination.items
-    if current_user.role == 'admin':
-        collections = KbCollection.query.order_by(KbCollection.name).all()
-    else:
-        collections = KbCollection.query.filter(
-            (KbCollection.visibility == 'public') |
-            (KbCollection.owner_id == current_user.id)
-        ).order_by(KbCollection.name).all()
+    return query.order_by(KbDocument.created_at.desc())
 
-    doc_ids = [d.id for d in docs]
-    previews = {}
-    summaries = {}
-    if doc_ids:
-        for pid, text in (db.session.query(KbPage.doc_id,
-                                           func.substr(KbPage.text, 1, 300))
-                           .filter(KbPage.doc_id.in_(doc_ids),
-                                    KbPage.page_no == 1).all()):
-            previews[pid] = text.strip()
-        for did in doc_ids:
-            cached = cache_get(cache_key('summary', str(did)), 86400)
-            if cached is not None:
-                try:
-                    summaries[did] = json.loads(cached).get('summary', '')
-                except Exception:
-                    pass
 
-    owner_names = {}
-    if current_user.role == 'admin':
-        owner_ids = {c.owner_id for c in collections if c.owner_id}
-        if owner_ids:
-            try:
-                from app import User
-            except Exception:
-                User = None
-            if User is not None:
-                owner_names = {
-                    u.id: (u.name or u.username)
-                    for u in User.query.filter(User.id.in_(owner_ids)).all()}
-    if current_user.role == 'admin':
-        manageable_ids = {d.id for d in docs}
-    else:
-        manageable_ids = {
-            d.id for d in docs if d.uploaded_by == current_user.id}
-    return render_template('kb/index.html', docs=docs,
-                           q=q, page=page, pagination=pagination,
-                           collections=collections, active_collection=cid,
-                           group=group,
-                           collection_groups=_collection_groups(collections, cid, group),
-                           previews=previews, summaries=summaries,
-                           manageable_ids=manageable_ids,
-                           owner_names=owner_names)
+_STATUS_LABELS = {
+    'queued': '等待识别', 'ocr': 'OCR 中', 'embedding': '向量化中',
+    'graphing': '图谱抽取中', 'done': '已完成', 'failed': '失败',
+}
+
+
+def _doc_row(d):
+    """文档行序列化(虚拟滚动/实时搜索/重命名接口共用)。"""
+    coll = d.collection
+    return {
+        'id': d.id,
+        'title': d.title,
+        'filename': d.filename,
+        'file_type': (d.file_type or '').upper(),
+        'page_count': d.page_count,
+        'status': d.status,
+        'status_label': _STATUS_LABELS.get(d.status, d.status),
+        'created_at': d.created_at.strftime('%Y-%m-%d %H:%M')
+        if d.created_at else '',
+        'created_short': d.created_at.strftime('%m-%d %H:%M')
+        if d.created_at else '',
+        'collection_id': coll.id if coll else None,
+        'collection_name': coll.name if coll else '',
+        'collection_color': coll.color if coll else '',
+        'can_manage': current_user.role == 'admin'
+        or d.uploaded_by == current_user.id,
+        'detail_url': url_for('kb.doc_detail', doc_id=d.id),
+        'preview_url': url_for('kb.preview', doc_id=d.id),
+    }
+
+
+@kb_bp.route('/api/docs')
+@login_required
+def api_docs():
+    """文档列表 JSON(前端虚拟滚动/实时搜索)。"""
+    cid = request.args.get('collection', type=int)
+    group = (request.args.get('group') or '').strip()
+    q = (request.args.get('q') or '').strip()
+    docs = _build_docs_query(cid, group, q).all()
+    return jsonify({'ok': True, 'total': len(docs),
+                    'docs': [_doc_row(d) for d in docs]})
+
+
+@kb_bp.route('/api/docs/<int:doc_id>', methods=['PUT'])
+@login_required
+def api_doc_update(doc_id):
+    """重命名文档标题(行菜单「编辑」)。"""
+    doc = db.session.get(KbDocument, doc_id)
+    if not doc:
+        return jsonify({'ok': False, 'error': '文档不存在'}), 404
+    if not _can_manage_doc(doc):
+        return jsonify({'ok': False, 'error': '权限不足：仅可修改自己上传的文档'}), 403
+    data = request.get_json(silent=True) or {}
+    title = (data.get('title') or '').strip()
+    if title:
+        doc.title = title[:200]
+    db.session.commit()
+    return jsonify({'ok': True, 'doc': _doc_row(doc)})
 
 
 @kb_bp.route('/workbench')
@@ -1838,59 +1900,195 @@ def api_collection_prune_empty():
                     'names': names[:50]})
 
 
+def _upload_wants_json():
+    """上传请求是否期望 JSON 响应(前端 XHR 上传用,表单上传维持原行为)。"""
+    return (request.accept_mimetypes.best == 'application/json'
+            or request.form.get('_json') == '1')
+
+
+def _validate_collection_upload(cid):
+    """校验上传目标集合,返回错误信息(可上传则返回 None)。"""
+    if cid is None:
+        return None
+    c = db.session.get(KbCollection, cid)
+    if not c:
+        return '集合不存在'
+    if current_user.role != 'admin' and not (
+            c.visibility == 'private' and c.owner_id == current_user.id):
+        return '仅可上传到自己的私有集合'
+    return None
+
+
+def _ingest_file(path, filename, cid):
+    """校验并入库一个已落盘的文件,返回 (title, None) 或 (None, 拒绝原因)。"""
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        return None, f'{filename}({ext})'
+    try:
+        with open(path, 'rb') as fh:
+            head = fh.read(8192)
+    except OSError:
+        return None, f'{filename}(读取失败)'
+    if not file_content_matches(filename, head):
+        return None, f'{filename}(内容与扩展名不匹配)'
+    store_name = uuid.uuid4().hex + ext
+    target = os.path.join(_kb_upload_dir(), store_name)
+    try:
+        shutil.move(path, target)
+    except OSError:
+        return None, f'{filename}(保存失败)'
+    title = os.path.splitext(filename)[0] or '未命名文档'
+    doc = KbDocument(title=title, filename=filename, file_path=target,
+                     file_type=ext.lstrip('.'),
+                     file_size=os.path.getsize(target),
+                     status=STATUS_QUEUED, uploaded_by=current_user.id,
+                     collection_id=cid,
+                     last_recognition_type='upload')
+    db.session.add(doc)
+    return title, None
+
+
 @kb_bp.route('/upload', methods=['POST'])
 @login_required
 def upload():
     cid = request.form.get('collection_id', type=int)
-    if cid is not None:
-        c = db.session.get(KbCollection, cid)
-        if not c:
-            flash('集合不存在', 'danger')
-            return redirect(url_for('kb.index'))
-        if current_user.role != 'admin' and not (
-                c.visibility == 'private' and c.owner_id == current_user.id):
-            flash('仅可上传到自己的私有集合', 'danger')
-            return redirect(url_for('kb.index'))
+    wants_json = _upload_wants_json()
+    err = _validate_collection_upload(cid)
+    if err:
+        if wants_json:
+            return jsonify({'ok': False, 'error': err}), \
+                (400 if err == '集合不存在' else 403)
+        flash(err, 'danger')
+        return redirect(url_for('kb.index'))
     files = request.files.getlist('file')
     files = [f for f in files if f and f.filename]
     if not files:
+        if wants_json:
+            return jsonify({'ok': False, 'error': '未选择文件'}), 400
         flash('未选择文件', 'danger')
         return redirect(url_for('kb.index'))
     added = []
     rejected = []
+    incoming = os.path.join(_kb_upload_dir(), 'incoming')
+    os.makedirs(incoming, exist_ok=True)
     for f in files:
         ext = os.path.splitext(f.filename)[1].lower()
-        if ext not in ALLOWED_EXTENSIONS:
-            rejected.append(f'{f.filename}({ext})')
+        tmp = os.path.join(incoming, uuid.uuid4().hex + ext)
+        try:
+            f.save(tmp)
+        except OSError:
+            rejected.append(f'{f.filename}(保存失败)')
             continue
-        head = f.stream.read(8192)
-        f.stream.seek(0)
-        if not file_content_matches(f.filename, head):
-            rejected.append(f'{f.filename}(内容与扩展名不匹配)')
-            continue
-        store_name = uuid.uuid4().hex + ext
-        target = os.path.join(_kb_upload_dir(), store_name)
-        f.save(target)
-        title = os.path.splitext(f.filename)[0] or '未命名文档'
-        doc = KbDocument(title=title, filename=f.filename, file_path=target,
-                         file_type=ext.lstrip('.'),
-                         file_size=os.path.getsize(target),
-                         status=STATUS_QUEUED, uploaded_by=current_user.id,
-                         collection_id=cid,
-                         last_recognition_type='upload')
-        db.session.add(doc)
-        added.append(title)
+        title, rej = _ingest_file(tmp, f.filename, cid)
+        if rej:
+            rejected.append(rej)
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+        else:
+            added.append(title)
     db.session.commit()
     if added:
         _bump_data_version()
         _log_op('kb_upload', ','.join(added),
                 f'上传 {len(added)} 个文档' +
                 (f' 到集合 #{cid}' if cid else ''))
+        if wants_json:
+            return jsonify({'ok': True, 'added': added, 'rejected': rejected,
+                            'added_count': len(added),
+                            'rejected_count': len(rejected)})
         flash(f'已加入识别队列 {len(added)} 个文件: {", ".join(added)}', 'success')
     if rejected:
+        if wants_json:
+            return jsonify({'ok': not not added, 'added': added,
+                            'rejected': rejected,
+                            'added_count': len(added),
+                            'rejected_count': len(rejected)}), \
+                (200 if added else 400)
         flash(f'跳过不支持的文件: {", ".join(rejected)}'
               '(仅支持 PDF/图片/Markdown/文本/HTML)', 'warning')
     return redirect(url_for('kb.index'))
+
+
+MAX_CHUNKED_FILE_MB = 512
+
+
+def _chunk_dir(upload_id):
+    d = os.path.join(_kb_upload_dir(), 'chunks', str(upload_id))
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+@kb_bp.route('/api/upload/chunk', methods=['POST'])
+@login_required
+def api_upload_chunk():
+    """分片上传: 保存单个分片(规避 MAX_CONTENT_LENGTH)。"""
+    upload_id = (request.form.get('upload_id') or '').strip()
+    index = request.form.get('index', type=int)
+    total = request.form.get('total', type=int)
+    f = request.files.get('file')
+    if not upload_id or index is None or total is None or not f \
+            or index < 0 or index >= total:
+        return jsonify({'ok': False, 'error': '分片参数不完整'}), 400
+    f.save(os.path.join(_chunk_dir(upload_id), f'{index}.part'))
+    return jsonify({'ok': True})
+
+
+@kb_bp.route('/api/upload/complete', methods=['POST'])
+@login_required
+def api_upload_complete():
+    """分片上传: 合并分片并入库。"""
+    upload_id = (request.form.get('upload_id') or '').strip()
+    filename = (request.form.get('filename') or '').strip()
+    total = request.form.get('total', type=int)
+    cid = request.form.get('collection_id', type=int)
+    if not upload_id or not filename or not total:
+        return jsonify({'ok': False, 'error': '参数不完整'}), 400
+    err = _validate_collection_upload(cid)
+    if err:
+        return jsonify({'ok': False, 'error': err}), \
+            (400 if err == '集合不存在' else 403)
+    tmpdir = _chunk_dir(upload_id)
+    incoming = os.path.join(_kb_upload_dir(), 'incoming')
+    os.makedirs(incoming, exist_ok=True)
+    merged = os.path.join(incoming, uuid.uuid4().hex)
+    try:
+        with open(merged, 'wb') as out:
+            for i in range(total):
+                part = os.path.join(tmpdir, f'{i}.part')
+                with open(part, 'rb') as p:
+                    shutil.copyfileobj(p, out, 1024 * 1024)
+    except OSError as _e:
+        try:
+            os.remove(merged)
+        except OSError:
+            pass
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        return jsonify({'ok': False, 'error': '合并分片失败，请重试'}), 500
+    shutil.rmtree(tmpdir, ignore_errors=True)
+    try:
+        size = os.path.getsize(merged)
+    except OSError:
+        return jsonify({'ok': False, 'error': '合并分片失败，请重试'}), 500
+    if size > MAX_CHUNKED_FILE_MB * 1024 * 1024:
+        try:
+            os.remove(merged)
+        except OSError:
+            pass
+        return jsonify({'ok': False, 'error': '文件过大'}), 400
+    title, rej = _ingest_file(merged, filename, cid)
+    if rej:
+        try:
+            os.remove(merged)
+        except OSError:
+            pass
+        return jsonify({'ok': False, 'error': rej}), 400
+    db.session.commit()
+    _bump_data_version()
+    _log_op('kb_upload', title, f'上传 {filename}' +
+            (f' 到集合 #{cid}' if cid else ''))
+    return jsonify({'ok': True, 'added': [title], 'added_count': 1})
 
 
 @kb_bp.route('/<int:doc_id>')

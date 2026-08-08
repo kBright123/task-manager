@@ -1503,7 +1503,7 @@ def api_suggest():
     doc_query = KbDocument.query.filter(KbDocument.title.like(like))
     if current_user.role != 'admin':
         doc_query = doc_query.filter(
-            KbDocument.collection_id.in_(_visible_doc_ids()))
+            KbDocument.id.in_(_visible_doc_ids() or []))
     titles = doc_query.order_by(KbDocument.created_at.desc()).limit(12).all()
     items = [t.title for t in titles]
     seen, out = set(), []

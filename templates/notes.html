@@ -10,7 +10,6 @@
   .note-bubble{max-width:92%;margin-bottom:14px;}
   .note-bubble .meta{font-size:.68rem;color:var(--gray-400);margin-bottom:4px;display:flex;align-items:center;gap:8px;}
   .note-bubble .bubble{background:#fff;border:1px solid var(--gray-200);border-radius:12px 12px 12px 4px;padding:12px 14px;box-shadow:var(--shadow-sm);}
-  .note-bubble .btitle{font-weight:600;font-size:.9rem;color:var(--gray-800);}
   .note-bubble .bbl{font-size:.84rem;color:var(--gray-700);white-space:pre-wrap;word-break:break-word;margin-top:6px;}
   .pill{display:inline-block;padding:1px 8px;border-radius:100px;background:var(--primary-light);color:var(--primary);font-size:.68rem;margin-right:4px;cursor:pointer;}
   .sys-bubble{display:inline-flex;align-items:center;gap:6px;background:#fef3c7;color:#92400e;font-size:.74rem;border-radius:10px;padding:6px 12px;margin:4px 0;}
@@ -37,9 +36,6 @@
         <div class="note-thread" data-tid="{{ t.id }}" onclick="loadNotes('{{ t.id }}')"><span><i class="bi bi-folder" style="color:{{ t.color }};"></i> {{ t.name }}</span><small class="text-muted" style="font-size:.68rem;">{{ t.notes.filter_by(user_id=current_user.id).count() }}</small></div>
         {% endfor %}
       </div>
-      <hr style="margin:8px 0;border-color:var(--gray-100);">
-      <div style="font-size:.72rem;color:var(--gray-400);padding:0 6px;">自动标签</div>
-      <div id="tagList" class="mt-1" style="display:flex;flex-wrap:wrap;"></div>
     </div>
   </div>
 
@@ -90,10 +86,6 @@
 <script>
 var curThread='', curTag='', curQ='';
 function esc(s){s=(s==null?'':String(s));var d=document.createElement('div');d.textContent=s;return d.innerHTML.replace(/"/g,'&quot;');}
-function collectTags(list){
-  var map={};list.forEach(function(n){(n.tags||[]).forEach(function(t){if(t)map[t]=(map[t]||0)+1;});});
-  return Object.keys(map).sort();
-}
 function renderNotes(list){
   var tl=document.getElementById('noteTimeline');
   document.getElementById('notesCount').textContent='共 '+list.length+' 条';
@@ -107,16 +99,13 @@ function renderNotes(list){
     var tags=(n.tags||[]).map(function(t){return '<span class="pill" onclick="loadByTag(\''+esc(t)+'\')">'+esc(t)+'</span>';}).join('');
     return '<div class="note-bubble"><div class="meta"><i class="bi bi-clock"></i> '+esc(n.created_at)+
       (n.thread?' · <span style="color:var(--primary)">'+esc(n.thread)+'</span>':'')+
-      ' <span style="cursor:pointer;" onclick="editNote('+n.id+')"><i class="bi bi-pencil"></i></span>'+
+      ' <span style="cursor:pointer;" onclick="showMeta('+n.id+')"><i class="bi bi-pencil"></i></span>'+
       ' <span style="cursor:pointer;" onclick="delNote('+n.id+')"><i class="bi bi-trash" style="color:var(--danger);"></i></span></div>'+
-      '<div class="bubble" onclick="showMeta('+n.id+')"><div class="btitle">'+esc(n.title)+'</div>'+
+      '<div class="bubble" onclick="showMeta('+n.id+')">'+
+      (tags?'<div class="mb-2">'+tags+'</div>':'')+
       '<div class="bbl">'+esc(n.content)+'</div>'+
-      (tags?'<div class="mt-2">'+tags+'</div>':'')+'</div></div>';
+      '</div></div>';
   }).join('');
-  var tags=collectTags(list);
-  document.getElementById('tagList').innerHTML=tags.length?tags.map(function(t){
-    return '<span class="note-tag'+(curTag===t?' active':'')+'" onclick="loadByTag(\''+esc(t)+'\')">'+esc(t)+'</span>';
-  }).join(''):'<small class="text-muted" style="font-size:.7rem;">暂无标签</small>';
 }
 function activeThread(tid){
   document.querySelectorAll('#threadList .note-thread').forEach(function(x){
@@ -160,27 +149,74 @@ function showSys(html){
   var div=document.createElement('div');div.style.textAlign='center';div.innerHTML='<span class="sys-bubble">'+html+'</span>';
   tl.insertBefore(div,tl.firstChild);
 }
+var curMeta=null;
 function showMeta(id){
   fetch('/notes/api/notes').then(r=>r.json()).then(function(d){
     var n=d.notes.filter(function(x){return x.id===id;})[0];
     if(!n)return;
-    var b=document.getElementById('metaBody');
-    b.innerHTML='<div><b>'+esc(n.title)+'</b></div>'+
-      '<div class="mt-1"><small>创建 '+esc(n.created_at)+' · 版本 v'+n.version+'</small></div>'+
-      '<div class="mt-2"><span class="text-muted" style="font-size:.72rem;">标签</span><div>'+(n.tags||[]).map(function(t){return '<span class="pill">'+esc(t)+'</span>';}).join('')||'-'+'</div></div>'+
-      '<div class="mt-2"><span class="text-muted" style="font-size:.72rem;">上下文</span><div>'+esc(n.thread||'-')+'</div></div>'+
-      '<div class="mt-3"><button class="btn btn-sm btn-outline-secondary w-100" onclick="editNote('+n.id+')" style="font-size:.75rem;"><i class="bi bi-pencil"></i> 编辑</button></div>';
+    curMeta=n;
+    renderMeta();
   });
 }
-function editNote(id){
-  fetch('/notes/api/notes').then(r=>r.json()).then(function(d){
-    var n=d.notes.filter(function(x){return x.id===id;})[0];
-    if(!n)return;
-    var content=prompt('编辑笔记内容',n.content);
-    if(content===null)return;
-    fetch('/notes/api/notes/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({content:content})}).then(r=>r.json()).then(function(d){if(d.ok)loadNotes(curThread);});
-  });
+function renderMeta(){
+  var n=curMeta;if(!n)return;
+  var b=document.getElementById('metaBody');
+  b.innerHTML=
+    '<div class="d-flex justify-content-between align-items-start mb-2">'+
+      '<div style="font-weight:600;font-size:.9rem;color:var(--gray-800);">'+esc(n.title)+'</div>'+
+      '<small class="text-muted" style="font-size:.68rem;">v'+n.version+'</small>'+
+    '</div>'+
+    '<div style="font-size:.8rem;color:var(--gray-700);white-space:pre-wrap;word-break:break-word;background:var(--gray-50);border-radius:8px;padding:10px 12px;">'+esc(n.content)+'</div>'+
+    '<div class="mt-2 text-muted" style="font-size:.72rem;">创建 '+esc(n.created_at)+' · 上下文 '+esc(n.thread||'-')+'</div>'+
+    '<div class="mt-3"><span class="text-muted" style="font-size:.72rem;">标签</span>'+
+    '<div class="d-flex flex-wrap gap-1 mt-1">'+
+      (n.tags||[]).map(function(t){return '<span class="pill">'+esc(t)+' <span style="cursor:pointer;" onclick="removeMetaTag(\''+esc(t).replace(/'/g,"\\'")+'\')" title="移除标签" class="text-muted">&times;</span></span>';}).join('')+
+      '<span class="text-muted" style="font-size:.7rem;align-self:center;'+(n.tags&&n.tags.length?'':'')+'"></span>'+
+    '</div>'+
+    '<div class="input-group input-group-sm mt-2" style="max-width:230px;">'+
+      '<input class="form-control" id="metaTagInput" placeholder="添加标签...">'+
+      '<button class="btn btn-outline-secondary" type="button" onclick="addMetaTag()">添加</button>'+
+    '</div></div>'+
+    '<div class="mt-3 d-flex gap-2">'+
+      '<button class="btn btn-sm btn-outline-primary" style="font-size:.75rem;" onclick="editNoteInline()"><i class="bi bi-pencil"></i> 修改</button>'+
+      '<button class="btn btn-sm btn-outline-danger" style="font-size:.75rem;" onclick="delNote('+n.id+')"><i class="bi bi-trash"></i> 删除</button>'+
+    '</div>';
+}
+function saveMetaTags(){
+  var id=curMeta.id;
+  fetch('/notes/api/notes/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({tags:curMeta.tags||[]})}).then(r=>r.json()).then(function(d){
+      if(d.ok){curMeta=d.note;renderMeta();if(window.toast)toast('标签已更新','success');}
+      else{if(window.toast)toast(d.error||'保存失败','danger');}
+    });
+}
+function addMetaTag(){
+  var inp=document.getElementById('metaTagInput');var v=(inp.value||'').trim();if(!v)return;
+  if(!curMeta.tags)curMeta.tags=[];
+  if(curMeta.tags.indexOf(v)<0){curMeta.tags.push(v);saveMetaTags();}
+  inp.value='';
+}
+function removeMetaTag(t){
+  if(!curMeta.tags)return;
+  curMeta.tags=curMeta.tags.filter(function(x){return x!==t;});saveMetaTags();
+}
+function editNoteInline(){
+  var n=curMeta;if(!n)return;
+  var b=document.getElementById('metaBody');
+  b.innerHTML='<label class="text-muted" style="font-size:.72rem;">编辑内容</label>'+
+    '<textarea class="form-control" id="metaEditContent" rows="10" style="font-size:.85rem;">'+esc(n.content)+'</textarea>'+
+    '<div class="mt-2 d-flex gap-2">'+
+      '<button class="btn btn-sm btn-primary" onclick="saveEditInline()">保存</button>'+
+      '<button class="btn btn-sm btn-outline-secondary" onclick="renderMeta()">取消</button>'+
+    '</div>';
+}
+function saveEditInline(){
+  var content=document.getElementById('metaEditContent').value;
+  fetch('/notes/api/notes/'+curMeta.id,{method:'PUT',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({content:content})}).then(r=>r.json()).then(function(d){
+      if(d.ok){curMeta=d.note;renderMeta();loadNotes(curThread);if(window.toast)toast('笔记已更新','success');}
+      else{alert(d.error||'保存失败');}
+    });
 }
 function delNote(id){
   if(!confirm('确认删除该笔记?'))return;

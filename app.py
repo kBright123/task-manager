@@ -447,15 +447,15 @@ def _count_notes():
     from notes import Note
     if Note is None:
         return 0
-    return Note.query.count()
+    return Note.query.filter_by(user_id=current_user.id).count()
 
 
 def _count_kb():
-    """统计知识库文档总数(含全部状态)。"""
+    """统计当前用户上传的知识库文档数(含全部状态)。"""
     from knowledge import KbDocument
     if KbDocument is None:
         return 0
-    return KbDocument.query.count()
+    return KbDocument.query.filter_by(uploaded_by=current_user.id).count()
 
 
 try:
@@ -1557,9 +1557,10 @@ def admin_dashboard():
                            today_tasks=today_tasks, week_tasks=week_tasks,
                            all_pending=all_pending,
                            now=now_dt,
-                           is_admin=True,
+is_admin=True,
                            users=get_same_group_users(current_user),
-                             note_count=_count_notes(),
+                           user_groups=Group.query.all() if current_user.role == 'admin' else current_user.groups.all(),
+                              note_count=_count_notes(),
                              kb_count=_count_kb(),
                              new_tasks_yesterday=new_tasks_yesterday,
                              new_notes_yesterday=new_notes_yesterday,
@@ -2141,8 +2142,9 @@ def user_dashboard():
                            today_tasks=today_tasks, week_tasks=week_tasks,
                            all_pending=all_pending,
                            now=now,
-                           is_admin=False,
+                           is_admin=current_user.role == 'admin',
                            users=get_same_group_users(current_user),
+                           user_groups=Group.query.all() if current_user.role == 'admin' else current_user.groups.all(),
                            note_count=_count_notes(),
                            kb_count=_count_kb(),
                            new_tasks_yesterday=new_tasks_yesterday,
@@ -2383,6 +2385,13 @@ def api_quick_task():
                 continue
         assignee_ids.add(current_user.id)
 
+    group_ids = []
+    for gid in data.get('group_ids') or []:
+        try:
+            group_ids.append(int(gid))
+        except (TypeError, ValueError):
+            continue
+
     created_titles = []
     try:
         for i in range(total):
@@ -2403,7 +2412,16 @@ def api_quick_task():
                     create_notification(u.id, 'task_assigned',
                                         f'你收到一个新待办：「{t_title}」', task.id)
             else:
-                for uid in assignee_ids:
+                uid_set = set(assignee_ids)
+                if group_ids:
+                    selected_groups = Group.query.filter(Group.id.in_(group_ids)).all()
+                    for g in selected_groups:
+                        for m in g.members:
+                            if not m.is_disabled:
+                                uid_set.add(m.id)
+                        task.groups.append(g)
+                uid_set.add(current_user.id)
+                for uid in uid_set:
                     db.session.add(TaskAssignment(task_id=task.id, user_id=uid))
                     create_notification(uid, 'task_assigned',
                                         f'你收到一个新待办：「{t_title}」', task.id)
@@ -2571,144 +2589,6 @@ def api_quick_upload():
     return jsonify({'ok': True, 'added': added,
                     'rejected': rejected,
                     'pending_url': url_for('kb.index')})
-
-
-@app.route('/api/summary')
-@login_required
-def api_summary():
-    period = request.args.get('period', 'month')
-    date_str = request.args.get('date', '')
-    now = datetime.now()
-
-    if period == 'year':
-        if date_str:
-            year = int(date_str)
-        else:
-            year = now.year
-        start = datetime(year, 1, 1)
-        end = datetime(year, 12, 31, 23, 59, 59)
-        label = f'{year}年'
-    else:
-        if date_str and '-' in date_str:
-            parts = date_str.split('-')
-            year, month = int(parts[0]), int(parts[1])
-        else:
-            year, month = now.year, now.month
-        start = datetime(year, month, 1)
-        if month == 12:
-            end = datetime(year + 1, 1, 1) - timedelta(seconds=1)
-        else:
-            end = datetime(year, month + 1, 1) - timedelta(seconds=1)
-        label = f'{year}年{month}月'
-
-    assignments = TaskAssignment.query.join(Task).filter(
-        TaskAssignment.user_id == current_user.id,
-        Task.end_time >= start,
-        Task.end_time <= end
-    ).all()
-
-    if not assignments:
-        return jsonify({
-            'period': period, 'date': date_str, 'label': label,
-            'text': f'{label}暂无分配待办记录。',
-            'total': 0, 'completed': 0, 'pending': 0,
-            'abandoned': 0, 'rejected': 0, 'rate': 0, 'avg_progress': 0,
-        })
-
-    total = len(assignments)
-    completed = [a for a in assignments if a.status in ('completed', 'approved')]
-    pending = [a for a in assignments if a.status == 'pending']
-    abandoned = [a for a in assignments if a.status == 'abandoned']
-    rejected = [a for a in assignments if a.status == 'rejected']
-    rate = round(len(completed) / total * 100, 1) if total else 0
-    avg_progress = round(sum(a.progress for a in assignments) / total) if total else 0
-
-    tasks_by_cat = {}
-    for a in assignments:
-        cat = a.task.category or '其他'
-        tasks_by_cat.setdefault(cat, []).append(a)
-    cat_order = ['工作', '个人', '会议', '培训', '考试']
-    for cat in tasks_by_cat:
-        if cat not in cat_order:
-            cat_order.append(cat)
-
-    def task_line(a):
-        status_map = {
-            'pending': '进行中', 'completed': '已完成',
-            'approved': '已确认', 'rejected': '已驳回', 'abandoned': '已废弃'
-        }
-        s = status_map.get(a.status, a.status)
-        desc_hint = ''
-        if a.task.description and a.task.description != a.task.title:
-            brief = a.task.description[:60].replace('\n', ' ')
-            if len(a.task.description) > 60:
-                brief += '…'
-            desc_hint = f'（{brief}）'
-        line = f'- {a.task.title}{desc_hint}，{s}'
-        if a.status == 'pending' and a.progress > 0:
-            line += f'，进度{a.progress}%'
-        if a.note:
-            note_brief = a.note[:40].replace('\n', ' ')
-            if len(a.note) > 40:
-                note_brief += '…'
-            line += f'，备注：{note_brief}'
-        return line
-
-    lines = [f'{label}工作总结', '']
-
-    lines.append(f'本期共分配待办{total}项，已完成{len(completed)}项，完成率{rate}%，平均进度{avg_progress}%。')
-    lines.append('')
-
-    overdue_in_period = [a for a in pending if a.task.end_time < now]
-    if overdue_in_period:
-        lines.append(f'当前仍有{len(overdue_in_period)}项待办逾期未完成。')
-        lines.append('')
-
-    for cat in cat_order:
-        group = tasks_by_cat.get(cat)
-        if not group:
-            continue
-        done = len([a for a in group if a.status in ('completed', 'approved')])
-        lines.append(f'【{cat}类】共{len(group)}项，已完成{done}项。')
-        for a in sorted(group, key=lambda x: x.task.end_time):
-            lines.append(task_line(a))
-        lines.append('')
-
-    if rejected:
-        lines.append(f'【驳回待办】{len(rejected)}项。')
-        for a in rejected:
-            reason = f'，原因：{a.rejection_reason}' if a.rejection_reason else ''
-            lines.append(f'- {a.task.title}{reason}')
-        lines.append('')
-
-    if abandoned:
-        lines.append(f'【废弃待办】{len(abandoned)}项。')
-        for a in abandoned:
-            lines.append(f'- {a.task.title}')
-        lines.append('')
-
-    next_period_date = ''
-    if period == 'year':
-        next_period_date = f'{year + 1}'
-        prev_period_date = f'{year - 1}'
-    else:
-        nm, ny = month + 1, year
-        if nm > 12:
-            nm, ny = 1, year + 1
-        pm, py = month - 1, year
-        if pm < 1:
-            pm, py = 12, year - 1
-        next_period_date = f'{ny}-{nm:02d}'
-        prev_period_date = f'{py}-{pm:02d}'
-
-    return jsonify({
-        'period': period, 'date': date_str, 'label': label,
-        'text': '\n'.join(lines),
-        'total': total, 'completed': len(completed), 'pending': len(pending),
-        'abandoned': len(abandoned), 'rejected': len(rejected),
-        'rate': rate, 'avg_progress': avg_progress,
-        'next_date': next_period_date, 'prev_date': prev_period_date,
-    })
 
 
 def _build_task_stats(task_ids, user_id):
@@ -3184,11 +3064,24 @@ def api_task_detail(task_id):
                            if task.start_time else ''),
             'end_time': (task.end_time.strftime('%Y-%m-%d %H:%M')
                          if task.end_time else ''),
+            'start_dt': (task.start_time.strftime('%Y-%m-%dT%H:%M')
+                         if task.start_time else ''),
+            'end_dt': (task.end_time.strftime('%Y-%m-%dT%H:%M')
+                       if task.end_time else ''),
             'is_all': task.is_all,
             'creator': task.creator.name or task.creator.username,
+            'creator_id': task.creator_id,
             'created_at': task.created_at.strftime('%Y-%m-%d %H:%M')
                           if task.created_at else '',
+            'can_edit': (current_user.role == 'admin'
+                         or task.creator_id == current_user.id
+                         or assignment is not None),
+            'can_delete': (current_user.role == 'admin'
+                           or task.creator_id == current_user.id),
+            'assignment_id': assignment.id if assignment else None,
             'assignments': [{
+                'assignment_id': a.id,
+                'user_id': a.user_id,
                 'user': a.user.name or a.user.username,
                 'status': a.status,
                 'progress': a.progress,
@@ -3198,6 +3091,114 @@ def api_task_detail(task_id):
             'stats': stats,
         }
     })
+
+
+@app.route('/api/task/<int:task_id>/edit', methods=['POST'])
+@login_required
+def api_task_edit(task_id):
+    """右侧面板内联修改待办(JSON)。"""
+    task = db.session.get(Task, task_id)
+    if not task:
+        return jsonify({'ok': False, 'error': '待办不存在'}), 404
+    is_assignee = TaskAssignment.query.filter_by(
+        task_id=task.id, user_id=current_user.id).first() is not None
+    if task.creator_id != current_user.id and current_user.role != 'admin' \
+            and not is_assignee:
+        return jsonify({'ok': False, 'error': '无权编辑该待办'}), 403
+    data = request.get_json(silent=True) or {}
+    title = (data.get('title') or '').strip()
+    if not title or len(title) < 2:
+        return jsonify({'ok': False, 'error': '待办标题至少 2 个字'}), 400
+    try:
+        start = datetime.strptime(data.get('start_time', ''), '%Y-%m-%dT%H:%M') \
+            if data.get('start_time') else task.start_time
+        end = datetime.strptime(data.get('end_time', ''), '%Y-%m-%dT%H:%M') \
+            if data.get('end_time') else task.end_time
+        if start is not None and end is not None and end <= start:
+            end = start + timedelta(hours=1)
+    except Exception:
+        return jsonify({'ok': False, 'error': '时间格式错误'}), 400
+    task.title = title
+    task.category = (data.get('category') or '').strip() or '工作'
+    task.start_time = start
+    task.end_time = end
+    if 'description' in data:
+        task.description = (data.get('description') or '').strip()
+    db.session.commit()
+    return jsonify({'ok': True, 'task_id': task.id})
+
+
+@app.route('/api/task/<int:task_id>/delete', methods=['POST'])
+@login_required
+def api_task_delete(task_id):
+    """删除待办(仅创建者或管理员)。"""
+    task = db.session.get(Task, task_id)
+    if not task:
+        return jsonify({'ok': False, 'error': '待办不存在'}), 404
+    if task.creator_id != current_user.id and current_user.role != 'admin':
+        return jsonify({'ok': False, 'error': '只能删除自己创建的待办'}), 403
+    Notification.query.filter(Notification.task_id == task.id).update(
+        {Notification.task_id: None})
+    db.session.execute(
+        task_group.delete().where(task_group.c.task_id == task.id))
+    TaskAssignment.query.filter_by(task_id=task.id).delete(
+        synchronize_session=False)
+    db.session.delete(task)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/task/<int:task_id>/reopen', methods=['POST'])
+@login_required
+def api_task_reopen(task_id):
+    """重新打开待办:将已完成的分配恢复为进行中(创建者或管理员)。"""
+    task = db.session.get(Task, task_id)
+    if not task:
+        return jsonify({'ok': False, 'error': '待办不存在'}), 404
+    if task.creator_id != current_user.id and current_user.role != 'admin':
+        return jsonify({'ok': False, 'error': '无权操作'}), 403
+    assignments = TaskAssignment.query.filter(
+        TaskAssignment.task_id == task.id,
+        TaskAssignment.status.in_(['completed', 'approved'])).all()
+    for a in assignments:
+        a.status = 'pending'
+        a.completed_at = None
+        a.rejection_reason = None
+        a.progress = 0
+    db.session.commit()
+    return jsonify({'ok': True, 'reset': len(assignments)})
+
+
+@app.route('/api/task/<int:task_id>/assign', methods=['POST'])
+@login_required
+def api_task_assign(task_id):
+    """增加分配人(创建者或管理员)。"""
+    task = db.session.get(Task, task_id)
+    if not task:
+        return jsonify({'ok': False, 'error': '待办不存在'}), 404
+    if task.creator_id != current_user.id and current_user.role != 'admin':
+        return jsonify({'ok': False, 'error': '无权操作'}), 403
+    data = request.get_json(silent=True) or {}
+    user_ids = data.get('user_ids') or []
+    existing = {a.user_id for a in TaskAssignment.query.filter_by(
+        task_id=task.id).all()}
+    added = []
+    for uid in user_ids:
+        try:
+            uid = int(uid)
+        except (TypeError, ValueError):
+            continue
+        u = db.session.get(User, uid)
+        if not u or u.is_disabled or uid in existing:
+            continue
+        existing.add(uid)
+        db.session.add(TaskAssignment(task_id=task.id, user_id=uid))
+        create_notification(uid, 'task_assigned',
+                            f'你收到一个新待办：「{task.title}」', task.id)
+        added.append(u.name or u.username)
+    if added:
+        db.session.commit()
+    return jsonify({'ok': True, 'added': added})
 
 
 @app.route('/user/tasks/edit', methods=['POST'])

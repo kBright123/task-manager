@@ -23,6 +23,18 @@
   .result-page { border-left: 3px solid var(--gray-100); padding-left: 10px; margin-top: 8px; }
   .result-page mark { background: #fef08a; padding: 0 2px; border-radius: 2px; }
   .badge-medium { font-size: .65rem; padding: 2px 6px; }
+  /* 悬浮球: 快速创建 待办/随手记/上传知识 */
+  .quick-fab { position: fixed; right: 24px; bottom: 96px; z-index: 1060; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+  @media (max-width: 767px) { .quick-fab { right: 14px; bottom: calc(14px + var(--bottom-nav-height)); } }
+  .quick-fab-toggle { width: 54px; height: 54px; border-radius: 50%; border: none; background: var(--primary); color: #fff; font-size: 1.6rem; line-height: 1; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 18px rgba(79,70,231,.35); cursor: pointer; transition: transform .2s, background .2s, box-shadow .2s; }
+  .quick-fab-toggle:hover { background: var(--primary-dark); transform: scale(1.05); box-shadow: 0 8px 22px rgba(79,70,231,.4); }
+  .quick-fab.open .quick-fab-toggle { transform: rotate(45deg); }
+  .quick-fab-menu { display: none; flex-direction: column; align-items: flex-end; gap: 8px; }
+  .quick-fab.open .quick-fab-menu { display: flex; animation: fabIn .18s ease-out; }
+  @keyframes fabIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .quick-fab-item { display: flex; align-items: center; gap: 8px; border: none; background: #fff; border-radius: 100px; padding: 6px 14px 6px 8px; font-size: .82rem; font-weight: 600; color: var(--gray-800); box-shadow: 0 4px 14px rgba(0,0,0,.12); cursor: pointer; text-decoration: none; transition: transform .12s, box-shadow .12s; }
+  .quick-fab-item:hover { transform: translateX(-3px); box-shadow: 0 6px 18px rgba(0,0,0,.18); }
+  .quick-fab-item-icon { width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .85rem; flex-shrink: 0; }
 </style>
 {% endblock %}
 {% block content %}
@@ -131,12 +143,6 @@
           <input type="text" id="unifiedSearchInput" class="form-control" placeholder="统一检索待办、随手记、知识库..." style="border:none;box-shadow:none;font-size:.95rem;" autocomplete="off" oninput="unifiedDebounce()" onkeydown="if(event.key==='Enter'){event.preventDefault();unifiedSearch();}">
           <button class="btn btn-primary px-3" id="unifiedSearchBtn" onclick="unifiedSearch()" style="white-space:nowrap;"><i class="bi bi-search"></i> 检索</button>
         </div>
-        <div class="mt-3 mb-0 d-flex flex-wrap align-items-center gap-2 justify-content-end">
-          <button class="btn btn-sm" style="background:var(--primary);color:#fff;border:none;border-radius:8px;" data-bs-toggle="modal" data-bs-target="#quickTaskModal"><i class="bi bi-plus-circle"></i> 创建待办</button>
-          <button class="btn btn-sm" style="background:var(--success);color:#fff;border:none;border-radius:8px;" data-bs-toggle="modal" data-bs-target="#quickNoteModal"><i class="bi bi-pencil-square"></i> 随手记</button>
-          <button class="btn btn-sm" style="background:var(--warning);color:#fff;border:none;border-radius:8px;" data-bs-toggle="modal" data-bs-target="#quickUploadModal"><i class="bi bi-cloud-arrow-up"></i> 上传知识</button>
-          <button class="btn btn-sm btn-outline-secondary" style="border-radius:8px;font-size:.78rem;" onclick="openSummaryModal()"><i class="bi bi-file-earmark-text"></i> 总结报告</button>
-        </div>
       </div>
     </div>
   </div>
@@ -195,7 +201,7 @@
 
 <!-- 快速创建待办 -->
 <div class="modal fade" id="quickTaskModal" tabindex="-1">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header py-2"><span style="font-weight:600;"><i class="bi bi-list-task" style="color:var(--primary);"></i> 快速创建待办</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div id="qtStepInput">
@@ -237,7 +243,6 @@
               <option value="考试">考试</option>
             </select>
           </div>
-          {% if is_admin %}
           <div class="mb-2">
             <label style="font-size:.72rem;color:var(--gray-600);">周期</label>
             <select id="qtRecurrenceSelect" class="form-select form-select-sm" style="font-size:.82rem;" onchange="qtUpdateRecurrence()">
@@ -253,6 +258,17 @@
               <button type="button" class="btn btn-sm btn-outline-primary" style="font-size:.7rem;padding:2px 8px;" onclick="qtApplyCustomRecurrence()">应用</button>
             </span>
             <span id="qtRecurrenceHint" class="text-info" style="font-size:.75rem;"></span>
+          </div>
+          {% if user_groups %}
+          <div class="mb-2" id="qtGroupWrap">
+            <label style="font-size:.72rem;color:var(--gray-600);">按群组分配</label>
+            <div class="d-flex flex-wrap gap-2 mt-1" id="qtGroupBox">
+              {% for g in user_groups %}
+              <label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:4px;">
+                <input type="checkbox" class="form-check-input qt-group" value="{{ g.id }}"> {{ g.name }} <small style="color:var(--gray-400);font-size:.68rem;">({{ g.members|length }}人)</small>
+              </label>
+              {% endfor %}
+            </div>
           </div>
           {% endif %}
           {% if is_admin %}
@@ -598,45 +614,42 @@ function openEditTaskModal(el) {
 }
 </script>
 
-<!-- Summary Modal -->
-<div class="modal fade" id="summaryModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered modal-lg">
-    <div class="modal-content" style="border-radius:var(--radius);border:none;box-shadow:var(--shadow-lg);">
-      <div class="modal-header" style="border-bottom:1px solid var(--gray-100);padding:14px 20px;">
-        <h5 class="modal-title" style="font-size:.95rem;font-weight:600;"><i class="bi bi-file-earmark-text" style="color:var(--primary);"></i> 总结报告</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body" style="padding:16px 20px;">
-        <div class="d-flex align-items-center justify-content-between mb-3">
-          <div class="d-flex align-items-center gap-2">
-            <div class="btn-group btn-group-sm" role="group">
-              <input type="radio" class="btn-check" name="summaryPeriod" id="periodMonth" value="month" checked onchange="changeSummaryPeriod()">
-              <label class="btn btn-outline-primary" for="periodMonth" style="font-size:.8rem;padding:4px 12px;">月度</label>
-              <input type="radio" class="btn-check" name="summaryPeriod" id="periodYear" value="year" onchange="changeSummaryPeriod()">
-              <label class="btn btn-outline-primary" for="periodYear" style="font-size:.8rem;padding:4px 12px;">年度</label>
-            </div>
-          </div>
-          <div class="d-flex align-items-center gap-2">
-            <button class="btn btn-sm btn-outline-secondary" style="padding:2px 8px;font-size:.85rem;border:none;" onclick="summaryNavigate(-1)"><i class="bi bi-chevron-left"></i></button>
-            <span id="summaryDateLabel" style="font-size:.88rem;font-weight:600;min-width:100px;text-align:center;"></span>
-            <button class="btn btn-sm btn-outline-secondary" style="padding:2px 8px;font-size:.85rem;border:none;" onclick="summaryNavigate(1)"><i class="bi bi-chevron-right"></i></button>
-          </div>
-        </div>
-        <div id="summaryStats" class="d-flex gap-2 mb-3 flex-wrap"></div>
-        <div id="summaryContent" style="white-space:pre-wrap;font-size:.85rem;line-height:1.7;color:var(--gray-700);background:var(--gray-50);border-radius:var(--radius-sm);padding:16px 20px;max-height:50vh;overflow-y:auto;"></div>
-      </div>
-      <div class="modal-footer" style="border-top:1px solid var(--gray-100);padding:10px 20px;">
-        <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal" style="font-size:.82rem;">关闭</button>
-        <button class="btn btn-sm btn-primary" onclick="copySummaryText()" style="font-size:.82rem;"><i class="bi bi-clipboard"></i> 复制报告</button>
-      </div>
-    </div>
+<!-- 悬浮球: 快速创建待办/随手记/上传知识 -->
+<div id="quickFab" class="quick-fab">
+  <div class="quick-fab-menu">
+    <button type="button" class="quick-fab-item" data-bs-toggle="modal" data-bs-target="#quickTaskModal" onclick="closeFab()">
+      <span class="quick-fab-item-icon" style="background:var(--primary);color:#fff;"><i class="bi bi-plus-circle"></i></span>
+      <span>创建待办</span>
+    </button>
+    <button type="button" class="quick-fab-item" data-bs-toggle="modal" data-bs-target="#quickNoteModal" onclick="closeFab()">
+      <span class="quick-fab-item-icon" style="background:var(--success);color:#fff;"><i class="bi bi-pencil-square"></i></span>
+      <span>随手记</span>
+    </button>
+    <button type="button" class="quick-fab-item" data-bs-toggle="modal" data-bs-target="#quickUploadModal" onclick="closeFab()">
+      <span class="quick-fab-item-icon" style="background:var(--warning);color:#fff;"><i class="bi bi-cloud-arrow-up"></i></span>
+      <span>上传知识</span>
+    </button>
   </div>
+  <button type="button" id="quickFabToggle" class="quick-fab-toggle" aria-label="快速创建" aria-expanded="false"><i class="bi bi-plus-lg"></i></button>
 </div>
 
 {% block extra_js %}
 <script>
-var _summaryDate = '';
-var _summaryPeriod = 'month';
+// 悬浮球: 展开/收起 快速创建
+var _fab = document.getElementById('quickFab');
+var _fabBtn = document.getElementById('quickFabToggle');
+function closeFab() { if (_fab) _fab.classList.remove('open'); if (_fabBtn) _fabBtn.setAttribute('aria-expanded', 'false'); }
+(function(){
+  var fab = _fab, btn = _fabBtn;
+  if (!fab || !btn) return;
+  function openFab() { fab.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); }
+  btn.addEventListener('click', function(e){ e.stopPropagation(); if (fab.classList.contains('open')) closeFab(); else openFab(); });
+  btn.addEventListener('focus', openFab);
+  fab.addEventListener('focusout', function(e){ if (!fab.contains(e.relatedTarget)) closeFab(); });
+  document.addEventListener('click', function(e){ if (!fab.contains(e.target)) closeFab(); });
+  document.addEventListener('shown.bs.modal', function(){ fab.classList.add('d-none'); });
+  document.addEventListener('hidden.bs.modal', function(){ fab.classList.remove('d-none'); });
+})();
 
 // 内联完成切换（AJAX):直接绑定在任务框上,避免 actions 单元格的 stopPropagation 吞掉事件
 function toggleTaskStatus(el){
@@ -657,75 +670,6 @@ function toggleTaskStatus(el){
       setTimeout(function () { location.reload(); }, 400);
     }).catch(function(){ if (window.toast) toast('操作失败','danger'); });
   return false;
-}
-
-function openSummaryModal() {
-  var now = new Date();
-  _summaryPeriod = 'month';
-  document.getElementById('periodMonth').checked = true;
-  _summaryDate = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-  loadSummary();
-  new bootstrap.Modal(document.getElementById('summaryModal')).show();
-}
-
-function changeSummaryPeriod() {
-  _summaryPeriod = document.querySelector('input[name="summaryPeriod"]:checked').value;
-  var now = new Date();
-  if (_summaryPeriod === 'year') {
-    _summaryDate = String(now.getFullYear());
-  } else {
-    _summaryDate = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-  }
-  loadSummary();
-}
-
-function summaryNavigate(dir) {
-  if (_summaryPeriod === 'year') {
-    var y = parseInt(_summaryDate) + dir;
-    _summaryDate = String(y);
-  } else {
-    var parts = _summaryDate.split('-');
-    var y = parseInt(parts[0]), m = parseInt(parts[1]) + dir;
-    if (m > 12) { m = 1; y++; }
-    if (m < 1) { m = 12; y--; }
-    _summaryDate = y + '-' + String(m).padStart(2, '0');
-  }
-  loadSummary();
-}
-
-function loadSummary() {
-  var label = _summaryPeriod === 'year' ? _summaryDate + '年' : _summaryDate.replace('-', '年') + '月';
-  document.getElementById('summaryDateLabel').textContent = label;
-  document.getElementById('summaryContent').innerHTML = '<div class="text-center py-3" style="color:var(--gray-400);"><i class="bi bi-hourglass-split"></i> 加载中...</div>';
-  document.getElementById('summaryStats').innerHTML = '';
-  fetch('/api/summary?period=' + _summaryPeriod + '&date=' + encodeURIComponent(_summaryDate))
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      if (d.total === 0) {
-        document.getElementById('summaryContent').textContent = d.text;
-        document.getElementById('summaryStats').innerHTML = '';
-        return;
-      }
-      var statsHtml =
-        '<div class="flex-grow-1 text-center py-2 rounded" style="background:#e0f2fe;min-width:70px;"><div style="font-size:1.1rem;font-weight:700;color:#0c4a6e;">' + d.total + '</div><div style="font-size:.65rem;color:#0284c7;">总待办</div></div>' +
-        '<div class="flex-grow-1 text-center py-2 rounded" style="background:#d1fae5;min-width:70px;"><div style="font-size:1.1rem;font-weight:700;color:#064e3b;">' + d.completed + '</div><div style="font-size:.65rem;color:#059669;">已完成</div></div>' +
-        '<div class="flex-grow-1 text-center py-2 rounded" style="background:#eef2ff;min-width:70px;"><div style="font-size:1.1rem;font-weight:700;color:var(--primary);">' + d.rate + '%</div><div style="font-size:.65rem;color:var(--primary);">完成率</div></div>' +
-        '<div class="flex-grow-1 text-center py-2 rounded" style="background:#fef3c7;min-width:70px;"><div style="font-size:1.1rem;font-weight:700;color:#78350f;">' + d.avg_progress + '%</div><div style="font-size:.65rem;color:#d97706;">平均进度</div></div>';
-      document.getElementById('summaryStats').innerHTML = statsHtml;
-      document.getElementById('summaryContent').textContent = d.text;
-    });
-}
-
-function copySummaryText() {
-  var text = document.getElementById('summaryContent').textContent;
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(text).then(function() {
-      var btn = event.target.closest('button');
-      var orig = btn.innerHTML;
-      btn.innerHTML = '<i class="bi bi-check-lg"></i> 已复制';
-      setTimeout(function() { btn.innerHTML = orig; }, 1500);
-    });
-  }
 }
 </script>
 <script>
@@ -996,11 +940,16 @@ function qtBuildAssignees(ids){
 function quickTask(){
   var title=document.getElementById('qtTitle').value.trim();
   if(title.length<2){document.getElementById('qtErr2').textContent='待办标题至少2个字';return;}
+  if(!document.getElementById('qtStart').value){document.getElementById('qtErr2').textContent='请填写开始时间';return;}
+  if(!document.getElementById('qtEnd').value){document.getElementById('qtErr2').textContent='请填写结束时间';return;}
   var is_all=document.getElementById('qtAll')?document.getElementById('qtAll').checked:false;
   var ids=[];
   if(!is_all){document.querySelectorAll('.qt-assignee:checked').forEach(function(c){ids.push(parseInt(c.value));});}
+  var gids=[];
+  document.querySelectorAll('.qt-group:checked').forEach(function(c){gids.push(parseInt(c.value));});
   var re=(window.qtRec&&window.qtRec.interval)||0;
   var rc=(window.qtRec&&window.qtRec.count)||0;
+  var btn=event.target.closest('button');
   var body={
     title:title,
     start_time:document.getElementById('qtStart').value,
@@ -1008,14 +957,17 @@ function quickTask(){
     category:document.getElementById('qtCategory').value,
     description:document.getElementById('qtDesc').value,
     assignee_ids:ids,
+    group_ids:gids,
     is_all:is_all,
     recurrence_interval_days:re,
     recurrence_count:rc
   };
+  var err2=document.getElementById('qtErr2');
+  if(btn){btn.disabled=true;}
   fetch('/api/quick-task',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     .then(function(r){return r.json();}).then(function(d){
-      if(d.ok){location.href=d.url;}else{document.getElementById('qtErr2').textContent=d.error||'创建失败';}
-    });
+      if(d.ok){location.href=d.url;}else{err2.textContent=d.error||'创建失败';}
+    }).catch(function(){ err2.textContent='创建失败，请重试'; }).finally(function(){ if(btn)btn.disabled=false; });
 }
 function qtUpdateRecurrence(){
   var sel=document.getElementById('qtRecurrenceSelect');
@@ -1045,10 +997,11 @@ function qtApplyCustomRecurrence(){
 function quickTaskParse(){
   var text=document.getElementById('qtText').value.trim();
   if(text.length<2){document.getElementById('qtErr').textContent='请至少输入2个字';return;}
-  document.getElementById('qtErr').textContent='解析中...';
+  var errEl=document.getElementById('qtErr');
+  errEl.textContent='解析中...';
   fetch('/api/quick-task/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text})})
     .then(function(r){return r.json();}).then(function(d){
-      if(!d.ok){document.getElementById('qtErr').textContent=d.error||'解析失败';return;}
+      if(!d.ok){errEl.textContent=d.error||'解析失败';return;}
       document.getElementById('qtTitle').value=d.title;
       document.getElementById('qtStart').value=d.start_time;
       document.getElementById('qtEnd').value=d.end_time;
@@ -1058,21 +1011,25 @@ function quickTaskParse(){
       var sel=document.getElementById('qtRecurrenceSelect');
       var hint=document.getElementById('qtRecurrenceHint');
       var matched=false;
-      for(var i=0;i<sel.options.length;i++){
-        var o=sel.options[i];
-        if(o.value && parseInt(o.dataset.interval)===window.qtRec.interval && parseInt(o.dataset.count)===window.qtRec.count){
-          sel.selectedIndex=i;hint.innerHTML='<i class="bi bi-arrow-repeat"></i> '+o.text;matched=true;break;
+      if(sel&&hint&&sel.options){
+        for(var i=0;i<sel.options.length;i++){
+          var o=sel.options[i];
+          if(o.value && parseInt(o.dataset.interval)===window.qtRec.interval && parseInt(o.dataset.count)===window.qtRec.count){
+            sel.selectedIndex=i;hint.innerHTML='<i class="bi bi-arrow-repeat"></i> '+o.text;matched=true;break;
+          }
         }
-      }
-      if(!matched){
-        if(window.qtRec.interval&&window.qtRec.count>0){
-          sel.value='custom';
-          document.getElementById('qtCustomInterval').value=window.qtRec.interval;
-          document.getElementById('qtCustomCount').value=window.qtRec.count;
-          document.getElementById('qtRecurrenceCustom').classList.remove('d-none');
-          hint.innerHTML='<i class="bi bi-arrow-repeat"></i> 每'+window.qtRec.interval+'天，共'+window.qtRec.count+'期';
-        }else{
-          sel.value='';hint.textContent='';
+        if(!matched){
+          if(window.qtRec.interval&&window.qtRec.count>0){
+            sel.value='custom';
+            var cint=document.getElementById('qtCustomInterval'),ccnt=document.getElementById('qtCustomCount');
+            var cwrap=document.getElementById('qtRecurrenceCustom');
+            if(cint)cint.value=window.qtRec.interval;
+            if(ccnt)ccnt.value=window.qtRec.count;
+            if(cwrap)cwrap.classList.remove('d-none');
+            hint.innerHTML='<i class="bi bi-arrow-repeat"></i> 每'+window.qtRec.interval+'天，共'+window.qtRec.count+'期';
+          }else{
+            sel.value='';hint.textContent='';
+          }
         }
       }
       document.getElementById('qtDupWarn').innerHTML='';
@@ -1081,6 +1038,8 @@ function quickTaskParse(){
       qtBuildAssignees(d.assignee_ids);
       document.getElementById('qtStepInput').style.display='none';
       document.getElementById('qtStepReview').style.display='';
+    }).catch(function(){
+      errEl.textContent='解析失败，请重试';
     });
 }
 function quickTaskBack(){

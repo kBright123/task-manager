@@ -141,7 +141,7 @@
       <div id="qtStepInput">
         <div class="modal-body">
           <div style="position:relative;">
-            <textarea id="qtText" class="form-control" rows="4" placeholder="例：开发登录功能 从明天上午9点开始 到下周五下午6点结束 发给张三、李四。支持每周/每月/每年周期待办" style="font-size:.9rem;resize:none;"></textarea>
+            <textarea id="qtText" class="form-control" rows="4" placeholder="例：开发登录功能 从明天上午9点开始 到下周五下午6点结束 发给张三、李四" style="font-size:.9rem;resize:none;"></textarea>
             <div id="qtMentionDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:180px;overflow-y:auto;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:1000;margin-top:2px;"></div>
           </div>
           <div class="mt-2">
@@ -187,9 +187,9 @@
               <option value="custom" data-count="0" data-interval="0">自定义</option>
             </select>
             <span id="qtRecurrenceCustom" class="d-none mt-1" style="display:flex;gap:4px;">
-              <input type="number" id="qtCustomInterval" class="form-control" style="width:70px;font-size:.78rem;padding:2px 6px;" placeholder="天数" min="1" value="7">
-              <input type="number" id="qtCustomCount" class="form-control" style="width:60px;font-size:.78rem;padding:2px 6px;" placeholder="期数" min="1" value="3">
-              <button type="button" class="btn btn-sm btn-outline-primary" style="font-size:.7rem;padding:2px 8px;" onclick="qtApplyCustomRecurrence()">应用</button>
+              <input type="number" id="qtCustomInterval" class="form-control form-control-sm" style="width:70px;" placeholder="天数" min="1" value="7">
+              <input type="number" id="qtCustomCount" class="form-control form-control-sm" style="width:60px;" placeholder="期数" min="1" value="3">
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="qtApplyCustomRecurrence()">应用</button>
             </span>
             <span id="qtRecurrenceHint" class="text-info" style="font-size:.75rem;"></span>
           </div>
@@ -385,7 +385,7 @@
       <div class="d-flex align-items-center gap-2 mb-1">
         <label class="text-muted" style="font-size:.7rem;white-space:nowrap;">进度</label>
         <input type="range" name="progress" id="drawerProgressSlider" value="0" min="0" max="100" style="flex:1;height:4px;" oninput="document.getElementById('drawerProgressText').textContent=this.value+'%';document.getElementById('drawerProgressBar').style.width=this.value+'%'">
-        <input type="text" name="note" id="drawerNoteInput" class="form-control form-control-sm" placeholder="备注" style="font-size:.73rem;height:24px;max-width:100px;">
+        <input type="text" name="note" id="drawerNoteInput" class="form-control form-control-sm" placeholder="备注" style="font-size:.73rem;max-width:100px;">
         <button class="btn btn-sm btn-primary" style="padding:2px 8px;font-size:.7rem;">更新</button>
       </div>
       <div class="d-flex align-items-center gap-2">

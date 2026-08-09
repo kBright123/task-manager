@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}知识图谱 - 知识库{% endblock %}
+{% block extra_css %}
+<style>
+  #graphWrap { width: 100%; height: calc(100vh - 170px); min-height: 420px; background:#fff; border:1px solid var(--gray-200); border-radius: var(--radius); }
+  .graph-legend { font-size:.8rem; color:var(--gray-600); }
+  .graph-legend .dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:middle; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <div>
+    <nav class="mb-1">
+      <a href="{{ url_for('kb.workbench', view='points') }}" style="color:var(--primary);text-decoration:none;">
+        <i class="bi bi-arrow-left"></i> 返回工作台
+      </a>
+    </nav>
+    <h4 style="font-weight:700;color:var(--gray-900);margin:0;"><i class="bi bi-diagram-3" style="color:var(--primary);"></i> 知识图谱</h4>
+    <small class="text-muted" id="graphStatus">加载中...</small>
+  </div>
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    {% if doc_id %}
+    <a href="{{ url_for('kb.graph') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-globe"></i> 全部知识点</a>
+    {% endif %}
+    <div class="graph-legend" id="graphLegend" style="display:none;"></div>
+  </div>
+</div>
+
+<div id="graphWrap"></div>
+
+<script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+  var params = new URLSearchParams(window.location.search);
+  var url = '/kb/api/graph-data';
+  var qs = [];
+  if (params.get('collection')) qs.push('collection=' + params.get('collection'));
+  if (params.get('doc')) qs.push('doc=' + params.get('doc'));
+  if (qs.length) url += '?' + qs.join('&');
+
+  var chart = echarts.init(document.getElementById('graphWrap'));
+  window.addEventListener('resize', function () { chart.resize(); });
+
+  fetch(url).then(function (r) { return r.json(); }).then(function (d) {
+    if (!d.ok) { document.getElementById('graphStatus').textContent = d.error || '加载失败'; return; }
+    var nodes = d.nodes || [];
+    var edges = (d.edges || []).map(function (e) {
+      return { source: String(e.source), target: String(e.target), value: Math.max(0.4, Math.min(4, (e.score || 0) * 4)) };
+    });
+    if (!nodes.length) {
+      document.getElementById('graphStatus').textContent = '暂无知识点,上传文档并完成识别后即可生成图谱。';
+      document.getElementById('graphWrap').innerHTML = '<div style="text-align:center;color:var(--gray-400);padding:80px 20px;font-size:.9rem;">暂无知识点,上传文档并完成识别后即可生成图谱。</div>';
+      return;
+    }
+    var byDoc = {};
+    var cats = [];
+    nodes.forEach(function (n, i) {
+      n.id = String(n.id);
+      n.name = n.title;
+      n.value = n.word_count || 1;
+      var key = n.doc_title || ('文档' + n.doc_id);
+      if (!(key in byDoc)) { byDoc[key] = cats.length; cats.push(key); }
+      n.category = byDoc[key];
+      n.itemStyle = { color: n.color || '#8b5cf6' };
+      n.symbolSize = Math.max(14, Math.min(46, (n.word_count || 200) / 40));
+    });
+    document.getElementById('graphStatus').textContent = nodes.length + ' 个知识点 · ' + edges.length + ' 条相似关联';
+    chart.setOption({
+      tooltip: {
+        formatter: function (p) {
+          if (p.dataType === 'node') {
+            return '<b>' + p.data.name + '</b><br/>' + (p.data.doc_title || '') + ' · ' + (p.data.word_count || 0) + ' 字';
+          }
+          return '相似度 ' + Math.round((p.data.value || 0) / 4 * 100) + '%';
+        }
+      },
+      legend: [{ type: 'scroll', orient: 'vertical', right: 10, top: 10, data: cats, textStyle: { fontSize: 11 } }],
+      series: [{
+        type: 'graph',
+        layout: 'force',
+        data: nodes,
+        links: edges,
+        categories: cats.map(function (c) { return { name: c }; }),
+        roam: true,
+        draggable: true,
+        force: { repulsion: 320, edgeLength: [60, 140], gravity: 0.08 },
+        label: { show: true, position: 'right', fontSize: 10, formatter: function (p) { var t = p.data.name || ''; return t.length > 10 ? t.slice(0, 10) + '…' : t; } },
+        emphasis: { focus: 'adjacency', label: { show: true, fontSize: 13, fontWeight: 'bold' } },
+        lineStyle: { color: '#c7d2fe', width: 1, curveness: 0.15, opacity: 0.7 },
+        edgeSymbol: ['none', 'arrow'],
+        edgeSymbolSize: 6
+      }]
+    });
+    chart.on('click', function (p) { if (p.dataType === 'node') { window.open('/kb/point/' + p.data.id, '_blank'); } });
+  }).catch(function () {
+    document.getElementById('graphStatus').textContent = '图谱加载失败';
+  });
+})();
+</script>
+{% endblock %}

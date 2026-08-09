@@ -156,6 +156,11 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(20), default='user')
     is_disabled = db.Column(db.Boolean, default=False)
+    status = db.Column(db.String(20), default='approved')
+    failed_login_count = db.Column(db.Integer, default=0)
+    locked_until = db.Column(db.DateTime)
+    unlock_code = db.Column(db.String(6), default='')
+    unlock_code_expires_at = db.Column(db.DateTime)
     email = db.Column(db.String(120), default='', index=True)
     email_verified = db.Column(db.Boolean, default=False)
     pending_email = db.Column(db.String(120), default='')
@@ -408,7 +413,7 @@ def send_verify_code(user, email):
 @login_manager.user_loader
 def load_user(user_id):
     u = db.session.get(User, int(user_id))
-    if u is not None and u.is_disabled:
+    if u is not None and (u.is_disabled or u.status != 'approved'):
         return None
     return u
 
@@ -431,13 +436,16 @@ def create_notification(user_id, type, message, task_id=None):
 
 def get_same_group_users(user):
     if user.role == 'admin':
-        return User.query.filter(User.is_disabled == False, User.id != user.id).all()
+        return User.query.filter(User.is_disabled == False,
+                                 User.status == 'approved',
+                                 User.id != user.id).all()
     group_ids = [g.id for g in user.groups]
     if not group_ids:
         return []
     return User.query.filter(
         User.id != user.id,
         User.is_disabled == False,
+        User.status == 'approved',
         User.groups.any(Group.id.in_(group_ids))
     ).distinct().all()
 
@@ -523,6 +531,16 @@ def _run_sqlite_migrations():
             c.execute('ALTER TABLE user ADD COLUMN email_code VARCHAR(6) DEFAULT ""')
         if 'email_code_expires_at' not in cols:
             c.execute('ALTER TABLE user ADD COLUMN email_code_expires_at DATETIME')
+        if 'status' not in cols:
+            c.execute("ALTER TABLE user ADD COLUMN status VARCHAR(20) DEFAULT 'approved'")
+        if 'failed_login_count' not in cols:
+            c.execute('ALTER TABLE user ADD COLUMN failed_login_count INTEGER DEFAULT 0')
+        if 'locked_until' not in cols:
+            c.execute('ALTER TABLE user ADD COLUMN locked_until DATETIME')
+        if 'unlock_code' not in cols:
+            c.execute("ALTER TABLE user ADD COLUMN unlock_code VARCHAR(6) DEFAULT ''")
+        if 'unlock_code_expires_at' not in cols:
+            c.execute('ALTER TABLE user ADD COLUMN unlock_code_expires_at DATETIME')
         c.execute('PRAGMA table_info(task)')
         cols = [r[1] for r in c.fetchall()]
         if 'category' not in cols:
@@ -606,10 +624,6 @@ def seed_demo_data(force=False):
     if not force:
         return
     print('Seeding demo data...')
-    guest = User(username='guest', name='体验用户', role='user')
-    guest.set_password('guest123')
-    db.session.add(guest)
-
     users_data = [
         ('zhangsan', '张三'), ('lisi', '李四'), ('wangwu', '王五'),
         ('zhaoliu', '赵六'), ('sunqi', '孙七'),
@@ -620,12 +634,11 @@ def seed_demo_data(force=False):
         u.set_password('123456')
         db.session.add(u)
         users.append(u)
-    users.append(guest)
     db.session.flush()
 
     groups_data = [
-        ('技术部', '技术开发团队', ['guest', 'zhangsan', 'wangwu', 'sunqi']),
-        ('产品部', '产品设计团队', ['guest', 'lisi', 'zhaoliu']),
+        ('技术部', '技术开发团队', ['zhangsan', 'wangwu', 'sunqi']),
+        ('产品部', '产品设计团队', ['lisi', 'zhaoliu']),
         ('市场部', '市场营销团队', ['zhangsan', 'lisi']),
     ]
     for gname, gdesc, member_names in groups_data:
@@ -646,13 +659,13 @@ def seed_demo_data(force=False):
         {'title': '完成Q2项目汇报PPT', 'category': '工作', 'assign': 'all',
          'start': today_start - timedelta(days=2), 'end': today_start + timedelta(days=3, hours=9),
          'desc': '请各处室准备Q2项目汇报材料，周五前提交PPT'},
-        {'title': '学习Python异步编程', 'category': '个人', 'assign': 'guest',
+        {'title': '学习Python异步编程', 'category': '个人', 'assign': 'zhangsan',
          'start': today_start, 'end': today_start + timedelta(days=5, hours=8)},
         {'title': '整理部门周报', 'category': '工作', 'assign': 'zhangsan',
          'start': today_start - timedelta(days=1), 'end': today_start + timedelta(hours=3)},
         {'title': '健身计划-每周3次跑步', 'category': '个人', 'assign': 'lisi',
          'start': today_start - timedelta(days=3), 'end': today_start + timedelta(days=20)},
-        {'title': '阅读《系统设计面试》', 'category': '个人', 'assign': 'guest',
+        {'title': '阅读《系统设计面试》', 'category': '个人', 'assign': 'zhangsan',
          'start': today_start, 'end': today_start + timedelta(days=14)},
         {'title': '开发登录模块', 'category': '工作', 'assign': 'wangwu',
          'start': today_start - timedelta(days=5), 'end': today_start - timedelta(days=1)},
@@ -660,7 +673,7 @@ def seed_demo_data(force=False):
          'start': today_start + timedelta(days=3), 'end': today_start + timedelta(days=4, hours=6)},
         {'title': '数据库备份脚本优化', 'category': '工作', 'assign': 'sunqi',
          'start': today_start - timedelta(days=1), 'end': today_start + timedelta(days=2)},
-        {'title': '在线课程-数据结构', 'category': '个人', 'assign': 'guest',
+        {'title': '在线课程-数据结构', 'category': '个人', 'assign': 'zhangsan',
          'start': today_start, 'end': today_start + timedelta(days=30)},
         {'title': '客户需求评审会议', 'category': '工作', 'assign': 'all',
          'start': today_start + timedelta(hours=2), 'end': today_start + timedelta(hours=4)},
@@ -670,7 +683,7 @@ def seed_demo_data(force=False):
          'start': today_start - timedelta(days=4), 'end': today_start + timedelta(days=1)},
         {'title': '每月读书总结', 'category': '个人', 'assign': 'lisi',
          'start': today_start - timedelta(days=10), 'end': today_start - timedelta(days=3)},
-        {'title': '服务器安全加固', 'category': '工作', 'assign': 'guest',
+        {'title': '服务器安全加固', 'category': '工作', 'assign': 'zhangsan',
          'start': today_start + timedelta(days=1), 'end': today_start + timedelta(days=4)},
         {'title': '技术部Sprint评审', 'category': '工作', 'group': '技术部',
          'start': today_start, 'end': today_start + timedelta(days=2, hours=8),
@@ -684,13 +697,13 @@ def seed_demo_data(force=False):
         task = Task(title=td['title'], description=td.get('desc', ''),
                     category=td['category'],
                     start_time=td['start'], end_time=td['end'],
-                    creator_id=guest.id, is_all=(td.get('assign') == 'all'))
+                    creator_id=users[0].id, is_all=(td.get('assign') == 'all'))
         db.session.add(task)
         db.session.flush()
         if td.get('assign') == 'all':
-            target_users = [guest] + users
+            target_users = users
         elif td.get('assign') == 'guest':
-            target_users = [guest]
+            target_users = []
         elif td.get('assign'):
             target_users = [u for u in users if u.username == td['assign']]
         else:
@@ -713,8 +726,8 @@ def seed_demo_data(force=False):
     completed_tasks_data = [
         {'title': '开发登录模块', 'user': 'wangwu', 'progress': 100},
         {'title': '每月读书总结', 'user': 'lisi', 'progress': 100},
-        {'title': '完成Q2项目汇报PPT', 'user': 'guest', 'progress': 60},
-        {'title': '学习Python异步编程', 'user': 'guest', 'progress': 30},
+        {'title': '完成Q2项目汇报PPT', 'user': 'zhangsan', 'progress': 60},
+        {'title': '学习Python异步编程', 'user': 'zhangsan', 'progress': 30},
     ]
     for ctd in completed_tasks_data:
         task = Task.query.filter_by(title=ctd['title']).first()
@@ -1295,20 +1308,90 @@ def index():
     return redirect(url_for('login'))
 
 
+MAX_LOGIN_FAILS = 5
+LOGIN_LOCK_MINUTES = 10
+UNLOCK_CODE_TTL_MINUTES = 10
+
+
+def mask_email(email):
+    """脱敏邮箱用于页面展示: abc@qq.com -> a**@qq.com"""
+    if not email:
+        return ''
+    local, _, domain = email.partition('@')
+    if len(local) <= 2:
+        return f'{local[0]}***@{domain}'
+    return f'{local[0]}***{local[-1]}@{domain}'
+
+
+def send_unlock_code(user):
+    """为锁定账号生成解锁验证码并发送邮件。返回 (ok, err, dev_code)。"""
+    code = generate_verify_code()
+    user.unlock_code = code
+    user.unlock_code_expires_at = (datetime.utcnow() +
+                                   timedelta(minutes=UNLOCK_CODE_TTL_MINUTES))
+    user.locked_until = datetime.utcnow() + timedelta(minutes=LOGIN_LOCK_MINUTES)
+    db.session.commit()
+    text = (f'您的账号 @{user.username} 因多次密码输入错误已被临时锁定。\n'
+            f'解锁验证码为: {code}\n'
+            f'验证码 {UNLOCK_CODE_TTL_MINUTES} 分钟内有效,请勿泄露给他人。\n'
+            f'如非本人操作,请忽略本邮件,并考虑修改密码。')
+    html = (f'<div style="font-family:Microsoft YaHei,Arial,sans-serif;font-size:14px;color:#1e293b;">'
+            f'<p>您的账号 <b>@{user.username}</b> 因多次密码输入错误已被临时锁定。</p>'
+            f'<p>解锁验证码为:</p>'
+            f'<p style="font-size:24px;font-weight:700;letter-spacing:4px;color:#4f46e7;">{code}</p>'
+            f'<p>验证码 <b>{UNLOCK_CODE_TTL_MINUTES} 分钟</b>内有效,请勿泄露给他人。</p>'
+            f'<p style="color:#94a3b8;font-size:12px;">如非本人操作,请忽略本邮件,并考虑修改密码。</p></div>')
+    ok, err = send_email(user.email, '【知行合一】账号解锁验证码', html,
+                         text, category='unlock')
+    if not ok and not app.config['MAIL_SERVER']:
+        logger.info('邮件服务未配置,解锁验证码(%s) 已写入日志,目标邮箱: %s',
+                    code, user.email)
+        return False, '邮件服务未配置,验证码已写入服务器日志', code
+    return ok, err, ''
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
+    ctx = {'username': '', 'lock_email': False, 'masked_email': ''}
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
+        ctx['username'] = username
         user = User.query.filter_by(username=username).first()
+        now = datetime.utcnow()
+        if user and user.locked_until and user.locked_until > now:
+            if user.unlock_code:
+                ctx['lock_email'] = True
+                ctx['masked_email'] = mask_email(user.email)
+                flash('密码错误次数过多，账号已锁定。请输入邮箱验证码解锁（也可验证后重置密码）', 'warning')
+                return render_template('login.html', **ctx)
+            wait_min = int((user.locked_until - now).total_seconds() // 60) + 1
+            log_operation('login_fail', username, '账号锁定中')
+            db.session.commit()
+            flash(f'密码错误次数过多，账号已锁定，请在 {wait_min} 分钟后再试', 'warning')
+            return render_template('login.html', **ctx)
         if user and user.check_password(password):
+            if user.status == 'pending':
+                log_operation('login_fail', username, '账号待审批')
+                db.session.commit()
+                flash('该账号正在等待管理员审批，审批通过后方可登录', 'warning')
+                return render_template('login.html', **ctx)
+            if user.status == 'rejected':
+                log_operation('login_fail', username, '注册申请被拒绝')
+                db.session.commit()
+                flash('该账号的注册申请已被拒绝，请联系管理员', 'danger')
+                return render_template('login.html', **ctx)
             if user.is_disabled:
                 log_operation('login_fail', username, '账号已禁用')
                 db.session.commit()
                 flash('该账号已被禁用，请联系管理员', 'danger')
-                return render_template('login.html')
+                return render_template('login.html', **ctx)
+            user.failed_login_count = 0
+            user.locked_until = None
+            user.unlock_code = ''
+            user.unlock_code_expires_at = None
             login_user(user)
             log_operation('login', username,
                           f'用户 {user.name or user.username} 登录成功')
@@ -1318,28 +1401,131 @@ def login():
             if next_page and next_page.startswith('/') and not next_page.startswith('//'):
                 return redirect(next_page)
             return redirect(url_for('index'))
+        if not user:
+            log_operation('login_fail', username, '用户不存在')
+            db.session.commit()
+            flash('用户名或密码错误！', 'danger')
+            return render_template('login.html', **ctx)
+        user.failed_login_count = (user.failed_login_count or 0) + 1
+        if user.failed_login_count >= MAX_LOGIN_FAILS:
+            if user.email_verified and user.email:
+                send_unlock_code(user)
+                ctx['lock_email'] = True
+                ctx['masked_email'] = mask_email(user.email)
+                flash(f'密码错误 {MAX_LOGIN_FAILS} 次，账号已锁定。已向绑定邮箱发送解锁验证码', 'warning')
+            else:
+                user.locked_until = now + timedelta(minutes=LOGIN_LOCK_MINUTES)
+                db.session.commit()
+                log_operation('login_fail', username, f'连续密码错误，锁定 {LOGIN_LOCK_MINUTES} 分钟')
+                db.session.commit()
+                flash(f'密码错误 {MAX_LOGIN_FAILS} 次，账号已锁定 {LOGIN_LOCK_MINUTES} 分钟。请稍后再试', 'warning')
+            return render_template('login.html', **ctx)
+        remaining = MAX_LOGIN_FAILS - user.failed_login_count
         log_operation('login_fail', username, '用户名或密码错误')
         db.session.commit()
-        flash('用户名或密码错误！', 'danger')
-    return render_template('login.html')
+        flash(f'用户名或密码错误！剩余尝试次数 {remaining} 次', 'danger')
+        return render_template('login.html', **ctx)
+    return render_template('login.html', **ctx)
 
 
-@app.route('/login-guest')
-def login_guest():
-    guest = User.query.filter_by(username='guest').first()
-    if guest and not guest.is_disabled:
-        login_user(guest)
-        log_operation('login', 'guest', '体验账号登录')
-        db.session.commit()
-        flash('您已使用体验账号登录，数据仅供展示', 'info')
-        return redirect(url_for('index'))
-    if guest:
-        log_operation('login_fail', 'guest', '体验账号已被禁用')
-        db.session.commit()
-        flash('体验账号已被禁用', 'danger')
+@app.route('/login/unlock/send', methods=['POST'])
+def login_unlock_send():
+    """锁定账号重发解锁验证码。"""
+    username = request.form.get('username', '').strip()
+    user = User.query.filter_by(username=username).first()
+    now = datetime.utcnow()
+    if (user and user.locked_until and user.locked_until > now
+            and user.email_verified and user.email):
+        send_unlock_code(user)
+        flash('解锁验证码已重新发送，请查收邮件', 'success')
     else:
-        flash('体验账号不存在，请先创建', 'danger')
+        flash('账号未处于可解锁状态', 'danger')
     return redirect(url_for('login'))
+
+
+@app.route('/login/unlock', methods=['POST'])
+def login_unlock():
+    """邮箱验证码解锁:验证通过后解锁账号,可同时重置密码。"""
+    username = request.form.get('username', '').strip()
+    code = (request.form.get('code') or '').strip()
+    new_password = request.form.get('new_password', '')
+    user = User.query.filter_by(username=username).first()
+    now = datetime.utcnow()
+    if not user or not user.locked_until or user.locked_until <= now:
+        flash('账号未处于锁定状态', 'danger')
+        return redirect(url_for('login'))
+    if not code:
+        flash('请输入邮箱收到的验证码', 'danger')
+        return redirect(url_for('login'))
+    if not user.unlock_code or user.unlock_code_expires_at < now:
+        flash('验证码已过期，请重新获取', 'danger')
+        return redirect(url_for('login'))
+    if user.unlock_code != code:
+        log_operation('login_fail', username, '解锁验证码错误')
+        db.session.commit()
+        flash('验证码错误，请重新输入', 'danger')
+        return redirect(url_for('login'))
+    if new_password:
+        if len(new_password) < 6:
+            flash('新密码长度至少 6 位', 'danger')
+            return redirect(url_for('login'))
+        user.set_password(new_password)
+    user.failed_login_count = 0
+    user.locked_until = None
+    user.unlock_code = ''
+    user.unlock_code_expires_at = None
+    log_operation('login_unlock', username,
+                  '通过邮箱验证码解锁账号' + ('并重置密码' if new_password else ''))
+    db.session.commit()
+    if new_password:
+        flash('验证通过，密码已重置，请使用新密码登录', 'success')
+    else:
+        flash('验证通过，账号已解锁，请重新登录', 'success')
+    return redirect(url_for('login'))
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        name = request.form.get('name', '').strip()
+        password = request.form.get('password', '')
+        if not username or not password:
+            flash('用户名和密码不能为空', 'danger')
+            return render_template('register.html', username=username,
+                                   name=name)
+        if len(username) < 2 or len(username) > 80:
+            flash('用户名长度需在 2-80 个字符之间', 'danger')
+            return render_template('register.html', username=username,
+                                   name=name)
+        if len(password) < 6:
+            flash('密码长度至少 6 位', 'danger')
+            return render_template('register.html', username=username,
+                                   name=name)
+        if User.query.filter_by(username=username).first():
+            flash('用户名已存在，请更换', 'danger')
+            return render_template('register.html', username=username,
+                                   name=name)
+        user = User(username=username, name=name, role='user',
+                    status='pending')
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+        for admin in User.query.filter_by(role='admin',
+                                          is_disabled=False,
+                                          status='approved').all():
+            create_notification(
+                admin.id, 'user_pending',
+                f'新用户「{name or username}」(@{username}) 注册，等待审批')
+        db.session.commit()
+        log_operation('register', username,
+                      f'新用户 {name or username} 注册，等待管理员审批')
+        db.session.commit()
+        flash('注册成功！账号正在等待管理员审批，审批通过后即可登录', 'success')
+        return redirect(url_for('login'))
+    return render_template('register.html')
 
 
 @app.route('/logout')
@@ -1642,9 +1828,50 @@ def admin_emails():
 @login_required
 @admin_required
 def admin_users():
-    users = User.query.all()
+    pending_first = (User.status == 'pending').desc()
+    users = User.query.order_by(pending_first, User.id.asc()).all()
     groups = Group.query.all()
     return render_template('admin/users.html', users=users, groups=groups, is_admin=True)
+
+
+@app.route('/admin/users/<int:user_id>/approve', methods=['POST'])
+@login_required
+@admin_required
+def admin_approve_user(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        flash('用户不存在', 'danger')
+        return redirect(url_for('admin_users'))
+    user.status = 'approved'
+    user.failed_login_count = 0
+    user.locked_until = None
+    user.unlock_code = ''
+    user.unlock_code_expires_at = None
+    create_notification(user.id, 'user_approved',
+                        '你的注册申请已通过审批，现在可以登录了')
+    log_operation('user_approve', user.username,
+                  f'管理员 {current_user.name or current_user.username} 审批通过用户注册')
+    db.session.commit()
+    flash(f'用户 {user.name or user.username} 已通过审批', 'success')
+    return redirect(url_for('admin_users'))
+
+
+@app.route('/admin/users/<int:user_id>/reject', methods=['POST'])
+@login_required
+@admin_required
+def admin_reject_user(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        flash('用户不存在', 'danger')
+        return redirect(url_for('admin_users'))
+    user.status = 'rejected'
+    create_notification(user.id, 'user_rejected',
+                        '你的注册申请未通过审批，如有疑问请联系管理员')
+    log_operation('user_reject', user.username,
+                  f'管理员 {current_user.name or current_user.username} 拒绝了用户注册')
+    db.session.commit()
+    flash(f'用户 {user.name or user.username} 的注册申请已拒绝', 'warning')
+    return redirect(url_for('admin_users'))
 
 
 @app.route('/admin/users/add', methods=['POST'])
@@ -2402,7 +2629,7 @@ def api_quick_task_preview():
         for name in parsed.get('assignees') or []:
             u = User.query.filter(
                 db.or_(User.name == name, User.username == name)).first()
-            if u and not u.is_disabled and u.id != current_user.id:
+            if u and not u.is_disabled and u.status == 'approved' and u.id != current_user.id:
                 assignee_ids.append(u.id)
         assignee_ids.append(current_user.id)
 
@@ -2491,7 +2718,7 @@ def api_quick_task():
                     selected_groups = Group.query.filter(Group.id.in_(group_ids)).all()
                     for g in selected_groups:
                         for m in g.members:
-                            if not m.is_disabled:
+                            if not m.is_disabled and m.status == 'approved':
                                 uid_set.add(m.id)
                         task.groups.append(g)
                 uid_set.add(current_user.id)
@@ -2850,7 +3077,7 @@ def user_tasks():
                             selected_groups = Group.query.filter(Group.id.in_([int(gid) for gid in group_ids])).all()
                             for g in selected_groups:
                                 for m in g.members:
-                                    if not m.is_disabled:
+                                    if not m.is_disabled and m.status == 'approved':
                                         uid_set.add(m.id)
                                 task.groups.append(g)
                         uid_set.add(current_user.id)
@@ -3267,7 +3494,7 @@ def api_task_assign(task_id):
         except (TypeError, ValueError):
             continue
         u = db.session.get(User, uid)
-        if not u or u.is_disabled or uid in existing:
+        if not u or u.is_disabled or u.status != 'approved' or uid in existing:
             continue
         existing.add(uid)
         db.session.add(TaskAssignment(task_id=task.id, user_id=uid))
@@ -3413,7 +3640,7 @@ def admin_clear_data():
     db.session.execute(user_group.delete())
     Group.query.delete()
     demo_users = User.query.filter(
-        User.username.in_(['guest', 'zhangsan', 'lisi', 'wangwu', 'zhaoliu', 'sunqi'])
+        User.username.in_(['zhangsan', 'lisi', 'wangwu', 'zhaoliu', 'sunqi'])
     ).all()
     for u in demo_users:
         db.session.delete(u)

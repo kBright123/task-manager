@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}注册 - 知行合一{% endblock %}
+{% block full_content %}
+<div class="container">
+  <div class="row justify-content-center align-items-center" style="min-height: 100vh;">
+    <div class="col-md-5 col-lg-4">
+      <div class="card shadow-sm">
+        <div class="card-body p-4">
+          <div class="text-center mb-4">
+            <div style="width:72px;height:72px;border-radius:50%;background:var(--primary-light);color:var(--primary);display:inline-flex;align-items:center;justify-content:center;margin-bottom:14px;">
+              <i class="bi bi-person-plus" style="font-size:30px;"></i>
+            </div>
+            <h4 class="fw-bold mb-1" style="color:var(--gray-900);">注册账号</h4>
+            <p class="text-muted small mb-0">注册后需管理员审批，审批通过方可登录</p>
+          </div>
+          <form method="POST">
+            <div class="mb-3">
+              <label class="form-label">用户名</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-person"></i></span>
+                <input type="text" name="username" class="form-control" placeholder="2-80 个字符" value="{{ username }}" required autofocus>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">姓名（可选）</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-person-vcard"></i></span>
+                <input type="text" name="name" class="form-control" placeholder="请输入姓名" value="{{ name }}">
+              </div>
+            </div>
+            <div class="mb-4">
+              <label class="form-label">密码</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                <input type="password" name="password" class="form-control" placeholder="至少 6 位" required minlength="6">
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary w-100 py-2 fw-bold mb-3">注 册</button>
+          </form>
+          <div class="text-center">
+            <span style="font-size:.8rem;color:var(--gray-500);">已有账号？</span>
+            <a href="{{ url_for('login') }}" style="color:var(--primary);text-decoration:none;font-weight:600;font-size:.8rem;">返回登录</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -29,8 +29,8 @@ services:
       # ---- 低资源优化(1核/512MB~1GB) ----
       # 默认禁用 LLM 问答:分身问答/整理降级为关键词检索+FAQ,不再调用大模型
       - KB_LLM_DISABLED=${KB_LLM_DISABLED:-1}
-      # 默认禁用 fastText 自动分类:文档/笔记改走纯关键词规则
-      - KB_CLASSIFIER_ENABLED=${KB_CLASSIFIER_ENABLED:-0}
+      # fastText 自动分类(无模型时自动降级为内置关键词规则)
+      - KB_CLASSIFIER_ENABLED=${KB_CLASSIFIER_ENABLED:-1}
       # 默认禁用向量检索(fastembed+SochDB):检索降级为 SQLite 关键词匹配,省内存大头
       - KB_VECTOR_DISABLED=${KB_VECTOR_DISABLED:-1}
       # 邮件提醒扫描间隔(秒),从 60 提至 300 减少数据库/CPU 空转

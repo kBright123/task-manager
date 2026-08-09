@@ -9,6 +9,25 @@
   .wb-col > .wb-panel { flex: 1 1 0; min-height: 0; }
   .wb-main { display:flex; flex-direction:column; min-height:0; }
 
+  /* 视图 Tab(文档 / 知识点 / 图谱) */
+  .kb-tabs { display:flex; align-items:center; gap:4px; padding:0 16px 10px; border-bottom:1px solid var(--gray-100); }
+  .kb-tab { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:100px; font-size:.82rem; font-weight:600; color:var(--gray-500); text-decoration:none; transition:all .15s; }
+  .kb-tab:hover { color:var(--primary); background:var(--primary-light); }
+  .kb-tab.active { color:#fff; background:var(--primary); box-shadow:0 2px 8px rgba(79,70,231,.25); }
+  .kb-tab .badge-low { background:rgba(255,255,255,.25); color:#fff; font-size:.6rem; }
+
+  /* 知识点列表 */
+  .kb-point-row { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--gray-100); font-size:.85rem; }
+  .kb-point-row:hover { background:var(--gray-50); }
+  .kb-point-ico { width:30px; height:30px; border-radius:8px; background:var(--primary-light); color:var(--primary); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .kb-point-main { flex:1; min-width:0; }
+  .kb-point-title { font-weight:600; color:var(--gray-800); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .kb-point-title:hover { color:var(--primary); }
+  .kb-point-sub { font-size:.72rem; color:var(--gray-500); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .kb-point-meta { display:flex; align-items:center; gap:6px; font-size:.72rem; color:var(--gray-500); flex-shrink:0; }
+  @media (max-width: 860px) { .kb-point-meta { display:none; } }
+
+
   /* 页头统计 */
   .kb-stat { display:inline-flex; align-items:center; gap:6px; background:#fff; border:1px solid var(--gray-200); border-radius:100px; padding:6px 14px; font-size:.8rem; font-weight:600; color:var(--gray-700); box-shadow:var(--shadow-sm); }
   .kb-stat i { color:var(--primary); }
@@ -16,7 +35,8 @@
   /* 侧边栏: 悬停编辑/删除 */
   .kb-coll-row { display:flex; align-items:center; border-radius:8px; }
   .kb-coll-row:hover { background:var(--gray-50); }
-  .kb-coll-row .kb-coll-link { flex:1; min-width:0; }
+  .kb-coll-row .kb-coll-link { flex:1; min-width:0; font-size:.75rem; }
+  .kb-coll-row .kb-coll-link .badge-low { font-size:.62rem; }
   .kb-coll-acts { display:none; gap:2px; flex-shrink:0; padding-right:4px; }
   .kb-coll-row:hover .kb-coll-acts { display:flex; }
   .kb-coll-acts button { background:transparent; border:none; padding:4px 6px; color:var(--gray-400); border-radius:6px; font-size:.8rem; }
@@ -78,16 +98,21 @@
   @keyframes wbSheetRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
   .preview-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--gray-100); font-weight: 600; font-size: .9rem; flex-shrink: 0; }
   .preview-modal-body { padding: 14px; overflow-y: auto; }
+
+  /* 弹框叠放:confirm/collection 可能从 kbManageModal 之上打开,
+     默认 z-index(1055)按 DOM 顺序叠放会导致被前置的 kbManageModal 遮挡 */
+  #confirmModal { z-index: 1075; }
+  #collectionModal { z-index: 1070; }
 </style>
 {% endblock %}
 {% block content %}
 <div class="wb">
-  <!-- 左栏: 文档集 + 上传 -->
+  <!-- 左栏: 集合 + 上传 -->
   <div class="wb-col">
     <div class="wb-panel">
       <div class="card-header d-flex justify-content-between align-items-center">
-        <span style="display:inline-flex;align-items:center;gap:8px;"><i class="bi bi-folder2-open" style="color:var(--primary);"></i> 文档集
-          <button type="button" class="btn btn-xs-custom btn-outline-secondary" style="padding:1px 10px;font-size:.72rem;" onclick="kbManageOpen()" title="文档集管理"><i class="bi bi-gear"></i> 管理</button>
+        <span style="display:inline-flex;align-items:center;gap:8px;"><i class="bi bi-folder2-open" style="color:var(--primary);"></i> 集合
+          <button type="button" class="btn btn-xs-custom btn-outline-secondary" style="padding:1px 10px;font-size:.72rem;" onclick="kbManageOpen()" title="集合管理"><i class="bi bi-gear"></i> 管理</button>
         </span>
         <span class="badge badge-low" id="kbCollCount">{{ collection_count }}</span>
       </div>
@@ -124,12 +149,12 @@
                 {% if v['c'].visibility == 'private' and v['c'].owner_id and v['c'].owner_id != current_user.id %}
                 <small class="text-muted" style="font-size:.6rem;flex-shrink:0;">{{ owner_names.get(v['c'].owner_id, '他人') }}</small>
                 {% endif %}
-                <span class="badge badge-low" style="font-size:.6rem;">{{ v['c'].documents|length }}</span>
+                <span class="badge badge-low" style="font-size:.6rem;">{{ doc_counts.get(v['c'].id, 0) }}</span>
               </a>
               {% if current_user.role == 'admin' or (v['c'].owner_id == current_user.id and v['c'].visibility == 'private') %}
               <div class="kb-coll-acts">
-                <button type="button" title="重命名" onclick="showCollectionModal({{ v['c'].id }}, {{ v['c'].name|tojson }}, {{ v['c'].color|tojson }}, {{ v['c'].visibility|tojson }})"><i class="bi bi-pencil"></i></button>
-                <button type="button" title="删除" onclick="deleteCollection({{ v['c'].id }}, {{ v['c'].name|tojson }})"><i class="bi bi-trash"></i></button>
+                <button type="button" title="重命名" data-cid="{{ v['c'].id }}" data-cname="{{ v['c'].name }}" data-ccolor="{{ v['c'].color }}" data-cvis="{{ v['c'].visibility }}" onclick="showCollectionModal(this)"><i class="bi bi-pencil"></i></button>
+                <button type="button" title="删除" data-cid="{{ v['c'].id }}" data-cname="{{ v['c'].name }}" onclick="deleteCollection(this)"><i class="bi bi-trash"></i></button>
               </div>
               {% endif %}
             </div>
@@ -146,17 +171,28 @@
     <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <span style="font-weight:600;"><i class="bi bi-collection" style="color:var(--primary);"></i> 知识库管理</span>
-        <span class="kb-stat"><i class="bi bi-files"></i> 总文档 {{ total_docs }}</span>
-        <span class="text-muted" style="font-size:.72rem;" id="kbDocCount"></span>
       </div>
       <div class="d-flex align-items-center gap-2">
         <div style="position:relative;">
           <i class="bi bi-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--gray-400);font-size:.8rem;"></i>
-          <input type="text" id="kbSearch" value="{{ q }}" class="form-control form-control-sm" placeholder="搜索文档标题…(Ctrl+F)" style="padding-left:28px;width:220px;" autocomplete="off">
+          <input type="text" id="kbSearch" value="{{ q }}" class="form-control form-control-sm" placeholder="{% if view == 'points' %}搜索知识点/来源文档…{% else %}搜索文档标题…(Ctrl+F){% endif %}" style="padding-left:28px;width:220px;" autocomplete="off">
         </div>
+        {% if view != 'points' %}
         <button class="btn btn-sm btn-primary" type="button" onclick="kbUploadOpen()" style="white-space:nowrap;"><i class="bi bi-cloud-arrow-up"></i> 上传文档</button>
+        {% endif %}
       </div>
     </div>
+
+    <!-- 视图 Tab -->
+    <div class="kb-tabs">
+      <a href="{{ url_for('kb.workbench', collection=active_collection, group=group or None, q=q or None, view='docs') }}"
+         class="kb-tab {% if view != 'points' %}active{% endif %}"><i class="bi bi-files"></i> 文档</a>
+      <a href="{{ url_for('kb.workbench', collection=active_collection, group=group or None, q=q or None, view='points') }}"
+         class="kb-tab {% if view == 'points' %}active{% endif %}"><i class="bi bi-lightbulb"></i> 知识点</a>
+      <a href="{{ url_for('kb.graph', collection=active_collection) }}" class="kb-tab"><i class="bi bi-diagram-3"></i> 图谱</a>
+    </div>
+
+    <div id="docsView" class="{% if view == 'points' %}d-none{% endif %}" style="display:flex;flex-direction:column;flex:1;min-height:0;">
 
     <!-- 批量操作栏 -->
     <div id="bulkBar" class="kb-bulk d-none">
@@ -166,6 +202,7 @@
       <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkExportTxt()"><i class="bi bi-filetype-txt"></i> 导出结果</button>
       <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkReprocess()"><i class="bi bi-arrow-repeat"></i> 重新识别</button>
       <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkAutoArchive()"><i class="bi bi-stars"></i> 自动归档</button>
+      <button class="btn btn-xs-custom btn-outline-secondary" onclick="bulkClearArchive()"><i class="bi bi-archive"></i> 清除归档</button>
       <button class="btn btn-xs-custom btn-outline-danger" onclick="bulkDelete()"><i class="bi bi-trash"></i> 删除</button>
       <button class="btn btn-xs-custom" style="background:transparent;border:none;color:var(--gray-400);" onclick="kbClearSel()">取消</button>
     </div>
@@ -204,6 +241,50 @@
     <div class="card-footer kb-foot">
       <small class="text-muted">共 <span id="kbTotal">0</span> 篇文档</small>
       <small class="text-muted" style="font-size:.68rem;"><kbd>Ctrl+A</kbd> 全选 · <kbd>Ctrl+F</kbd> 搜索 · <kbd>Delete</kbd> 删除</small>
+    </div>
+    </div><!-- /docsView -->
+
+    <!-- 知识点视图 -->
+    <div id="pointsView" class="{% if view != 'points' %}d-none{% endif %}" style="display:flex;flex-direction:column;flex:1;min-height:0;">
+      <div style="flex:1;min-height:0;overflow-y:auto;">
+        {% if point_rows %}
+        {% for r in point_rows %}
+        <div class="kb-point-row">
+          <div class="kb-point-ico"><i class="bi bi-lightbulb"></i></div>
+          <div class="kb-point-main">
+            <a href="{{ r.detail_url }}" class="kb-point-title" style="text-decoration:none;">{{ r.title }}</a>
+            <div class="kb-point-sub">
+              {% if r.collection_name %}<span style="color:{{ r.collection_color }};font-weight:600;">{{ r.collection_name }}</span> · {% endif %}
+              <a href="{{ r.doc_url }}" style="color:var(--gray-500);text-decoration:none;">{{ r.doc_title }}</a>
+            </div>
+          </div>
+          <div class="kb-point-meta">
+            {% if r.rel_count %}<span title="相似关联" style="color:var(--primary);"><i class="bi bi-diagram-3"></i> {{ r.rel_count }}</span>{% endif %}
+            {% if r.ref_count %}<span title="被引用"><i class="bi bi-quote"></i> {{ r.ref_count }}</span>{% endif %}
+            <span>{{ "{:,}".format(r.word_count) }} 字</span>
+            {% if r.page_start %}<span>第 {{ r.page_start }}{% if r.page_end != r.page_start %}-{{ r.page_end }}{% endif %} 页</span>{% endif %}
+          </div>
+          {% if current_user.role == 'admin' %}
+          <div class="kb-point-acts d-flex gap-1">
+            <a href="{{ url_for('kb.api_point_delete', pid=r.id) }}" title="删除知识点" class="text-muted" style="font-size:.8rem;"
+               onclick="event.preventDefault();var ok=confirm('确定删除知识点「{{ r.title|e }}」?');if(ok){fetch(this.href,{method:'POST'}).then(function(x){return x.json()}).then(function(d){if(d.ok)location.reload();});}"><i class="bi bi-trash"></i></a>
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="text-center" style="padding:48px 16px;">
+          <div class="empty-state">
+            <svg viewBox="0 0 96 96" fill="none" style="width:64px;height:64px;"><rect x="28" y="14" width="40" height="68" rx="6" fill="var(--gray-100)" stroke="var(--gray-300)" stroke-width="2"/><path d="M40 30h16M40 44h16M40 58h10" stroke="var(--primary)" stroke-width="3" stroke-linecap="round"/></svg>
+            <div class="es-title">暂无知识点</div>
+            <div class="es-sub">文档识别完成后会自动拆解为独立知识点,并可查看相似关联与图谱。</div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="card-footer kb-foot">
+        <small class="text-muted">共 <span id="kbPointTotal">{{ total_points }}</span> 条知识点</small>
+      </div>
     </div>
   </div>
 </div>
@@ -324,19 +405,19 @@
   </div>
 </div>
 
-<!-- 文档集管理弹框 -->
+<!-- 集合管理弹框 -->
 <div class="modal fade" id="kbManageModal" tabindex="-1">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
-        <h6 class="modal-title"><i class="bi bi-collection" style="color:var(--primary);"></i> 文档集管理</h6>
+        <h6 class="modal-title"><i class="bi bi-collection" style="color:var(--primary);"></i> 集合管理</h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body p-0">
         <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap p-3 pb-2">
-          <small class="text-muted">管理知识库下的文档集:可新建、修改、删除,或一键清理空集合。</small>
+          <small class="text-muted">管理知识库下的集合:可新建、修改、删除,或一键清理空集合。</small>
           <div class="d-flex gap-2">
-            <button class="btn btn-sm btn-primary" onclick="showCollectionModal()"><i class="bi bi-plus"></i> 新建文档集</button>
+            <button class="btn btn-sm btn-primary" onclick="showCollectionModal()"><i class="bi bi-plus"></i> 新建集合</button>
             <button class="btn btn-sm btn-outline-secondary" onclick="pruneEmptyCollections()"><i class="bi bi-trash"></i> 清空空集合</button>
           </div>
         </div>
@@ -358,19 +439,19 @@
                 <td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:{{ c.color }};"></span></td>
                 <td style="font-weight:600;">{{ c.name }}</td>
                 <td>{% if c.visibility == 'public' %}<span class="status-badge status-done">公共</span>{% else %}<span class="text-muted">私有</span>{% endif %}</td>
-                <td>{{ c.documents|length }}</td>
+                <td>{{ doc_counts.get(c.id, 0) }}</td>
                 {% if current_user.role == 'admin' %}<td class="text-muted">{{ owner_names.get(c.owner_id, '—') }}</td>{% endif %}
                 <td>
                   {% if current_user.role == 'admin' or (c.owner_id == current_user.id and c.visibility == 'private') %}
-                  <button class="btn btn-xs-custom btn-outline-primary" onclick="showCollectionModal({{ c.id }}, {{ c.name|tojson }}, {{ c.color|tojson }}, {{ c.visibility|tojson }})"><i class="bi bi-pencil"></i> 修改</button>
-                  <button class="btn btn-xs-custom btn-outline-danger" onclick="deleteCollection({{ c.id }}, {{ c.name|tojson }})"><i class="bi bi-trash"></i> 删除</button>
+                  <button class="btn btn-xs-custom btn-outline-primary" data-cid="{{ c.id }}" data-cname="{{ c.name }}" data-ccolor="{{ c.color }}" data-cvis="{{ c.visibility }}" onclick="showCollectionModal(this)"><i class="bi bi-pencil"></i> 修改</button>
+                  <button class="btn btn-xs-custom btn-outline-danger" data-cid="{{ c.id }}" data-cname="{{ c.name }}" onclick="deleteCollection(this)"><i class="bi bi-trash"></i> 删除</button>
                   {% else %}
                   <span class="text-muted">只读</span>
                   {% endif %}
                 </td>
               </tr>
               {% else %}
-              <tr><td colspan="6" class="text-center text-muted py-4">暂无文档集</td></tr>
+              <tr><td colspan="6" class="text-center text-muted py-4">暂无集合</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -420,6 +501,7 @@
 {% block extra_js %}
 <script>
 window.KB_INIT = {{ docs_json|safe }};
+window.KB_VIEW = {{ (view or 'docs')|tojson }};
 window.KB_FILTER = {collection: {{ active_collection or 'null' }}, group: {{ group|tojson }}, q: {{ q|tojson }}};
 window.KB_URLS = {
   docs: '{{ url_for('kb.api_docs') }}',
@@ -529,7 +611,6 @@ window.KB_URLS = {
   function render() {
     var total = state.docs.length;
     document.getElementById('kbTotal').textContent = total;
-    document.getElementById('kbDocCount').textContent = '共 ' + total + ' 条';
     var empty = document.getElementById('kbEmpty');
     var vs = document.getElementById('kbVS');
     empty.classList.toggle('d-none', total > 0);
@@ -595,7 +676,17 @@ window.KB_URLS = {
   sInput.addEventListener('input', function () {
     clearTimeout(sTimer);
     sTimer = setTimeout(function () {
-      state.filter.q = sInput.value.trim();
+      var v = sInput.value.trim();
+      if (window.KB_VIEW === 'points') {
+        var p = new URLSearchParams();
+        p.set('view', 'points');
+        if (v) p.set('q', v);
+        if (state.filter.collection) p.set('collection', state.filter.collection);
+        if (state.filter.group) p.set('group', state.filter.group);
+        window.location.href = '/kb/workbench?' + p.toString();
+        return;
+      }
+      state.filter.q = v;
       var p = new URLSearchParams(window.location.search);
       p.set('q', state.filter.q || '');
       if (!state.filter.q) p.delete('q');
@@ -984,6 +1075,9 @@ window.KB_URLS = {
     }).then(function (r) { return r.json(); });
   }
   function reload() { window.__kbLoad(); }
+  /* 集合/数量相关操作(删除、移动、归档)会改变服务端渲染的侧边栏,
+     仅刷新文档列表不够,延迟全页刷新以保留提示再更新侧边栏 */
+  function reloadFull() { setTimeout(function () { location.reload(); }, 1200); }
 
   window.bulkDelete = function () {
     var ids = selected();
@@ -994,7 +1088,7 @@ window.KB_URLS = {
         setBulkBusy(false);
         if (!d.ok) { if (window.toast) toast(d.error || '删除失败', 'danger'); return; }
         if (window.toast) toast('已删除 ' + (d.deleted || 0) + ' 个文档', 'success');
-        reload();
+        reloadFull();
       }).catch(function () { setBulkBusy(false); if (window.toast) toast('网络错误', 'danger'); });
     });
   };
@@ -1061,7 +1155,7 @@ window.KB_URLS = {
   window.bulkAutoArchive = function () {
     var ids = selected();
     if (!ids.length) return;
-    window.kbConfirm('自动归档', '确认对选中的 <b>' + ids.length + '</b> 个文档执行自动分类归档?<br><small class="text-muted">未识别完成、无分类结果或已手动归档的文档将被跳过。</small>', '开始', function () {
+    window.kbConfirm('自动归档', '确认对选中的 <b>' + ids.length + '</b> 个文档执行自动分类归档?<br><small class="text-muted">未识别完成的文档将被跳过；无法判定类别的文档将归入「未分类」；已手动归档的文档不自动迁移。</small>', '开始', function () {
       setBulkBusy(true);
       post('auto_archive', ids.map(Number)).then(function (d) {
         setBulkBusy(false);
@@ -1070,7 +1164,22 @@ window.KB_URLS = {
         if (d.created && d.created.length) msg += '，新建合集: ' + d.created.join('、');
         if (d.skipped) msg += '，跳过 ' + d.skipped + ' 个';
         if (window.toast) toast(msg, 'success');
-        reload();
+        reloadFull();
+      }).catch(function () { setBulkBusy(false); if (window.toast) toast('网络错误', 'danger'); });
+    });
+  };
+  window.bulkClearArchive = function () {
+    var ids = selected();
+    if (!ids.length) return;
+    window.kbConfirm('清除归档', '确认清除选中的 <b>' + ids.length + '</b> 个文档的自动归档分类?<br><small class="text-muted">文档将回到「全部文档」，集合本身不会被删除。</small>', '清除', function () {
+      setBulkBusy(true);
+      post('clear_archive', ids.map(Number)).then(function (d) {
+        setBulkBusy(false);
+        if (!d.ok) { if (window.toast) toast(d.error || '操作失败', 'danger'); return; }
+        var msg = '已清除归档: ' + (d.cleared || []).length + ' 个';
+        if (d.skipped) msg += '，跳过 ' + d.skipped + ' 个';
+        if (window.toast) toast(msg, 'success');
+        reloadFull();
       }).catch(function () { setBulkBusy(false); if (window.toast) toast('网络错误', 'danger'); });
     });
   };
@@ -1110,21 +1219,24 @@ window.KB_URLS = {
       bootstrap.Modal.getInstance(document.getElementById('assignModal')).hide();
       if (!d.ok) { if (window.toast) toast(d.error || '操作失败', 'danger'); return; }
       if (window.toast) toast('已移动', 'success');
-      reload();
+      reloadFull();
     }).catch(function () { if (window.toast) toast('网络错误', 'danger'); });
   };
 
   /* 集合操作 */
   var editingId = null;
-  window.showCollectionModal = function (id, name, color, visibility) {
-    editingId = id || null;
-    document.getElementById('collectionName').value = name || '';
-    document.getElementById('collectionColor').value = color || '#8b5cf6';
-    document.getElementById('collectionModalTitle').textContent = id ? '重命名集合' : '新建文档集';
+  window.showCollectionModal = function (btn) {
+    editingId = btn ? Number(btn.dataset.cid) : null;
+    var name = btn ? btn.dataset.cname : '';
+    var color = btn ? btn.dataset.ccolor : '#8b5cf6';
+    var visibility = btn ? btn.dataset.cvis : 'private';
+    document.getElementById('collectionName').value = name;
+    document.getElementById('collectionColor').value = color;
+    document.getElementById('collectionModalTitle').textContent = btn ? '重命名集合' : '新建集合';
     var visEl = document.getElementById('collectionVisibility');
     if (currentUserRole === 'admin') {
       visEl.style.display = 'block';
-      visEl.value = visibility || 'private';
+      visEl.value = visibility;
     } else { visEl.style.display = 'none'; }
     new bootstrap.Modal(document.getElementById('collectionModal')).show();
   };
@@ -1148,8 +1260,10 @@ window.KB_URLS = {
       location.reload();
     }).catch(function () { if (window.toast) toast('网络错误', 'danger'); });
   };
-  window.deleteCollection = function (id, name) {
-    window.kbConfirm('删除文档集', '确定删除集合「' + esc(name) + '」?<br><small class="text-muted">集合内的文档不会被删除。</small>', '删除', function () {
+  window.deleteCollection = function (btn) {
+    var id = Number(btn.dataset.cid);
+    var name = btn.dataset.cname;
+    window.kbConfirm('删除集合', '确定删除集合「' + esc(name) + '」?<br><small class="text-muted">集合内的文档不会被删除。</small>', '删除', function () {
       fetch('{{ url_for('kb.api_collection_delete', cid=0) }}'.replace(/0$/, id), { method: 'DELETE' })
         .then(function (r) { return r.text(); }).then(function (t) {
           var d; try { d = JSON.parse(t); } catch (e) { throw new Error('服务器响应异常'); }

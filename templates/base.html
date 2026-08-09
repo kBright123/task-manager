@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}知行合一{% endblock %}</title>
-  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg', v=3) }}">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg', v=4) }}">
   <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.11.2/font/bootstrap-icons.min.css">
   <style>
@@ -86,7 +86,6 @@
       .brand-mark { width: 1.2rem; height: 1.2rem; }
       .top-nav-search { flex: 1 1 auto; width: auto; min-width: 0; max-width: 320px; }
       .top-nav-search .form-control { font-size: .84rem; }
-      .nav-search-btn { display: flex; }
       .top-nav-user-name { display: none; }
       .role-badge { display: none !important; }
     }
@@ -129,10 +128,9 @@
     .sk-line { height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-200) 50%, var(--gray-100) 75%); background-size: 200% 100%; animation: skShimmer 1.2s infinite; }
     .sk-thin { height: 9px; margin-top: 6px; }
     @keyframes skShimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-    /* 移动端顶栏精简: 隐藏内联搜索框,仅保留图标(重新声明在移动端媒体查询之后,避免被 .nav-search-btn{display:none} 覆盖) */
+    /* 统一搜索:移动端沿用顶栏内联搜索框(flex 自适应),独立的放大镜图标按钮保持隐藏,避免两个放大镜 */
     .nav-search-btn { display: none; width: 36px; height: 36px; border: none; background: transparent; color: var(--gray-600); font-size: 1.05rem; border-radius: var(--radius-sm); align-items: center; justify-content: center; cursor: pointer; }
     .nav-search-btn:hover { background: var(--gray-100); color: var(--gray-700); }
-    @media (max-width: 767px) { .nav-search-btn { display: flex; } }
 
     /* 检索历史/热门标签 下拉提示 */
     .us-suggest { position: absolute; top: calc(100% + 6px); left: 0; right: 0; background: #fff; border-radius: 12px; box-shadow: 0 18px 44px rgba(15,23,42,.18); border: 1px solid var(--gray-100); overflow: hidden; z-index: 2050; }
@@ -231,8 +229,8 @@
     .btn:active { transform: scale(.97); }
     .btn-primary { background: var(--primary); border-color: var(--primary); }
     .btn-primary:hover { background: var(--primary-dark); border-color: var(--primary-dark); box-shadow: 0 4px 12px rgba(79,70,231,.3); }
-    .btn-sm { padding: 8px 16px; font-size: .9rem; border-radius: 8px; }
-    .btn-xs-custom { padding: 5px 12px; font-size: .85rem; border-radius: 6px; }
+    .btn-sm { padding: 3px 12px; font-size: .9rem; border-radius: 8px; }
+    .btn-xs-custom { padding: 3px 10px; font-size: .85rem; border-radius: 6px; }
 
     /* Form Controls - unify across pages */
     .form-control, .form-select, .input-group-text {
@@ -246,6 +244,13 @@
       box-shadow: 0 0 0 3px rgba(79,70,231,.12);
     }
     .form-control-sm, .form-select-sm { font-size: .8rem; border-radius: 6px; }
+
+    /* 统一输入框与按钮高度:固定 height + border-box,页面内联 padding 不影响外高,
+       三档:默认 38px / sm 31px / xs 31px。textarea 保持自动高度 */
+    .form-control, .form-select, .input-group-text, .btn { height: 38px; }
+    .form-control-sm, .form-select-sm, .btn-sm, .btn-xs-custom { height: 31px; }
+    textarea.form-control, textarea.form-select { height: auto; min-height: 38px; }
+    textarea.form-control-sm, textarea.form-select-sm { height: auto; min-height: 31px; }
 
     /* Tabs - unify across pages */
     .nav-tabs { border-bottom: 1px solid var(--gray-200); }
@@ -359,15 +364,21 @@
   <nav class="top-nav">
     <div class="top-nav-inner">
       <a href="{{ url_for('user_dashboard') }}" class="top-nav-logo">
-        <svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <svg class="brand-mark" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <rect width="32" height="32" rx="7" fill="#fff"/>
-          <g transform="translate(16 16)">
-            <circle r="10" fill="#006633"/>
-            <path d="M0 -10 A10 10 0 0 0 0 10 Z" fill="#fff"/>
-            <circle cx="0" cy="-5" r="5" fill="#006633"/>
-            <circle cx="0" cy="5" r="5" fill="#fff"/>
-            <circle cx="0" cy="-5" r="1.8" fill="#fff"/>
-            <circle cx="0" cy="5" r="1.8" fill="#006633"/>
+          <!-- 知: 翻开的书 -->
+          <path d="M5 26 V14 a8 5 0 0 1 11-1 a8 5 0 0 1 11 1 V26"/>
+          <path d="M16 13 V26"/>
+          <!-- 行: 向上践行的足迹 -->
+          <g fill="currentColor" stroke="none">
+            <path d="M12.6 9.8 c-1.6 0-2.5 1-2.3 2.4 c.2 1.3 1.3 2 2.8 2 c1.5 0 2.4-.7 2.6-2 c.2-1.3-.7-2.4-2.1-2.4 z"/>
+            <circle cx="11.4" cy="8.4" r="0.55"/>
+            <circle cx="12.8" cy="7.9" r="0.55"/>
+            <circle cx="14.2" cy="8.4" r="0.55"/>
+            <path d="M20.6 6.8 c-1.6 0-2.5 1-2.3 2.4 c.2 1.3 1.3 2 2.8 2 c1.5 0 2.4-.7 2.6-2 c.2-1.3-.7-2.4-2.1-2.4 z"/>
+            <circle cx="19.4" cy="5.4" r="0.55"/>
+            <circle cx="20.8" cy="4.9" r="0.55"/>
+            <circle cx="22.2" cy="5.4" r="0.55"/>
           </g>
         </svg>
         <span>知行合一</span>

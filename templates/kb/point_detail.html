@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}{{ point.title }} - 知识库{% endblock %}
+{% block content %}
+<nav class="mb-3">
+  <a href="{{ url_for('kb.workbench', view='points') }}" style="color:var(--primary);text-decoration:none;">
+    <i class="bi bi-arrow-left"></i> 返回知识点列表
+  </a>
+  <span class="text-muted" style="font-size:.8rem;margin-left:10px;">
+    <a href="{{ url_for('kb.doc_detail', doc_id=doc.id) }}" style="color:var(--gray-500);text-decoration:none;">{{ doc.title }}</a>
+  </span>
+</nav>
+
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div style="min-width:0;">
+    <h4 style="font-weight:700;color:var(--gray-900);margin:0;word-break:break-word;" id="ptTitle">{{ point.title }}</h4>
+    <small class="text-muted">
+      {% if doc.collection %}
+      <span class="badge" style="background:{{ doc.collection.color }}22;color:{{ doc.collection.color }};font-size:.65rem;vertical-align:middle;">{{ doc.collection.name }}</span>
+      {% endif %}
+      {{ "{:,}".format(point.word_count) }} 字 ·
+      第 {{ point.page_start }}{% if point.page_end != point.page_start %}-{{ point.page_end }}{% endif %} 页 ·
+      {% if point.created_at %}创建于 {{ point.created_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}
+    </small>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    {% if can_manage %}
+    <button class="btn btn-outline-primary btn-sm" onclick="renamePoint()"><i class="bi bi-pencil"></i> 重命名</button>
+    <button class="btn btn-outline-danger btn-sm" onclick="deletePoint()"><i class="bi bi-trash"></i> 删除</button>
+    {% endif %}
+    <button class="btn btn-outline-secondary btn-sm" onclick="copyRef()"><i class="bi bi-quote"></i> 复制引用</button>
+    <a href="{{ url_for('kb.graph', doc=doc.id) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-diagram-3"></i> 图谱</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-fonts"></i> 知识点正文</span>
+        <span class="text-muted" style="font-size:.7rem;">被引用 <span id="ptRefCount">{{ ref_count }}</span> 次</span>
+      </div>
+      <div class="card-body" style="max-height:600px;overflow-y:auto;">
+        <pre style="white-space:pre-wrap;font-family:var(--font);font-size:.88rem;color:var(--gray-700);margin:0;">{{ point.content }}</pre>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-link-45deg"></i> 相关知识点 ({{ related|length }})</div>
+      <div class="card-body" style="max-height:320px;overflow-y:auto;">
+        {% if related %}
+        {% for r in related %}
+        <div class="d-flex justify-content-between align-items-center gap-2 py-2" style="border-bottom:1px solid var(--gray-100);">
+          <div style="min-width:0;">
+            <a href="{{ r.detail_url }}" style="font-size:.85rem;font-weight:600;color:var(--gray-800);text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r.title }}</a>
+            <small class="text-muted" style="font-size:.72rem;">{{ r.doc_title }}</small>
+          </div>
+          <span class="badge badge-medium" style="font-size:.62rem;flex-shrink:0;" title="相似度">{{ "%.0f"|format(r.score * 100) }}%</span>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="text-center text-muted py-3" style="font-size:.8rem;">暂无相似关联</div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><i class="bi bi-file-earmark"></i> 来源文档</div>
+      <div class="card-body" style="font-size:.85rem;">
+        <a href="{{ url_for('kb.doc_detail', doc_id=doc.id) }}" style="color:var(--primary);font-weight:600;text-decoration:none;">{{ doc.title }}</a>
+        <div class="text-muted mt-1" style="font-size:.75rem;">{{ doc.file_type|upper }} · {{ doc.filename }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="renameModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <span style="font-weight:600;">重命名知识点</span>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="renameInput" class="form-control form-control-sm" maxlength="300" value="{{ point.title }}">
+      </div>
+      <div class="modal-footer py-2">
+        <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-sm btn-primary" onclick="doRename()">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+var PT_ID = {{ point.id }};
+var PT_DETAIL = {{ url_for('kb.point_detail', pid=point.id)|tojson }};
+function flashMsg(msg) {
+  var el = document.createElement('div');
+  el.textContent = msg;
+  el.style.cssText = 'position:fixed;top:88px;left:50%;transform:translateX(-50%);z-index:9999;background:#065f46;color:#fff;padding:8px 18px;border-radius:100px;font-size:.82rem;box-shadow:0 4px 12px rgba(0,0,0,.18);';
+  document.body.appendChild(el);
+  setTimeout(function () { el.remove(); }, 1600);
+}
+function renamePoint() {
+  new bootstrap.Modal(document.getElementById('renameModal')).show();
+  setTimeout(function () { document.getElementById('renameInput').focus(); }, 100);
+}
+function doRename() {
+  var t = document.getElementById('renameInput').value.trim();
+  if (!t) return;
+  var fd = new FormData();
+  fd.append('title', t);
+  fetch('/kb/api/point/' + PT_ID + '/rename', { method: 'POST', body: fd })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d.ok) {
+        document.getElementById('ptTitle').textContent = d.title;
+        bootstrap.Modal.getInstance(document.getElementById('renameModal')).hide();
+      } else { alert(d.error || '保存失败'); }
+    });
+}
+function deletePoint() {
+  if (!confirm('确定删除该知识点?关联与被引用记录将一并清除。')) return;
+  var fd = new FormData();
+  fetch('/kb/api/point/' + PT_ID + '/delete', { method: 'POST', body: fd })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d.ok) { location.href = '/kb/workbench?view=points'; }
+      else { alert(d.error || '删除失败'); }
+    });
+}
+function copyRef() {
+  var fd = new FormData();
+  fd.append('target_type', 'manual');
+  fetch('/kb/api/point/' + PT_ID + '/ref', { method: 'POST', body: fd })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d.ok && d.count != null) { document.getElementById('ptRefCount').textContent = d.count; }
+    })
+    .catch(function () {});
+  var link = '[[知识点:' + document.getElementById('ptTitle').textContent + ']](' + PT_DETAIL + ')';
+  var ta = document.createElement('textarea');
+  ta.value = link;
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch (e) {}
+  document.body.removeChild(ta);
+  flashMsg('引用链接已复制');
+}
+</script>
+{% endblock %}

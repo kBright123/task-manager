@@ -33,6 +33,45 @@
 
 <div class="row g-3">
   <div class="col-lg-12">
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-lightbulb"></i> 知识点 ({{ points|length }})</span>
+        <div class="d-flex gap-2 align-items-center">
+          {% if points %}
+          <a href="{{ url_for('kb.graph', doc=doc.id) }}" class="btn btn-xs-custom btn-outline-primary" style="padding:2px 8px;font-size:.7rem;">
+            <i class="bi bi-diagram-3"></i> 图谱
+          </a>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card-body" style="max-height:340px;overflow-y:auto;">
+        {% if points %}
+        {% for p in points %}
+        <div class="d-flex align-items-center gap-2 py-2" style="border-bottom:1px solid var(--gray-100);">
+          <span style="width:8px;height:8px;border-radius:50%;background:var(--primary);flex-shrink:0;"></span>
+          <a href="{{ url_for('kb.point_detail', pid=p.id) }}" style="flex:1;min-width:0;font-size:.85rem;font-weight:600;color:var(--gray-800);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            {{ p.title }}
+          </a>
+          <small class="text-muted" style="font-size:.72rem;flex-shrink:0;">
+            {{ "{:,}".format(p.word_count) }} 字 · 第 {{ p.page_start }}{% if p.page_end != p.page_start %}-{{ p.page_end }}{% endif %} 页
+          </small>
+          {% if can_manage %}
+          <button type="button" class="btn btn-xs-custom" style="background:transparent;border:none;color:var(--gray-400);padding:2px 6px;font-size:.75rem;flex-shrink:0;"
+                  title="删除知识点"
+                  onclick="var ok=confirm('确定删除知识点「{{ p.title|e }}」?');if(ok){fetch('/kb/api/point/{{ p.id }}/delete',{method:'POST'}).then(function(r){return r.json()}).then(function(d){if(d.ok)location.reload();});}">
+            <i class="bi bi-trash"></i>
+          </button>
+          {% endif %}
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="text-center text-muted py-3" style="font-size:.8rem;">
+          {% if doc.status == 'done' %}该文档暂无知识点(可能是纯图片或未识别出文本){% else %}文档识别完成后将自动拆解为知识点{% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-header"><i class="bi bi-fonts"></i> 识别文本 ({{ pages|length }} 页)</div>
       <div class="card-body" style="max-height:600px;overflow-y:auto;">

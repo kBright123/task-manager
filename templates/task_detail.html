@@ -86,7 +86,7 @@
             <label class="text-muted" style="font-size:.75rem;white-space:nowrap;">进度</label>
             <input type="range" class="flex-grow-1" name="progress" min="0" max="100" value="{{ assignment.progress }}" style="height:4px;" oninput="document.getElementById('progressVal').textContent=this.value+'%'" title="拖动以更新进度">
             <span class="fw-bold" id="progressVal" style="min-width:2.8em;font-size:.82rem;color:var(--primary);">{{ assignment.progress }}%</span>
-            <input type="text" name="note" class="form-control form-control-sm" placeholder="备注" value="{{ assignment.note or '' }}" style="font-size:.78rem;height:26px;max-width:120px;">
+            <input type="text" name="note" class="form-control form-control-sm" placeholder="备注" value="{{ assignment.note or '' }}" style="font-size:.78rem;max-width:120px;">
             <button type="submit" class="btn btn-primary btn-sm" style="padding:3px 10px;font-size:.78rem;white-space:nowrap;"><i class="bi bi-save"></i></button>
           </div>
           <div class="d-flex align-items-center gap-2">

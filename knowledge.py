@@ -16,6 +16,7 @@ import hashlib
 import io
 import json
 import logging
+import math
 import os
 import re
 import shutil
@@ -28,9 +29,8 @@ from types import SimpleNamespace
 import requests
 import markupsafe
 from PIL import Image, ImageOps
-from flask import (Blueprint, current_app, flash, jsonify, redirect,
-                   render_template, request, url_for)
-from flask import Response
+from flask import (Blueprint, Response, abort, current_app, flash, jsonify,
+                   redirect, render_template, request, url_for)
 from flask import send_file
 from flask_login import current_user, login_required
 from sqlalchemy import event, func
@@ -135,10 +135,13 @@ db = None
 KbDocument = None
 KbPage = None
 KbCollection = None
+KbPoint = None
+KbPointRel = None
+KbPointRef = None
 
 
 def init_models(database):
-    global db, KbDocument, KbPage, KbCollection
+    global db, KbDocument, KbPage, KbCollection, KbPoint, KbPointRel, KbPointRef
     db = database
 
     class _KbCollection(database.Model):
@@ -199,8 +202,51 @@ def init_models(database):
         text = database.Column(database.Text, default='')
         char_count = database.Column(database.Integer, default=0)
 
+    class _KbPoint(database.Model):
+        __tablename__ = 'kb_point'
+        id = database.Column(database.Integer, primary_key=True)
+        doc_id = database.Column(database.Integer,
+                                 database.ForeignKey('kb_document.id'),
+                                 nullable=False, index=True)
+        title = database.Column(database.String(300), nullable=False)
+        content = database.Column(database.Text, default='')
+        page_start = database.Column(database.Integer, default=0)
+        page_end = database.Column(database.Integer, default=0)
+        word_count = database.Column(database.Integer, default=0)
+        sort_order = database.Column(database.Integer, default=0)
+        created_at = database.Column(database.DateTime,
+                                     default=datetime.datetime.utcnow)
+
+    class _KbPointRel(database.Model):
+        __tablename__ = 'kb_point_rel'
+        id = database.Column(database.Integer, primary_key=True)
+        src_point_id = database.Column(
+            database.Integer, database.ForeignKey('kb_point.id'),
+            nullable=False, index=True)
+        dst_point_id = database.Column(
+            database.Integer, database.ForeignKey('kb_point.id'),
+            nullable=False, index=True)
+        rel_type = database.Column(database.String(20), default='similar')
+        score = database.Column(database.Float, default=0.0)
+        created_at = database.Column(database.DateTime,
+                                     default=datetime.datetime.utcnow)
+
+    class _KbPointRef(database.Model):
+        __tablename__ = 'kb_point_ref'
+        id = database.Column(database.Integer, primary_key=True)
+        point_id = database.Column(
+            database.Integer, database.ForeignKey('kb_point.id'),
+            nullable=False, index=True)
+        target_type = database.Column(database.String(20), default='')
+        target_id = database.Column(database.Integer, default=0)
+        created_at = database.Column(database.DateTime,
+                                     default=datetime.datetime.utcnow)
+
     KbDocument, KbPage = _KbDocument, _KbPage
     KbCollection = _KbCollection
+    KbPoint = _KbPoint
+    KbPointRel = _KbPointRel
+    KbPointRef = _KbPointRef
 
 
 def enable_sqlite_wal():
@@ -487,6 +533,357 @@ def _chunk_text(content, max_chars=1200):
     if buf:
         pages.append(buf)
     return [(i + 1, text) for i, text in enumerate(pages)]
+
+
+# ---------------------------------------------------------------------------
+# 知识点拆解(文档级 -> 知识点级)
+# ---------------------------------------------------------------------------
+
+KB_POINT_MIN_CHARS = int(os.environ.get('KB_POINT_MIN_CHARS', '150'))
+KB_POINT_MAX_CHARS = int(os.environ.get('KB_POINT_MAX_CHARS', '2200'))
+KB_POINT_SIM_THRESHOLD = float(os.environ.get('KB_POINT_SIM_THRESHOLD', '0.3'))
+KB_POINT_MAX_REL = int(os.environ.get('KB_POINT_MAX_REL', '8'))
+
+_MD_HEADING_RE = re.compile(r'^\s{0,3}#{1,6}\s+(.*)$')
+_NUM_HEADING_RE = re.compile(
+    r'^\s*((?:第\s*[0-9一二三四五六七八九十百千]+[章节篇部分条卷项]'
+    r')|[0-9]+[、.．](?!\d)|[一二三四五六七八九十]+[、.])\s*(.*)$')
+_SENT_END = set('。；;！？!…—')
+
+
+def _is_heading_line(line):
+    """判断一行是否像章节标题(结构识别:markdown 标题/编号标题/短行)。"""
+    line = (line or '').strip()
+    if not line or len(line) > 40:
+        return False
+    if _MD_HEADING_RE.match(line):
+        return True
+    m = _NUM_HEADING_RE.match(line)
+    if m and m.group(2):
+        return True
+    # 纯短行且不以句末标点结尾,可作标题候选(需有下一行正文佐证)
+    if len(line) <= 24 and line[-1] not in '。；;！？!、，,:.：:':
+        return True
+    return False
+
+
+def _clean_heading(line):
+    s = (line or '').strip()
+    s = re.sub(r'^#+\s*', '', s)
+    s = re.sub(r'^\s*[0-9]+[、.．]\s*|[一二三四五六七八九十]+[、.]\s*', '', s)
+    s = re.sub(r'^第\s*[0-9一二三四五六七八九十百千]+[章节篇部分条卷项]\s*', '', s)
+    s = re.sub(r'\s{2,}', ' ', s).strip(' 　·:：.。')
+    return s[:80] or '未命名知识点'
+
+
+def _para_bigrams(text):
+    """字符 2/3-gram 集合,用于无标题文档的语义边界检测与相似度。"""
+    t = re.sub(r'\s+', '', (text or '').lower())
+    grams = set()
+    for k in (2, 3):
+        for i in range(len(t) - k + 1):
+            grams.add(t[i:i + k])
+    return grams
+
+
+# 高频功能字:含这些字的 bigram 降权,降低“的/了/在”等噪音
+_STOP_CHARS = set(
+    '的了在在与和或及为要需应可由对从到按经后前时中内上下第个项条'
+    '每年月日之者也而并且是有不无须将被于啊哦嗯它他她这那并等两多'
+    '起出所就都又很也都就个'.replace(' ', ''))
+
+
+def _content_grams(text):
+    """中文内容特征:清洗后取字符 bigram,含功能字者降权。"""
+    t = re.sub(r'[^\u4e00-\u9fffA-Za-z0-9]', '', (text or '').lower())
+    grams = {}
+    for i in range(len(t) - 1):
+        g = t[i:i + 2]
+        w = 1.0
+        if g[0] in _STOP_CHARS:
+            w *= 0.4
+        if g[1] in _STOP_CHARS:
+            w *= 0.4
+        grams[g] = grams.get(g, 0.0) + w
+    return grams
+
+
+def _split_paragraphs(pages):
+    """pages: [(page_no, text)] -> [(page_no, para)] 段落流(带页码)。"""
+    out = []
+    for pno, text in pages:
+        for para in re.split(r'\n\s*\n', text or ''):
+            para = para.strip()
+            if para:
+                out.append((pno, para))
+    return out
+
+
+def _texttiling_boundaries(paras, min_chars, max_chars):
+    """TextTiling 简化版:按相邻段落 n-gram 重叠度找低相似边界,贪心分组。
+
+    返回切分后的段落索引组(列表的列表)。保证每块 >= min_chars,尽量 <= max_chars。
+    """
+    if not paras:
+        return []
+    sizes = [len(t) for _, t in paras]
+    grams = [_para_bigrams(t) for _, t in paras]
+    # 相邻段落相似度(重叠率),低者更可能是边界
+    overlap = [0.0] * (len(paras) - 1)
+    for i in range(len(paras) - 1):
+        a, b = grams[i], grams[i + 1]
+        if not a or not b:
+            continue
+        inter = len(a & b)
+        overlap[i] = inter / (len(a | b) or 1)
+    groups = []
+    start = 0
+    cur = 0
+    n = len(paras)
+    while start < n:
+        cur = start
+        total = 0
+        # 至少凑够 min_chars
+        while cur < n and total < min_chars:
+            total += sizes[cur]
+            cur += 1
+        if cur >= n:
+            groups.append(list(range(start, n)))
+            break
+        end = cur
+        total2 = sum(sizes[start:end])
+        # 在 [start, n) 内尽量扩展至 max_chars,期间选最低重叠点为边界
+        best = end  # 边界位于 best(段落号,边界=best-1|best)
+        best_score = 1.0
+        while end < n and total2 + sizes[end] <= max_chars:
+            if overlap[end - 1] < best_score:
+                best = end
+                best_score = overlap[end - 1]
+            total2 += sizes[end]
+            end += 1
+        if best <= start:
+            best = min(end, n)
+        groups.append(list(range(start, best)))
+        start = best
+    return groups
+
+
+def _split_knowledge_points(pages):
+    """将文档页文本拆解为知识点列表。
+
+    优先结构识别(markdown 标题/编号标题),无标题结构时退化为
+    TextTiling 语义切分。返回 [{title, content, page_start, page_end,
+    word_count, sort_order}]。
+    """
+    paras = _split_paragraphs(pages)
+    if not paras:
+        return []
+    headings = [i for i, (_, t) in enumerate(paras) if _is_heading_line(t)]
+    points = []
+
+    def emit(lines):
+        """lines: [(page_no, para)] -> 生成知识点 dict。"""
+        if not lines:
+            return
+        content = '\n\n'.join(t for _, t in lines).strip()
+        if not content:
+            return
+        title = None
+        first = lines[0][1]
+        if _is_heading_line(first):
+            title = _clean_heading(first)
+        pages_sorted = sorted(p for p, _ in lines)
+        points.append({
+            'title': title or content[:36].strip() or '未命名知识点',
+            'content': content,
+            'page_start': pages_sorted[0],
+            'page_end': pages_sorted[-1],
+            'word_count': len(content),
+        })
+
+    if headings:
+        # 结构识别:以标题行为界
+        cur = []
+        for idx, (pno, para) in enumerate(paras):
+            if _is_heading_line(para):
+                # 结束上一个知识点
+                emit(cur)
+                cur = []
+            cur.append((pno, para))
+        emit(cur)
+    else:
+        # 语义切分兜底
+        for group in _texttiling_boundaries(paras, KB_POINT_MIN_CHARS,
+                                            KB_POINT_MAX_CHARS):
+            lines = [paras[i] for i in group]
+            content = '\n\n'.join(t for _, t in lines).strip()
+            if not content:
+                continue
+            pages_sorted = sorted(p for p, _ in lines)
+            points.append({
+                'title': content[:36].strip() or '未命名知识点',
+                'content': content,
+                'page_start': pages_sorted[0],
+                'page_end': pages_sorted[-1],
+                'word_count': len(content),
+            })
+
+    # 结构模式下过滤过小碎片(与上一个合并),仅折叠极短残余(如 <40 字符的标题残留)
+    merged = []
+    for pt in points:
+        if merged and pt['word_count'] < KB_POINT_MIN_CHARS // 4:
+            prev = merged[-1]
+            prev['content'] = prev['content'] + '\n\n' + pt['content']
+            prev['word_count'] = len(prev['content'])
+            prev['page_end'] = max(prev['page_end'], pt['page_end'])
+        else:
+            merged.append(pt)
+    # 重算标题:内容空标题补充
+    for pt in merged:
+        if not pt['title'] or pt['title'] == '未命名知识点':
+            pt['title'] = pt['content'][:36].strip() or '未命名知识点'
+    for i, pt in enumerate(merged):
+        pt['sort_order'] = i
+    return merged
+
+
+def _tfidf_cosine(points):
+    """中文内容特征加权余弦相似度(纯 Python,无需分词库)。
+
+    特征为清洗后的字符 bigram,含功能字的 bigram 降权;返回
+    [(i, j, score)] 相似对(阈值过滤,每点最多 KB_POINT_MAX_REL 条)。
+    """
+    n = len(points)
+    if n < 2:
+        return []
+    vectors = []
+    for p in points:
+        d = _content_grams(p.get('content') or '')
+        vec = {}
+        norm = 0.0
+        for g, tf in d.items():
+            vec[g] = tf
+            norm += tf * tf
+        norm = norm ** 0.5 or 1.0
+        for g in vec:
+            vec[g] /= norm
+        vectors.append(vec)
+    scores = {}
+    for i in range(n):
+        for j in range(i + 1, n):
+            vi, vj = vectors[i], vectors[j]
+            if len(vi) > len(vj):
+                vi, vj = vj, vi
+            s = 0.0
+            for g, w in vi.items():
+                wj = vj.get(g)
+                if wj:
+                    s += w * wj
+            if s >= KB_POINT_SIM_THRESHOLD:
+                scores[(i, j)] = s
+    # 每点限流
+    rels = []
+    for (i, j), s in sorted(scores.items(), key=lambda kv: -kv[1]):
+        rels.append((i, j, s))
+    return rels
+
+
+def _rebuild_points_for_doc(conn, doc_id, pages):
+    """重建某文档的知识点与相似关联(供 worker 在识别后调用)。"""
+    conn.execute('DELETE FROM kb_point_rel WHERE src_point_id IN '
+                 '(SELECT id FROM kb_point WHERE doc_id=?) OR '
+                 'dst_point_id IN (SELECT id FROM kb_point WHERE doc_id=?)',
+                 (doc_id, doc_id))
+    conn.execute('DELETE FROM kb_point_ref WHERE point_id IN '
+                 '(SELECT id FROM kb_point WHERE doc_id=?)', (doc_id,))
+    conn.execute('DELETE FROM kb_point WHERE doc_id=?', (doc_id,))
+    points = _split_knowledge_points(pages)
+    ids = []
+    for pt in points:
+        cur = conn.execute(
+            'INSERT INTO kb_point (doc_id, title, content, page_start, '
+            'page_end, word_count, sort_order, created_at) '
+            'VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
+            (doc_id, pt['title'], pt['content'], pt['page_start'],
+             pt['page_end'], pt['word_count'], pt['sort_order']))
+        ids.append(cur.lastrowid)
+        conn.commit()
+    try:
+        rels = _tfidf_cosine(points)
+        # 每点最多 KB_POINT_MAX_REL 条关联(取相似度最高的)
+        per_point = {}
+        for i, j, s in rels:
+            per_point.setdefault(i, []).append((j, s))
+            per_point.setdefault(j, []).append((i, s))
+        keep = set()
+        for i, cands in per_point.items():
+            cands.sort(key=lambda kv: -kv[1])
+            for j, s in cands[:KB_POINT_MAX_REL]:
+                a, b = (i, j) if i < j else (j, i)
+                keep.add((a, b, s))
+        for i, j, s in sorted(keep, key=lambda t: (t[0], t[1])):
+            conn.execute(
+                'INSERT INTO kb_point_rel (src_point_id, dst_point_id, '
+                'rel_type, score) VALUES (?,?,?,?)',
+                (ids[i], ids[j], 'similar', round(s, 4)))
+            conn.commit()
+    except Exception as e:
+        logger.warning('[doc %s] point similarity failed: %s', doc_id, e)
+    return len(points)
+
+
+_KB_POINT_DDL = [
+    ('kb_point',
+     'CREATE TABLE IF NOT EXISTS kb_point ('
+     'id INTEGER PRIMARY KEY AUTOINCREMENT, '
+     'doc_id INTEGER NOT NULL, '
+     'title TEXT NOT NULL, '
+     'content TEXT, '
+     'page_start INTEGER DEFAULT 0, '
+     'page_end INTEGER DEFAULT 0, '
+     'word_count INTEGER DEFAULT 0, '
+     'sort_order INTEGER DEFAULT 0, '
+     'created_at DATETIME DEFAULT CURRENT_TIMESTAMP)'),
+    ('kb_point_rel',
+     'CREATE TABLE IF NOT EXISTS kb_point_rel ('
+     'id INTEGER PRIMARY KEY AUTOINCREMENT, '
+     'src_point_id INTEGER NOT NULL, '
+     'dst_point_id INTEGER NOT NULL, '
+     'rel_type TEXT DEFAULT \'similar\', '
+     'score REAL DEFAULT 0, '
+     'created_at DATETIME DEFAULT CURRENT_TIMESTAMP)'),
+    ('kb_point_ref',
+     'CREATE TABLE IF NOT EXISTS kb_point_ref ('
+     'id INTEGER PRIMARY KEY AUTOINCREMENT, '
+     'point_id INTEGER NOT NULL, '
+     'target_type TEXT DEFAULT \'\', '
+     'target_id INTEGER DEFAULT 0, '
+     'created_at DATETIME DEFAULT CURRENT_TIMESTAMP)'),
+]
+
+
+def _ensure_point_tables(conn):
+    """确保知识点相关表存在(worker 进程在 Flask create_all 之前也可运行)。"""
+    for name, ddl in _KB_POINT_DDL:
+        conn.execute(ddl)
+    cols = [r[1] for r in conn.execute('PRAGMA table_info(kb_point)')]
+    if 'doc_id' in cols and cols.index('doc_id') > 0:
+        try:
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_kb_point_doc '
+                         'ON kb_point(doc_id)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_kb_point_rel_src '
+                         'ON kb_point_rel(src_point_id)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_kb_point_rel_dst '
+                         'ON kb_point_rel(dst_point_id)')
+        except Exception:
+            pass
+    if 'created_at' in cols:
+        try:
+            conn.execute('UPDATE kb_point SET created_at=CURRENT_TIMESTAMP '
+                         'WHERE created_at IS NULL')
+        except Exception:
+            pass
+    conn.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -1271,13 +1668,23 @@ def _log_op(action, target='', detail=''):
         logger.warning('_log_op failed: %s', e)
 
 
-def _collection_groups(collections, active_cid, active_group=''):
+def _collection_doc_counts():
+    """一次 GROUP BY 统计各集合文档数,替代逐集合访问 c.documents 的 N+1 查询。"""
+    rows = db.session.query(
+        KbDocument.collection_id,
+        db.func.count(KbDocument.id)).group_by(KbDocument.collection_id).all()
+    return {cid: cnt for cid, cnt in rows if cid is not None}
+
+
+def _collection_groups(collections, active_cid, active_group='',
+                       doc_counts=None):
     """把集合按一级类别分组,便于侧边栏折叠展示。
 
     primary 取「一级·二级」名称的首段;无分隔的集合归入「未分类」组。
     二级展示名经 classifier.short_subject 清理无效字符(JR∕T 0323— 等)
     并缩减长度。active_cid/active_group 用于展开并高亮当前所在组。"""
     from classifier import short_subject
+    doc_counts = doc_counts or {}
     groups = {}
     for c in collections:
         parts = [p for p in (c.name or '').strip().split('·') if p]
@@ -1295,7 +1702,7 @@ def _collection_groups(collections, active_cid, active_group=''):
         out.append({
             'primary': p or '未分类',
             'items': items,
-            'total': sum(len(v['c'].documents) for v in items),
+            'total': sum(doc_counts.get(v['c'].id, 0) for v in items),
             'active': any(active_cid == v['c'].id for v in items)
                       or bool(active_group and (p or '未分类') == active_group),
         })
@@ -1375,6 +1782,101 @@ def _doc_row(d):
     }
 
 
+def _build_points_query(cid, group, q):
+    """知识点列表查询(含来源文档/合集/相似关联/引用计数)。"""
+    visible = _visible_doc_ids()
+    query = db.session.query(
+        KbPoint.id, KbPoint.title, KbPoint.word_count, KbPoint.page_start,
+        KbPoint.page_end, KbPoint.sort_order, KbPoint.created_at,
+        KbDocument.id.label('doc_id'), KbDocument.title.label('doc_title'),
+        KbDocument.file_type, KbCollection.id.label('collection_id'),
+        KbCollection.name.label('collection_name'),
+        KbCollection.color.label('collection_color'))
+    query = query.join(KbDocument, KbDocument.id == KbPoint.doc_id)
+    query = query.outerjoin(KbCollection,
+                            KbCollection.id == KbDocument.collection_id)
+    if visible is not None:
+        query = query.filter(KbPoint.doc_id.in_(visible))
+    if cid:
+        query = query.filter(KbDocument.collection_id == cid)
+    if group:
+        if group == '未分类':
+            sub = db.session.query(KbCollection.id).filter(
+                ~KbCollection.name.contains('·'))
+        else:
+            sub = db.session.query(KbCollection.id).filter(
+                db.or_(KbCollection.name == group,
+                       KbCollection.name.like(f'{group}·%')))
+        query = query.filter(KbDocument.collection_id.in_(sub))
+    if q:
+        like = f'%{q}%'
+        query = query.filter(
+            db.or_(KbPoint.title.ilike(like),
+                   KbPoint.content.ilike(like),
+                   KbDocument.title.ilike(like)))
+    return query.order_by(KbDocument.created_at.desc(),
+                          KbPoint.sort_order.asc()).limit(1000)
+
+
+def _point_row(r, rel_counts, ref_counts, preview_text=''):
+    """知识点行序列化(列表/详情共用)。"""
+    return {
+        'id': r.id,
+        'title': r.title,
+        'doc_id': r.doc_id,
+        'doc_title': r.doc_title,
+        'file_type': (r.file_type or '').upper(),
+        'word_count': r.word_count,
+        'page_start': r.page_start,
+        'page_end': r.page_end,
+        'created_at': r.created_at.strftime('%Y-%m-%d %H:%M')
+        if r.created_at else '',
+        'collection_name': r.collection_name or '',
+        'collection_color': r.collection_color or '',
+        'rel_count': rel_counts.get(r.id, 0),
+        'ref_count': ref_counts.get(r.id, 0),
+        'preview': preview_text or '',
+        'detail_url': url_for('kb.point_detail', pid=r.id),
+        'doc_url': url_for('kb.doc_detail', doc_id=r.doc_id),
+    }
+
+
+def _point_rel_counts(ids):
+    """知识点相似关联计数 {point_id: n}。"""
+    if not ids:
+        return {}
+    conn = _db_conn()
+    try:
+        ph = ','.join('?' * len(ids))
+        rows = conn.execute(
+            f'SELECT point_id, COUNT(*) FROM ('
+            f'SELECT src_point_id point_id FROM kb_point_rel '
+            f'WHERE src_point_id IN ({ph}) '
+            f'UNION ALL '
+            f'SELECT dst_point_id point_id FROM kb_point_rel '
+            f'WHERE dst_point_id IN ({ph})'
+            f') GROUP BY point_id', ids + ids).fetchall()
+        return {r[0]: r[1] for r in rows}
+    finally:
+        conn.close()
+
+
+def _point_ref_counts(ids):
+    """知识点引用计数 {point_id: n}。"""
+    if not ids:
+        return {}
+    conn = _db_conn()
+    try:
+        ph = ','.join('?' * len(ids))
+        rows = conn.execute(
+            f'SELECT point_id, COUNT(*) FROM kb_point_ref '
+            f'WHERE point_id IN ({ph}) GROUP BY point_id',
+            ids).fetchall()
+        return {r[0]: r[1] for r in rows}
+    finally:
+        conn.close()
+
+
 @kb_bp.route('/api/docs')
 @login_required
 def api_docs():
@@ -1410,6 +1912,7 @@ def workbench():
     cid = request.args.get('collection', type=int)
     group = (request.args.get('group') or '').strip()
     q = (request.args.get('q') or '').strip()
+    view = (request.args.get('view') or 'docs').strip()
     docs = _build_docs_query(cid, group, q).all()
     if current_user.role == 'admin':
         collections = KbCollection.query.order_by(KbCollection.name).all()
@@ -1444,17 +1947,228 @@ def workbench():
             )
         ).count()
     collection_count = len(collections)
+    doc_counts = _collection_doc_counts()
+    point_rows = []
+    if view == 'points':
+        _rows = _build_points_query(cid, group, q).all()
+        _ids = [r.id for r in _rows]
+        _rel_c = _point_rel_counts(_ids)
+        _ref_c = _point_ref_counts(_ids)
+        point_rows = [_point_row(r, _rel_c, _ref_c) for r in _rows]
     return render_template('kb/workbench.html', docs=docs,
                            q=q,
+                           view=view,
                            collections=collections, active_collection=cid,
                            group=group,
-                           collection_groups=_collection_groups(collections, cid, group),
+                           collection_groups=_collection_groups(
+                               collections, cid, group, doc_counts),
+                           doc_counts=doc_counts,
                            owner_names=owner_names,
                            total_docs=total_docs,
                            collection_count=collection_count,
+                           point_rows=point_rows,
+                           total_points=len(point_rows),
                            docs_json=json.dumps(
                                [_doc_row(d) for d in docs],
                                ensure_ascii=False))
+
+
+@kb_bp.route('/point/<int:pid>')
+@login_required
+def point_detail(pid):
+    """知识点独立详情页:正文/元数据/相关知识点/被引用次数。"""
+    point = db.session.get(KbPoint, pid)
+    if not point:
+        abort(404)
+    doc = db.session.get(KbDocument, point.doc_id)
+    if not doc:
+        abort(404)
+    visible = _visible_doc_ids()
+    if visible is not None and point.doc_id not in visible:
+        abort(403)
+    rel_ids = set()
+    conn = _db_conn()
+    try:
+        rows = conn.execute(
+            'SELECT src_point_id, dst_point_id, score FROM kb_point_rel '
+            'WHERE src_point_id=? OR dst_point_id=?',
+            (point.id, point.id)).fetchall()
+        rel_map = {}
+        for s, d, sc in rows:
+            other = s if s != point.id else d
+            rel_map[other] = sc
+        ref_count = conn.execute(
+            'SELECT COUNT(*) FROM kb_point_ref WHERE point_id=?',
+            (point.id,)).fetchone()[0]
+    finally:
+        conn.close()
+    related = []
+    if rel_map:
+        others = db.session.query(KbPoint).filter(
+            KbPoint.id.in_(list(rel_map))).all()
+        for op in others:
+            odoc = db.session.get(KbDocument, op.doc_id)
+            related.append({
+                'id': op.id,
+                'title': op.title,
+                'doc_title': odoc.title if odoc else '',
+                'doc_url': url_for('kb.doc_detail', doc_id=op.doc_id)
+                if odoc else '',
+                'score': rel_map.get(op.id, 0),
+                'detail_url': url_for('kb.point_detail', pid=op.id),
+            })
+        related.sort(key=lambda x: -x['score'])
+    return render_template(
+        'kb/point_detail.html',
+        point=point,
+        doc=doc,
+        can_manage=current_user.role == 'admin'
+        or doc.uploaded_by == current_user.id,
+        related=related,
+        ref_count=ref_count)
+
+
+@kb_bp.route('/api/point/<int:pid>/rename', methods=['POST'])
+@login_required
+def api_point_rename(pid):
+    point = db.session.get(KbPoint, pid)
+    if not point:
+        return jsonify({'ok': False, 'error': '知识点不存在'}), 404
+    doc = db.session.get(KbDocument, point.doc_id)
+    if not doc or (current_user.role != 'admin'
+                   and doc.uploaded_by != current_user.id):
+        return jsonify({'ok': False, 'error': '权限不足'}), 403
+    title = (request.form.get('title') or '').strip()
+    if not title:
+        return jsonify({'ok': False, 'error': '标题不能为空'}), 400
+    point.title = title[:300]
+    db.session.commit()
+    return jsonify({'ok': True, 'title': point.title})
+
+
+@kb_bp.route('/api/point/<int:pid>/delete', methods=['POST'])
+@login_required
+def api_point_delete(pid):
+    point = db.session.get(KbPoint, pid)
+    if not point:
+        return jsonify({'ok': False, 'error': '知识点不存在'}), 404
+    doc = db.session.get(KbDocument, point.doc_id)
+    if not doc or (current_user.role != 'admin'
+                   and doc.uploaded_by != current_user.id):
+        return jsonify({'ok': False, 'error': '权限不足'}), 403
+    db.session.delete(point)
+    db.session.commit()
+    try:
+        conn = _db_conn()
+        conn.execute(
+            'DELETE FROM kb_point_rel WHERE src_point_id=? OR dst_point_id=?',
+            (pid, pid))
+        conn.execute('DELETE FROM kb_point_ref WHERE point_id=?', (pid,))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning('clean rels for point %s failed: %s', pid, e)
+    return jsonify({'ok': True})
+
+
+@kb_bp.route('/api/point/<int:pid>/ref', methods=['POST'])
+@login_required
+def api_point_ref(pid):
+    """记录一次知识点引用(复制引用链接/关联时调用)。"""
+    point = db.session.get(KbPoint, pid)
+    if not point:
+        return jsonify({'ok': False, 'error': '知识点不存在'}), 404
+    visible = _visible_doc_ids()
+    if visible is not None and point.doc_id not in visible:
+        return jsonify({'ok': False, 'error': '权限不足'}), 403
+    target_type = (request.form.get('target_type') or 'manual').strip()[:20]
+    target_id = 0
+    conn = _db_conn()
+    try:
+        conn.execute(
+            'INSERT INTO kb_point_ref (point_id, target_type, target_id) '
+            'VALUES (?,?,?)', (pid, target_type, target_id))
+        conn.commit()
+        n = conn.execute(
+            'SELECT COUNT(*) FROM kb_point_ref WHERE point_id=?',
+            (pid,)).fetchone()[0]
+    finally:
+        conn.close()
+    return jsonify({'ok': True, 'count': n})
+
+
+@kb_bp.route('/graph')
+@login_required
+def graph():
+    """知识图谱页:展示可见知识点及其相似关联。"""
+    cid = request.args.get('collection', type=int)
+    doc_id = request.args.get('doc', type=int)
+    return render_template('kb/graph.html', cid=cid, doc_id=doc_id)
+
+
+@kb_bp.route('/api/graph-data')
+@login_required
+def api_graph_data():
+    """图谱数据 JSON:节点=知识点,连线=相似关联(最多 300 节点)。"""
+    cid = request.args.get('collection', type=int)
+    doc_id = request.args.get('doc', type=int)
+    visible = _visible_doc_ids()
+    conn = _db_conn()
+    try:
+        if doc_id:
+            if visible is not None and doc_id not in visible:
+                return jsonify({'ok': False, 'error': '权限不足'}), 403
+            pts = conn.execute(
+                'SELECT p.id, p.title, p.word_count, p.doc_id, '
+                'd.title, c.name, c.color FROM kb_point p '
+                'JOIN kb_document d ON d.id=p.doc_id '
+                'LEFT JOIN kb_collection c ON c.id=d.collection_id '
+                'WHERE p.doc_id=? ORDER BY p.sort_order LIMIT 300',
+                (doc_id,)).fetchall()
+        else:
+            sql = ('SELECT p.id, p.title, p.word_count, p.doc_id, '
+                   'd.title, c.name, c.color FROM kb_point p '
+                   'JOIN kb_document d ON d.id=p.doc_id '
+                   'LEFT JOIN kb_collection c ON c.id=d.collection_id ')
+            params = []
+            conds = []
+            if visible is not None:
+                ph = ','.join('?' * len(visible))
+                conds.append(f'p.doc_id IN ({ph})')
+                params += visible
+            if cid:
+                conds.append('d.collection_id=?')
+                params.append(cid)
+            if conds:
+                sql += ' WHERE ' + ' AND '.join(conds)
+            sql += ' ORDER BY p.doc_id, p.sort_order LIMIT 300'
+            pts = conn.execute(sql, params).fetchall()
+        ids = [r[0] for r in pts]
+        nodes = []
+        for r in pts:
+            nodes.append({
+                'id': r[0],
+                'title': r[1],
+                'word_count': r[2],
+                'doc_id': r[3],
+                'doc_title': r[4],
+                'category': r[5] or '',
+                'color': r[6] or '#8b5cf6',
+            })
+        edges = []
+        if ids:
+            ph = ','.join('?' * len(ids))
+            rows = conn.execute(
+                f'SELECT src_point_id, dst_point_id, score FROM kb_point_rel '
+                f'WHERE src_point_id IN ({ph}) AND dst_point_id IN ({ph})',
+                ids + ids).fetchall()
+            id_set = set(ids)
+            for s, d, sc in rows:
+                if s in id_set and d in id_set:
+                    edges.append({'source': s, 'target': d, 'score': sc})
+        return jsonify({'ok': True, 'nodes': nodes, 'edges': edges})
+    finally:
+        conn.close()
 
 
 @kb_bp.route('/api/ask', methods=['POST'])
@@ -2087,6 +2801,10 @@ def doc_detail(doc_id):
     if not doc:
         flash('文档不存在', 'danger')
         return redirect(url_for('kb.index'))
+    visible = _visible_doc_ids()
+    if visible is not None and doc.id not in visible:
+        flash('权限不足：无法查看该文档', 'danger')
+        return redirect(url_for('kb.index'))
     pages = (KbPage.query.filter_by(doc_id=doc.id)
              .order_by(KbPage.page_no).all())
     if doc.file_type not in ('txt', 'md', 'markdown'):
@@ -2094,7 +2812,10 @@ def doc_detail(doc_id):
             page_no=p.page_no,
             text=_dedupe_lines(p.text),
             char_count=p.char_count) for p in pages]
+    points = (KbPoint.query.filter_by(doc_id=doc.id)
+              .order_by(KbPoint.sort_order).all())
     return render_template('kb/doc_detail.html', doc=doc, pages=pages,
+                           points=points,
                            can_manage=_can_manage_doc(doc))
 
 
@@ -2111,6 +2832,21 @@ def doc_delete(doc_id):
     if doc:
         for p in doc.pages:
             delete_page(doc.id, p.page_no)
+        try:
+            conn = _db_conn()
+            conn.execute(
+                'DELETE FROM kb_point_rel WHERE src_point_id IN '
+                '(SELECT id FROM kb_point WHERE doc_id=?) OR '
+                'dst_point_id IN (SELECT id FROM kb_point WHERE doc_id=?)',
+                (doc.id, doc.id))
+            conn.execute(
+                'DELETE FROM kb_point_ref WHERE point_id IN '
+                '(SELECT id FROM kb_point WHERE doc_id=?)', (doc.id,))
+            conn.execute('DELETE FROM kb_point WHERE doc_id=?', (doc.id,))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.warning('delete points for doc %s failed: %s', doc.id, e)
         if os.path.exists(doc.file_path):
             try:
                 os.remove(doc.file_path)
@@ -2332,8 +3068,7 @@ def bulk():
                 skipped += 1
                 continue
             if not label:
-                skipped += 1
-                continue
+                label = '未分类'
             # 与原 classifier.auto_archive 语义一致:
             # - 未归档 -> 分类并归档(auto_classified=1)
             # - 自动分类过且类别变化 -> 迁移
@@ -2372,6 +3107,22 @@ def bulk():
         db.session.commit()
         return jsonify({'ok': True, 'archived': archived,
                         'created': created_names, 'skipped': skipped})
+    if action == 'clear_archive':
+        cleared, kept = [], 0
+        for doc in docs:
+            if doc.auto_classified and doc.collection_id is not None:
+                doc.collection_id = None
+                doc.auto_classified = 0
+                cleared.append({'id': doc.id, 'title': doc.title})
+            else:
+                kept += 1
+        db.session.commit()
+        _bump_data_version()
+        _log_op('kb_bulk_clear_archive', f'{len(docs)} 个文档',
+                f'清除归档成功 {len(cleared)} 个' +
+                (f'(跳过 {kept} 个)' if kept else ''))
+        db.session.commit()
+        return jsonify({'ok': True, 'cleared': cleared, 'skipped': kept})
     return jsonify({'ok': False, 'error': f'未知操作: {action}'}), 400
 
 
@@ -2600,6 +3351,12 @@ def _process_document(conn, row):
         except Exception as e:
             logger.warning('[doc %s] auto-classify/archive failed: %s',
                            doc_id, e)
+        try:
+            n_points = _rebuild_points_for_doc(conn, doc_id, pages)
+            logger.info('[doc %s] knowledge points rebuilt: %d', doc_id,
+                        n_points)
+        except Exception as e:
+            logger.warning('[doc %s] knowledge points failed: %s', doc_id, e)
         if KB_AUTO_SUMMARY:
             try:
                 first_text = pages[0][1] if pages else ''
@@ -2626,6 +3383,7 @@ def main():
         ensure_schema()
     conn = _connect()
     _ensure_doc_columns(conn)
+    _ensure_point_tables(conn)
     _reset_inflight(conn)
     _requeue_stale(conn)
     logger.info('knowledge.worker started, polling every %.1fs',

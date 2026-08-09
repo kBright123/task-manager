@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}知行合一{% endblock %}</title>
-  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg', v=1) }}">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg', v=3) }}">
   <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.11.2/font/bootstrap-icons.min.css">
   <style>
@@ -49,9 +49,9 @@
       font-family: var(--font);
       color: var(--gray-800);
       min-height: 100vh;
-      padding-top: var(--nav-height);
     }
-    @media (max-width: 767px) { body { padding-top: var(--nav-height); padding-bottom: var(--bottom-nav-height); } }
+    body.authed { padding-top: var(--nav-height); }
+    @media (max-width: 767px) { body.authed { padding-top: var(--nav-height); padding-bottom: var(--bottom-nav-height); } }
     .app-container { max-width: 1600px; margin: 0 auto; padding: 24px 24px 40px; }
     @media (max-width: 767px) { .app-container { padding: 16px; } }
     @media (min-width: 768px) and (max-width: 1023px) { .app-container { padding: 20px 24px; } }
@@ -60,7 +60,7 @@
     .top-nav { position: fixed; top: 0; left: 0; right: 0; height: var(--nav-height); background: #fff; border-bottom: 1px solid var(--gray-200); z-index: 1000; display: flex; align-items: center; justify-content: center; }
     .top-nav-inner { width: 100%; max-width: 1600px; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 100%; }
     .top-nav-logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem; color: var(--gray-900); text-decoration: none; }
-    .top-nav-logo i { font-size: 1.4rem; color: var(--primary); }
+    .brand-mark { width: 1.4rem; height: 1.4rem; flex-shrink: 0; border-radius: 6px; box-shadow: 0 1px 4px rgba(15,23,42,.18); }
     .top-nav-links { display: flex; align-items: center; gap: 4px; }
     .top-nav-links a { display: flex; align-items: center; gap: 6px; padding: 8px 16px; font-size: .9rem; font-weight: 500; color: var(--gray-500); text-decoration: none; border-radius: var(--radius-sm); transition: all .15s; position: relative; }
     .top-nav-links a:hover { background: var(--gray-100); color: var(--gray-700); }
@@ -81,10 +81,11 @@
     @media (max-width: 767px) {
       .top-nav-links { display: none; }
       .top-nav-inner { padding: 0 12px; }
-      .top-nav-right { gap: 8px; }
+      .top-nav-right { gap: 6px; }
       .top-nav-logo { font-size: .95rem; }
-      .top-nav-logo i { font-size: 1.15rem; }
-      .top-nav-search { display: none; }
+      .brand-mark { width: 1.2rem; height: 1.2rem; }
+      .top-nav-search { flex: 1 1 auto; width: auto; min-width: 0; max-width: 320px; }
+      .top-nav-search .form-control { font-size: .84rem; }
       .nav-search-btn { display: flex; }
       .top-nav-user-name { display: none; }
       .role-badge { display: none !important; }
@@ -128,25 +129,53 @@
     .sk-line { height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-200) 50%, var(--gray-100) 75%); background-size: 200% 100%; animation: skShimmer 1.2s infinite; }
     .sk-thin { height: 9px; margin-top: 6px; }
     @keyframes skShimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-    /* 移动端顶栏精简: 隐藏内联搜索框,仅保留图标 */
+    /* 移动端顶栏精简: 隐藏内联搜索框,仅保留图标(重新声明在移动端媒体查询之后,避免被 .nav-search-btn{display:none} 覆盖) */
     .nav-search-btn { display: none; width: 36px; height: 36px; border: none; background: transparent; color: var(--gray-600); font-size: 1.05rem; border-radius: var(--radius-sm); align-items: center; justify-content: center; cursor: pointer; }
     .nav-search-btn:hover { background: var(--gray-100); color: var(--gray-700); }
-    /* 全屏检索(移动端) */
-    .fs-search { position: fixed; inset: 0; z-index: 2050; background: var(--gray-50); display: flex; flex-direction: column; }
-    .fs-search-bar { display: flex; align-items: center; gap: 6px; padding: 10px 12px; padding-top: calc(10px + env(safe-area-inset-top)); background: #fff; border-bottom: 1px solid var(--gray-200); }
-    .fs-btn { width: 38px; height: 38px; border: none; background: transparent; color: var(--gray-600); font-size: 1.15rem; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer; }
-    .fs-btn:hover { background: var(--gray-100); }
-    .fs-input-wrap { flex: 1; display: flex; align-items: center; gap: 8px; background: var(--gray-100); border-radius: 10px; padding: 0 12px; height: 40px; min-width: 0; }
-    .fs-input-wrap > i { color: var(--gray-400); font-size: .9rem; }
-    .fs-input-wrap input { flex: 1; border: none; background: transparent; outline: none; font-size: .95rem; color: var(--gray-800); min-width: 0; }
-    .fs-input-wrap input::placeholder { color: var(--gray-400); }
-    .fs-clear { border: none; background: transparent; color: var(--gray-400); padding: 2px; font-size: .9rem; flex-shrink: 0; cursor: pointer; }
-    .fs-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-    .fs-hint { padding: 60px 20px; text-align: center; color: var(--gray-400); }
-    .fs-hint i { font-size: 2.2rem; display: block; margin-bottom: 12px; opacity: .6; }
-    .fs-hint div { font-size: .8rem; }
-    .fs-body .us-sec { background: #fff; border-radius: 12px; overflow: hidden; margin: 0 12px 12px; }
-    .fs-body .us-sec + .us-sec { border-top: none; }
+    @media (max-width: 767px) { .nav-search-btn { display: flex; } }
+
+    /* 检索历史/热门标签 下拉提示 */
+    .us-suggest { position: absolute; top: calc(100% + 6px); left: 0; right: 0; background: #fff; border-radius: 12px; box-shadow: 0 18px 44px rgba(15,23,42,.18); border: 1px solid var(--gray-100); overflow: hidden; z-index: 2050; }
+    .us-suggest .us-hist-head { display: flex; align-items: center; gap: 6px; padding: 10px 14px 4px; font-size: .74rem; font-weight: 700; color: var(--gray-500); }
+    .us-suggest .us-item { display: flex; align-items: center; gap: 8px; padding: 8px 14px; font-size: .84rem; color: var(--gray-700); cursor: pointer; }
+    .us-suggest .us-item:hover { background: var(--gray-50); }
+    .us-suggest .us-item i { color: var(--gray-400); font-size: .82rem; flex-shrink: 0; }
+    .us-suggest .us-item-tag { margin-left: auto; font-size: .62rem; color: var(--primary); background: var(--primary-light); border-radius: 100px; padding: 1px 8px; flex-shrink: 0; }
+    .us-suggest .us-hot-chips { padding: 4px 14px 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .us-suggest .us-hot-chip { font-size: .72rem; color: var(--gray-600); background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 100px; padding: 3px 10px; cursor: pointer; }
+    .us-suggest .us-hot-chip:hover { background: var(--primary-light); border-color: var(--primary-light); color: var(--primary); }
+    .us-suggest .us-sg-empty { padding: 14px; text-align: center; font-size: .76rem; color: var(--gray-400); }
+    .us-suggest mark { background: #fff3bf; }
+
+    /* 桌面端检索结果弹框(三列,不遮挡导航栏) */
+    .us-modal { position: fixed; inset: 0; z-index: 2040; display: none; }
+    .us-modal.show { display: block; }
+    .us-modal-mask { position: absolute; top: var(--nav-height); left: 0; right: 0; bottom: 0; background: rgba(15,23,42,.32); }
+    .us-modal-card { position: absolute; top: calc(var(--nav-height) + 12px); left: 50%; transform: translateX(-50%); width: min(1080px, calc(100vw - 40px)); max-height: calc(100vh - var(--nav-height) - 28px); background: #fff; border-radius: 16px; box-shadow: 0 24px 60px rgba(15,23,42,.22); display: flex; flex-direction: column; overflow: hidden; animation: usModalIn .18s ease-out; }
+    @keyframes usModalIn { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+    .us-modal-head { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--gray-100); flex-shrink: 0; }
+    .us-modal-head .us-q { font-weight: 700; font-size: .9rem; color: var(--gray-800); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .us-modal-close { margin-left: auto; border: none; background: transparent; color: var(--gray-400); font-size: 1.05rem; cursor: pointer; padding: 4px 8px; border-radius: 8px; flex-shrink: 0; }
+    .us-modal-close:hover { background: var(--gray-100); color: var(--gray-700); }
+    .us-modal-body { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 16px; padding: 12px 18px 6px; overflow-y: auto; flex: 1; min-height: 0; }
+    .us-modal-body .us-modal-empty { grid-column: 1 / -1; }
+    .us-modal-col { min-width: 0; min-height: 100px; padding: 0 8px; }
+    .us-modal-col:first-child { padding-left: 0; }
+    .us-modal-col:last-child { padding-right: 0; }
+    .us-col-head { display: flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 700; color: var(--gray-600); padding: 2px 0 6px; }
+    .us-col-count { min-width: 20px; text-align: center; color: #fff; border-radius: 100px; font-size: .62rem; padding: 1px 6px; }
+    .us-modal-col .us-r-item { padding: 8px 6px; }
+    .us-modal-col .us-more { padding: 6px 6px 10px; }
+    .us-modal-col .us-empty { padding: 18px 6px; }
+    .us-modal-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 16px; border-top: 1px solid var(--gray-100); background: #fff; flex-shrink: 0; }
+    .us-modal-foot .us-foot-link { padding: 6px 4px; }
+    .us-r-item mark, .us-item-title mark { background: #fff3bf; color: inherit; border-radius: 2px; padding: 0 1px; font-weight: 700; }
+    @media (max-width: 1023px) {
+      .us-modal-body { grid-template-columns: 1fr; }
+      .us-modal-col { padding: 0 4px; }
+      .us-modal-col + .us-modal-col { padding-top: 10px; border-top: 1px solid var(--gray-100); }
+      .us-modal-card { width: calc(100vw - 24px); }
+    }
 
     /* Mobile Bottom Nav */
     .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: var(--bottom-nav-height); background: #fff; border-top: 1px solid var(--gray-200); z-index: 1000; display: none; }
@@ -220,6 +249,7 @@
 
     /* Tabs - unify across pages */
     .nav-tabs { border-bottom: 1px solid var(--gray-200); }
+    .nav-tab-link { white-space: nowrap; }
     .nav-tabs .nav-link {
       font-family: var(--font);
       font-size: .85rem;
@@ -307,7 +337,7 @@
   </style>
   {% block extra_css %}{% endblock %}
 </head>
-<body>
+<body class="{% if current_user.is_authenticated %}authed{% endif %}{% block body_class %}{% endblock %}">
 <script>var currentUserRole = '{{ current_user.role }}';</script>
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
@@ -329,7 +359,17 @@
   <nav class="top-nav">
     <div class="top-nav-inner">
       <a href="{{ url_for('user_dashboard') }}" class="top-nav-logo">
-        <i class="bi bi-person-fill"></i>
+        <svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <rect width="32" height="32" rx="7" fill="#fff"/>
+          <g transform="translate(16 16)">
+            <circle r="10" fill="#006633"/>
+            <path d="M0 -10 A10 10 0 0 0 0 10 Z" fill="#fff"/>
+            <circle cx="0" cy="-5" r="5" fill="#006633"/>
+            <circle cx="0" cy="5" r="5" fill="#fff"/>
+            <circle cx="0" cy="-5" r="1.8" fill="#fff"/>
+            <circle cx="0" cy="5" r="1.8" fill="#006633"/>
+          </g>
+        </svg>
         <span>知行合一</span>
       </a>
       <div class="top-nav-links">
@@ -342,7 +382,7 @@
         <a href="{{ url_for('notes.index') }}" class="{% if request.endpoint.startswith('notes.') %}active{% endif %}">
           <i class="bi bi-journal-text"></i> 随手记
         </a>
-<a href="{{ url_for('kb.workbench') }}" class="{% if request.endpoint in ('kb.workbench', 'kb.index', 'kb.doc_detail') %}active{% endif %}">
+<a href="{{ url_for('kb.workbench') }}" class="{% if request.endpoint in ('kb.workbench', 'kb.doc_detail') %}active{% endif %}">
             <i class="bi bi-collection"></i> 知识库
           </a>
         {% if current_user.role == 'admin' %}
@@ -360,18 +400,10 @@
         <div id="unifiedSearchWrap" class="top-nav-search">
           <div class="input-group">
             <input type="text" id="unifiedSearchInput" class="form-control" placeholder="检索待办、随手记、知识库..." autocomplete="off">
-            <button class="btn btn-primary px-3" id="unifiedSearchBtn" type="button" style="white-space:nowrap;"><i class="bi bi-search"></i> <span class="us-btn-label">检索</span></button>
+            <button class="btn btn-primary px-3" id="unifiedSearchBtn" type="button" title="检索" aria-label="检索"><i class="bi bi-search"></i></button>
           </div>
-          <div id="unifiedSuggestBox" class="d-none"
-               style="position:absolute;top:calc(100% + 6px);left:0;right:0;background:#fff;border:1px solid var(--gray-200);border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.14);z-index:60;overflow:hidden;">
-            <div id="unifiedSuggestList"></div>
-          </div>
-          <div id="unifiedSearchOverlay" class="d-none" style="position:absolute;top:calc(100% + 6px);left:0;right:0;background:#fff;border:1px solid var(--gray-200);border-radius:10px;box-shadow:0 16px 40px rgba(15,23,42,.18);z-index:60;overflow:hidden;">
-            <div id="unifiedSearchBody" style="max-height:min(60vh,460px);overflow-y:auto;"></div>
-            <div id="unifiedSearchFooter" class="d-flex align-items-center justify-content-between px-3 py-2 border-top" style="font-size:.75rem;color:var(--primary);cursor:pointer;background:#fff;">
-              <span id="unifiedSearchFooterText"><i class="bi bi-list"></i> 按 Enter 查看全部结果</span>
-              <span id="unifiedSearchFooterCount" class="text-muted"></span>
-            </div>
+          <div id="usSuggest" class="us-suggest" style="display:none;">
+            <div id="usSuggestBody"></div>
           </div>
         </div>
         <div class="nav-notification" id="notificationBell" style="position:relative;cursor:pointer;" onclick="toggleNotificationDropdown()">
@@ -469,7 +501,7 @@
     <a href="{{ url_for('notes.index') }}" class="{% if request.endpoint.startswith('notes.') %}active{% endif %}">
       <i class="bi bi-journal-text"></i><span>随手记</span>
     </a>
-<a href="{{ url_for('kb.workbench') }}" class="{% if request.endpoint in ('kb.workbench', 'kb.index', 'kb.doc_detail') %}active{% endif %}">
+<a href="{{ url_for('kb.workbench') }}" class="{% if request.endpoint in ('kb.workbench', 'kb.doc_detail') %}active{% endif %}">
             <i class="bi bi-collection"></i><span>知识库</span>
           </a>
     {% if current_user.role == 'admin' %}
@@ -479,17 +511,35 @@
     {% endif %}
   </nav>
 
-  <!-- 全屏检索(移动端) -->
-  <div id="fullscreenSearch" class="fs-search d-none" role="dialog" aria-modal="true">
-    <div class="fs-search-bar">
-      <button type="button" class="fs-btn" id="fsBackBtn" aria-label="关闭搜索"><i class="bi bi-x-lg"></i></button>
-      <div class="fs-input-wrap">
-        <i class="bi bi-search"></i>
-        <input type="text" id="fsSearchInput" placeholder="检索待办、随手记、知识库..." autocomplete="off">
-        <button type="button" class="fs-clear" id="fsClearBtn" aria-label="清空"><i class="bi bi-x-circle"></i></button>
+  <!-- 桌面端检索结果弹框(三列,不遮挡导航栏) -->
+  <div id="unifiedResultModal" class="us-modal" role="dialog" aria-modal="true">
+    <div class="us-modal-mask" id="usModalMask"></div>
+    <div class="us-modal-card">
+      <div class="us-modal-head">
+        <i class="bi bi-search" style="color:var(--primary);"></i>
+        <span class="us-q" id="usModalQuery"></span>
+        <button type="button" class="us-modal-close" id="usModalClose" aria-label="关闭"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div class="us-modal-body" id="usModalBody">
+        <div class="us-modal-empty d-none" id="usModalEmpty"></div>
+        <div class="us-modal-col">
+          <div class="us-col-head"><span>📄</span> 知识库 <span class="us-col-count" id="usKbCount" style="background:var(--warning);">0</span></div>
+          <div id="usKbCol"></div>
+        </div>
+        <div class="us-modal-col">
+          <div class="us-col-head"><span>✅</span> 待办 <span class="us-col-count" id="usTaskCount" style="background:var(--primary);">0</span></div>
+          <div id="usTaskCol"></div>
+        </div>
+        <div class="us-modal-col">
+          <div class="us-col-head"><span>📝</span> 随手记 <span class="us-col-count" id="usNoteCount" style="background:var(--success);">0</span></div>
+          <div id="usNoteCol"></div>
+        </div>
+      </div>
+      <div class="us-modal-foot" id="usModalFoot">
+        <a href="#" id="usModalFootLink" class="us-foot-link"><i class="bi bi-list"></i> <span id="usModalFootText">查看全部结果</span></a>
+        <span class="text-muted" id="usModalFootCount"></span>
       </div>
     </div>
-    <div class="fs-body" id="fsBody"></div>
   </div>
   {% endif %}
   {% endif %}

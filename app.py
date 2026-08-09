@@ -2216,12 +2216,6 @@ def _unified_search_data(q):
         return {'q': '', 'tasks': [], 'notes': [], 'kb': [], 'total': 0}
     pat = f'%{q}%'
 
-    try:
-        from knowledge import record_history
-        record_history('unified', q)
-    except Exception as _e:
-        app.logger.warning('record unified history failed: %s', _e)
-
     now = datetime.now()
 
     # 待办(我参与的)
@@ -2309,6 +2303,12 @@ def _unified_search_data(q):
         app.logger.warning('unified kb search failed: %s', _e)
 
     total = len(tasks) + len(notes) + len(kb)
+    if total > 0:
+        try:
+            from knowledge import record_history
+            record_history('unified', q)
+        except Exception as _e:
+            app.logger.warning('record unified history failed: %s', _e)
     return {'q': q, 'tasks': tasks, 'notes': note_rows, 'kb': kb,
             'total': total}
 
@@ -2702,7 +2702,7 @@ def _build_task_stats(task_ids, user_id):
 def _assignment_counts_by_user():
     """{display name -> number of assigned tasks}, for the admin overview bar."""
     rows = db.session.query(
-        func.coalesce(User.name, User.username).label('uname'),
+        func.coalesce(func.nullif(User.name, ''), User.username).label('uname'),
         func.count(TaskAssignment.id)
     ).select_from(TaskAssignment).join(User, TaskAssignment.user_id == User.id) \
      .group_by(User.id).order_by(func.count(TaskAssignment.id).desc()).all()

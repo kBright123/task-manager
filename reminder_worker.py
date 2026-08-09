@@ -3,8 +3,9 @@
 """待办提醒邮件后台进程(单实例)。
 
 - 会议/培训/考试待办截止前 1 小时提醒对应负责人
-- 每日 9:00 发送待办日报(逾期/今日截止/未完成)
+- 工作日每日 9:00 发送待办日报(跳过周六/周日,周末到期并入周一)
 """
+import html
 import logging
 import os
 import time
@@ -85,9 +86,49 @@ def _remind_deadline_tasks(now):
                                task.id, user.id, err)
 
 
+_WEEKDAY_CN = '一二三四五六日'
+
+
+def _weekday_cn(d):
+    return '周%s' % _WEEKDAY_CN[d.weekday()]
+
+
+def _summary_html(lines):
+    """把日报纯文本行转成带分区配色的 HTML。"""
+    parts = []
+    for line in lines:
+        esc = html.escape(line)
+        if line.startswith('【已逾期'):
+            parts.append('<p style="margin:12px 0 2px;color:#dc2626;font-weight:bold;">%s</p>' % esc)
+        elif line.startswith('【周末到期'):
+            parts.append('<p style="margin:12px 0 2px;color:#c2410c;font-weight:bold;">%s</p>' % esc)
+        elif line.startswith('【今日截止'):
+            parts.append('<p style="margin:12px 0 2px;color:#065f46;font-weight:bold;">%s</p>' % esc)
+        elif line.startswith('【未来'):
+            parts.append('<p style="margin:12px 0 2px;color:#1d4ed8;font-weight:bold;">%s</p>' % esc)
+        elif line.startswith('【'):
+            parts.append('<p style="margin:12px 0 2px;font-weight:bold;">%s</p>' % esc)
+        elif line.startswith('- '):
+            parts.append('<p style="margin:2px 0 0 14px;color:#334155;">%s</p>' % esc)
+        elif line.startswith('——'):
+            parts.append('<p style="margin:12px 0 0;color:#94a3b8;font-size:12px;">%s</p>' % esc)
+        else:
+            parts.append('<p style="margin:2px 0;">%s</p>' % esc)
+    return ('<div style="font-family:Microsoft YaHei,Arial,sans-serif;'
+            'font-size:14px;color:#1e293b;">' + ''.join(parts) + '</div>')
+
+
 def _send_daily_summary(now):
-    """每日 9:00-9:10 向每个绑定邮箱的用户发送待办日报。"""
+    """工作日 9:00-9:10 向每个绑定邮箱的用户发送待办日报。
+
+    周六/周日不发送;周一日报单列【周末到期】,把上个周六/周日截止的
+    待办并入,避免与【已逾期】重复。"""
     today = now.strftime('%Y-%m-%d')
+    is_monday = now.weekday() == 0
+    sat_start = mon_start = None
+    if is_monday:
+        mon_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        sat_start = mon_start - timedelta(days=2)
     users = User.query.filter(
         User.email != '',
         User.email_verified.is_(True),
@@ -98,40 +139,64 @@ def _send_daily_summary(now):
         if _already_sent(key):
             continue
         assigns = TaskAssignment.query.filter_by(user_id=user.id).all()
-        pending = [a for a in assigns if a.status not in DONE_STATUS]
+        pending_all = [a for a in assigns if a.status not in DONE_STATUS]
+        if not pending_all:
+            continue
+        total = len(assigns)
+        done = total - len(pending_all)
+        rate = int(done / total * 100) if total else 0
+
+        weekend_due = []
+        if is_monday:
+            weekend_due = [a for a in pending_all
+                           if sat_start <= a.task.end_time < mon_start]
+            weekend_ids = {id(a) for a in weekend_due}
+        else:
+            weekend_ids = set()
+        pending = [a for a in pending_all if id(a) not in weekend_ids]
         overdue = [a for a in pending if a.task.end_time < now]
         due_today = [a for a in pending
                      if a.task.end_time.strftime('%Y-%m-%d') == today]
-        if not pending:
-            continue
-        total = len(assigns)
-        done = total - len(pending)
-        rate = int(done / total * 100) if total else 0
-        lines = ['%s 的待办日报(%s)' % (user.name or user.username, today), '']
+        upcoming = [a for a in pending
+                    if a.task.end_time.date() > now.date()
+                    and a.task.end_time <= now + timedelta(days=3)]
+
+        def _sec(title, items, fmt):
+            if not items:
+                return
+            lines.append('【%s】%d 项:' % (title, len(items)))
+            for a in sorted(items, key=lambda x: x.task.end_time):
+                lines.append('- ' + fmt(a))
+            lines.append('')
+
+        lines = ['%s 的待办日报(%s %s)' % (user.name or user.username,
+                                          today, _weekday_cn(now)), '']
         lines.append('共有待办 %d 项,已完成 %d 项,完成率 %d%%。' % (total, done, rate))
         lines.append('')
-        if overdue:
-            lines.append('【已逾期】%d 项:' % len(overdue))
-            for a in overdue:
-                lines.append('- %s(截止 %s)' % (a.task.title,
-                              a.task.end_time.strftime('%m-%d %H:%M')))
-            lines.append('')
-        if due_today:
-            lines.append('【今日截止】%d 项:' % len(due_today))
-            for a in due_today:
-                lines.append('- %s(截止 %s)' % (a.task.title,
-                              a.task.end_time.strftime('%H:%M')))
-            lines.append('')
-        lines.append('【未完成】%d 项:' % len(pending))
-        for a in sorted(pending, key=lambda x: x.task.end_time)[:20]:
-            lines.append('- %s(%s类,截止 %s)' % (a.task.title, a.task.category,
-                          a.task.end_time.strftime('%m-%d %H:%M')))
+        _sec('已逾期', overdue, lambda a: '%s(%s类,截止 %s,已逾期 %d 天)' % (
+            a.task.title, a.task.category,
+            a.task.end_time.strftime('%m-%d %H:%M'),
+            max(1, (now.date() - a.task.end_time.date()).days)))
+        _sec('周末到期', weekend_due, lambda a: '%s(%s类,%s截止 %s)' % (
+            a.task.title, a.task.category, _weekday_cn(a.task.end_time),
+            a.task.end_time.strftime('%H:%M')))
+        _sec('今日截止', due_today, lambda a: '%s(%s类,截止 %s)' % (
+            a.task.title, a.task.category,
+            a.task.end_time.strftime('%H:%M')))
+        _sec('未来 3 天', upcoming, lambda a: '%s(%s类,截止 %s)' % (
+            a.task.title, a.task.category,
+            a.task.end_time.strftime('%m-%d %H:%M')))
+        _sec('未完成', sorted(pending, key=lambda x: x.task.end_time)[:20],
+             lambda a: '%s(%s类,截止 %s)' % (
+                 a.task.title, a.task.category,
+                 a.task.end_time.strftime('%m-%d %H:%M')))
+        lines.append('')
+        lines.append('—— 知行合一 · 待办系统自动发送,请勿回复')
+
         text = '\n'.join(lines)
-        html = ('<div style="font-family:Microsoft YaHei,Arial,sans-serif;font-size:14px;color:#1e293b;">'
-                + '<br>'.join('<b>%s</b>' % line if line.startswith('【') else line
-                              for line in lines)
-                + '</div>')
-        ok, err = send_email(user.email, '【知行合一】待办日报 %s' % today, html, text, category='summary')
+        html = _summary_html(lines)
+        ok, err = send_email(user.email, '【知行合一】待办日报 %s' % today,
+                             html, text, category='summary')
         if ok:
             _mark_sent(key)
             logger.info('daily summary sent user=%s', user.id)
@@ -151,7 +216,7 @@ def main():
                 now = datetime.now()
                 _remind_deadline_tasks(now)
                 day = now.strftime('%Y-%m-%d')
-                if now.hour == 9 and last_summary_day != day:
+                if now.weekday() < 5 and now.hour == 9 and last_summary_day != day:
                     _send_daily_summary(now)
                     last_summary_day = day
         except Exception:

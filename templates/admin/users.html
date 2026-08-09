@@ -1,18 +1,18 @@
 {% extends "base.html" %}
 {% block title %}后台管理{% endblock %}
 {% block content %}
-<ul class="nav nav-tabs mb-3" style="border-bottom:1px solid var(--gray-200);">
+<ul class="nav nav-tabs mb-3 flex-nowrap" style="border-bottom:1px solid var(--gray-200);flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;">
   <li class="nav-item">
-    <a class="nav-link active" href="{{ url_for('admin_users') }}" style="font-size:.85rem;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);"><i class="bi bi-people"></i> 用户管理</a>
+    <a class="nav-link nav-tab-link active" href="{{ url_for('admin_users') }}" style="font-size:.85rem;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);"><i class="bi bi-people"></i> 用户管理</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" href="{{ url_for('admin_logs') }}" style="font-size:.85rem;color:var(--gray-500);"><i class="bi bi-journal-text"></i> 操作日志</a>
+    <a class="nav-link nav-tab-link" href="{{ url_for('admin_logs') }}" style="font-size:.85rem;color:var(--gray-500);"><i class="bi bi-journal-text"></i> 操作日志</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" href="{{ url_for('admin_emails') }}" style="font-size:.85rem;color:var(--gray-500);"><i class="bi bi-envelope"></i> 邮件记录</a>
+    <a class="nav-link nav-tab-link" href="{{ url_for('admin_emails') }}" style="font-size:.85rem;color:var(--gray-500);"><i class="bi bi-envelope"></i> 邮件记录</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" href="{{ url_for('admin_jobs') }}" style="font-size:.85rem;color:var(--gray-500);"><i class="bi bi-clock-history"></i> 定时任务</a>
+    <a class="nav-link nav-tab-link" href="{{ url_for('admin_jobs') }}" style="font-size:.85rem;color:var(--gray-500);"><i class="bi bi-clock-history"></i> 定时任务</a>
   </li>
 </ul>
 

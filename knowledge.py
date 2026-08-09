@@ -1305,60 +1305,12 @@ def _collection_groups(collections, active_cid, active_group=''):
 @kb_bp.route('/')
 @login_required
 def index():
+    """旧入口:统一跳转到工作台(文档管理只保留导航栏指向的 kb.workbench)。"""
     cid = request.args.get('collection', type=int)
     group = (request.args.get('group') or '').strip()
     q = (request.args.get('q') or '').strip()
-    docs = _build_docs_query(cid, group, q).all()
-    if current_user.role == 'admin':
-        collections = KbCollection.query.order_by(KbCollection.name).all()
-    else:
-        collections = KbCollection.query.filter(
-            (KbCollection.visibility == 'public') |
-            (KbCollection.owner_id == current_user.id)
-        ).order_by(KbCollection.name).all()
-
-    owner_names = {}
-    if current_user.role == 'admin':
-        owner_ids = {c.owner_id for c in collections if c.owner_id}
-        if owner_ids:
-            try:
-                from app import User
-            except Exception:
-                User = None
-            if User is not None:
-                owner_names = {
-                    u.id: (u.name or u.username)
-                    for u in User.query.filter(User.id.in_(owner_ids)).all()}
-    if current_user.role == 'admin':
-        manageable_ids = {d.id for d in docs}
-    else:
-        manageable_ids = {
-            d.id for d in docs if d.uploaded_by == current_user.id}
-    if current_user.role == 'admin':
-        total_docs = KbDocument.query.count()
-    else:
-        total_docs = KbDocument.query.filter(
-            db.or_(
-                KbDocument.uploaded_by == current_user.id,
-                KbDocument.collection_id.in_(
-                    db.session.query(KbCollection.id)
-                    .filter(KbCollection.visibility == 'public')
-                )
-            )
-        ).count()
-    collection_count = len(collections)
-    return render_template('kb/index.html', docs=docs,
-                           q=q,
-                           collections=collections, active_collection=cid,
-                           group=group,
-                           collection_groups=_collection_groups(collections, cid, group),
-                           manageable_ids=manageable_ids,
-                           owner_names=owner_names,
-                           total_docs=total_docs,
-                           collection_count=collection_count,
-                           docs_json=json.dumps(
-                               [_doc_row(d) for d in docs],
-                               ensure_ascii=False))
+    return redirect(url_for('kb.workbench', collection=cid,
+                            group=group or None, q=q or None))
 
 
 def _build_docs_query(cid, group, q):
@@ -1455,7 +1407,10 @@ def api_doc_update(doc_id):
 @kb_bp.route('/workbench')
 @login_required
 def workbench():
+    cid = request.args.get('collection', type=int)
+    group = (request.args.get('group') or '').strip()
     q = (request.args.get('q') or '').strip()
+    docs = _build_docs_query(cid, group, q).all()
     if current_user.role == 'admin':
         collections = KbCollection.query.order_by(KbCollection.name).all()
     else:
@@ -1463,9 +1418,43 @@ def workbench():
             (KbCollection.visibility == 'public') |
             (KbCollection.owner_id == current_user.id)
         ).order_by(KbCollection.name).all()
-    return render_template('kb/workbench.html', q=q, kb_users=_kb_user_list(),
-                           collections=collections,
-                           collection_groups=_collection_groups(collections, None))
+
+    owner_names = {}
+    if current_user.role == 'admin':
+        owner_ids = {c.owner_id for c in collections if c.owner_id}
+        if owner_ids:
+            try:
+                from app import User
+            except Exception:
+                User = None
+            if User is not None:
+                owner_names = {
+                    u.id: (u.name or u.username)
+                    for u in User.query.filter(User.id.in_(owner_ids)).all()}
+    if current_user.role == 'admin':
+        total_docs = KbDocument.query.count()
+    else:
+        total_docs = KbDocument.query.filter(
+            db.or_(
+                KbDocument.uploaded_by == current_user.id,
+                KbDocument.collection_id.in_(
+                    db.session.query(KbCollection.id)
+                    .filter(KbCollection.visibility == 'public')
+                )
+            )
+        ).count()
+    collection_count = len(collections)
+    return render_template('kb/workbench.html', docs=docs,
+                           q=q,
+                           collections=collections, active_collection=cid,
+                           group=group,
+                           collection_groups=_collection_groups(collections, cid, group),
+                           owner_names=owner_names,
+                           total_docs=total_docs,
+                           collection_count=collection_count,
+                           docs_json=json.dumps(
+                               [_doc_row(d) for d in docs],
+                               ensure_ascii=False))
 
 
 @kb_bp.route('/api/ask', methods=['POST'])

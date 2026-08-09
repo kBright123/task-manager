@@ -252,7 +252,7 @@ function appendEmptyHint(text) {
   hint.className = 'chat-empty-hint';
   hint.innerHTML = '<div class="chat-empty-hint-icon"><i class="bi bi-inbox"></i></div>' +
     '<div>' + esc(text) + '</div>' +
-    '<a class="btn btn-xs-custom btn-primary" href="{{ url_for('kb.index') }}">去上传文档</a>';
+    '<a class="btn btn-xs-custom btn-primary" href="{{ url_for('kb.workbench') }}">去上传文档</a>';
   wrap.appendChild(hint);
   wrap.scrollTop = wrap.scrollHeight;
 }

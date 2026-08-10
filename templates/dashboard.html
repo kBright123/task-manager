@@ -106,7 +106,7 @@
       <div>
         <div class="stat-num" style="font-size:1.5rem;">{{ all_pending|length }}</div>
         <div class="stat-label">待处理任务</div>
-        <div class="stat-trend">较前日{% if new_tasks_yesterday > 0 %}<span class="text-success">↑{{ new_tasks_yesterday }}</span>{% elif new_tasks_yesterday < 0 %}<span class="text-danger">↓{{ -new_tasks_yesterday }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</div>
+        <div class="stat-trend">较前日{% if tasks_delta > 0 %}<span class="text-success">↑{{ tasks_delta }}</span>{% elif tasks_delta < 0 %}<span class="text-danger">↓{{ -tasks_delta }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</div>
       </div>
       <i class="bi bi-check2-square" style="font-size:1.5rem;opacity:.85;"></i>
     </div>
@@ -116,7 +116,7 @@
       <div>
         <div class="stat-num" style="font-size:1.5rem;">{{ note_count }}</div>
         <div class="stat-label">随手记</div>
-        <div class="stat-trend">较前日{% if new_notes_yesterday > 0 %}<span class="text-success">↑{{ new_notes_yesterday }}</span>{% elif new_notes_yesterday < 0 %}<span class="text-danger">↓{{ -new_notes_yesterday }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</div>
+        <div class="stat-trend">较前日{% if notes_delta > 0 %}<span class="text-success">↑{{ notes_delta }}</span>{% elif notes_delta < 0 %}<span class="text-danger">↓{{ -notes_delta }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</div>
       </div>
       <i class="bi bi-journal-text" style="font-size:1.5rem;opacity:.85;"></i>
     </div>
@@ -126,7 +126,7 @@
       <div>
         <div class="stat-num" style="font-size:1.5rem;">{{ kb_count }}</div>
         <div class="stat-label">知识库条目</div>
-        <div class="stat-trend">较前日{% if new_docs_yesterday > 0 %}<span class="text-success">↑{{ new_docs_yesterday }}</span>{% elif new_docs_yesterday < 0 %}<span class="text-danger">↓{{ -new_docs_yesterday }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</div>
+        <div class="stat-trend">较前日{% if docs_delta > 0 %}<span class="text-success">↑{{ docs_delta }}</span>{% elif docs_delta < 0 %}<span class="text-danger">↓{{ -docs_delta }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</div>
       </div>
       <i class="bi bi-collection" style="font-size:1.5rem;opacity:.85;"></i>
     </div>
@@ -382,10 +382,10 @@
       <strong id="drawerProgressText" style="font-size:.8rem;color:var(--primary);min-width:2.5em;">0%</strong>
     </div>
     <form id="drawerProgressForm" method="POST" enctype="multipart/form-data" class="mb-2">
-      <div class="d-flex align-items-center gap-2 mb-1">
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
         <label class="text-muted" style="font-size:.7rem;white-space:nowrap;">进度</label>
-        <input type="range" name="progress" id="drawerProgressSlider" value="0" min="0" max="100" style="flex:1;height:4px;" oninput="document.getElementById('drawerProgressText').textContent=this.value+'%';document.getElementById('drawerProgressBar').style.width=this.value+'%'">
-        <input type="text" name="note" id="drawerNoteInput" class="form-control form-control-sm" placeholder="备注" style="font-size:.73rem;max-width:100px;">
+        <input type="range" name="progress" id="drawerProgressSlider" value="0" min="0" max="100" style="flex:1;min-width:90px;height:4px;" oninput="document.getElementById('drawerProgressText').textContent=this.value+'%';document.getElementById('drawerProgressBar').style.width=this.value+'%'">
+        <input type="text" name="note" id="drawerNoteInput" class="form-control form-control-sm" placeholder="备注" style="font-size:.73rem;max-width:100px;min-width:90px;">
         <button class="btn btn-sm btn-primary" style="padding:2px 8px;font-size:.7rem;">更新</button>
       </div>
       <div class="d-flex align-items-center gap-2">

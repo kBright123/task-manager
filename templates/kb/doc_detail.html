@@ -7,7 +7,7 @@
   </a>
 </nav>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
   <div>
     <h4 style="font-weight:700;color:var(--gray-900);margin:0;">{{ doc.title }}
       {% if doc.collection %}
@@ -26,7 +26,6 @@
           onsubmit="return confirm('确认删除该文档?')">
       <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i> 删除</button>
     </form>
-    <a href="{{ url_for('kb.export_doc', doc_id=doc.id) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-download"></i> 导出</a>
     {% endif %}
   </div>
 </div>

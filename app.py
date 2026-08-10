@@ -1722,6 +1722,7 @@ def admin_dashboard():
     week_start = now_dt - timedelta(days=now_dt.weekday())
     week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
     today_start = now_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+    yesterday_start = today_start - timedelta(days=1)
     today_end = now_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
     today_tasks = TaskAssignment.query.join(Task).filter(
         TaskAssignment.user_id == uid, TaskAssignment.status == 'pending',
@@ -1734,6 +1735,42 @@ def admin_dashboard():
     all_pending = TaskAssignment.query.join(Task).filter(
         TaskAssignment.user_id == uid, TaskAssignment.status == 'pending'
     ).order_by(Task.end_time).all()
+    day_before_start = yesterday_start - timedelta(days=1)
+    new_tasks_yesterday = TaskAssignment.query.join(Task).filter(
+        TaskAssignment.user_id == uid, TaskAssignment.status == 'pending',
+        Task.created_at >= yesterday_start, Task.created_at < today_start).count()
+    new_tasks_prev = TaskAssignment.query.join(Task).filter(
+        TaskAssignment.user_id == uid, TaskAssignment.status == 'pending',
+        Task.created_at >= day_before_start, Task.created_at < yesterday_start).count()
+    tasks_delta = new_tasks_yesterday - new_tasks_prev
+    new_notes_yesterday = 0
+    new_notes_prev = 0
+    new_docs_yesterday = 0
+    new_docs_prev = 0
+    try:
+        from notes import Note
+        if Note is not None:
+            new_notes_yesterday = Note.query.filter(
+                Note.created_at >= yesterday_start,
+                Note.created_at < today_start).count()
+            new_notes_prev = Note.query.filter(
+                Note.created_at >= day_before_start,
+                Note.created_at < yesterday_start).count()
+    except Exception:
+        pass
+    try:
+        from knowledge import KbDocument
+        if KbDocument is not None:
+            new_docs_yesterday = KbDocument.query.filter(
+                KbDocument.created_at >= yesterday_start,
+                KbDocument.created_at < today_start).count()
+            new_docs_prev = KbDocument.query.filter(
+                KbDocument.created_at >= day_before_start,
+                KbDocument.created_at < yesterday_start).count()
+    except Exception:
+        pass
+    notes_delta = new_notes_yesterday - new_notes_prev
+    docs_delta = new_docs_yesterday - new_docs_prev
 
     return render_template('dashboard.html', stats=stats, user_stats=user_stats,
                            total=total, completed=completed, pending=pending,
@@ -1748,9 +1785,12 @@ is_admin=True,
                            user_groups=Group.query.all() if current_user.role == 'admin' else current_user.groups.all(),
                               note_count=_count_notes(),
                              kb_count=_count_kb(),
-                             new_tasks_yesterday=new_tasks_yesterday,
-                             new_notes_yesterday=new_notes_yesterday,
-                             new_docs_yesterday=new_docs_yesterday)
+                              new_tasks_yesterday=new_tasks_yesterday,
+                              new_notes_yesterday=new_notes_yesterday,
+                              new_docs_yesterday=new_docs_yesterday,
+                              tasks_delta=tasks_delta,
+                              notes_delta=notes_delta,
+                              docs_delta=docs_delta)
 
 
 @app.route('/admin/logs', methods=['GET'])
@@ -2331,18 +2371,28 @@ def user_dashboard():
         TaskAssignment.user_id == current_user.id, TaskAssignment.status == 'pending',
         Task.end_time >= today_start, Task.end_time <= today_end
     ).order_by(Task.end_time).all()
-    # 同比趋势:较前日新增的待办/随手记/知识库条目(创建时间落在前日)
+    # 同比趋势:较前日新增的待办/随手记/知识库条目(前一日与再前一日计数差)
+    day_before_start = yesterday_start - timedelta(days=1)
     new_tasks_yesterday = TaskAssignment.query.join(Task).filter(
         TaskAssignment.user_id == current_user.id, TaskAssignment.status == 'pending',
         Task.created_at >= yesterday_start, Task.created_at < today_start).count()
+    new_tasks_prev = TaskAssignment.query.join(Task).filter(
+        TaskAssignment.user_id == current_user.id, TaskAssignment.status == 'pending',
+        Task.created_at >= day_before_start, Task.created_at < yesterday_start).count()
+    tasks_delta = new_tasks_yesterday - new_tasks_prev
     new_notes_yesterday = 0
+    new_notes_prev = 0
     new_docs_yesterday = 0
+    new_docs_prev = 0
     try:
         from notes import Note
         if Note is not None:
             new_notes_yesterday = Note.query.filter(
                 Note.user_id == current_user.id,
                 Note.created_at >= yesterday_start, Note.created_at < today_start).count()
+            new_notes_prev = Note.query.filter(
+                Note.user_id == current_user.id,
+                Note.created_at >= day_before_start, Note.created_at < yesterday_start).count()
     except Exception:
         pass
     try:
@@ -2351,8 +2401,13 @@ def user_dashboard():
             new_docs_yesterday = KbDocument.query.filter(
                 KbDocument.created_at >= yesterday_start,
                 KbDocument.created_at < today_start).count()
+            new_docs_prev = KbDocument.query.filter(
+                KbDocument.created_at >= day_before_start,
+                KbDocument.created_at < yesterday_start).count()
     except Exception:
         pass
+    notes_delta = new_notes_yesterday - new_notes_prev
+    docs_delta = new_docs_yesterday - new_docs_prev
     week_tasks = TaskAssignment.query.join(Task).filter(
         TaskAssignment.user_id == current_user.id, TaskAssignment.status == 'pending',
         Task.end_time >= week_start, Task.end_time <= week_end
@@ -2376,7 +2431,10 @@ def user_dashboard():
                            kb_count=_count_kb(),
                            new_tasks_yesterday=new_tasks_yesterday,
                            new_notes_yesterday=new_notes_yesterday,
-                           new_docs_yesterday=new_docs_yesterday)
+                           new_docs_yesterday=new_docs_yesterday,
+                           tasks_delta=tasks_delta,
+                           notes_delta=notes_delta,
+                           docs_delta=docs_delta)
 
 
 @app.route('/api/group-members')
@@ -2490,42 +2548,81 @@ def _unified_search_data(q):
         'detail_url': url_for('notes.index', note_id=n.id),
     } for n in notes]
 
-    # 知识库(关键词检索,按当前用户可见范围)
+    # 知识库(优先知识点,再补文档页;按当前用户可见范围过滤)
     kb = []
     try:
         import knowledge as _kb
         visible = _kb._visible_doc_ids()  # None=全部(管理员)
-        res = _kb.keyword_search_pages(q, k=10)
-        grouped = _kb.group_results(res, q, max_pages_per_doc=2)
-        doc_ids = [g['doc_id'] for g in grouped]
         coll_names = {}
-        if doc_ids:
+
+        def _load_coll_names(ids):
             try:
                 from knowledge import KbCollection as _KbCollection
                 from knowledge import KbDocument as _KbDoc
-                coll_names = dict(
+                return dict(
                     db.session.query(_KbDoc.id, _KbCollection.name)
                     .join(_KbCollection,
                           _KbDoc.collection_id == _KbCollection.id)
-                    .filter(_KbDoc.id.in_(doc_ids)).all())
+                    .filter(_KbDoc.id.in_(ids)).all())
             except Exception as _e:
                 app.logger.warning('unified kb path failed: %s', _e)
-        for g in grouped:
-            if visible is not None and g['doc_id'] not in visible:
-                continue
-            kb.append({
-                'doc_id': g['doc_id'],
-                'title': g['title'],
-                'filename': g['filename'],
-                'score': round(g['best_score'] * 100),
-                'pages': [{'page_no': p['page_no'],
-                           'snippet': str(p['snippet'])}
-                          for p in g['pages']],
-                'preview_url': url_for('kb.preview', doc_id=g['doc_id']) if
-                _has_preview(g['doc_id']) else '',
-                'detail_url': url_for('kb.doc_detail', doc_id=g['doc_id']),
-                'path': _kb_path(coll_names.get(g['doc_id'], '')),
-            })
+                return {}
+
+        # 1) 知识点优先
+        point_hit_docs = set()
+        try:
+            for pt in _kb.keyword_search_points(q, k=12):
+                if visible is not None and pt['doc_id'] not in visible:
+                    continue
+                point_hit_docs.add(pt['doc_id'])
+                kb.append({
+                    'type': 'point',
+                    'point_id': pt['point_id'],
+                    'doc_id': pt['doc_id'],
+                    'title': pt['title'],
+                    'filename': pt['filename'],
+                    'score': round(min(pt['score'] * 20, 99)),
+                    'pages': [{'page_no': pt['page_start'],
+                               'snippet': str(_kb.make_snippet(
+                                   pt['content'], q))}],
+                    'preview_url': url_for('kb.preview', doc_id=pt['doc_id'])
+                    if _has_preview(pt['doc_id']) else '',
+                    'detail_url': url_for('kb.point_detail',
+                                          pid=pt['point_id']),
+                    'path': _kb_path(pt['collection_name']),
+                })
+        except Exception as _e:
+            app.logger.warning('unified kb point search failed: %s', _e)
+
+        # 2) 文档级兜底(已有知识点命中的文档不重复)
+        try:
+            res = _kb.keyword_search_pages(q, k=10)
+            grouped = _kb.group_results(res, q, max_pages_per_doc=2)
+            doc_ids = [g['doc_id'] for g in grouped
+                       if g['doc_id'] not in point_hit_docs]
+            if doc_ids:
+                coll_names = _load_coll_names(doc_ids)
+            for g in grouped:
+                if g['doc_id'] in point_hit_docs:
+                    continue
+                if visible is not None and g['doc_id'] not in visible:
+                    continue
+                kb.append({
+                    'type': 'doc',
+                    'doc_id': g['doc_id'],
+                    'title': g['title'],
+                    'filename': g['filename'],
+                    'score': round(g['best_score'] * 100),
+                    'pages': [{'page_no': p['page_no'],
+                               'snippet': str(p['snippet'])}
+                              for p in g['pages']],
+                    'preview_url': url_for('kb.preview', doc_id=g['doc_id'])
+                    if _has_preview(g['doc_id']) else '',
+                    'detail_url': url_for('kb.doc_detail', doc_id=g['doc_id']),
+                    'path': _kb_path(coll_names.get(g['doc_id'], '')),
+                })
+        except Exception as _e:
+            app.logger.warning('unified kb doc search failed: %s', _e)
     except Exception as _e:
         app.logger.warning('unified kb search failed: %s', _e)
 

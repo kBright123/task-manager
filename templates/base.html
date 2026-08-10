@@ -479,7 +479,7 @@
 
   <div class="app-container">
     {% if current_user.is_authenticated and current_user.email_verified == false %}
-    <div class="email-reminder" style="display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1px solid #c7d2fe;border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:16px;font-size:.85rem;">
+    <div class="email-reminder" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1px solid #c7d2fe;border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:16px;font-size:.85rem;">
       <i class="bi bi-envelope-exclamation" style="color:var(--primary);font-size:1.1rem;"></i>
       <div style="flex:1;">
         <span style="font-weight:600;color:var(--gray-800);">

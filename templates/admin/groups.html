@@ -78,7 +78,7 @@
         <div class="d-flex justify-content-end gap-1">
           <button class="btn btn-sm btn-outline-secondary" style="padding:2px 8px;font-size:.65rem;" onclick="openMemberModal({{ group.id }},'{{ group.name }}',{{ group.members|map(attribute='id')|list }})"><i class="bi bi-people"></i></button>
           <button class="btn btn-sm btn-outline-secondary" style="padding:2px 8px;font-size:.65rem;" onclick="openEditGroupModal({{ group.id }},'{{ group.name }}','{{ group.description or '' }}')"><i class="bi bi-pencil"></i></button>
-          <form method="POST" action="{{ url_for('admin_delete_group', group_id=group.id) }}" style="display:inline;" onsubmit="return confirm('确定删除？');">
+          <form method="POST" action="{{ url_for('admin_delete_group', group_id=group.id) }}" style="display:inline;" onsubmit="return confirm('确定要删除群组「{{ group.name }}」吗？');">
             <button class="btn btn-sm btn-outline-danger" style="padding:2px 8px;font-size:.65rem;"><i class="bi bi-trash"></i></button>
           </form>
         </div>

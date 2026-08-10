@@ -2,15 +2,18 @@
 {% block title %}知识库管理 - 知行合一{% endblock %}
 {% block extra_css %}
 <style>
-  .wb { display: grid; grid-template-columns: 260px 1fr; gap: 16px; height: calc(100vh - 88px); }
-  @media (max-width: 860px) { .wb { grid-template-columns: 1fr; height: auto; } }
+  .wb { display:flex; flex-direction:column; gap:16px; height: calc(100vh - 88px); }
+  @media (max-width: 860px) { .wb { height: auto; } }
   .wb-panel { background:#fff; border:1px solid var(--gray-200); border-radius: var(--radius); overflow: hidden; display:flex; flex-direction:column; min-height: 0; }
+  .wb-main { flex:1; min-height:0; }
   .wb-col { display:flex; flex-direction:column; gap:16px; min-height:0; overflow-y:auto; }
   .wb-col > .wb-panel { flex: 1 1 0; min-height: 0; }
-  .wb-main { display:flex; flex-direction:column; min-height:0; }
+  .docs-layout { display:grid; grid-template-columns:260px 1fr; gap:16px; flex:1; min-height:0; overflow:hidden; }
+  @media (max-width: 860px) { .docs-layout { grid-template-columns:1fr; overflow:visible; } }
+  .docs-main { display:flex; flex-direction:column; min-height:0; }
 
   /* 视图 Tab(文档 / 知识点 / 图谱) */
-  .kb-tabs { display:flex; align-items:center; gap:4px; padding:0 16px 10px; border-bottom:1px solid var(--gray-100); }
+  .kb-tabs { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; padding:10px 16px; border-bottom:1px solid var(--gray-100); }
   .kb-tab { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:100px; font-size:.82rem; font-weight:600; color:var(--gray-500); text-decoration:none; transition:all .15s; }
   .kb-tab:hover { color:var(--primary); background:var(--primary-light); }
   .kb-tab.active { color:#fff; background:var(--primary); box-shadow:0 2px 8px rgba(79,70,231,.25); }
@@ -103,96 +106,94 @@
      默认 z-index(1055)按 DOM 顺序叠放会导致被前置的 kbManageModal 遮挡 */
   #confirmModal { z-index: 1075; }
   #collectionModal { z-index: 1070; }
+
+  /* 图谱视图(内嵌,不跳转新页面) */
+  .graph-legend { font-size:.8rem; color:var(--gray-600); }
+  .graph-legend .dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:middle; }
 </style>
 {% endblock %}
 {% block content %}
 <div class="wb">
-  <!-- 左栏: 集合 + 上传 -->
-  <div class="wb-col">
-    <div class="wb-panel">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <span style="display:inline-flex;align-items:center;gap:8px;"><i class="bi bi-folder2-open" style="color:var(--primary);"></i> 集合
-          <button type="button" class="btn btn-xs-custom btn-outline-secondary" style="padding:1px 10px;font-size:.72rem;" onclick="kbManageOpen()" title="集合管理"><i class="bi bi-gear"></i> 管理</button>
-        </span>
-        <span class="badge badge-low" id="kbCollCount">{{ collection_count }}</span>
-      </div>
-      <div class="card-body p-2" style="overflow-y:auto;">
-        <a href="{{ url_for('kb.workbench') }}" class="kb-coll-row px-2 py-2 mb-1 text-decoration-none"
-           style="{% if not active_collection and not group %}background:var(--primary-light);{% endif %}">
-          <span class="kb-coll-link d-flex align-items-center gap-2" style="font-weight:600;font-size:.84rem;color:{% if not active_collection and not group %}var(--primary){% else %}var(--gray-600){% endif %};">
-            <i class="bi bi-archive"></i> 全部文档
-            <span class="badge badge-low ms-auto" style="font-size:.62rem;">{{ total_docs }}</span>
-          </span>
-        </a>
-        {% for g in collection_groups %}
-        <div class="kb-group">
-          <div class="d-flex align-items-center gap-2 px-2 py-1 rounded kb-group-head"
-               role="button" data-bs-toggle="collapse" data-bs-target="#kbGroup{{ loop.index }}"
-               aria-expanded="{{ 'true' if g['active'] else 'false' }}"
-               style="{% if group == g['primary'] %}background:var(--primary-light);{% endif %}">
-            <i class="bi bi-chevron-right kb-group-caret"
-               style="font-size:.7rem;color:var(--gray-400);transition:transform .15s;{% if g['active'] %}transform:rotate(90deg);{% endif %}"></i>
-            <a href="{{ url_for('kb.workbench', group=g['primary']) }}" onclick="event.stopPropagation()"
-               class="text-decoration-none"
-               style="font-weight:600;font-size:.8rem;{% if group == g['primary'] %}color:var(--primary);{% else %}color:var(--gray-700);{% endif %}">{{ g['primary'] }}</a>
-            <span class="badge badge-low ms-auto">{{ g['total'] }}</span>
-          </div>
-          <div class="collapse{% if g['active'] %} show{% endif %}" id="kbGroup{{ loop.index }}">
-            {% for v in g['items'] %}
-            <div class="kb-coll-row px-2 py-1 mb-1 {% if active_collection == v['c'].id %}coll-active{% endif %}"
-                 style="{% if active_collection == v['c'].id %}background:var(--primary-light);{% endif %}">
-              <a href="{{ url_for('kb.workbench', collection=v['c'].id) }}"
-                 class="kb-coll-link d-flex align-items-center gap-2 text-decoration-none"
-                 style="color:{% if active_collection == v['c'].id %}var(--primary);font-weight:600{% else %}var(--gray-600){% endif %};">
-                <span style="width:10px;height:10px;border-radius:50%;background:{{ v['c'].color }};flex-shrink:0;"></span>
-                <span style="min-width:0;flex:1 1 auto;white-space:normal;word-break:break-word;line-height:1.3;">{{ v['subject'] or v['primary'] }}</span>
-                {% if v['c'].visibility == 'private' and v['c'].owner_id and v['c'].owner_id != current_user.id %}
-                <small class="text-muted" style="font-size:.6rem;flex-shrink:0;">{{ owner_names.get(v['c'].owner_id, '他人') }}</small>
-                {% endif %}
-                <span class="badge badge-low" style="font-size:.6rem;">{{ doc_counts.get(v['c'].id, 0) }}</span>
-              </a>
-              {% if current_user.role == 'admin' or (v['c'].owner_id == current_user.id and v['c'].visibility == 'private') %}
-              <div class="kb-coll-acts">
-                <button type="button" title="重命名" data-cid="{{ v['c'].id }}" data-cname="{{ v['c'].name }}" data-ccolor="{{ v['c'].color }}" data-cvis="{{ v['c'].visibility }}" onclick="showCollectionModal(this)"><i class="bi bi-pencil"></i></button>
-                <button type="button" title="删除" data-cid="{{ v['c'].id }}" data-cname="{{ v['c'].name }}" onclick="deleteCollection(this)"><i class="bi bi-trash"></i></button>
-              </div>
-              {% endif %}
-            </div>
-            {% endfor %}
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-  </div>
-
-  <!-- 右栏: 文档管理 -->
   <div class="wb-panel wb-main">
-    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <!-- 视图 Tab + 搜索/上传 同行 -->
+    <div class="kb-tabs">
       <div class="d-flex align-items-center gap-2 flex-wrap">
-        <span style="font-weight:600;"><i class="bi bi-collection" style="color:var(--primary);"></i> 知识库管理</span>
+        <a href="{{ url_for('kb.workbench', collection=active_collection, group=group or None, q=q or None, view='docs') }}"
+           class="kb-tab {% if view != 'points' and view != 'graph' %}active{% endif %}"><i class="bi bi-files"></i> 文档</a>
+        <a href="{{ url_for('kb.workbench', collection=active_collection, group=group or None, q=q or None, view='points') }}"
+           class="kb-tab {% if view == 'points' %}active{% endif %}"><i class="bi bi-lightbulb"></i> 知识点</a>
+        <a href="{{ url_for('kb.workbench', collection=active_collection, group=group or None, q=q or None, view='graph') }}"
+           class="kb-tab {% if view == 'graph' %}active{% endif %}"><i class="bi bi-diagram-3"></i> 图谱</a>
       </div>
       <div class="d-flex align-items-center gap-2">
         <div style="position:relative;">
           <i class="bi bi-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--gray-400);font-size:.8rem;"></i>
-          <input type="text" id="kbSearch" value="{{ q }}" class="form-control form-control-sm" placeholder="{% if view == 'points' %}搜索知识点/来源文档…{% else %}搜索文档标题…(Ctrl+F){% endif %}" style="padding-left:28px;width:220px;" autocomplete="off">
+          <input type="text" id="kbSearch" value="{{ q }}" class="form-control form-control-sm" placeholder="{% if view == 'points' or view == 'graph' %}搜索知识点/来源文档…{% else %}搜索文档标题…(Ctrl+F){% endif %}" style="padding-left:28px;width:220px;" autocomplete="off">
         </div>
-        {% if view != 'points' %}
         <button class="btn btn-sm btn-primary" type="button" onclick="kbUploadOpen()" style="white-space:nowrap;"><i class="bi bi-cloud-arrow-up"></i> 上传文档</button>
-        {% endif %}
       </div>
     </div>
 
-    <!-- 视图 Tab -->
-    <div class="kb-tabs">
-      <a href="{{ url_for('kb.workbench', collection=active_collection, group=group or None, q=q or None, view='docs') }}"
-         class="kb-tab {% if view != 'points' %}active{% endif %}"><i class="bi bi-files"></i> 文档</a>
-      <a href="{{ url_for('kb.workbench', collection=active_collection, group=group or None, q=q or None, view='points') }}"
-         class="kb-tab {% if view == 'points' %}active{% endif %}"><i class="bi bi-lightbulb"></i> 知识点</a>
-      <a href="{{ url_for('kb.graph', collection=active_collection) }}" class="kb-tab"><i class="bi bi-diagram-3"></i> 图谱</a>
-    </div>
-
-    <div id="docsView" class="{% if view == 'points' %}d-none{% endif %}" style="display:flex;flex-direction:column;flex:1;min-height:0;">
+    <div id="docsView" class="{% if view != 'docs' %}d-none{% endif %}" style="display:flex;flex-direction:column;flex:1;min-height:0;">
+    <div class="docs-layout">
+      <div class="wb-col">
+      <div class="wb-panel">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span style="display:inline-flex;align-items:center;gap:8px;"><i class="bi bi-folder2-open" style="color:var(--primary);"></i> 集合
+            <button type="button" class="btn btn-xs-custom btn-outline-secondary" style="padding:1px 10px;font-size:.72rem;" onclick="kbManageOpen()" title="集合管理"><i class="bi bi-gear"></i> 管理</button>
+          </span>
+          <span class="badge badge-low" id="kbCollCount">{{ collection_count }}</span>
+        </div>
+        <div class="card-body p-2" style="overflow-y:auto;">
+          <a href="{{ url_for('kb.workbench') }}" class="kb-coll-row px-2 py-2 mb-1 text-decoration-none"
+             style="{% if not active_collection and not group %}background:var(--primary-light);{% endif %}">
+            <span class="kb-coll-link d-flex align-items-center gap-2" style="font-weight:600;font-size:.84rem;color:{% if not active_collection and not group %}var(--primary){% else %}var(--gray-600){% endif %};">
+              <i class="bi bi-archive"></i> 全部文档
+              <span class="badge badge-low ms-auto" style="font-size:.62rem;">{{ total_docs }}</span>
+            </span>
+          </a>
+          {% for g in collection_groups %}
+          <div class="kb-group">
+            <div class="d-flex align-items-center gap-2 px-2 py-1 rounded kb-group-head"
+                 role="button" data-bs-toggle="collapse" data-bs-target="#kbGroup{{ loop.index }}"
+                 aria-expanded="{{ 'true' if g['active'] else 'false' }}"
+                 style="{% if group == g['primary'] %}background:var(--primary-light);{% endif %}">
+              <i class="bi bi-chevron-right kb-group-caret"
+                 style="font-size:.7rem;color:var(--gray-400);transition:transform .15s;{% if g['active'] %}transform:rotate(90deg);{% endif %}"></i>
+              <a href="{{ url_for('kb.workbench', group=g['primary']) }}" onclick="event.stopPropagation()"
+                 class="text-decoration-none"
+                 style="font-weight:600;font-size:.8rem;{% if group == g['primary'] %}color:var(--primary);{% else %}color:var(--gray-700);{% endif %}">{{ g['primary'] }}</a>
+              <span class="badge badge-low ms-auto">{{ g['total'] }}</span>
+            </div>
+            <div class="collapse{% if g['active'] %} show{% endif %}" id="kbGroup{{ loop.index }}">
+              {% for v in g['items'] %}
+              <div class="kb-coll-row px-2 py-1 mb-1 {% if active_collection == v['c'].id %}coll-active{% endif %}"
+                   style="{% if active_collection == v['c'].id %}background:var(--primary-light);{% endif %}">
+                <a href="{{ url_for('kb.workbench', collection=v['c'].id) }}"
+                   class="kb-coll-link d-flex align-items-center gap-2 text-decoration-none"
+                   style="color:{% if active_collection == v['c'].id %}var(--primary);font-weight:600{% else %}var(--gray-600){% endif %};">
+                  <span style="width:10px;height:10px;border-radius:50%;background:{{ v['c'].color }};flex-shrink:0;"></span>
+                  <span style="min-width:0;flex:1 1 auto;white-space:normal;word-break:break-word;line-height:1.3;">{{ v['subject'] or v['primary'] }}</span>
+                  {% if v['c'].visibility == 'private' and v['c'].owner_id and v['c'].owner_id != current_user.id %}
+                  <small class="text-muted" style="font-size:.6rem;flex-shrink:0;">{{ owner_names.get(v['c'].owner_id, '他人') }}</small>
+                  {% endif %}
+                  <span class="badge badge-low" style="font-size:.6rem;">{{ doc_counts.get(v['c'].id, 0) }}</span>
+                </a>
+                {% if current_user.role == 'admin' or (v['c'].owner_id == current_user.id and v['c'].visibility == 'private') %}
+                <div class="kb-coll-acts">
+                  <button type="button" title="重命名" data-cid="{{ v['c'].id }}" data-cname="{{ v['c'].name }}" data-ccolor="{{ v['c'].color }}" data-cvis="{{ v['c'].visibility }}" onclick="showCollectionModal(this)"><i class="bi bi-pencil"></i></button>
+                  <button type="button" title="删除" data-cid="{{ v['c'].id }}" data-cname="{{ v['c'].name }}" onclick="deleteCollection(this)"><i class="bi bi-trash"></i></button>
+                </div>
+                {% endif %}
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      </div>
+      <div class="docs-main">
 
     <!-- 批量操作栏 -->
     <div id="bulkBar" class="kb-bulk d-none">
@@ -242,6 +243,8 @@
       <small class="text-muted">共 <span id="kbTotal">0</span> 篇文档</small>
       <small class="text-muted" style="font-size:.68rem;"><kbd>Ctrl+A</kbd> 全选 · <kbd>Ctrl+F</kbd> 搜索 · <kbd>Delete</kbd> 删除</small>
     </div>
+      </div><!-- /docs-main -->
+    </div><!-- /docs-layout -->
     </div><!-- /docsView -->
 
     <!-- 知识点视图 -->
@@ -285,6 +288,15 @@
       <div class="card-footer kb-foot">
         <small class="text-muted">共 <span id="kbPointTotal">{{ total_points }}</span> 条知识点</small>
       </div>
+    </div>
+
+    <!-- 图谱视图(内嵌,不跳转新页面) -->
+    <div id="graphView" class="{% if view != 'graph' %}d-none{% endif %}" style="display:flex;flex-direction:column;flex:1;min-height:0;">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 px-3 py-2" style="border-bottom:1px solid var(--gray-100);">
+        <small class="text-muted" id="graphStatus">加载中...</small>
+        <div class="graph-legend" id="graphLegend" style="display:none;"></div>
+      </div>
+      <div id="graphWrap" style="flex:1;min-height:420px;"></div>
     </div>
   </div>
 </div>
@@ -677,7 +689,7 @@ window.KB_URLS = {
     clearTimeout(sTimer);
     sTimer = setTimeout(function () {
       var v = sInput.value.trim();
-      if (window.KB_VIEW === 'points') {
+      if (window.KB_VIEW === 'points' || window.KB_VIEW === 'graph') {
         var p = new URLSearchParams();
         p.set('view', 'points');
         if (v) p.set('q', v);
@@ -1155,7 +1167,7 @@ window.KB_URLS = {
   window.bulkAutoArchive = function () {
     var ids = selected();
     if (!ids.length) return;
-    window.kbConfirm('自动归档', '确认对选中的 <b>' + ids.length + '</b> 个文档执行自动分类归档?<br><small class="text-muted">未识别完成的文档将被跳过；无法判定类别的文档将归入「未分类」；已手动归档的文档不自动迁移。</small>', '开始', function () {
+    window.kbConfirm('自动归档', '确认对选中的 <b>' + ids.length + '</b> 个文档执行自动分类归档并自动拆分知识点?<br><small class="text-muted">未识别完成的文档将被跳过；无法判定类别的文档将归入「未分类」；已手动归档的文档不自动迁移。知识点将按识别文本重新拆解(题库按题号拆点)。</small>', '开始', function () {
       setBulkBusy(true);
       post('auto_archive', ids.map(Number)).then(function (d) {
         setBulkBusy(false);
@@ -1336,5 +1348,86 @@ function closeFrame() {
   var f = document.getElementById('frameModalBody');
   if (f) f.src = 'about:blank';
 }
+</script>
+<script>
+/* ============ 图谱视图(内嵌渲染,不跳转新页面) ============ */
+(function () {
+  if (window.KB_VIEW !== 'graph') return;
+  var statusEl = document.getElementById('graphStatus');
+  var wrap = document.getElementById('graphWrap');
+  if (!statusEl || !wrap) return;
+
+  function loadECharts() {
+    return new Promise(function (resolve, reject) {
+      if (window.echarts) return resolve();
+      var s = document.createElement('script');
+      s.src = 'https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';
+      s.onload = resolve;
+      s.onerror = function () { reject(new Error('load echarts failed')); };
+      document.head.appendChild(s);
+    });
+  }
+
+  loadECharts().then(function () {
+    var chart = echarts.init(wrap);
+    window.addEventListener('resize', function () { chart.resize(); });
+    var url = '/kb/api/graph-data';
+    var params = [];
+    if (window.KB_FILTER && window.KB_FILTER.collection) params.push('collection=' + window.KB_FILTER.collection);
+    if (params.length) url += '?' + params.join('&');
+    fetch(url).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.ok) { statusEl.textContent = d.error || '加载失败'; return; }
+      var nodes = d.nodes || [];
+      var edges = (d.edges || []).map(function (e) {
+        return { source: String(e.source), target: String(e.target), value: Math.max(0.4, Math.min(4, (e.score || 0) * 4)) };
+      });
+      if (!nodes.length) {
+        statusEl.textContent = '暂无知识点,上传文档并完成识别后即可生成图谱。';
+        wrap.innerHTML = '<div style="text-align:center;color:var(--gray-400);padding:80px 20px;font-size:.9rem;">暂无知识点,上传文档并完成识别后即可生成图谱。</div>';
+        return;
+      }
+      var byDoc = {};
+      var cats = [];
+      nodes.forEach(function (n, i) {
+        n.id = String(n.id);
+        n.name = n.title;
+        n.value = n.word_count || 1;
+        var key = n.doc_title || ('文档' + n.doc_id);
+        if (!(key in byDoc)) { byDoc[key] = cats.length; cats.push(key); }
+        n.category = byDoc[key];
+        n.itemStyle = { color: n.color || '#8b5cf6' };
+        n.symbolSize = Math.max(14, Math.min(46, (n.word_count || 200) / 40));
+      });
+      statusEl.textContent = nodes.length + ' 个知识点 · ' + edges.length + ' 条相似关联';
+      chart.setOption({
+        tooltip: {
+          formatter: function (p) {
+            if (p.dataType === 'node') {
+              return '<b>' + p.data.name + '</b><br/>' + (p.data.doc_title || '') + ' · ' + (p.data.word_count || 0) + ' 字';
+            }
+            return '相似度 ' + Math.round((p.data.value || 0) / 4 * 100) + '%';
+          }
+        },
+        legend: [{ type: 'scroll', orient: 'vertical', right: 10, top: 10, data: cats, textStyle: { fontSize: 11 } }],
+        series: [{
+          type: 'graph',
+          layout: 'force',
+          data: nodes,
+          links: edges,
+          categories: cats.map(function (c) { return { name: c }; }),
+          roam: true,
+          draggable: true,
+          force: { repulsion: 320, edgeLength: [60, 140], gravity: 0.08 },
+          label: { show: true, position: 'right', fontSize: 10, formatter: function (p) { var t = p.data.name || ''; return t.length > 10 ? t.slice(0, 10) + '…' : t; } },
+          emphasis: { focus: 'adjacency', label: { show: true, fontSize: 13, fontWeight: 'bold' } },
+          lineStyle: { color: '#c7d2fe', width: 1, curveness: 0.15, opacity: 0.7 },
+          edgeSymbol: ['none', 'arrow'],
+          edgeSymbolSize: 6
+        }]
+      });
+      chart.on('click', function (p) { if (p.dataType === 'node') { window.open('/kb/point/' + p.data.id, '_blank'); } });
+    }).catch(function () { statusEl.textContent = '图谱加载失败'; });
+  }).catch(function () { statusEl.textContent = '图谱组件加载失败'; });
+})();
 </script>
 {% endblock %}

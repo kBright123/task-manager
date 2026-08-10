@@ -550,6 +550,21 @@ _NUM_HEADING_RE = re.compile(
     r')|[0-9]+[、.．](?!\d)|[一二三四五六七八九十]+[、.])\s*(.*)$')
 _SENT_END = set('。；;！？!…—')
 
+# ---- 题库/试卷类文档识别(单选题/多选题/判断/简答等按题号拆点) ----
+_Q_SECT_RE = re.compile(
+    r'^\s*(?:[0-9０-９一二三四五六七八九十]+[、.．]\s*)?'
+    r'(单选题|单项选择题|多选题|多项选择题|判断题|填空题|简答题|问答题|'
+    r'名词解释题?|案例分析题?|计算题|论述题|综合题|选择题|配伍题|写作题|阅读题)')
+_Q_NUM_RE = re.compile(r'^\s*[0-9０-９]{1,3}\s*[、.．]\s*\S')
+_Q_PAREN_RE = re.compile(r'^\s*[（(]\s*[0-9０-９]{1,3}\s*[）)]\s*\S')
+_Q_CN_RE = re.compile(r'^\s*第\s*[0-9０-９一二三四五六七八九十百]{1,3}\s*题\s*\S')
+_ANS_HEAD_RE = re.compile(
+    r'^\s*[【\[]?\s*(参考答案|正确答案|标准答案|答案)\s*[】\]]?\s*[:：]?\s*$')
+_ANS_INLINE_RE = re.compile(
+    r'^\s*[【\[]?\s*(参考答案|正确答案|标准答案|答案)\s*[】\]]?\s*[:：]?\s*\S')
+_ANS_PAIR_RE = re.compile(r'[0-9０-９]{1,3}\s*[、.．\-~]?\s*[A-Ha-h]+')
+_ANS_OPT_RE = re.compile(r'^\s*[A-Ha-h]\s*[、.．]\s*\S')
+
 
 def _is_heading_line(line):
     """判断一行是否像章节标题(结构识别:markdown 标题/编号标题/短行)。"""
@@ -573,7 +588,40 @@ def _clean_heading(line):
     s = re.sub(r'^\s*[0-9]+[、.．]\s*|[一二三四五六七八九十]+[、.]\s*', '', s)
     s = re.sub(r'^第\s*[0-9一二三四五六七八九十百千]+[章节篇部分条卷项]\s*', '', s)
     s = re.sub(r'\s{2,}', ' ', s).strip(' 　·:：.。')
-    return s[:80] or '未命名知识点'
+    return _clean_point_title(s)
+
+
+# 知识点标题前导噪音(截图/答题界面 OCR 残留):时间、信号/电量、页码进度、
+# 题号编号、纯大写短串(如 CD/WIFI)、答题界面文字、分隔符
+_LEAD_JUNK_TOKEN_RE = re.compile(
+    r'^(?:'
+    r'\d{1,2}[:：]\d{2}(?:[:：]\d{2})?'                 # 时间 11:45 / 00:27:14
+    r'|(?:\.\d+|\d+(?:\.\d+)?)[Gg]'                    # 信号/流量 .5G / 4G
+    r'|\d{1,3}%'                                       # 电量 80%
+    r'|\d{1,3}[/|]\d{1,3}'                             # 页码/进度 4|6 / 4/6
+    r'|[0-9０-９]{1,3}[、.．)）]'                      # 编号 1. 2、 (3)
+    r'|第[0-9０-９一二三四五六七八九十]{1,3}[题页]'     # 第1题 / 第2页
+    r'|[A-Z]{1,4}(?=[ 　])'                            # 纯大写短串 CD / WIFI
+    r'|交卷|已交卷|上一题|下一题|答题卡|拍照|摄像头|加载中|'
+    r'开始考试|开始答题|进入考试|考试中|已暂停|已结束|跳过|'
+    r'提交答案|已作答'
+    r'|[—–\-_=·|｜:：;；,，.。、]+'                    # 分隔符/标点
+    r'|\s+'
+    r')'
+)
+
+
+def _clean_point_title(title):
+    """去除知识点标题前导噪音(编号/时间/信号电量/答题界面文字等)。"""
+    s = (title or '').strip()
+    prev = None
+    while prev != s:
+        prev = s
+        s = _LEAD_JUNK_TOKEN_RE.sub('', s, count=1)
+    s = s.strip(' 　·:：.。;；,，、|-—–_')
+    if not s:
+        return (title or '').strip()[:80] or '未命名知识点'
+    return s[:80]
 
 
 def _para_bigrams(text):
@@ -668,6 +716,130 @@ def _texttiling_boundaries(paras, min_chars, max_chars):
     return groups
 
 
+def _expand_lines(paras):
+    """段落流展开为逐行流(题库识别需要按行判定题号/选项/答案)。"""
+    out = []
+    for pno, para in paras:
+        for ln in para.split('\n'):
+            ln = ln.strip()
+            if ln:
+                out.append((pno, ln))
+    return out
+
+
+def _question_bank_stats(lines):
+    """统计题库特征:数字题号/括号题号/第N题/题型行/答案行。"""
+    dot = paren = cn = sect = ans = 0
+    for _, line in lines:
+        s = line.strip()
+        if not s:
+            continue
+        if _Q_NUM_RE.match(s):
+            dot += 1
+        elif _Q_PAREN_RE.match(s):
+            paren += 1
+        elif _Q_CN_RE.match(s):
+            cn += 1
+        if _Q_SECT_RE.match(s) and len(s) <= 30:
+            sect += 1
+        if _ANS_HEAD_RE.match(s) or _ANS_INLINE_RE.match(s):
+            ans += 1
+    return dot, paren, cn, sect, ans
+
+
+def _looks_like_question_bank(lines):
+    """题库/试卷特征判定:数字题号连续出现或题型+题号齐备。"""
+    dot, paren, cn, sect, ans = _question_bank_stats(lines)
+    if dot >= 3 or cn >= 3:
+        return True
+    if dot >= 2 and (sect >= 1 or ans >= 1):
+        return True
+    if sect >= 1 and (dot + paren) >= 3:
+        return True
+    return False
+
+
+def _question_stem_head(line):
+    return re.sub(r'\s{2,}', ' ', (line or '').strip())[:40]
+
+
+def _split_questions(lines):
+    """题库/试卷类文档:按题号切分,每题一个知识点(题干+选项+答案并入)。
+
+    lines: [(page_no, line)]。题型行(单选题/多选题…)并入其后各题,集中
+    「答案:1.A 2.C …」区整段跳过,避免把答案键误拆成题目。
+    """
+    points = []
+    cur = []
+    head_line = ''
+    section = ''
+    pending_section = ''
+    preamble = []
+    in_answer_key = False
+    started = False
+
+    def emit():
+        nonlocal cur, head_line
+        if not cur:
+            return
+        content = '\n'.join(t for _, t in cur).strip()
+        if not content:
+            cur, head_line = [], ''
+            return
+        pages_sorted = sorted(p for p, _ in cur)
+        title = _clean_point_title(content[:36]) or '未命名知识点'
+        if head_line:
+            head = _clean_point_title(_question_stem_head(head_line))
+            if head:
+                title = _clean_point_title((section + ' ' + head).strip())[:44] or title
+        points.append({
+            'title': title,
+            'content': content,
+            'page_start': pages_sorted[0],
+            'page_end': pages_sorted[-1],
+            'word_count': len(content),
+        })
+        cur, head_line = [], ''
+
+    for pno, line in lines:
+        s = line.strip()
+        if not s:
+            continue
+        # 集中答案区:「答案:」标题后的逐条答案/纯选项行整体跳过
+        if in_answer_key:
+            if _ANS_PAIR_RE.findall(s) or _ANS_OPT_RE.match(s) or len(s) <= 4:
+                continue
+            in_answer_key = False
+        if _ANS_HEAD_RE.match(s):
+            in_answer_key = True
+            continue
+        if _Q_NUM_RE.match(s) or _Q_PAREN_RE.match(s) or _Q_CN_RE.match(s):
+            emit()
+            if not started:
+                cur = list(preamble)
+                started = True
+            if pending_section:
+                section = pending_section
+                pending_section = ''
+            cur.append((pno, s))
+            head_line = s
+            continue
+        if _Q_SECT_RE.match(s) and len(s) <= 30:
+            pending_section = s
+            if not started:
+                preamble.append((pno, s))
+            continue
+        if not started:
+            preamble.append((pno, s))
+            continue
+        cur.append((pno, s))
+
+    emit()
+    for i, pt in enumerate(points):
+        pt['sort_order'] = i
+    return points
+
+
 def _split_knowledge_points(pages):
     """将文档页文本拆解为知识点列表。
 
@@ -678,6 +850,9 @@ def _split_knowledge_points(pages):
     paras = _split_paragraphs(pages)
     if not paras:
         return []
+    lines = _expand_lines(paras)
+    if _looks_like_question_bank(lines):
+        return _split_questions(lines)
     headings = [i for i, (_, t) in enumerate(paras) if _is_heading_line(t)]
     points = []
 
@@ -694,7 +869,7 @@ def _split_knowledge_points(pages):
             title = _clean_heading(first)
         pages_sorted = sorted(p for p, _ in lines)
         points.append({
-            'title': title or content[:36].strip() or '未命名知识点',
+            'title': title or _clean_point_title(content[:36]) or '未命名知识点',
             'content': content,
             'page_start': pages_sorted[0],
             'page_end': pages_sorted[-1],
@@ -721,7 +896,7 @@ def _split_knowledge_points(pages):
                 continue
             pages_sorted = sorted(p for p, _ in lines)
             points.append({
-                'title': content[:36].strip() or '未命名知识点',
+                'title': _clean_point_title(content[:36]) or '未命名知识点',
                 'content': content,
                 'page_start': pages_sorted[0],
                 'page_end': pages_sorted[-1],
@@ -741,7 +916,7 @@ def _split_knowledge_points(pages):
     # 重算标题:内容空标题补充
     for pt in merged:
         if not pt['title'] or pt['title'] == '未命名知识点':
-            pt['title'] = pt['content'][:36].strip() or '未命名知识点'
+            pt['title'] = _clean_point_title(pt['content'][:36]) or '未命名知识点'
     for i, pt in enumerate(merged):
         pt['sort_order'] = i
     return merged
@@ -1059,6 +1234,56 @@ def keyword_search_pages(query, k=40):
                         'title': title, 'filename': filename,
                         'text': text, 'score': float(hits)})
         out.sort(key=lambda r: (-r['score'], r['doc_id'], r['page_no']))
+        return out[:k]
+    finally:
+        conn.close()
+
+
+def keyword_search_points(query, k=12):
+    """知识点关键词检索(LIKE 子串匹配),标题命中权重更高。
+
+    统一检索等场景优先返回知识点结果;返回字段含 point_id/doc_id/
+    title(已清理前导杂讯)/content/page_start/collection_name/score。"""
+    conn = _db_conn()
+    try:
+        q = (query or '').strip()
+        if not q:
+            return []
+        terms = [t for t in re.split(r'[，,。\s]+', q) if t] or [q]
+        terms = terms[:5]
+        clauses, params = [], []
+        for t in terms:
+            escaped = (t.replace('\\', '\\\\').replace('%', '\\%')
+                       .replace('_', '\\_'))
+            clauses.append('(p.title LIKE ? ESCAPE \'\\\' OR p.content LIKE ? '
+                           'ESCAPE \'\\\')')
+            pat = '%' + escaped + '%'
+            params += [pat, pat]
+        rows = conn.execute(
+            'SELECT p.id, p.doc_id, p.title, p.content, p.page_start, '
+            'COALESCE(d.title, \'\'), COALESCE(d.filename, \'\'), '
+            'COALESCE(c.name, \'\') FROM kb_point p '
+            'LEFT JOIN kb_document d ON d.id = p.doc_id '
+            'LEFT JOIN kb_collection c ON c.id = d.collection_id '
+            'WHERE ' + ' AND '.join(clauses) +
+            ' ORDER BY p.sort_order LIMIT ?',
+            params + [k * 3]).fetchall()
+        out = []
+        for pid, doc_id, title, content, page_start, doc_title, \
+                filename, cname in rows:
+            title = title or ''
+            content = content or ''
+            hits = sum(content.count(t) for t in terms)
+            title_hits = sum(title.count(t) for t in terms)
+            out.append({
+                'point_id': pid, 'doc_id': doc_id,
+                'title': _clean_point_title(title) or title,
+                'doc_title': doc_title, 'filename': filename,
+                'content': content, 'page_start': page_start,
+                'collection_name': cname,
+                'score': float(hits + 5 * title_hits),
+            })
+        out.sort(key=lambda r: (-r['score'], r['doc_id'], r['point_id']))
         return out[:k]
     finally:
         conn.close()
@@ -1822,7 +2047,7 @@ def _point_row(r, rel_counts, ref_counts, preview_text=''):
     """知识点行序列化(列表/详情共用)。"""
     return {
         'id': r.id,
-        'title': r.title,
+        'title': _clean_point_title(r.title),
         'doc_id': r.doc_id,
         'doc_title': r.doc_title,
         'file_type': (r.file_type or '').upper(),
@@ -2148,7 +2373,7 @@ def api_graph_data():
         for r in pts:
             nodes.append({
                 'id': r[0],
-                'title': r[1],
+                'title': _clean_point_title(r[1]) or r[1],
                 'word_count': r[2],
                 'doc_id': r[3],
                 'doc_title': r[4],
@@ -2814,6 +3039,9 @@ def doc_detail(doc_id):
             char_count=p.char_count) for p in pages]
     points = (KbPoint.query.filter_by(doc_id=doc.id)
               .order_by(KbPoint.sort_order).all())
+    points = [SimpleNamespace(
+        id=p.id, title=_clean_point_title(p.title), word_count=p.word_count,
+        page_start=p.page_start, page_end=p.page_end) for p in points]
     return render_template('kb/doc_detail.html', doc=doc, pages=pages,
                            points=points,
                            can_manage=_can_manage_doc(doc))
@@ -3051,7 +3279,8 @@ def bulk():
         return resp
     if action == 'auto_archive':
         from classifier import classify, _pick_color
-        archived, created_names, skipped = [], [], 0
+        archived, created_names, skipped, rebuilt = [], [], 0, 0
+        processed_ids = []
         for doc in docs:
             if doc.status != STATUS_DONE:
                 skipped += 1
@@ -3099,14 +3328,32 @@ def bulk():
                         created_names.append(label)
                     doc.collection_id = col.id
                     archived.append({'id': doc.id, 'label': label})
+            processed_ids.append(doc.id)
+        # 先提交归档变更,释放写锁;再逐文档重建知识点(题库按题号拆点)
         db.session.commit()
+        for doc_id in processed_ids:
+            try:
+                pages = [(p.page_no, p.text or '') for p in
+                         (KbPage.query.filter_by(doc_id=doc_id)
+                          .order_by(KbPage.page_no).all())]
+                conn = _connect()
+                try:
+                    _ensure_point_tables(conn)
+                    _rebuild_points_for_doc(conn, doc_id, pages)
+                finally:
+                    conn.close()
+                rebuilt += 1
+            except Exception as e:
+                logger.warning('auto_archive rebuild points doc %s failed: %s',
+                               doc_id, e)
         _bump_data_version()
         _log_op('kb_bulk_auto_archive', f'{len(docs)} 个文档',
-                f'自动归档成功 {len(archived)} 个' +
+                f'自动归档成功 {len(archived)} 个,重建知识点 {rebuilt} 个' +
                 (f'(跳过 {skipped} 个)' if skipped else ''))
         db.session.commit()
         return jsonify({'ok': True, 'archived': archived,
-                        'created': created_names, 'skipped': skipped})
+                        'created': created_names, 'skipped': skipped,
+                        'rebuilt': rebuilt})
     if action == 'clear_archive':
         cleared, kept = [], 0
         for doc in docs:

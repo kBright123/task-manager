@@ -15,8 +15,10 @@ import json
 import logging
 import os
 import re
+import uuid
 
-from flask import (Blueprint, jsonify, render_template, request)
+from flask import (Blueprint, jsonify, render_template, request,
+                   send_from_directory)
 from flask_login import current_user, login_required
 from sqlalchemy import or_
 
@@ -24,6 +26,9 @@ logger = logging.getLogger(__name__)
 
 _NOTES_ROOT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), 'instance', 'notes')
+
+_NOTE_ATTACH_DIR = os.path.join(_NOTES_ROOT, 'attachments')
+_NOTE_IMAGE_EXT = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp')
 
 db = None
 Note = None
@@ -274,7 +279,7 @@ def apply_rules(note):
                 note.thread_id = target.id
                 changes.append(f'移至[{r.move_thread}]')
     if changes:
-        note.tags = json.dumps(tags)
+        note.tags = json.dumps(tags, ensure_ascii=False)
     return changes
 
 
@@ -375,7 +380,7 @@ def api_create_note():
     note = Note(user_id=current_user.id,
                 thread_id=thread.id if thread else None,
                 title=title, content=content,
-                tags=json.dumps(tags), version=1)
+                tags=json.dumps(tags, ensure_ascii=False), version=1)
     changes = apply_rules(note)
     note.simhash = str(simhash(content))
     db.session.add(note)
@@ -410,7 +415,13 @@ def api_note_list():
     if tid:
         query = query.filter_by(thread_id=tid)
     if tag:
-        query = query.filter(Note.tags.like(f'%"{tag}"%'))
+        like_raw = f'%"{tag}"%'
+        try:
+            like_esc = '%' + json.dumps([tag])[1:-1] + '%'
+        except Exception:
+            like_esc = like_raw
+        query = query.filter(or_(Note.tags.like(like_raw),
+                                 Note.tags.like(like_esc)))
     if q:
         pat = f'%{q}%'
         query = query.filter(or_(Note.title.like(pat), Note.content.like(pat)))
@@ -448,7 +459,7 @@ def api_update_note(note_id):
     if 'title' in data:
         note.title = data['title']
     if 'tags' in data:
-        note.tags = json.dumps(build_tag_list(data['tags']))
+        note.tags = json.dumps(build_tag_list(data['tags']), ensure_ascii=False)
     if 'thread_id' in data:
         note.thread_id = data['thread_id'] or None
     note.version += 1
@@ -463,3 +474,75 @@ def api_note_dup(note_id):
     note = Note.query.filter_by(id=note_id, user_id=current_user.id).first()
     dups = find_duplicates(note) if note else []
     return jsonify({'ok': True, 'duplicates': dups})
+
+
+def _ingest_note_image_to_kb(path, uid, ext):
+    """把笔记图片入知识库识别队列(供统一检索命中 OCR 文字)。
+
+    仅创建 status=queued 的文档记录,由后台 knowledge worker 负责 OCR 与
+    知识点构建;失败不阻断图片上传(图片本身仍用于笔记展示)。
+    """
+    try:
+        from knowledge import KbDocument, STATUS_QUEUED
+        title = '随手记图片 ' + datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
+        filename = f'note-img-{datetime.datetime.now().strftime("%Y%m%d%H%M%S")}{ext}'
+        doc = KbDocument(
+            title=title, filename=filename, file_path=path,
+            file_type=ext.lstrip('.'), file_size=os.path.getsize(path),
+            status=STATUS_QUEUED, uploaded_by=int(uid),
+            collection_id=None, last_recognition_type='note')
+        db.session.add(doc)
+        db.session.commit()
+        logger.info('note image enqueued to kb: %s', path)
+    except Exception as e:
+        logger.warning('note image kb ingest failed: %s', e)
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+
+
+@notes_bp.route('/api/upload_image', methods=['POST'])
+@login_required
+def api_upload_note_image():
+    """粘贴/拖拽图片:保存到 instance/notes/attachments/<uid>/,返回可引用 URL。"""
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return jsonify({'ok': False, 'error': '未获取到图片'}), 400
+    ext = os.path.splitext(f.filename)[1].lower()
+    if ext not in _NOTE_IMAGE_EXT:
+        mime = (f.mimetype or '').lower()
+        if not mime.startswith('image/'):
+            return jsonify({'ok': False, 'error': '仅支持图片文件'}), 400
+        ext = '.png'
+    try:
+        from PIL import Image
+        probe = Image.open(f.stream)
+        probe.verify()
+        f.stream.seek(0)
+        if probe.format and ('.' + probe.format.lower()) in _NOTE_IMAGE_EXT:
+            ext = '.' + probe.format.lower()
+    except Exception:
+        pass
+    uid = str(current_user.id)
+    target_dir = os.path.join(_NOTE_ATTACH_DIR, uid)
+    try:
+        os.makedirs(target_dir, exist_ok=True)
+        name = uuid.uuid4().hex + ext
+        f.save(os.path.join(target_dir, name))
+    except Exception as e:
+        logger.warning('note image save failed: %s', e)
+        return jsonify({'ok': False, 'error': '图片保存失败'}), 500
+    url = f'/notes/attachments/{uid}/{name}'
+    _ingest_note_image_to_kb(os.path.join(target_dir, name), uid, ext)
+    return jsonify({'ok': True, 'url': url})
+
+
+@notes_bp.route('/attachments/<int:user_id>/<filename>')
+@login_required
+def serve_note_attachment(user_id, filename):
+    """仅允许访问本人的笔记图片。"""
+    if user_id != current_user.id:
+        return '', 403
+    return send_from_directory(os.path.join(_NOTE_ATTACH_DIR, str(user_id)),
+                               filename)

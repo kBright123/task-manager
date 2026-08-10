@@ -2235,7 +2235,7 @@ def point_detail(pid):
             odoc = db.session.get(KbDocument, op.doc_id)
             related.append({
                 'id': op.id,
-                'title': op.title,
+                'title': _clean_point_title(op.title) or op.title,
                 'doc_title': odoc.title if odoc else '',
                 'doc_url': url_for('kb.doc_detail', doc_id=op.doc_id)
                 if odoc else '',
@@ -2246,11 +2246,82 @@ def point_detail(pid):
     return render_template(
         'kb/point_detail.html',
         point=point,
+        point_title=_clean_point_title(point.title) or point.title,
         doc=doc,
         can_manage=current_user.role == 'admin'
         or doc.uploaded_by == current_user.id,
         related=related,
         ref_count=ref_count)
+
+
+@kb_bp.route('/api/point/<int:pid>/json')
+@login_required
+def api_point_json(pid):
+    """知识点 JSON(抽屉浏览用):正文/元数据/相关知识点/被引用次数。"""
+    point = db.session.get(KbPoint, pid)
+    if not point:
+        return jsonify({'ok': False, 'error': '知识点不存在'}), 404
+    doc = db.session.get(KbDocument, point.doc_id)
+    if not doc:
+        return jsonify({'ok': False, 'error': '文档不存在'}), 404
+    visible = _visible_doc_ids()
+    if visible is not None and point.doc_id not in visible:
+        return jsonify({'ok': False, 'error': '权限不足'}), 403
+    conn = _db_conn()
+    try:
+        rows = conn.execute(
+            'SELECT src_point_id, dst_point_id, score FROM kb_point_rel '
+            'WHERE src_point_id=? OR dst_point_id=?',
+            (point.id, point.id)).fetchall()
+        rel_map = {}
+        for s, d, sc in rows:
+            other = s if s != point.id else d
+            rel_map[other] = sc
+        ref_count = conn.execute(
+            'SELECT COUNT(*) FROM kb_point_ref WHERE point_id=?',
+            (point.id,)).fetchone()[0]
+    finally:
+        conn.close()
+    related = []
+    if rel_map:
+        others = db.session.query(KbPoint).filter(
+            KbPoint.id.in_(list(rel_map))).all()
+        for op in others:
+            odoc = db.session.get(KbDocument, op.doc_id)
+            related.append({
+                'id': op.id,
+                'title': _clean_point_title(op.title) or op.title,
+                'doc_title': odoc.title if odoc else '',
+                'doc_url': url_for('kb.doc_detail', doc_id=op.doc_id)
+                if odoc else '',
+                'score': rel_map.get(op.id, 0),
+                'detail_url': url_for('kb.point_detail', pid=op.id),
+            })
+        related.sort(key=lambda x: -x['score'])
+    return jsonify({
+        'ok': True,
+        'point': {
+            'id': point.id,
+            'title': _clean_point_title(point.title) or point.title,
+            'content': point.content or '',
+            'word_count': point.word_count or 0,
+            'page_start': point.page_start or 0,
+            'page_end': point.page_end or 0,
+            'ref_count': ref_count,
+        },
+        'doc': {
+            'id': doc.id,
+            'title': doc.title,
+            'file_type': doc.file_type,
+            'filename': doc.filename,
+            'url': url_for('kb.doc_detail', doc_id=doc.id),
+            'collection': (doc.collection.name if doc.collection else ''),
+            'color': (doc.collection.color if doc.collection else ''),
+        },
+        'related': related,
+        'can_manage': current_user.role == 'admin'
+        or doc.uploaded_by == current_user.id,
+    })
 
 
 @kb_bp.route('/api/point/<int:pid>/rename', methods=['POST'])
@@ -2325,10 +2396,10 @@ def api_point_ref(pid):
 @kb_bp.route('/graph')
 @login_required
 def graph():
-    """知识图谱页:展示可见知识点及其相似关联。"""
+    """旧图谱页入口:独立图谱页已移除,统一跳转到工作台图谱 tab。"""
     cid = request.args.get('collection', type=int)
-    doc_id = request.args.get('doc', type=int)
-    return render_template('kb/graph.html', cid=cid, doc_id=doc_id)
+    return redirect(url_for('kb.workbench', view='graph',
+                            collection=cid or None))
 
 
 @kb_bp.route('/api/graph-data')

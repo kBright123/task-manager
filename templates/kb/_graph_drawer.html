@@ -1,0 +1,105 @@
+<style>
+  .gd-mask { position:fixed; inset:0; background:rgba(15,23,42,.45); opacity:0; visibility:hidden; transition:opacity .25s ease, visibility .25s ease; z-index:1040; }
+  .gd-mask.show { opacity:1; visibility:visible; }
+  .gd-drawer { position:fixed; top:0; right:0; height:100vh; width:min(1100px, 96vw); background:#fff; box-shadow:-6px 0 24px rgba(0,0,0,.15); transform:translateX(100%); transition:transform .28s ease; z-index:1045; display:flex; flex-direction:column; }
+  .gd-drawer.show { transform:translateX(0); }
+  .gd-drawer-head { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:12px 16px; border-bottom:1px solid var(--gray-100); flex-shrink:0; font-weight:600; color:var(--gray-800); font-size:.9rem; }
+  #gdBody { flex:1; min-height:0; }
+  #gdWrap { width:100%; height:100%; }
+</style>
+<div class="gd-mask" id="gdMask" onclick="closeGraphDrawer()"></div>
+<div class="gd-drawer" id="gdDrawer" role="dialog" aria-modal="true">
+  <div class="gd-drawer-head">
+    <span><i class="bi bi-diagram-3"></i> 知识图谱 <small class="text-muted" id="gdStatus" style="font-weight:400;font-size:.75rem;margin-left:6px;"></small></span>
+    <button type="button" class="btn btn-sm" style="border:none;color:var(--gray-500);" onclick="closeGraphDrawer()" title="关闭"><i class="bi bi-x-lg"></i></button>
+  </div>
+  <div id="gdBody"><div id="gdWrap"></div></div>
+</div>
+<script>
+(function () {
+  function loadECharts() {
+    return new Promise(function (resolve, reject) {
+      if (window.echarts) return resolve();
+      var s = document.createElement('script');
+      s.src = 'https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';
+      s.onload = resolve;
+      s.onerror = function () { reject(new Error('load echarts failed')); };
+      document.head.appendChild(s);
+    });
+  }
+  function loadGraph(docId) {
+    var statusEl = document.getElementById('gdStatus');
+    statusEl.textContent = '加载中...';
+    loadECharts().then(function () {
+      var url = '/kb/api/graph-data' + (docId ? '?doc=' + docId : '');
+      return fetch(url).then(function (r) { return r.json(); });
+    }).then(function (d) {
+      if (!d.ok) { statusEl.textContent = d.error || '加载失败'; return; }
+      var nodes = d.nodes || [];
+      var edges = (d.edges || []).map(function (e) {
+        return { source: String(e.source), target: String(e.target), value: Math.max(0.4, Math.min(4, (e.score || 0) * 4)) };
+      });
+      if (!nodes.length) {
+        statusEl.textContent = '';
+        document.getElementById('gdWrap').innerHTML = '<div style="text-align:center;color:var(--gray-400);padding:80px 20px;font-size:.9rem;">暂无知识点,上传文档并完成识别后即可生成图谱。</div>';
+        return;
+      }
+      var byDoc = {}, cats = [];
+      nodes.forEach(function (n) {
+        n.id = String(n.id);
+        n.name = n.title;
+        n.value = n.word_count || 1;
+        var key = n.doc_title || ('文档' + n.doc_id);
+        if (!(key in byDoc)) { byDoc[key] = cats.length; cats.push(key); }
+        n.category = byDoc[key];
+        n.itemStyle = { color: n.color || '#8b5cf6' };
+        n.symbolSize = Math.max(14, Math.min(46, (n.word_count || 200) / 40));
+      });
+      statusEl.textContent = nodes.length + ' 个知识点 · ' + edges.length + ' 条相似关联';
+      var chart = window.gdChart || echarts.init(document.getElementById('gdWrap'));
+      window.gdChart = chart;
+      chart.setOption({
+        tooltip: {
+          formatter: function (p) {
+            if (p.dataType === 'node') {
+              return '<b>' + p.data.name + '</b><br/>' + (p.data.doc_title || '') + ' · ' + (p.data.word_count || 0) + ' 字';
+            }
+            return '相似度 ' + Math.round((p.data.value || 0) / 4 * 100) + '%';
+          }
+        },
+        legend: [{ type: 'scroll', orient: 'vertical', right: 10, top: 10, data: cats, textStyle: { fontSize: 11 } }],
+        series: [{
+          type: 'graph',
+          layout: 'force',
+          data: nodes,
+          links: edges,
+          categories: cats.map(function (c) { return { name: c }; }),
+          roam: true,
+          draggable: true,
+          force: { repulsion: 320, edgeLength: [60, 140], gravity: 0.08 },
+          label: { show: true, position: 'right', fontSize: 10, formatter: function (p) { var t = p.data.name || ''; return t.length > 10 ? t.slice(0, 10) + '…' : t; } },
+          emphasis: { focus: 'adjacency', label: { show: true, fontSize: 13, fontWeight: 'bold' } },
+          lineStyle: { color: '#c7d2fe', width: 1, curveness: 0.15, opacity: 0.7 },
+          edgeSymbol: ['none', 'arrow'],
+          edgeSymbolSize: 6
+        }]
+      });
+      chart.on('click', function (p) { if (p.dataType === 'node') { window.open('/kb/point/' + p.data.id, '_blank'); } });
+      setTimeout(function () { if (window.gdChart) window.gdChart.resize(); }, 300);
+    }).catch(function () {
+      statusEl.textContent = '图谱加载失败';
+    });
+  }
+  window.openGraphDrawer = function (docId) {
+    document.getElementById('gdMask').classList.add('show');
+    document.getElementById('gdDrawer').classList.add('show');
+    document.body.style.overflow = 'hidden';
+    loadGraph(docId);
+  };
+  window.closeGraphDrawer = function () {
+    document.getElementById('gdMask').classList.remove('show');
+    document.getElementById('gdDrawer').classList.remove('show');
+    document.body.style.overflow = '';
+  };
+})();
+</script>

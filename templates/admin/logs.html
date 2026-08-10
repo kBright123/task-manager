@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block title %}后台管理{% endblock %}
 {% block content %}
+{% set badge_map = {'login': 'var(--success)', 'login_fail': 'var(--danger)', 'logout': 'var(--gray-500)', 'kb_upload': 'var(--primary)', 'kb_delete': 'var(--danger)', 'kb_reprocess': 'var(--warning)', 'kb_cancel': 'var(--gray-500)', 'kb_export': 'var(--primary)', 'kb_bulk_delete': 'var(--danger)', 'kb_bulk_reprocess': 'var(--warning)', 'kb_bulk_export': 'var(--primary)', 'kb_collection_create': 'var(--primary)', 'kb_collection_update': 'var(--primary)', 'kb_collection_delete': 'var(--danger)', 'kb_collection_assign': 'var(--primary)'} %}
+{% set label_map = {'login': '登录成功', 'login_fail': '登录失败', 'logout': '退出登录', 'kb_upload': '上传文档', 'kb_delete': '删除文档', 'kb_reprocess': '重新识别', 'kb_cancel': '停止识别', 'kb_export': '导出文档', 'kb_bulk_delete': '批量删除', 'kb_bulk_reprocess': '批量重识别', 'kb_bulk_export': '批量导出', 'kb_collection_create': '创建集合', 'kb_collection_update': '更新集合', 'kb_collection_delete': '删除集合', 'kb_collection_assign': '集合分配'} %}
 <ul class="nav nav-tabs mb-3 flex-nowrap" style="border-bottom:1px solid var(--gray-200);flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;">
   <li class="nav-item">
     <a class="nav-link nav-tab-link" href="{{ url_for('admin_users') }}" style="font-size:.85rem;color:var(--gray-500);"><i class="bi bi-people"></i> 用户管理</a>
@@ -19,27 +21,27 @@
 <div class="card mb-3">
   <div class="card-header d-flex justify-content-between align-items-center py-2 px-3 flex-wrap gap-2" style="border-bottom:1px solid var(--gray-100);">
     <form method="GET" class="d-flex gap-2 align-items-center flex-wrap">
-      <div class="input-group input-group-sm" style="max-width:200px;">
+      <div class="input-group input-group-sm" style="min-width:0;max-width:240px;flex:1 1 180px;">
         <span class="input-group-text" style="background:var(--gray-50);border-color:var(--gray-200);"><i class="bi bi-person" style="font-size:.75rem;"></i></span>
         <input type="text" class="form-control" name="username" placeholder="搜索用户..." value="{{ username }}" style="font-size:.8rem;border-color:var(--gray-200);">
       </div>
-      <select class="form-select form-select-sm" name="action" style="width:auto;font-size:.8rem;border-color:var(--gray-200);">
+      <select class="form-select form-select-sm" name="action" style="flex:1 1 120px;max-width:200px;font-size:.8rem;border-color:var(--gray-200);">
         <option value="">全部操作</option>
         {% set actions = ['login','login_fail','logout','kb_upload','kb_delete','kb_reprocess','kb_cancel','kb_export','kb_bulk_delete','kb_bulk_reprocess','kb_bulk_export','kb_collection_create','kb_collection_update','kb_collection_delete','kb_collection_assign'] %}
         {% for a in actions %}
         <option value="{{ a }}" {% if action == a %}selected{% endif %}>{{ a }}</option>
         {% endfor %}
       </select>
-      <select class="form-select form-select-sm" name="days" style="width:auto;font-size:.8rem;border-color:var(--gray-200);">
+      <select class="form-select form-select-sm" name="days" style="flex:1 1 100px;max-width:150px;font-size:.8rem;border-color:var(--gray-200);">
         <option value="">全部时间</option>
         {% for d in [1, 7, 30, 90] %}
         <option value="{{ d }}" {% if days == d %}selected{% endif %}>近 {{ d }} 天</option>
         {% endfor %}
       </select>
-      <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-funnel"></i> 筛选</button>
-      <a href="{{ url_for('admin_logs') }}" class="btn btn-sm btn-outline-secondary">重置</a>
+      <button class="btn btn-sm btn-primary flex-shrink-0" type="submit"><i class="bi bi-funnel"></i> 筛选</button>
+      <a href="{{ url_for('admin_logs') }}" class="btn btn-sm btn-outline-secondary flex-shrink-0">重置</a>
     </form>
-    <div class="d-flex gap-2 align-items-center flex-shrink-0">
+    <div class="d-flex gap-2 align-items-center flex-shrink-0 d-none d-sm-flex">
       <span class="badge" style="background:var(--gray-100);color:var(--gray-600);font-size:.7rem;">共 {{ total_logs }} 条</span>
       <span class="badge" style="background:var(--primary-light);color:var(--primary);font-size:.7rem;">{{ total_users }} 位用户操作</span>
     </div>
@@ -68,8 +70,6 @@
             </span>
           </td>
           <td style="padding:8px 16px;">
-            {% set badge_map = {'login': 'var(--success)', 'login_fail': 'var(--danger)', 'logout': 'var(--gray-500)', 'kb_upload': 'var(--primary)', 'kb_delete': 'var(--danger)', 'kb_reprocess': 'var(--warning)', 'kb_cancel': 'var(--gray-500)', 'kb_export': 'var(--primary)', 'kb_bulk_delete': 'var(--danger)', 'kb_bulk_reprocess': 'var(--warning)', 'kb_bulk_export': 'var(--primary)', 'kb_collection_create': 'var(--primary)', 'kb_collection_update': 'var(--primary)', 'kb_collection_delete': 'var(--danger)', 'kb_collection_assign': 'var(--primary)'} %}
-            {% set label_map = {'login': '登录成功', 'login_fail': '登录失败', 'logout': '退出登录', 'kb_upload': '上传文档', 'kb_delete': '删除文档', 'kb_reprocess': '重新识别', 'kb_cancel': '停止识别', 'kb_export': '导出文档', 'kb_bulk_delete': '批量删除', 'kb_bulk_reprocess': '批量重识别', 'kb_bulk_export': '批量导出', 'kb_collection_create': '创建集合', 'kb_collection_update': '更新集合', 'kb_collection_delete': '删除集合', 'kb_collection_assign': '集合分配'} %}
             <span class="badge" style="background:{{ badge_map.get(log.action, 'var(--gray-200)') }};color:#fff;font-size:.62rem;{% if log.action not in badge_map %}color:var(--gray-600);background:var(--gray-200);{% endif %}">
               {{ label_map.get(log.action, log.action) }}
             </span>
@@ -88,20 +88,18 @@
   <div class="d-md-none p-3">
     {% for log in logs %}
     <div class="card mb-2" style="border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
-      <div class="card-body p-3">
-        <div class="d-flex justify-content-between align-items-center mb-1">
-          <span class="d-inline-flex align-items-center gap-1" style="font-weight:600;font-size:.85rem;">
-            <span class="avatar" style="width:22px;height:22px;font-size:.6rem;">{{ (log.username or '?')[0]|upper }}</span>
-            {{ log.username or '系统' }}
-          </span>
-          <small class="text-muted" style="font-size:.65rem;">{{ log.created_at.strftime('%m-%d %H:%M:%S') }}</small>
+      <div class="card-body p-2 px-3">
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <span class="avatar" style="width:22px;height:22px;font-size:.6rem;">{{ (log.username or '?')[0]|upper }}</span>
+          <span style="font-weight:600;font-size:.82rem;">{{ log.username or '系统' }}</span>
+          <span class="badge ms-auto" style="flex-shrink:0;background:{{ badge_map.get(log.action, 'var(--gray-200)') }};color:#fff;font-size:.6rem;{% if log.action not in badge_map %}color:var(--gray-600);background:var(--gray-200);{% endif %}">{{ label_map.get(log.action, log.action) }}</span>
         </div>
-        <div class="mb-1">
-          <span class="badge" style="background:var(--primary-light);color:var(--primary);font-size:.62rem;">{{ log.action }}</span>
+        <div class="mb-1" style="font-size:.8rem;color:var(--gray-700);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ log.target or '-' }}</div>
+        <div class="d-flex justify-content-between align-items-center">
+          <small class="text-muted" style="font-size:.63rem;">{{ log.created_at.strftime('%m-%d %H:%M:%S') }}</small>
+          {% if log.ip %}<small class="text-muted" style="font-size:.63rem;">IP: {{ log.ip }}</small>{% endif %}
         </div>
-        <div style="font-size:.8rem;color:var(--gray-700);">{{ log.target or '-' }}</div>
-        {% if log.detail %}<small class="text-muted" style="font-size:.72rem;">{{ log.detail }}</small>{% endif %}
-        {% if log.ip %}<div><small class="text-muted" style="font-size:.65rem;">IP: {{ log.ip }}</small></div>{% endif %}
+        {% if log.detail %}<small class="text-muted" style="font-size:.7rem;display:block;margin-top:2px;">{{ log.detail }}</small>{% endif %}
       </div>
     </div>
     {% else %}

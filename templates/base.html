@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}知行合一{% endblock %}</title>
-  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg', v=4) }}">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg', v=staticv('favicon.svg')) }}">
   <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.11.2/font/bootstrap-icons.min.css">
   <style>
@@ -59,7 +59,7 @@
     /* PC Top Nav */
     .top-nav { position: fixed; top: 0; left: 0; right: 0; height: var(--nav-height); background: #fff; border-bottom: 1px solid var(--gray-200); z-index: 1000; display: flex; align-items: center; justify-content: center; }
     .top-nav-inner { width: 100%; max-width: 1600px; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 100%; }
-    .top-nav-logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem; color: var(--gray-900); text-decoration: none; }
+    .top-nav-logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem; color: var(--gray-900); text-decoration: none; white-space: nowrap; flex-shrink: 0; }
     .brand-mark { width: 1.4rem; height: 1.4rem; flex-shrink: 0; border-radius: 6px; box-shadow: 0 1px 4px rgba(15,23,42,.18); }
     .top-nav-links { display: flex; align-items: center; gap: 4px; }
     .top-nav-links a { display: flex; align-items: center; gap: 6px; padding: 8px 16px; font-size: .9rem; font-weight: 500; color: var(--gray-500); text-decoration: none; border-radius: var(--radius-sm); transition: all .15s; position: relative; }
@@ -637,7 +637,53 @@
     resultsPage: '{{ url_for("unified_search_page") }}'
   };
   </script>
-  <script src="{{ url_for('static', filename='js/search.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/search.js', v=staticv('js/search.js')) }}" defer></script>
+  <script>
+    // 移动端下拉刷新(webview 内原生下拉刷新不可用时的兜底)
+    (function () {
+      if (!('ontouchstart' in window)) return;
+      if (window.innerWidth > 767) return;
+      var THRESHOLD = 70;
+      var startY = 0, pulling = false, dist = 0, indicator = null;
+      var navTop = document.body.classList.contains('authed') ? 64 : 0;
+      function createIndicator() {
+        var el = document.createElement('div');
+        el.style.cssText = 'position:fixed;top:' + navTop + 'px;left:0;right:0;height:48px;display:flex;align-items:center;justify-content:center;font-size:.75rem;color:var(--gray-500);background:#fff;z-index:3000;transform:translateY(-100%);transition:transform .18s;box-shadow:0 1px 6px rgba(0,0,0,.06);';
+        el.innerHTML = '<span><i class="bi bi-arrow-down"></i> 下拉刷新</span>';
+        document.body.appendChild(el);
+        return el;
+      }
+      function isFormTarget(t) {
+        return !!(t && t.closest && t.closest('select, input, textarea, button, .table-responsive, .modal, [data-bs-toggle]'));
+      }
+      function atTop() { return (window.pageYOffset || document.documentElement.scrollTop) <= 0; }
+      document.addEventListener('touchstart', function (e) {
+        if (e.touches.length !== 1) return;
+        if (!atTop() || isFormTarget(e.target)) { pulling = false; return; }
+        startY = e.touches[0].clientY;
+        pulling = true; dist = 0;
+      }, { passive: true });
+      document.addEventListener('touchmove', function (e) {
+        if (!pulling) return;
+        if (!atTop()) { pulling = false; return; }
+        var dy = e.touches[0].clientY - startY;
+        if (dy <= 0) { dist = 0; if (indicator) indicator.style.transform = 'translateY(-100%)'; return; }
+        dist = Math.min(dy * 0.5, 90);
+        if (!indicator) indicator = createIndicator();
+        indicator.style.transform = 'translateY(' + (dist - 48) + 'px)';
+        indicator.innerHTML = dist >= THRESHOLD
+          ? '<span style="color:var(--primary);font-weight:600;"><i class="bi bi-arrow-down-circle"></i> 释放刷新</span>'
+          : '<span><i class="bi bi-arrow-down"></i> 下拉刷新</span>';
+      }, { passive: true });
+      document.addEventListener('touchend', function () {
+        if (!pulling) return;
+        pulling = false;
+        if (indicator) indicator.style.transform = 'translateY(-100%)';
+        if (dist >= THRESHOLD) window.location.reload();
+        dist = 0;
+      });
+    })();
+  </script>
   {% block extra_js %}{% endblock %}
 </body>
 </html>

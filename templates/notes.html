@@ -5,7 +5,7 @@
 <style>
   body.notes-full .app-container { max-width: none; padding: 0; }
   body.notes-full .email-reminder { display: none !important; }
-  .notes-layout{display:grid;grid-template-columns:230px 1fr 300px;gap:16px;height:calc(100vh - var(--nav-height));}
+  .notes-layout{display:grid;grid-template-columns:240px minmax(0,1fr) minmax(400px,480px);gap:16px;height:calc(100vh - var(--nav-height));}
   .notes-panel{background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column;}
   @media (max-width:1023px){.notes-layout{grid-template-columns:180px 1fr;height:calc(100vh - var(--nav-height));min-height:calc(100vh - var(--nav-height));}.notes-layout>div:nth-child(3){display:none;}}
   @media (max-width:767px){body.notes-full .app-container{padding:10px 12px calc(var(--bottom-nav-height) + 12px);}.notes-layout{grid-template-columns:1fr;gap:10px;height:auto;min-height:0;}.notes-layout>div:nth-child(3){display:none;}}
@@ -13,34 +13,28 @@
   .note-bubble{max-width:92%;margin-bottom:14px;}
   .note-bubble .meta{font-size:.68rem;color:var(--gray-400);margin-bottom:4px;display:flex;align-items:center;gap:8px;}
   .note-bubble .bubble{background:#fff;border:1px solid var(--gray-200);border-radius:12px 12px 12px 4px;padding:12px 14px;box-shadow:var(--shadow-sm);}
-  .note-bubble .bbl{font-size:.84rem;color:var(--gray-700);white-space:pre-wrap;word-break:break-word;margin-top:6px;}
+  .note-bubble .bbl{font-size:.84rem;color:var(--gray-700);white-space:pre-wrap;word-break:break-word;margin-top:6px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden;}
+  .note-bubble .bbl-more{font-size:.72rem;color:var(--primary);margin-top:2px;cursor:pointer;}
   .pill{display:inline-block;padding:1px 8px;border-radius:100px;background:var(--primary-light);color:var(--primary);font-size:.68rem;margin-right:4px;cursor:pointer;}
   .sys-bubble{display:inline-flex;align-items:center;gap:6px;background:#fef3c7;color:#92400e;font-size:.74rem;border-radius:10px;padding:6px 12px;margin:4px 0;}
-  .note-thread{padding:8px 12px;cursor:pointer;border-left:3px solid transparent;font-size:.82rem;color:var(--gray-700);border-radius:6px;display:flex;justify-content:space-between;align-items:center;}
-  .note-thread:hover{background:var(--gray-50);}
-  .note-thread.active{background:var(--primary-light);border-left-color:var(--primary);color:var(--primary);font-weight:600;}
   .note-tag{padding:4px 10px;font-size:.72rem;border-radius:100px;background:var(--gray-100);cursor:pointer;margin:2px;}
   .note-tag.active{background:var(--primary);color:#fff;}
   .note-bubble.focus-flash{border-radius:12px;animation:focusFlash 1.8s ease;}
   @keyframes focusFlash{0%,55%{background:#eef2ff;}100%{background:transparent;}}
+  .note-img{max-width:220px;max-height:220px;border-radius:8px;margin:6px 0;cursor:pointer;box-shadow:var(--shadow-sm);}
+  .notes-meta-body .note-img{max-width:100%;max-height:420px;}
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="notes-layout">
-  <!-- 左栏: 上下文/目录树 -->
-  <div class="card h-100" style="border:1px solid var(--gray-200);border-radius:var(--radius);overflow:hidden;">
-    <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
-      <span style="font-size:.84rem;font-weight:600;"><i class="bi bi-folder2" style="color:var(--primary);"></i> 标签</span>
-      <button class="btn btn-sm btn-outline-primary" style="padding:2px 8px;font-size:.7rem;" data-bs-toggle="modal" data-bs-target="#addThreadModal"><i class="bi bi-plus"></i></button>
+  <!-- 左栏: 笔记标签 -->
+  <div class="card h-100 d-flex flex-column" style="border:1px solid var(--gray-200);border-radius:var(--radius);overflow:hidden;">
+    <div class="card-header py-2 px-3">
+      <span style="font-size:.84rem;font-weight:600;"><i class="bi bi-tags" style="color:var(--primary);"></i> 笔记标签</span>
     </div>
-    <div class="card-body py-2 px-2" style="overflow-y:auto;">
-      <div class="note-thread" data-tid="" onclick="loadNotes('')"><span><i class="bi bi-stack"></i> 全部笔记</span></div>
-      <div id="threadList">
-        {% for t in threads %}
-        <div class="note-thread" data-tid="{{ t.id }}" onclick="loadNotes('{{ t.id }}')"><span><i class="bi bi-folder" style="color:{{ t.color }};"></i> {{ t.name }}</span><small class="text-muted" style="font-size:.68rem;">{{ t.notes.filter_by(user_id=current_user.id).count() }}</small></div>
-        {% endfor %}
-      </div>
+    <div class="card-body py-2 px-2" style="overflow-y:auto;flex:1;">
+      <div id="tagList" class="d-flex flex-wrap gap-1 mt-1"></div>
     </div>
   </div>
 
@@ -52,12 +46,9 @@
     </div>
     <div class="note-timeline" id="noteTimeline"></div>
     <div class="card-footer" style="background:#fafafa;border-top:1px solid var(--gray-100);padding:10px 14px;">
+      <div id="noteImgPreview" style="display:none;margin-bottom:8px;"></div>
       <div class="d-flex align-items-center gap-2">
-        <textarea id="noteInput" rows="1" class="form-control form-control-sm" style="font-size:.85rem;resize:none;border-radius:10px;" placeholder="写一条新笔记，保存到所选，留标签空则归入“全部笔记”。"></textarea>
-        <select id="noteThreadSel" class="form-select form-select-sm" style="width:auto;max-width:200px;flex-shrink:0;font-size:.8rem;" title="标签">
-          <option value="">全部笔记</option>
-          {% for t in threads %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
-        </select>
+        <textarea id="noteInput" rows="1" class="form-control form-control-sm" style="font-size:.85rem;resize:none;border-radius:10px;" placeholder="写一条新笔记，可粘贴图片，保存后可在右侧详情中打标签。"></textarea>
         <button class="btn btn-sm btn-primary" id="sendNoteBtn" onclick="sendNote()" disabled style="flex-shrink:0"><i class="bi bi-send"></i> 保存笔记</button>
       </div>
     </div>
@@ -71,22 +62,11 @@
     </div>
   </div>
 </div>
-
-<!-- 新建上下文 -->
-<div class="modal fade" id="addThreadModal" tabindex="-1">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content">
-      <div class="modal-header py-2"><span style="font-weight:600;font-size:.9rem;">新建项目 / 标签组</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-      <div class="modal-body"><input id="newThreadName" class="form-control" placeholder="如: 项目A / 财务"></div>
-      <div class="modal-footer py-2"><button class="btn btn-sm btn-primary" onclick="createThread()"><i class="bi bi-plus"></i> 创建</button></div>
-    </div>
-  </div>
-</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-var curThread='', curTag='', curQ='';
+var curTag='', curQ='';
 var focusId = {{ note_id or 'null' }};
 function focusNote(){
   if(!focusId) return;
@@ -99,58 +79,127 @@ function focusNote(){
   setTimeout(function(){el.classList.remove('focus-flash');},1800);
 }
 function esc(s){s=(s==null?'':String(s));var d=document.createElement('div');d.textContent=s;return d.innerHTML.replace(/"/g,'&quot;');}
+function renderContent(html){
+  return html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g,function(m,alt,url){
+    if(url.charAt(0)!=='/'&&!/^https?:\/\//i.test(url)) return m;
+    return '<img src="'+esc(url)+'" alt="'+esc(alt)+'" loading="lazy" class="note-img" onclick="window.open(this.src)">';
+  });
+}
+function insertAtCursor(el,text){
+  var start=el.selectionStart,end=el.selectionEnd;
+  el.value=el.value.slice(0,start)+text+el.value.slice(end);
+  el.selectionStart=el.selectionEnd=start+text.length;
+  el.dispatchEvent(new Event('input'));
+  el.focus();
+}
+function uploadNoteImage(file){
+  var btn=document.getElementById('sendNoteBtn');
+  var orig=btn?btn.innerHTML:null;
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> 上传中...';}
+  var fd=new FormData();
+  fd.append('file',file,file.name||('paste_'+Date.now()+'.png'));
+  fetch('/notes/api/upload_image',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(d){
+    if(btn){btn.disabled=false;btn.innerHTML=orig;}
+    if(d.ok){
+      var md='\n!['+(file.name||'图片')+']('+d.url+')\n';
+      pendingImages.push({url:d.url, markdown:md});
+      insertAtCursor(document.getElementById('noteInput'),md);
+      renderImgPreview();
+      if(window.toast)toast('图片已插入','success');
+    }else{
+      if(window.toast)toast(d.error||'图片上传失败','danger');
+    }
+  }).catch(function(){
+    if(btn){btn.disabled=false;btn.innerHTML=orig;}
+    if(window.toast)toast('图片上传失败，请重试','danger');
+  });
+}
+var pendingImages=[];
+function renderImgPreview(){
+  var box=document.getElementById('noteImgPreview');
+  if(!box) return;
+  if(!pendingImages.length){box.style.display='none';box.innerHTML='';return;}
+  box.style.display='flex';
+  box.style.flexWrap='wrap';
+  box.style.gap='8px';
+  box.innerHTML=pendingImages.map(function(p,i){
+    return '<span style="position:relative;display:inline-block;">'+
+      '<img src="'+p.url+'" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--gray-200);">'+
+      '<button type="button" onclick="removePendingImage('+i+')" title="移除" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;line-height:1;font-size:.7rem;border-radius:50%;border:none;background:var(--danger);color:#fff;padding:0;">&times;</button>'+
+      '</span>';
+  }).join('');
+}
+function removePendingImage(i){
+  var p=pendingImages[i];
+  if(!p) return;
+  var ta=document.getElementById('noteInput');
+  ta.value=ta.value.replace(p.markdown,'');
+  ta.dispatchEvent(new Event('input'));
+  pendingImages.splice(i,1);
+  renderImgPreview();
+}
 function renderNotes(list){
   var tl=document.getElementById('noteTimeline');
   document.getElementById('notesCount').textContent='共 '+list.length+' 条';
   if(!list.length){tl.innerHTML='<div class="empty-state">'+
     '<svg viewBox="0 0 96 96" fill="none"><path d="M30 12h30l14 14v58H30z" fill="var(--gray-100)" stroke="var(--gray-300)" stroke-width="2"/><path d="M59 13v15h14" fill="var(--gray-100)" stroke="var(--gray-300)" stroke-width="2"/><path d="M40 44h26M40 56h26M40 68h18" stroke="var(--primary)" stroke-width="3" stroke-linecap="round"/></svg>'+
     '<div class="es-title">还没有笔记</div>'+
-    '<div class="es-sub">在下方输入框写一条记录，可保存到选中的项目或标签下。</div>'+
+    '<div class="es-sub">在下方输入框写一条记录，保存后可在右侧详情中打标签。</div>'+
     '<button class="btn btn-sm btn-primary" onclick="document.getElementById(\'noteInput\').focus()"><i class="bi bi-pencil-square"></i> 开始记录</button>'+
     '</div>';return;}
   tl.innerHTML=list.map(function(n){
     var tags=(n.tags||[]).map(function(t){return '<span class="pill" onclick="loadByTag(\''+esc(t)+'\')">'+esc(t)+'</span>';}).join('');
     return '<div class="note-bubble" data-nid="'+n.id+'"><div class="meta"><i class="bi bi-clock"></i> '+esc(n.created_at)+
-      (n.thread?' · <span style="color:var(--primary)">'+esc(n.thread)+'</span>':'')+
       ' <span style="cursor:pointer;" onclick="showMeta('+n.id+')"><i class="bi bi-pencil"></i></span>'+
       ' <span style="cursor:pointer;" onclick="delNote('+n.id+')"><i class="bi bi-trash" style="color:var(--danger);"></i></span></div>'+
       '<div class="bubble" onclick="showMeta('+n.id+')">'+
       (tags?'<div class="mb-2">'+tags+'</div>':'')+
-      '<div class="bbl">'+esc(n.content)+'</div>'+
+      '<div class="bbl">'+renderContent(esc(n.content))+'</div>'+
+      ((n.content||'').length>160?'<div class="bbl-more">… 点击查看全文</div>':'')+
       '</div></div>';
   }).join('');
   focusNote();
 }
-function activeThread(tid){
-  document.querySelectorAll('#threadList .note-thread').forEach(function(x){
-    x.classList.toggle('active', (x.dataset.tid||'')===String(tid||''));
-  });
-}
-function loadNotes(tid){
-  curThread=tid||'';curTag='';activeThread(curThread);
-  var url='/notes/api/notes';if(curThread)url+='?thread_id='+curThread;
-  fetch(url).then(r=>r.json()).then(function(d){if(d.ok)renderNotes(d.notes);});
+function loadNotes(){
+  curTag='';
+  fetch('/notes/api/notes').then(r=>r.json()).then(function(d){if(d.ok)renderNotes(d.notes);});
+  loadTags();
 }
 function loadByTag(tag){
-  curTag=tag;curThread='';activeThread('');
+  curTag=tag;
   fetch('/notes/api/notes?tag='+encodeURIComponent(tag)).then(r=>r.json()).then(function(d){if(d.ok)renderNotes(d.notes);});
+  loadTags();
+}
+function loadTags(){
+  var box=document.getElementById('tagList');
+  if(!box) return;
+  fetch('/notes/api/notes').then(r=>r.json()).then(function(d){
+    var tagSet={};
+    (d.notes||[]).forEach(function(n){(n.tags||[]).forEach(function(t){tagSet[t]=1;});});
+    var tags=Object.keys(tagSet).sort();
+    var html='<span class="note-tag'+(curTag===''?' active':'')+'" onclick="loadNotes()">全部笔记</span>';
+    if(!tags.length){box.innerHTML=html;return;}
+    box.innerHTML=html+tags.map(function(t){
+      return '<span class="note-tag'+(curTag===t?' active':'')+'" onclick="loadByTag(\''+esc(t).replace(/'/g,"\\'")+'\')">'+esc(t)+'</span>';
+    }).join('');
+  });
 }
 function sendNote(){
   var content=document.getElementById('noteInput').value.trim();
   if(!content)return;
   var btn=document.getElementById('sendNoteBtn');
   if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> 保存中...';}
-  var tid=document.getElementById('noteThreadSel').value||null;
   fetch('/notes/api/notes',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({content:content,thread_id:tid})}).then(r=>r.json()).then(function(d){
+    body:JSON.stringify({content:content})}).then(r=>r.json()).then(function(d){
     if(d.ok){
       document.getElementById('noteInput').value='';
       document.getElementById('noteInput').dispatchEvent(new Event('input'));
+      pendingImages=[];renderImgPreview();
       if(window.toast) toast('已保存','success');
       if(d.duplicates&&d.duplicates.length){
         showSys('<i class="bi bi-exclamation-triangle"></i> 疑似与「'+esc(d.duplicates[0].title)+'」('+esc(d.duplicates[0].date)+') 高度相似,相似度 '+d.duplicates[0].similarity+'%');
       }
-      loadNotes(curThread);
+      loadNotes();
     } else { if (window.toast) toast(d.error||'保存失败','danger'); else alert(d.error||'保存失败'); }
     if(btn){btn.disabled=false;btn.innerHTML='<i class="bi bi-send"></i> 保存笔记';}
   }).catch(function(){
@@ -176,8 +225,8 @@ function renderMeta(){
   var n=curMeta;if(!n)return;
   var b=document.getElementById('metaBody');
   b.innerHTML=
-    '<div style="font-size:.8rem;color:var(--gray-700);white-space:pre-wrap;word-break:break-word;background:var(--gray-50);border-radius:8px;padding:10px 12px;">'+esc(n.content)+'</div>'+
-    '<div class="mt-2 text-muted" style="font-size:.72rem;">创建 '+esc(n.created_at)+' · 版本 v'+n.version+(n.thread?' · 项目 '+esc(n.thread):'')+'</div>'+
+    '<div class="notes-meta-body" style="font-size:.8rem;color:var(--gray-700);word-break:break-word;background:var(--gray-50);border-radius:8px;padding:10px 12px;">'+renderContent(esc(n.content))+'</div>'+
+    '<div class="mt-2 text-muted" style="font-size:.72rem;">创建 '+esc(n.created_at)+' · 版本 v'+n.version+'</div>'+
     '<div class="mt-3"><span class="text-muted" style="font-size:.72rem;">标签</span>'+
     '<div class="d-flex flex-wrap gap-1 mt-1">'+
       (n.tags||[]).map(function(t){return '<span class="pill">'+esc(t)+' <span style="cursor:pointer;" onclick="removeMetaTag(\''+esc(t).replace(/'/g,"\\'")+'\')" title="移除标签" class="text-muted">&times;</span></span>';}).join('')+
@@ -196,7 +245,7 @@ function saveMetaTags(){
   var id=curMeta.id;
   fetch('/notes/api/notes/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({tags:curMeta.tags||[]})}).then(r=>r.json()).then(function(d){
-      if(d.ok){curMeta=d.note;renderMeta();if(window.toast)toast('标签已更新','success');}
+      if(d.ok){curMeta=d.note;renderMeta();loadNotes();if(window.toast)toast('标签已更新','success');}
       else{if(window.toast)toast(d.error||'保存失败','danger');}
     });
 }
@@ -224,21 +273,13 @@ function saveEditInline(){
   var content=document.getElementById('metaEditContent').value;
   fetch('/notes/api/notes/'+curMeta.id,{method:'PUT',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({content:content})}).then(r=>r.json()).then(function(d){
-      if(d.ok){curMeta=d.note;renderMeta();loadNotes(curThread);if(window.toast)toast('笔记已更新','success');}
+      if(d.ok){curMeta=d.note;renderMeta();loadNotes();if(window.toast)toast('笔记已更新','success');}
       else{alert(d.error||'保存失败');}
     });
 }
 function delNote(id){
   if(!confirm('确认删除该笔记?'))return;
-  fetch('/notes/api/notes/'+id,{method:'DELETE'}).then(r=>r.json()).then(function(d){if(d.ok)loadNotes(curThread);});
-}
-function createThread(){
-  var name=document.getElementById('newThreadName').value.trim();
-  if(!name)return;
-  fetch('/notes/api/threads',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({name:name})}).then(r=>r.json()).then(function(d){
-    if(d.ok){location.reload();}else{alert(d.error||'创建失败');}
-  });
+  fetch('/notes/api/notes/'+id,{method:'DELETE'}).then(r=>r.json()).then(function(d){if(d.ok)loadNotes();});
 }
 document.getElementById('noteInput').addEventListener('keydown',function(e){
   if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();sendNote();}
@@ -247,6 +288,32 @@ document.getElementById('noteInput').addEventListener('input',function(e){
   var btn=document.getElementById('sendNoteBtn');
   if(btn) btn.disabled=!e.target.value.trim();
 });
-loadNotes('');
+var noteInputEl=document.getElementById('noteInput');
+noteInputEl.addEventListener('paste',function(e){
+  var items=e.clipboardData&&e.clipboardData.items;
+  if(!items) return;
+  var imgs=[];
+  for(var i=0;i<items.length;i++){
+    if(items[i].type&&items[i].type.indexOf('image')===0){
+      var file=items[i].getAsFile();
+      if(file) imgs.push(file);
+    }
+  }
+  if(!imgs.length) return;
+  e.preventDefault();
+  var text=e.clipboardData.getData('text/plain');
+  if(text&&text.trim()) insertAtCursor(noteInputEl,text.trim()+'\n');
+  imgs.forEach(function(file){uploadNoteImage(file);});
+});
+noteInputEl.addEventListener('dragover',function(e){e.preventDefault();});
+noteInputEl.addEventListener('drop',function(e){
+  var files=e.dataTransfer&&e.dataTransfer.files;
+  if(!files||!files.length) return;
+  e.preventDefault();
+  for(var i=0;i<files.length;i++){
+    if(files[i].type&&files[i].type.indexOf('image')===0) uploadNoteImage(files[i]);
+  }
+});
+loadNotes();
 </script>
 {% endblock %}

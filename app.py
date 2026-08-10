@@ -108,6 +108,32 @@ def _req_timing_log(resp):
     return resp
 
 
+_CACHE_IMMUTABLE = 'public, max-age=31536000, immutable'
+_CACHE_PRIVATE = 'private, max-age=31536000'
+_CACHE_REVALIDATE = 'no-cache, must-revalidate, max-age=0'
+
+
+@app.after_request
+def _cdn_cache_policy(resp):
+    """统一 CDN 缓存策略(所有页面/资源生效):
+
+    - /static/* 静态资源(所有页面共用): 不可变长缓存 1 年,
+      配合 mtime 版本号(staticv)保证内容更新必然换 URL, 不会被缓存到旧文件。
+    - /uploads/ 与 /notes/attachments/ 用户私有媒体: 浏览器/私有缓存 1 年,
+      CDN 不公开缓存(避免他人 403 的私有图片被缓存泄露)。
+    - 其余动态页面/API: 不缓存, 始终回源校验。
+    """
+    path = request.path
+    if path.startswith('/static/'):
+        resp.headers['Cache-Control'] = _CACHE_IMMUTABLE
+        resp.headers['Vary'] = 'Accept-Encoding'
+    elif path.startswith(('/uploads/', '/notes/attachments/')):
+        resp.headers['Cache-Control'] = _CACHE_PRIVATE
+    else:
+        resp.headers['Cache-Control'] = _CACHE_REVALIDATE
+    return resp
+
+
 from knowledge import init_models, enable_sqlite_wal, kb_bp, \
     _resolve_stored_path, file_content_matches
 init_models(db)
@@ -116,6 +142,18 @@ app.register_blueprint(kb_bp)
 from notes import init_models as notes_init_models, notes_bp
 notes_init_models(db)
 app.register_blueprint(notes_bp)
+
+
+_STATIC_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
+
+
+def _static_mtime_version(filename):
+    """静态文件 mtime 版本号: 内容变化自动换 URL 版本, 支持不可变缓存。"""
+    try:
+        return int(os.path.getmtime(
+            os.path.join(_STATIC_ROOT, filename)))
+    except OSError:
+        return 0
 
 
 @app.context_processor
@@ -129,10 +167,12 @@ def inject_globals():
         return {'now': datetime.now, 'today_str': datetime.now().strftime(
             '%Y年%m月%d日 %A'), 'timedelta': timedelta,
                 'VERSION': VERSION,
+                'staticv': _static_mtime_version,
                 'unread_notifications': unread_count,
                 'recent_notifications': recent_notifications}
     return {'now': datetime.now, 'today_str': datetime.now().strftime(
-        '%Y年%m月%d日 %A'), 'timedelta': timedelta, 'VERSION': VERSION}
+        '%Y年%m月%d日 %A'), 'timedelta': timedelta, 'VERSION': VERSION,
+            'staticv': _static_mtime_version}
 
 
 import markupsafe

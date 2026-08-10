@@ -1,5 +1,18 @@
 {% extends "base.html" %}
 {% block title %}{{ doc.title }} - 知识库{% endblock %}
+{% block extra_css %}
+<style>
+  .dd-meta { font-size:.72rem; color:var(--gray-500); }
+  .dd-meta b { color:var(--gray-700); font-weight:600; }
+  .orig-mask { position:fixed; inset:0; background:rgba(15,23,42,.45); opacity:0; visibility:hidden; transition:opacity .25s ease, visibility .25s ease; z-index:1040; }
+  .orig-mask.show { opacity:1; visibility:visible; }
+  .orig-drawer { position:fixed; top:0; right:0; height:100vh; width:min(720px, 92vw); background:#fff; box-shadow:-6px 0 24px rgba(0,0,0,.15); transform:translateX(100%); transition:transform .28s ease; z-index:1045; display:flex; flex-direction:column; }
+  .orig-drawer.show { transform:translateX(0); }
+  .orig-drawer-head { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:12px 16px; border-bottom:1px solid var(--gray-100); flex-shrink:0; font-weight:600; color:var(--gray-800); font-size:.9rem; }
+  .orig-drawer-body { flex:1; min-height:0; background:var(--gray-50); }
+  .orig-drawer-body iframe { width:100%; height:100%; border:0; display:block; background:#fff; }
+</style>
+{% endblock %}
 {% block content %}
 <nav class="mb-3">
   <a href="{{ url_for('kb.workbench') }}" style="color:var(--primary);text-decoration:none;">
@@ -31,8 +44,23 @@
 </div>
 
 <div class="row g-3">
-  <div class="col-lg-12">
+  <!-- 左: 来源文档 + 知识点 -->
+  <div class="col-lg-4">
     <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-file-earmark"></i> 来源文档</div>
+      <div class="card-body" style="padding-top:12px;padding-bottom:12px;">
+        <div style="font-weight:600;font-size:.9rem;color:var(--gray-800);word-break:break-all;">{{ doc.title }}</div>
+        <div class="dd-meta mt-2">{{ doc.file_type|upper }} · {{ doc.filename }}</div>
+        <div class="dd-meta mt-1">
+          {{ "{:,}".format(doc.file_size) }} 字节 ·
+          {{ "{:,}".format(pages|length) }} 页{% if doc.status == 'done' %} ·
+          已识别{% elif doc.status == 'failed' %} · 识别失败{% else %} · 识别中{% endif %}
+        </div>
+        <div class="dd-meta mt-1">上传于 {{ doc.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="card-header d-flex justify-content-between align-items-center">
         <span><i class="bi bi-lightbulb"></i> 知识点 ({{ points|length }})</span>
         <div class="d-flex gap-2 align-items-center">
@@ -43,7 +71,7 @@
           {% endif %}
         </div>
       </div>
-      <div class="card-body" style="max-height:340px;overflow-y:auto;">
+      <div class="card-body" style="max-height:calc(100vh - 380px);overflow-y:auto;">
         {% if points %}
         {% for p in points %}
         <div class="d-flex align-items-center gap-2 py-2" style="border-bottom:1px solid var(--gray-100);">
@@ -70,19 +98,23 @@
         {% endif %}
       </div>
     </div>
+  </div>
 
+  <!-- 右: 识别文本 -->
+  <div class="col-lg-8">
     <div class="card">
       <div class="card-header"><i class="bi bi-fonts"></i> 识别文本 ({{ pages|length }} 页)</div>
-      <div class="card-body" style="max-height:600px;overflow-y:auto;">
+      <div class="card-body" style="max-height:calc(100vh - 230px);overflow-y:auto;">
         {% for page in pages %}
         <div class="mb-3" id="page-{{ page.page_no }}" style="scroll-margin-top:76px;">
           <div class="d-flex justify-content-between align-items-center mb-1">
             <span class="badge badge-medium">第 {{ page.page_no }} 页</span>
             <div class="d-flex gap-2 align-items-center">
-              <a href="{{ url_for('kb.preview', doc_id=doc.id) }}?page={{ page.page_no }}" target="_blank"
-                 class="btn btn-xs-custom btn-outline-primary" style="padding:2px 8px;font-size:.7rem;">
+              <button type="button" class="btn btn-xs-custom btn-outline-primary"
+                      style="padding:2px 8px;font-size:.7rem;"
+                      onclick="openOrigDrawer('{{ url_for('kb.preview', doc_id=doc.id) }}?page={{ page.page_no }}', '第 {{ page.page_no }} 页原图')">
                 <i class="bi bi-file-earmark-image"></i> 查看原页
-              </a>
+              </button>
               <small class="text-muted">{{ "{:,}".format(page.char_count) }} 字符</small>
             </div>
           </div>
@@ -98,8 +130,43 @@
     </div>
   </div>
 </div>
+
+<!-- 查看原页: 右侧抽屉 -->
+<div class="orig-mask" id="origMask" onclick="closeOrigDrawer()"></div>
+<div class="orig-drawer" id="origDrawer" role="dialog" aria-modal="true">
+  <div class="orig-drawer-head">
+    <span id="origTitle"><i class="bi bi-file-earmark-image"></i> 查看原页</span>
+    <button type="button" class="btn btn-sm" style="border:none;color:var(--gray-500);" onclick="closeOrigDrawer()" title="关闭">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  </div>
+  <div class="orig-drawer-body">
+    <iframe id="origFrame" src="about:blank" title="原页预览"></iframe>
+  </div>
+</div>
 {% endblock %}
 {% block extra_js %}
+<script>
+  function openOrigDrawer(url, title) {
+    document.getElementById('origFrame').src = url;
+    document.getElementById('origTitle').innerHTML = '<i class="bi bi-file-earmark-image"></i> ' + title;
+    document.getElementById('origMask').classList.add('show');
+    document.getElementById('origDrawer').classList.add('show');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeOrigDrawer() {
+    document.getElementById('origMask').classList.remove('show');
+    document.getElementById('origDrawer').classList.remove('show');
+    document.body.style.overflow = '';
+    setTimeout(function () {
+      var f = document.getElementById('origFrame');
+      if (f && f.getAttribute('src') !== 'about:blank') f.src = 'about:blank';
+    }, 300);
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeOrigDrawer();
+  });
+</script>
 {% if doc.status not in ('done', 'failed') %}
 <script>
 (function poll() {

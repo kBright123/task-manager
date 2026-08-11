@@ -38,7 +38,7 @@
   .kb-crumbs i { font-size:.6rem; color:var(--gray-300); }
 
   /* 图谱视图: 左图右详情 */
-  .graph-layout { display:grid; grid-template-columns:1fr 320px; gap:16px; flex:1; min-height:0; overflow:hidden; }
+  .graph-layout { display:grid; grid-template-columns:1fr 360px; gap:16px; flex:1; min-height:0; overflow:hidden; }
   @media (max-width: 860px) { .graph-layout { grid-template-columns:1fr; overflow:visible; } }
   .graph-left { display:flex; flex-direction:column; min-height:0; background:#fff; border:1px solid var(--gray-200); border-radius:var(--radius); overflow:hidden; }
   @media (max-width: 860px) { .graph-left { min-height:420px; } .graph-layout .points-detail { min-height:52vh; } }
@@ -91,14 +91,15 @@
   .points-detail { display:flex; flex-direction:column; min-height:0; background:#fff; border:1px solid var(--gray-200); border-radius:var(--radius); overflow:hidden; }
   .pd-placeholder { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--gray-400); font-size:.86rem; text-align:center; padding:28px; }
   .pd-body { flex:1; min-height:0; display:none; flex-direction:column; }
-  .pd-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:14px 16px 12px; border-bottom:1px solid var(--gray-100); }
+  .pd-head { display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:10px; padding:14px 16px 12px; border-bottom:1px solid var(--gray-100); }
+  .pd-title-wrap { flex:1 1 55%; min-width:240px; }
   .pd-title { font-weight:700; color:var(--gray-900); margin:0 0 8px; font-size:1.05rem; word-break:break-word; line-height:1.4; }
   .pd-meta { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:.74rem; color:var(--gray-500); }
   .pd-meta .cbadge { padding:2px 10px; border-radius:100px; font-weight:600; }
   .pd-tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
   .pd-tag { font-size:.66rem; font-weight:600; padding:2px 10px; border-radius:100px; background:var(--primary-light); color:var(--primary); text-decoration:none; }
   .pd-tag:hover { background:var(--primary); color:#fff; }
-  .pd-acts { display:flex; gap:6px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; }
+  .pd-acts { display:flex; gap:6px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; margin-left:auto; }
   .pd-acts .btn-xs { padding:2px 10px; font-size:.72rem; }
   .pd-scroll { flex:1; min-height:0; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:14px; }
   .pd-content { margin:0; white-space:pre-wrap; word-break:break-word; font-family:var(--font); font-size:.88rem; color:var(--gray-700); line-height:1.75; }
@@ -106,7 +107,7 @@
   .pd-card-title { display:flex; align-items:center; gap:6px; font-size:.78rem; font-weight:700; color:var(--gray-800); margin-bottom:8px; }
   .pd-card-title i { color:var(--primary); }
   .pd-card-body { font-size:.84rem; color:var(--gray-600); line-height:1.7; white-space:pre-wrap; word-break:break-word; }
-  .pd-related { display:block; width:100%; text-align:left; background:transparent; border:none; border-bottom:1px solid var(--gray-50); padding:8px 0; cursor:pointer; }
+  .pd-related { display:flex; align-items:center; gap:10px; width:100%; text-align:left; background:transparent; border:none; border-bottom:1px solid var(--gray-50); padding:8px 0; cursor:pointer; }
   .pd-related:last-child { border-bottom:none; }
   .pd-related:hover .pd-rel-title { color:var(--primary); }
   .pd-rel-title { font-size:.82rem; font-weight:600; color:var(--gray-800); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -218,7 +219,7 @@
   </div>
   <div class="pd-body" id="{{ prefix }}-body">
     <div class="pd-head">
-      <div style="min-width:0;flex:1;">
+      <div class="pd-title-wrap">
         <h5 class="pd-title" id="{{ prefix }}-title"></h5>
         <div class="pd-meta" id="{{ prefix }}-meta"></div>
         <div class="pd-tags" id="{{ prefix }}-tags"></div>
@@ -342,11 +343,8 @@
     <div id="bulkBar" class="kb-bulk d-none">
       <span style="font-weight:600;font-size:.85rem;" id="bulkCount">已选 0 项</span>
       <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkAssign()"><i class="bi bi-folder-plus"></i> 移动</button>
-      <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkExport()"><i class="bi bi-download"></i> 导出</button>
-      <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkExportTxt()"><i class="bi bi-filetype-txt"></i> 导出结果</button>
       <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkReprocess()"><i class="bi bi-arrow-repeat"></i> 重新识别</button>
       <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkAutoArchive()"><i class="bi bi-stars"></i> 自动归档</button>
-      <button class="btn btn-xs-custom btn-outline-secondary" onclick="bulkClearArchive()"><i class="bi bi-archive"></i> 清除归档</button>
       <button class="btn btn-xs-custom btn-outline-danger" onclick="bulkDelete()"><i class="bi bi-trash"></i> 删除</button>
       <button class="btn btn-xs-custom" style="background:transparent;border:none;color:var(--gray-400);" onclick="kbClearSel()">取消</button>
     </div>
@@ -656,7 +654,6 @@ window.KB_URLS = {
   complete: '{{ url_for('kb.api_upload_complete') }}',
   bulk: '{{ url_for('kb.bulk') }}',
   queue: '{{ url_for('kb.api_queue') }}',
-  exportTxt: '{{ url_for('kb.export_txt') }}',
   assign: '{{ url_for('kb.api_collection_assign') }}',
   pointJson: '{{ url_for('kb.api_point_json', pid=0) }}'
 };
@@ -1181,38 +1178,6 @@ window.KB_URLS = {
       }).catch(function () { setBulkBusy(false); if (window.toast) toast('网络错误', 'danger'); });
     });
   };
-  window.bulkClearArchive = function () {
-    var ids = selected();
-    if (!ids.length) return;
-    window.kbConfirm('清除归档', '确认清除选中的 <b>' + ids.length + '</b> 个文档的自动归档分类?<br><small class="text-muted">文档将回到「全部文档」，集合本身不会被删除。</small>', '清除', function () {
-      setBulkBusy(true);
-      post('clear_archive', ids.map(Number)).then(function (d) {
-        setBulkBusy(false);
-        if (!d.ok) { if (window.toast) toast(d.error || '操作失败', 'danger'); return; }
-        var msg = '已清除归档: ' + (d.cleared || []).length + ' 个';
-        if (d.skipped) msg += '，跳过 ' + d.skipped + ' 个';
-        if (window.toast) toast(msg, 'success');
-        reloadFull();
-      }).catch(function () { setBulkBusy(false); if (window.toast) toast('网络错误', 'danger'); });
-    });
-  };
-  window.bulkExport = function () {
-    var ids = selected();
-    if (!ids.length) return;
-    post('export', ids.map(Number)).then(function (r) {
-      var el = document.createElement('a');
-      el.href = URL.createObjectURL(new Blob([JSON.stringify(r, null, 2)], { type: 'application/json' }));
-      el.download = 'knowledge-selection.json';
-      document.body.appendChild(el);
-      el.click();
-      setTimeout(function () { URL.revokeObjectURL(el.href); el.remove(); }, 100);
-    }).catch(function () { if (window.toast) toast('导出失败', 'danger'); });
-  };
-  window.bulkExportTxt = function () {
-    var ids = selected();
-    if (!ids.length) return;
-    window.location.href = window.KB_URLS.exportTxt + '?ids=' + ids.join(',');
-  };
   window.bulkAssign = function () {
     var ids = selected();
     if (!ids.length) return;
@@ -1401,7 +1366,7 @@ function closeFrame() {
 
     function buildMeta(d) {
       var p = d.point, dc = d.doc, meta = '';
-      if (dc.collection) meta += '<span class="cbadge" style="background:' + dc.color + '22;color:' + dc.color + ';">' + esc(dc.collection) + '</span>';
+      if (dc.collection) meta += '<span class="cbadge" style="background:' + dc.color + '22;color:' + dc.color + ';max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle;">' + esc(dc.collection) + '</span>';
       meta += '<span>' + fmt(p.word_count) + ' 字</span>';
       if (p.page_start) meta += '<span>第 ' + p.page_start + (p.page_end && p.page_end !== p.page_start ? '-' + p.page_end : '') + ' 页</span>';
       meta += '<span><i class="bi bi-quote"></i> 引用 ' + fmt(p.ref_count) + '</span>';
@@ -1480,14 +1445,21 @@ function closeFrame() {
     self.load = function (pid) {
       if (pending) return;
       pending = true;
+      ph.style.display = 'none';
+      body.style.display = 'flex';
+      titleEl.textContent = '加载中…';
+      metaEl.innerHTML = '';
+      tagsEl.innerHTML = '';
+      actsEl.innerHTML = '';
+      scrollEl.innerHTML = '<div class="text-center py-5 text-muted" style="font-size:.82rem;"><div class="spinner-border spinner-border-sm" style="width:1.1rem;height:1.1rem;" role="status"></div><div style="margin-top:8px;">正在加载…</div></div>';
       fetch(window.KB_URLS.pointJson.replace('/point/0/', '/point/' + pid + '/'))
         .then(function (r) { return r.json(); })
         .then(function (d) {
           pending = false;
           if (d && d.ok) self.render(d);
-          else if (window.toast) toast(d.error || '加载失败', 'danger');
+          else { self.placeholder(); if (window.toast) toast(d.error || '加载失败', 'danger'); }
         })
-        .catch(function () { pending = false; if (window.toast) toast('加载失败', 'danger'); });
+        .catch(function () { pending = false; self.placeholder(); if (window.toast) toast('加载失败', 'danger'); });
     };
 
     self.current = function () { return cur; };

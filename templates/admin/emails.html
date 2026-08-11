@@ -17,22 +17,22 @@
 </ul>
 
 <div class="card mb-3">
-  <div class="card-header d-flex justify-content-between align-items-center py-2 px-3 flex-wrap gap-2" style="border-bottom:1px solid var(--gray-100);">
-    <form method="GET" class="d-flex gap-2 align-items-center flex-wrap">
-      <select class="form-select form-select-sm" name="category" style="flex:1 1 130px;max-width:200px;font-size:.8rem;border-color:var(--gray-200);">
+  <div class="card-header d-flex justify-content-between align-items-center py-2 px-3 flex-wrap gap-2" style="border-bottom:1px solid var(--gray-100);row-gap:8px;">
+    <form method="GET" class="d-flex gap-2 align-items-center flex-wrap" style="row-gap:8px;">
+      <select class="form-select form-select-sm" name="category" style="width:180px;flex:0 1 auto;font-size:.8rem;border-color:var(--gray-200);">
         <option value="">全部类型</option>
         {% for c, label in [('verify', '邮箱校验'), ('deadline', '截止提醒'), ('summary', '每日日报')] %}
         <option value="{{ c }}" {% if category == c %}selected{% endif %}>{{ label }}（{{ category_counts.get(c, 0) }}）</option>
         {% endfor %}
       </select>
-      <select class="form-select form-select-sm" name="status" style="flex:1 1 100px;max-width:160px;font-size:.8rem;border-color:var(--gray-200);">
+      <select class="form-select form-select-sm" name="status" style="width:120px;flex:0 1 auto;font-size:.8rem;border-color:var(--gray-200);">
         <option value="">全部状态</option>
         <option value="sent" {% if status == 'sent' %}selected{% endif %}>成功</option>
         <option value="failed" {% if status == 'failed' %}selected{% endif %}>失败</option>
       </select>
       <button class="btn btn-sm btn-primary flex-shrink-0" type="submit"><i class="bi bi-funnel"></i> 筛选</button>
     </form>
-    <div class="d-flex gap-2 align-items-center flex-shrink-0 d-none d-sm-flex">
+    <div class="d-flex gap-2 align-items-center flex-shrink-0 d-none d-md-flex" style="white-space:nowrap;">
       <span class="badge" style="background:var(--gray-100);color:var(--gray-600);font-size:.7rem;">共 {{ total }} 条</span>
       <span class="badge" style="background:var(--success);color:#fff;font-size:.7rem;">成功 {{ status_counts.get('sent', 0) }}</span>
       <span class="badge" style="background:var(--danger);color:#fff;font-size:.7rem;">失败 {{ status_counts.get('failed', 0) }}</span>

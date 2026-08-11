@@ -15,6 +15,7 @@ serve 客户端。
 import json
 import logging
 import os
+import re
 import time
 from datetime import datetime, timedelta
 
@@ -203,9 +204,21 @@ def _merge_msg():
     return '知识点合并:合并 %d 条重复知识点,剩余 %d 条' % (merged, left)
 
 
-def _cleanup_blacklist_msg():
-    """清理黑名单字样(KB_TAG_BLACKLIST)。返回报告文本。"""
-    report = clean_blacklist_keywords(dry_run=False)
+def _resolve_cleanup_terms(job=None):
+    """清理黑名单词源优先级: 任务自定义 > 后台配置自定义 > 系统默认 KB_TAG_BLACKLIST。"""
+    raw = ''
+    if job and job.target:
+        raw = job.target
+    if not raw:
+        raw = get_job_setting('job_cleanup_terms', '')
+    terms = [t.strip() for t in re.split(r'[，,;；]+', raw) if t.strip()]
+    return terms or None
+
+
+def _cleanup_blacklist_msg(job=None):
+    """清理黑名单字样(支持自定义名单)。返回报告文本。"""
+    report = clean_blacklist_keywords(terms=_resolve_cleanup_terms(job),
+                                      dry_run=False)
     if not report:
         return '黑名单字清理:未发现黑名单字样'
     lines = ['黑名单字清理:共 %d 处' % sum(n for _, n in report)]
@@ -217,7 +230,8 @@ def _cleanup_blacklist_msg():
 
 
 def _has_blacklist_hits():
-    return bool(clean_blacklist_keywords(dry_run=True))
+    return bool(clean_blacklist_keywords(terms=_resolve_cleanup_terms(),
+                                         dry_run=True))
 
 
 def _report_msg(text):
@@ -265,7 +279,7 @@ def run_organization(job):
         db.session.commit()
 
     if job.scope == 'cleanup':
-        _step('黑名单字清理', _cleanup_blacklist_msg)
+        _step('黑名单字清理', lambda: _cleanup_blacklist_msg(job))
 
     if job.scope in ('notes', 'all'):
         _step('笔记-标签匹配', _auto_tag_msg)
@@ -306,8 +320,7 @@ def _create_report_note(job, result):
         kind = '清理' if job.scope == 'cleanup' else '整理'
         n = Note(user_id=job.created_by, thread_id=None,
                  title=f'{kind}报告 {datetime.now().strftime("%Y-%m-%d %H:%M")}',
-                 content=result, tags=json.dumps([kind])
-                 if job.scope == 'cleanup' else '[]',
+                 content=result, tags='[]',
                  version=1, simhash='0')
         db.session.add(n)
         db.session.commit()

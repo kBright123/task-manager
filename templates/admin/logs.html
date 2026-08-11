@@ -19,20 +19,20 @@
 </ul>
 
 <div class="card mb-3">
-  <div class="card-header d-flex justify-content-between align-items-center py-2 px-3 flex-wrap gap-2" style="border-bottom:1px solid var(--gray-100);">
-    <form method="GET" class="d-flex gap-2 align-items-center flex-wrap">
-      <div class="input-group input-group-sm" style="min-width:0;max-width:240px;flex:1 1 180px;">
+  <div class="card-header d-flex justify-content-between align-items-center py-2 px-3 flex-wrap gap-2" style="border-bottom:1px solid var(--gray-100);row-gap:8px;">
+    <form method="GET" class="d-flex gap-2 align-items-center flex-wrap" style="row-gap:8px;">
+      <div class="input-group input-group-sm" style="width:190px;flex:0 1 auto;">
         <span class="input-group-text" style="background:var(--gray-50);border-color:var(--gray-200);"><i class="bi bi-person" style="font-size:.75rem;"></i></span>
         <input type="text" class="form-control" name="username" placeholder="搜索用户..." value="{{ username }}" style="font-size:.8rem;border-color:var(--gray-200);">
       </div>
-      <select class="form-select form-select-sm" name="action" style="flex:1 1 120px;max-width:200px;font-size:.8rem;border-color:var(--gray-200);">
+      <select class="form-select form-select-sm" name="action" style="width:170px;flex:0 1 auto;font-size:.8rem;border-color:var(--gray-200);">
         <option value="">全部操作</option>
         {% set actions = ['login','login_fail','logout','kb_upload','kb_delete','kb_reprocess','kb_cancel','kb_export','kb_bulk_delete','kb_bulk_reprocess','kb_bulk_export','kb_collection_create','kb_collection_update','kb_collection_delete','kb_collection_assign'] %}
         {% for a in actions %}
         <option value="{{ a }}" {% if action == a %}selected{% endif %}>{{ a }}</option>
         {% endfor %}
       </select>
-      <select class="form-select form-select-sm" name="days" style="flex:1 1 100px;max-width:150px;font-size:.8rem;border-color:var(--gray-200);">
+      <select class="form-select form-select-sm" name="days" style="width:120px;flex:0 1 auto;font-size:.8rem;border-color:var(--gray-200);">
         <option value="">全部时间</option>
         {% for d in [1, 7, 30, 90] %}
         <option value="{{ d }}" {% if days == d %}selected{% endif %}>近 {{ d }} 天</option>
@@ -41,7 +41,7 @@
       <button class="btn btn-sm btn-primary flex-shrink-0" type="submit"><i class="bi bi-funnel"></i> 筛选</button>
       <a href="{{ url_for('admin_logs') }}" class="btn btn-sm btn-outline-secondary flex-shrink-0">重置</a>
     </form>
-    <div class="d-flex gap-2 align-items-center flex-shrink-0 d-none d-sm-flex">
+    <div class="d-flex gap-2 align-items-center flex-shrink-0 d-none d-md-flex" style="white-space:nowrap;">
       <span class="badge" style="background:var(--gray-100);color:var(--gray-600);font-size:.7rem;">共 {{ total_logs }} 条</span>
       <span class="badge" style="background:var(--primary-light);color:var(--primary);font-size:.7rem;">{{ total_users }} 位用户操作</span>
     </div>

@@ -17,9 +17,9 @@
 </ul>
 
 <div class="card mb-3">
-  <div class="card-header py-2 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
-    <span style="font-weight:600;font-size:.9rem;"><i class="bi bi-calendar2-week" style="color:var(--primary);"></i> 定时任务配置</span>
-    <small class="text-muted" style="font-size:.75rem;">设置每周自动执行时间;取消勾选"启用"即停用该任务;也可点击"立即执行"立即入队</small>
+  <div class="card-header py-2 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2" style="row-gap:8px;">
+    <span style="font-weight:600;font-size:.9rem;flex-shrink:0;"><i class="bi bi-calendar2-week" style="color:var(--primary);"></i> 定时任务配置</span>
+    <small class="text-muted d-none d-md-inline text-end flex-shrink-0" style="font-size:.75rem;">设置每周自动执行时间;取消勾选"启用"即停用该任务;也可点击"立即执行"立即入队</small>
   </div>
   <div class="card-body py-3">
     <form method="POST" action="{{ url_for('admin_jobs_schedule') }}">
@@ -33,15 +33,15 @@
               </div>
               <button type="submit" form="runOrganize" class="btn btn-sm btn-outline-primary flex-shrink-0"><i class="bi bi-lightning"></i> 立即执行</button>
             </div>
-            <div class="d-flex align-items-center gap-2 flex-wrap" style="font-size:.8rem;">
+            <div class="d-flex align-items-center gap-2 flex-nowrap" style="font-size:.8rem;">
               <span class="text-muted">每周</span>
-              <select name="job_organize_weekday" class="form-select form-select-sm" style="width:auto;">
+              <select name="job_organize_weekday" class="form-select form-select-sm" style="width:auto;flex:0 1 auto;min-width:0;">
                 <option value="-1" {{ 'selected' if schedule.job_organize_weekday == '-1' else '' }}>每天</option>
                 {% for wd in range(0, 7) %}
                 <option value="{{ wd }}" {{ 'selected' if schedule.job_organize_weekday == wd|string else '' }}>周{{ '一二三四五六日'[wd] }}</option>
                 {% endfor %}
               </select>
-              <select name="job_organize_hour" class="form-select form-select-sm" style="width:auto;">
+              <select name="job_organize_hour" class="form-select form-select-sm" style="width:auto;flex:0 1 auto;min-width:0;">
                 {% for h in range(0, 24) %}
                 <option value="{{ h }}" {{ 'selected' if schedule.job_organize_hour == h|string else '' }}>{{ '%02d' % h }} 时</option>
                 {% endfor %}
@@ -56,21 +56,26 @@
                 <input type="checkbox" class="form-check-input" id="cleanupEnabled" name="job_cleanup_enabled" value="1" {{ 'checked' if schedule.job_cleanup_enabled == '1' else '' }}>
                 <label class="form-check-label" for="cleanupEnabled" style="font-weight:600;font-size:.85rem;">自动清理黑名单字样</label>
               </div>
-              <button type="submit" form="runCleanup" class="btn btn-sm btn-outline-primary flex-shrink-0"><i class="bi bi-lightning"></i> 立即执行</button>
+              <button type="submit" form="runCleanup" onclick="cleanupRunTerms()" class="btn btn-sm btn-outline-primary flex-shrink-0"><i class="bi bi-lightning"></i> 立即执行</button>
             </div>
-            <div class="d-flex align-items-center gap-2 flex-wrap" style="font-size:.8rem;">
+            <div class="d-flex align-items-center gap-2 flex-nowrap" style="font-size:.8rem;">
               <span class="text-muted">每周</span>
-              <select name="job_cleanup_weekday" class="form-select form-select-sm" style="width:auto;">
+              <select name="job_cleanup_weekday" class="form-select form-select-sm" style="width:auto;flex:0 1 auto;min-width:0;">
                 <option value="-1" {{ 'selected' if schedule.job_cleanup_weekday == '-1' else '' }}>每天</option>
                 {% for wd in range(0, 7) %}
                 <option value="{{ wd }}" {{ 'selected' if schedule.job_cleanup_weekday == wd|string else '' }}>周{{ '一二三四五六日'[wd] }}</option>
                 {% endfor %}
               </select>
-              <select name="job_cleanup_hour" class="form-select form-select-sm" style="width:auto;">
+              <select name="job_cleanup_hour" class="form-select form-select-sm" style="width:auto;flex:0 1 auto;min-width:0;">
                 {% for h in range(0, 24) %}
                 <option value="{{ h }}" {{ 'selected' if schedule.job_cleanup_hour == h|string else '' }}>{{ '%02d' % h }} 时</option>
                 {% endfor %}
               </select>
+            </div>
+            <div class="mt-2 d-flex align-items-center gap-2" style="font-size:.8rem;">
+              <span class="text-muted" style="white-space:nowrap;">自定义黑名单</span>
+              <input type="text" class="form-control form-control-sm" name="job_cleanup_terms" id="cleanupTerms" value="{{ schedule.job_cleanup_terms or '' }}" placeholder="逗号分隔,留空使用系统默认" style="font-size:.8rem;min-width:0;">
+              <small class="text-muted" style="white-space:nowrap;">定时与立即执行均生效</small>
             </div>
           </div>
         </div>
@@ -84,7 +89,15 @@
     </form>
     <form id="runCleanup" method="POST" action="{{ url_for('admin_jobs_trigger') }}">
       <input type="hidden" name="scope" value="cleanup">
+      <input type="hidden" name="terms" id="runCleanupTerms" value="">
     </form>
+    <script>
+    function cleanupRunTerms() {
+      var t = document.getElementById('cleanupTerms');
+      var h = document.getElementById('runCleanupTerms');
+      if (t && h) h.value = t.value;
+    }
+    </script>
   </div>
 </div>
 

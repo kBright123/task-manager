@@ -23,18 +23,6 @@
   .result-page { border-left: 3px solid var(--gray-100); padding-left: 10px; margin-top: 8px; }
   .result-page mark { background: #fef08a; padding: 0 2px; border-radius: 2px; }
   .badge-medium { font-size: .65rem; padding: 2px 6px; }
-  /* 悬浮球: 快速创建 待办/随手记/上传知识 */
-  .quick-fab { position: fixed; right: 24px; bottom: 96px; z-index: 1060; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
-  @media (max-width: 767px) { .quick-fab { right: 14px; bottom: calc(14px + var(--bottom-nav-height)); } }
-  .quick-fab-toggle { width: 54px; height: 54px; border-radius: 50%; border: none; background: var(--primary); color: #fff; font-size: 1.6rem; line-height: 1; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 18px rgba(79,70,231,.35); cursor: pointer; transition: transform .2s, background .2s, box-shadow .2s; }
-  .quick-fab-toggle:hover { background: var(--primary-dark); transform: scale(1.05); box-shadow: 0 8px 22px rgba(79,70,231,.4); }
-  .quick-fab.open .quick-fab-toggle { transform: rotate(45deg); }
-  .quick-fab-menu { display: none; flex-direction: column; align-items: flex-end; gap: 8px; }
-  .quick-fab.open .quick-fab-menu { display: flex; animation: fabIn .18s ease-out; }
-  @keyframes fabIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-  .quick-fab-item { display: flex; align-items: center; gap: 8px; border: none; background: #fff; border-radius: 100px; padding: 6px 14px 6px 8px; font-size: .82rem; font-weight: 600; color: var(--gray-800); box-shadow: 0 4px 14px rgba(0,0,0,.12); cursor: pointer; text-decoration: none; transition: transform .12s, box-shadow .12s; }
-  .quick-fab-item:hover { transform: translateX(-3px); box-shadow: 0 6px 18px rgba(0,0,0,.18); }
-  .quick-fab-item-icon { width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .85rem; flex-shrink: 0; }
 </style>
 {% endblock %}
 {% block content %}
@@ -534,43 +522,8 @@ function openEditTaskModal(el) {
 }
 </script>
 
-<!-- 悬浮球: 快速创建待办/随手记/上传知识 -->
-<div id="quickFab" class="quick-fab">
-  <div class="quick-fab-menu">
-    <button type="button" class="quick-fab-item" data-bs-toggle="modal" data-bs-target="#quickTaskModal" onclick="closeFab()">
-      <span class="quick-fab-item-icon" style="background:var(--primary);color:#fff;"><i class="bi bi-plus-circle"></i></span>
-      <span>创建待办</span>
-    </button>
-    <button type="button" class="quick-fab-item" data-bs-toggle="modal" data-bs-target="#quickNoteModal" onclick="closeFab()">
-      <span class="quick-fab-item-icon" style="background:var(--success);color:#fff;"><i class="bi bi-pencil-square"></i></span>
-      <span>随手记</span>
-    </button>
-    <button type="button" class="quick-fab-item" onclick="closeFab();kbUploadOpen()">
-      <span class="quick-fab-item-icon" style="background:var(--warning);color:#fff;"><i class="bi bi-cloud-arrow-up"></i></span>
-      <span>上传知识</span>
-    </button>
-  </div>
-  <button type="button" id="quickFabToggle" class="quick-fab-toggle" aria-label="快速创建" aria-expanded="false"><i class="bi bi-plus-lg"></i></button>
-</div>
-
 {% block extra_js %}
 <script>
-// 悬浮球: 展开/收起 快速创建
-var _fab = document.getElementById('quickFab');
-var _fabBtn = document.getElementById('quickFabToggle');
-function closeFab() { if (_fab) _fab.classList.remove('open'); if (_fabBtn) _fabBtn.setAttribute('aria-expanded', 'false'); }
-(function(){
-  var fab = _fab, btn = _fabBtn;
-  if (!fab || !btn) return;
-  function openFab() { fab.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); }
-  btn.addEventListener('click', function(e){ e.stopPropagation(); if (fab.classList.contains('open')) closeFab(); else openFab(); });
-  btn.addEventListener('focus', openFab);
-  fab.addEventListener('focusout', function(e){ if (!fab.contains(e.relatedTarget)) closeFab(); });
-  document.addEventListener('click', function(e){ if (!fab.contains(e.target)) closeFab(); });
-  document.addEventListener('shown.bs.modal', function(){ fab.classList.add('d-none'); });
-  document.addEventListener('hidden.bs.modal', function(){ fab.classList.remove('d-none'); });
-})();
-
 // 内联完成切换（AJAX):直接绑定在任务框上,避免 actions 单元格的 stopPropagation 吞掉事件
 function toggleTaskStatus(el){
   var t = el.closest('.task-toggle');

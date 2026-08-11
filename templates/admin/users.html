@@ -17,23 +17,23 @@
 </ul>
 
 <div class="card">
-  <div class="card-header py-2 px-3 d-flex flex-wrap gap-2 align-items-center" style="border-bottom:1px solid var(--gray-100);">
-      <div class="input-group input-group-sm" style="min-width:0;max-width:260px;flex:1 1 180px;">
+  <div class="card-header py-2 px-3 d-flex flex-wrap gap-2 align-items-center" style="border-bottom:1px solid var(--gray-100);row-gap:8px;">
+      <div class="input-group input-group-sm" style="width:200px;flex:0 1 auto;">
         <span class="input-group-text" style="background:var(--gray-50);border-color:var(--gray-200);"><i class="bi bi-search" style="font-size:.75rem;"></i></span>
         <input type="text" class="form-control" id="searchInput" placeholder="搜索用户名或姓名..." style="font-size:.8rem;border-color:var(--gray-200);" oninput="filterUsers()">
       </div>
-      <select class="form-select form-select-sm" id="roleFilter" style="flex:1 1 100px;max-width:180px;font-size:.8rem;border-color:var(--gray-200);" onchange="filterUsers()">
+      <select class="form-select form-select-sm" id="roleFilter" style="width:140px;flex:0 1 auto;font-size:.8rem;border-color:var(--gray-200);" onchange="filterUsers()">
         <option value="">全部角色</option>
         <option value="admin">管理员</option>
         <option value="user">用户</option>
       </select>
-      <select class="form-select form-select-sm" id="statusFilter" style="flex:1 1 100px;max-width:180px;font-size:.8rem;border-color:var(--gray-200);" onchange="filterUsers()">
+      <select class="form-select form-select-sm" id="statusFilter" style="width:140px;flex:0 1 auto;font-size:.8rem;border-color:var(--gray-200);" onchange="filterUsers()">
         <option value="">全部状态</option>
         <option value="pending">待审批</option>
         <option value="approved">已通过</option>
         <option value="rejected">已拒绝</option>
       </select>
-    <div class="d-flex gap-2 align-items-center ms-auto flex-shrink-0">
+    <div class="d-flex gap-2 align-items-center ms-auto flex-shrink-0" style="white-space:nowrap;flex-wrap:nowrap;">
       <span class="badge bg-secondary d-none d-sm-inline-block" style="font-size:.65rem;">{{ users|length }} 人</span>
       {% set pending_count = users|selectattr('status', 'equalto', 'pending')|list|length %}
       {% if pending_count %}

@@ -346,6 +346,7 @@ JOB_SCHEDULE_DEFAULTS = {
     'job_cleanup_enabled': '1',
     'job_cleanup_weekday': '6',
     'job_cleanup_hour': '3',
+    'job_cleanup_terms': '',
 }
 
 
@@ -3089,7 +3090,8 @@ def admin_jobs_trigger():
     scope = request.form.get('scope', 'all')
     if scope not in ('all', 'notes', 'kb', 'refine', 'cleanup'):
         scope = 'all'
-    job = NoteJob(scope=scope, target='', status='queued',
+    terms = request.form.get('terms', '').strip()
+    job = NoteJob(scope=scope, target=terms, status='queued',
                   trigger='manual', created_by=current_user.id)
     db.session.add(job)
     db.session.commit()
@@ -3113,6 +3115,10 @@ def admin_jobs_schedule():
             set_job_setting(f'{prefix}_weekday', weekday)
         if hour.isdigit() and 0 <= int(hour) <= 23:
             set_job_setting(f'{prefix}_hour', hour)
+    terms = re.split(r'[，,;；]+',
+                     request.form.get('job_cleanup_terms', '').strip())
+    terms = ','.join(t.strip() for t in terms if t.strip())
+    set_job_setting('job_cleanup_terms', terms)
     log_operation('job_schedule', 'save', '保存定时任务配置')
     flash('已保存定时任务配置', 'success')
     return redirect(url_for('admin_jobs'))

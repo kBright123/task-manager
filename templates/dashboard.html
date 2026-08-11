@@ -243,21 +243,7 @@
 </div>
 
 <!-- 上传知识 -->
-<div class="modal fade" id="quickUploadModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header py-2"><span style="font-weight:600;"><i class="bi bi-cloud-arrow-up" style="color:var(--warning);"></i> 上传知识</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-      <div class="modal-body">
-        <div id="quDrop" style="border:2px dashed var(--gray-300);border-radius:10px;padding:26px;text-align:center;cursor:pointer;color:var(--gray-500);" onclick="document.getElementById('quFile').click()">
-          <i class="bi bi-cloud-upload" style="font-size:2rem;display:block;margin-bottom:8px;"></i>
-          点击选择文件(可多选)
-        </div>
-        <input type="file" id="quFile" class="d-none" multiple accept=".pdf,.png,.jpg,.jpeg,.bmp,.tif,.tiff,.webp,.txt,.md,.markdown">
-      </div>
-      <div class="modal-footer py-2"><span class="text-muted" id="quErr" style="font-size:.75rem;"></span><button class="btn btn-sm btn-primary" onclick="quickUpload()"><i class="bi bi-upload"></i> 上传</button></div>
-    </div>
-  </div>
-</div>
+{% with upload_modal_title='上传知识' %}{% include 'kb/_upload_modal.html' %}{% endwith %}
 
 <div class="row g-4">
   <div class="col-lg-6">
@@ -559,7 +545,7 @@ function openEditTaskModal(el) {
       <span class="quick-fab-item-icon" style="background:var(--success);color:#fff;"><i class="bi bi-pencil-square"></i></span>
       <span>随手记</span>
     </button>
-    <button type="button" class="quick-fab-item" data-bs-toggle="modal" data-bs-target="#quickUploadModal" onclick="closeFab()">
+    <button type="button" class="quick-fab-item" onclick="closeFab();kbUploadOpen()">
       <span class="quick-fab-item-icon" style="background:var(--warning);color:#fff;"><i class="bi bi-cloud-arrow-up"></i></span>
       <span>上传知识</span>
     </button>
@@ -684,6 +670,9 @@ function quickTask(){
   if(!is_all){document.querySelectorAll('.qt-assignee:checked').forEach(function(c){ids.push(parseInt(c.value));});}
   var gids=[];
   document.querySelectorAll('.qt-group:checked').forEach(function(c){gids.push(parseInt(c.value));});
+  if(!is_all&&ids.length===0&&gids.length===0){document.getElementById('qtErr2').textContent='请至少选择一位负责人(可勾选自己)';return;}
+  var selfCb=window.qtSelfId?document.querySelector('.qt-assignee[value="'+window.qtSelfId+'"]'):null;
+  var assign_self=selfCb?selfCb.checked:true;
   var re=(window.qtRec&&window.qtRec.interval)||0;
   var rc=(window.qtRec&&window.qtRec.count)||0;
   var btn=event.target.closest('button');
@@ -696,6 +685,7 @@ function quickTask(){
     assignee_ids:ids,
     group_ids:gids,
     is_all:is_all,
+    assign_self:assign_self,
     recurrence_interval_days:re,
     recurrence_count:rc
   };
@@ -703,7 +693,7 @@ function quickTask(){
   if(btn){btn.disabled=true;}
   fetch('/api/quick-task',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     .then(function(r){return r.json();}).then(function(d){
-      if(d.ok){location.href=d.url;}else{err2.textContent=d.error||'创建失败';}
+      if(d.ok){location.href='/user/tasks?new='+d.task_id;}else{err2.textContent=d.error||'创建失败';}
     }).catch(function(){ err2.textContent='创建失败，请重试'; }).finally(function(){ if(btn)btn.disabled=false; });
 }
 function qtUpdateRecurrence(){
@@ -891,20 +881,6 @@ function quickNote(){
       } else {document.getElementById('qnHint').textContent = d.error||'保存失败';}
     });
 }
-function quickUpload(){
-  var input=document.getElementById('quFile');
-  if(!input.files.length){document.getElementById('quErr').textContent='请选择文件';return;}
-  var fd=new FormData();
-  for(var i=0;i<input.files.length;i++)fd.append('file', input.files[i]);
-  fetch('/api/quick-upload',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(d){
-    if(d.ok){
-      document.getElementById('quErr').textContent='已上传:'+(d.added||[]).join(',')+(d.rejected&&d.rejected.length?' | 跳过:'+d.rejected.join(','):'');
-      input.value='';
-    } else {document.getElementById('quErr').textContent=d.error||'上传失败';}
-  });
-}
-document.getElementById('quDrop').addEventListener('dragover',function(e){e.preventDefault();});
-document.getElementById('quDrop').addEventListener('drop',function(e){e.preventDefault();if(e.dataTransfer.files){document.getElementById('quFile').files=e.dataTransfer.files;document.getElementById('quFile').dispatchEvent(new Event('change'));}});
 </script>
 {% endblock %}
 {% endblock %}

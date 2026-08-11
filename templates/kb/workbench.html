@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}知识库管理 - 知行合一{% endblock %}
+{% block title %}知识库{% endblock %}
 {% block extra_css %}
 <style>
   .wb { display:flex; flex-direction:column; gap:16px; height: calc(100vh - 88px); }
@@ -10,7 +10,38 @@
   .wb-col > .wb-panel { flex: 1 1 0; min-height: 0; }
   .docs-layout { display:grid; grid-template-columns:260px 1fr; gap:16px; flex:1; min-height:0; overflow:hidden; }
   @media (max-width: 860px) { .docs-layout { grid-template-columns:1fr; overflow:visible; } }
-  .docs-main { display:flex; flex-direction:column; min-height:0; }
+  .docs-main { display:flex; flex-direction:column; flex:1; min-height:0; }
+
+  /* 渐进式工作台: 左侧类别导航常驻三视图 */
+  .wb-layout { display:grid; grid-template-columns:260px 1fr; gap:16px; flex:1; min-height:0; overflow:hidden; }
+  @media (max-width: 860px) { .wb-layout { display:block; overflow:visible; } }
+  .wb-rail { display:flex; flex-direction:column; gap:16px; min-height:0; overflow-y:auto; }
+  .wb-rail > .wb-panel { flex:1 1 0; min-height:0; display:flex; flex-direction:column; }
+  .wb-rail > .wb-panel .card-body { flex:1; min-height:0; overflow-y:auto; }
+  @media (max-width: 860px) { .wb-rail { max-height:152px; } }
+  .wb-main-col { display:flex; flex-direction:column; min-height:0; }
+
+  /* 递进式分段控件(文档 → 知识点 → 图谱) */
+  .kb-progress { display:flex; align-items:center; gap:2px; flex-wrap:wrap; }
+  .kb-step { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:100px; font-size:.82rem; font-weight:600; color:var(--gray-500); text-decoration:none; transition:all .15s; }
+  .kb-step:hover { color:var(--primary); background:var(--primary-light); }
+  .kb-step.active { color:#fff; background:var(--primary); box-shadow:0 2px 8px rgba(79,70,231,.25); }
+  .kb-step-count { display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 5px; border-radius:100px; background:var(--gray-100); color:var(--gray-500); font-size:.62rem; font-weight:700; }
+  .kb-step.active .kb-step-count { background:rgba(255,255,255,.25); color:#fff; }
+  .kb-step-arrow { color:var(--gray-300); font-size:.72rem; padding:0 2px; }
+
+  /* 面包屑 */
+  .kb-crumbs { display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:8px 16px; border-bottom:1px solid var(--gray-100); font-size:.74rem; color:var(--gray-500); }
+  .kb-crumbs a { color:var(--primary); text-decoration:none; font-weight:600; }
+  .kb-crumbs a:hover { text-decoration:underline; }
+  .kb-crumbs .crumb-current { color:var(--gray-700); font-weight:700; }
+  .kb-crumbs i { font-size:.6rem; color:var(--gray-300); }
+
+  /* 图谱视图: 左图右详情 */
+  .graph-layout { display:grid; grid-template-columns:1fr 320px; gap:16px; flex:1; min-height:0; overflow:hidden; }
+  @media (max-width: 860px) { .graph-layout { grid-template-columns:1fr; overflow:visible; } }
+  .graph-left { display:flex; flex-direction:column; min-height:0; background:#fff; border:1px solid var(--gray-200); border-radius:var(--radius); overflow:hidden; }
+  @media (max-width: 860px) { .graph-left { min-height:420px; } .graph-layout .points-detail { min-height:52vh; } }
 
   /* 视图 Tab(文档 / 知识点 / 图谱) */
   .kb-tabs { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; padding:10px 16px; border-bottom:1px solid var(--gray-100); }
@@ -29,6 +60,66 @@
   .kb-point-sub { font-size:.72rem; color:var(--gray-500); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .kb-point-meta { display:flex; align-items:center; gap:6px; font-size:.72rem; color:var(--gray-500); flex-shrink:0; }
   @media (max-width: 860px) { .kb-point-meta { display:none; } }
+
+  /* 知识点双栏布局: 左列表右详情 */
+  .points-layout { display:grid; grid-template-columns:300px 1fr; gap:16px; flex:1; min-height:0; overflow:hidden; }
+  @media (max-width: 860px) { .points-layout { grid-template-columns:1fr; overflow:visible; } }
+  .points-side { display:flex; flex-direction:column; min-height:0; background:#fff; border:1px solid var(--gray-200); border-radius:var(--radius); overflow:hidden; }
+  .points-head { display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--gray-100); font-weight:700; font-size:.88rem; color:var(--gray-900); flex-shrink:0; }
+  .points-head i { color:var(--primary); }
+  .points-tags { display:flex; gap:6px; flex-wrap:wrap; padding:8px 12px; border-bottom:1px solid var(--gray-100); max-height:100px; overflow-y:auto; flex-shrink:0; }
+  .pt-chip { display:inline-flex; align-items:center; gap:4px; padding:3px 10px; border-radius:100px; font-size:.72rem; color:var(--gray-600); text-decoration:none; background:var(--gray-50); border:1px solid var(--gray-200); }
+  .pt-chip:hover { color:var(--primary); border-color:var(--primary); }
+  .pt-chip.active { background:var(--primary); border-color:var(--primary); color:#fff; font-weight:600; }
+  .points-list { flex:1; min-height:0; overflow-y:auto; }
+  .pt-group-head { display:flex; align-items:center; gap:7px; padding:8px 12px; background:var(--gray-50); font-size:.73rem; font-weight:700; color:var(--gray-600); border-bottom:1px solid var(--gray-100); cursor:pointer; user-select:none; transition:background .12s; }
+  .pt-group-head:hover { background:#eef2f7; }
+  .pt-group-head.open { background:var(--primary-light); color:var(--primary); }
+  .pt-caret { font-size:.68rem; color:var(--gray-400); transition:transform .15s; flex-shrink:0; }
+  .pt-group-head.open .pt-caret { transform:rotate(90deg); color:var(--primary); }
+  .pt-row { display:flex; align-items:center; gap:10px; padding:9px 12px; border-bottom:1px solid var(--gray-100); cursor:pointer; transition:background .12s; }
+  .pt-row:hover { background:var(--gray-50); }
+  .pt-row.selected { background:var(--primary-light); }
+  .pt-row.selected .pt-row-title { color:var(--primary); }
+  .pt-ico { width:28px; height:28px; border-radius:8px; background:var(--primary-light); color:var(--primary); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:.8rem; }
+  .pt-row-main { flex:1; min-width:0; }
+  .pt-row-title { font-size:.83rem; font-weight:600; color:var(--gray-800); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pt-row-sub { font-size:.7rem; color:var(--gray-500); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pt-row-meta { flex-shrink:0; font-size:.68rem; color:var(--gray-400); }
+
+  /* 详情面板 */
+  .points-detail { display:flex; flex-direction:column; min-height:0; background:#fff; border:1px solid var(--gray-200); border-radius:var(--radius); overflow:hidden; }
+  .pd-placeholder { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--gray-400); font-size:.86rem; text-align:center; padding:28px; }
+  .pd-body { flex:1; min-height:0; display:none; flex-direction:column; }
+  .pd-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:14px 16px 12px; border-bottom:1px solid var(--gray-100); }
+  .pd-title { font-weight:700; color:var(--gray-900); margin:0 0 8px; font-size:1.05rem; word-break:break-word; line-height:1.4; }
+  .pd-meta { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:.74rem; color:var(--gray-500); }
+  .pd-meta .cbadge { padding:2px 10px; border-radius:100px; font-weight:600; }
+  .pd-tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .pd-tag { font-size:.66rem; font-weight:600; padding:2px 10px; border-radius:100px; background:var(--primary-light); color:var(--primary); text-decoration:none; }
+  .pd-tag:hover { background:var(--primary); color:#fff; }
+  .pd-acts { display:flex; gap:6px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; }
+  .pd-acts .btn-xs { padding:2px 10px; font-size:.72rem; }
+  .pd-scroll { flex:1; min-height:0; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:14px; }
+  .pd-content { margin:0; white-space:pre-wrap; word-break:break-word; font-family:var(--font); font-size:.88rem; color:var(--gray-700); line-height:1.75; }
+  .pd-card { border:1px solid var(--gray-100); border-radius:10px; padding:12px 14px; }
+  .pd-card-title { display:flex; align-items:center; gap:6px; font-size:.78rem; font-weight:700; color:var(--gray-800); margin-bottom:8px; }
+  .pd-card-title i { color:var(--primary); }
+  .pd-card-body { font-size:.84rem; color:var(--gray-600); line-height:1.7; white-space:pre-wrap; word-break:break-word; }
+  .pd-related { display:block; width:100%; text-align:left; background:transparent; border:none; border-bottom:1px solid var(--gray-50); padding:8px 0; cursor:pointer; }
+  .pd-related:last-child { border-bottom:none; }
+  .pd-related:hover .pd-rel-title { color:var(--primary); }
+  .pd-rel-title { font-size:.82rem; font-weight:600; color:var(--gray-800); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pd-rel-doc { font-size:.7rem; color:var(--gray-500); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:2px; }
+  .pd-rel-score { font-size:.64rem; font-weight:700; color:var(--primary); flex-shrink:0; }
+
+  /* 移动端: 选中后详情占满 */
+  @media (max-width: 860px) {
+    .points-side { max-height:52vh; }
+    .points-detail { min-height:52vh; }
+    .points-layout.show-detail .points-side { display:none; }
+    .points-layout.show-detail .points-detail { min-height:72vh; }
+  }
 
 
   /* 页头统计 */
@@ -110,20 +201,47 @@
   /* 图谱视图(内嵌,不跳转新页面) */
   .graph-legend { font-size:.8rem; color:var(--gray-600); }
   .graph-legend .dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:middle; }
+
+  /* 知识点标签侧栏: 移动端横向滚动 */
+  @media (max-width: 860px) {
+    .pts-tags { display:flex; flex-wrap:nowrap; overflow-x:auto !important; gap:4px; }
+    .pts-tags a { white-space:nowrap; }
+  }
 </style>
 {% endblock %}
 {% block content %}
+{% macro detail_panel(prefix, placeholder) %}
+<div class="points-detail" id="{{ prefix }}-detail">
+  <div class="pd-placeholder" id="{{ prefix }}-placeholder">
+    <i class="bi bi-lightbulb" style="font-size:2rem;opacity:.5;"></i>
+    <div>{{ placeholder or '点击左侧知识点,在这里查看正文、提炼摘要与相关知识点' }}</div>
+  </div>
+  <div class="pd-body" id="{{ prefix }}-body">
+    <div class="pd-head">
+      <div style="min-width:0;flex:1;">
+        <h5 class="pd-title" id="{{ prefix }}-title"></h5>
+        <div class="pd-meta" id="{{ prefix }}-meta"></div>
+        <div class="pd-tags" id="{{ prefix }}-tags"></div>
+      </div>
+      <div class="pd-acts" id="{{ prefix }}-acts"></div>
+    </div>
+    <div class="pd-scroll" id="{{ prefix }}-scroll"></div>
+  </div>
+</div>
+{% endmacro %}
 <div class="wb">
   <div class="wb-panel wb-main">
-    <!-- 视图 Tab + 搜索/上传 同行 -->
+    <!-- 递进式分段导航(文档 → 知识点 → 图谱) + 搜索/上传 -->
     <div class="kb-tabs">
-      <div class="d-flex align-items-center gap-2 flex-wrap">
+      <div class="kb-progress">
         <a href="{{ url_for('kb.workbench', collection=active_collection, group=group or None, q=q or None, view='docs') }}"
-           class="kb-tab {% if view != 'points' and view != 'graph' %}active{% endif %}"><i class="bi bi-files"></i> 文档</a>
-        <a href="{{ url_for('kb.workbench', collection=active_collection, group=group or None, q=q or None, view='points') }}"
-           class="kb-tab {% if view == 'points' %}active{% endif %}"><i class="bi bi-lightbulb"></i> 知识点</a>
+           class="kb-step {% if view != 'points' and view != 'graph' %}active{% endif %}"><i class="bi bi-files"></i> 文档 <span class="kb-step-count" id="kbCntDocs">{{ docs|length }}</span></a>
+        <span class="kb-step-arrow"><i class="bi bi-arrow-right"></i></span>
+        <a href="{{ url_for('kb.workbench', collection=active_collection, group=group or None, q=q or None, tag=tag or None, view='points') }}"
+           class="kb-step {% if view == 'points' %}active{% endif %}"><i class="bi bi-lightbulb"></i> 知识点 <span class="kb-step-count" id="kbCntPoints">{{ total_points }}</span></a>
+        <span class="kb-step-arrow"><i class="bi bi-arrow-right"></i></span>
         <a href="{{ url_for('kb.workbench', collection=active_collection, group=group or None, q=q or None, view='graph') }}"
-           class="kb-tab {% if view == 'graph' %}active{% endif %}"><i class="bi bi-diagram-3"></i> 图谱</a>
+           class="kb-step {% if view == 'graph' %}active{% endif %}"><i class="bi bi-diagram-3"></i> 图谱 <span class="kb-step-count" id="kbCntGraph">{{ total_points }}</span></a>
       </div>
       <div class="d-flex align-items-center gap-2">
         <div style="position:relative;">
@@ -134,22 +252,42 @@
       </div>
     </div>
 
-    <div id="docsView" class="{% if view != 'docs' %}d-none{% endif %}" style="display:flex;flex-direction:column;flex:1;min-height:0;">
-    <div class="docs-layout">
-      <div class="wb-col">
+    <!-- 面包屑: 全部 / 类别 / 级别 -->
+    <div class="kb-crumbs">
+      <a href="{{ url_for('kb.workbench', view=view) }}"><i class="bi bi-house"></i> 全部</a>
+      <i class="bi bi-chevron-right"></i>
+      {% if group %}
+      <a href="{{ url_for('kb.workbench', group=group, view=view) }}">{{ group }}</a>
+      <i class="bi bi-chevron-right"></i>
+      {% endif %}
+      {% if active_collection %}
+      <a href="{{ url_for('kb.workbench', collection=active_collection, view=view) }}">{{ active_collection_name or ('集合 #' + active_collection|string) }}</a>
+      <i class="bi bi-chevron-right"></i>
+      {% endif %}
+      {% if doc and active_doc_name %}
+      <span class="crumb-current" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ active_doc_name }}">{{ active_doc_name }}</span>
+      <i class="bi bi-chevron-right"></i>
+      {% endif %}
+      <span class="crumb-current">{% if view == 'points' %}知识点{% elif view == 'graph' %}图谱{% else %}文档{% endif %}</span>
+    </div>
+
+    <div class="wb-layout">
+      <!-- 左侧: 类别导航(文档/知识点/图谱 三视图常驻) -->
+      <div class="wb-rail" id="kbRail">
       <div class="wb-panel">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <span style="display:inline-flex;align-items:center;gap:8px;"><i class="bi bi-folder2-open" style="color:var(--primary);"></i> 集合
+          <span style="display:inline-flex;align-items:center;gap:8px;"><i class="bi bi-folder2-open" style="color:var(--primary);"></i> 类别
             <button type="button" class="btn btn-xs-custom btn-outline-secondary" style="padding:1px 10px;font-size:.72rem;" onclick="kbManageOpen()" title="集合管理"><i class="bi bi-gear"></i> 管理</button>
           </span>
           <span class="badge badge-low" id="kbCollCount">{{ collection_count }}</span>
         </div>
-        <div class="card-body p-2" style="overflow-y:auto;">
-          <a href="{{ url_for('kb.workbench') }}" class="kb-coll-row px-2 py-2 mb-1 text-decoration-none"
+        <div class="card-body p-2">
+          <a href="{{ url_for('kb.workbench', view=view) }}" class="kb-coll-row px-2 py-2 mb-1 text-decoration-none"
              style="{% if not active_collection and not group %}background:var(--primary-light);{% endif %}">
             <span class="kb-coll-link d-flex align-items-center gap-2" style="font-weight:600;font-size:.84rem;color:{% if not active_collection and not group %}var(--primary){% else %}var(--gray-600){% endif %};">
-              <i class="bi bi-archive"></i> 全部文档
+              <i class="bi bi-archive"></i> 全部
               <span class="badge badge-low ms-auto" style="font-size:.62rem;">{{ total_docs }}</span>
+              <span class="badge badge-low" style="font-size:.62rem;background:var(--primary-light);color:var(--primary);">{{ total_points }}</span>
             </span>
           </a>
           {% for g in collection_groups %}
@@ -160,7 +298,7 @@
                  style="{% if group == g['primary'] %}background:var(--primary-light);{% endif %}">
               <i class="bi bi-chevron-right kb-group-caret"
                  style="font-size:.7rem;color:var(--gray-400);transition:transform .15s;{% if g['active'] %}transform:rotate(90deg);{% endif %}"></i>
-              <a href="{{ url_for('kb.workbench', group=g['primary']) }}" onclick="event.stopPropagation()"
+              <a href="{{ url_for('kb.workbench', group=g['primary'], view=view) }}" onclick="event.stopPropagation()"
                  class="text-decoration-none"
                  style="font-weight:600;font-size:.8rem;{% if group == g['primary'] %}color:var(--primary);{% else %}color:var(--gray-700);{% endif %}">{{ g['primary'] }}</a>
               <span class="badge badge-low ms-auto">{{ g['total'] }}</span>
@@ -169,7 +307,7 @@
               {% for v in g['items'] %}
               <div class="kb-coll-row px-2 py-1 mb-1 {% if active_collection == v['c'].id %}coll-active{% endif %}"
                    style="{% if active_collection == v['c'].id %}background:var(--primary-light);{% endif %}">
-                <a href="{{ url_for('kb.workbench', collection=v['c'].id) }}"
+                <a href="{{ url_for('kb.workbench', collection=v['c'].id, view=view) }}"
                    class="kb-coll-link d-flex align-items-center gap-2 text-decoration-none"
                    style="color:{% if active_collection == v['c'].id %}var(--primary);font-weight:600{% else %}var(--gray-600){% endif %};">
                   <span style="width:10px;height:10px;border-radius:50%;background:{{ v['c'].color }};flex-shrink:0;"></span>
@@ -177,7 +315,8 @@
                   {% if v['c'].visibility == 'private' and v['c'].owner_id and v['c'].owner_id != current_user.id %}
                   <small class="text-muted" style="font-size:.6rem;flex-shrink:0;">{{ owner_names.get(v['c'].owner_id, '他人') }}</small>
                   {% endif %}
-                  <span class="badge badge-low" style="font-size:.6rem;">{{ doc_counts.get(v['c'].id, 0) }}</span>
+                  <span class="badge badge-low" style="font-size:.6rem;" title="文档数">{{ doc_counts.get(v['c'].id, 0) }}</span>
+                  <span class="badge badge-low" style="font-size:.6rem;background:var(--primary-light);color:var(--primary);" title="知识点数">{{ point_counts.get(v['c'].id, 0) }}</span>
                 </a>
                 {% if current_user.role == 'admin' or (v['c'].owner_id == current_user.id and v['c'].visibility == 'private') %}
                 <div class="kb-coll-acts">
@@ -192,7 +331,11 @@
           {% endfor %}
         </div>
       </div>
-      </div>
+      </div><!-- /wb-rail -->
+      <div class="wb-main-col">
+
+    <!-- ============ 文档视图 ============ -->
+    <div id="docsView" class="{% if view != 'docs' %}d-none{% endif %}" style="display:flex;flex-direction:column;flex:1;min-height:0;">
       <div class="docs-main">
 
     <!-- 批量操作栏 -->
@@ -244,103 +387,52 @@
       <small class="text-muted" style="font-size:.68rem;"><kbd>Ctrl+A</kbd> 全选 · <kbd>Ctrl+F</kbd> 搜索 · <kbd>Delete</kbd> 删除</small>
     </div>
       </div><!-- /docs-main -->
-    </div><!-- /docs-layout -->
     </div><!-- /docsView -->
 
-    <!-- 知识点视图 -->
+    <!-- ============ 知识点视图: 左列表 + 右详情 ============ -->
     <div id="pointsView" class="{% if view != 'points' %}d-none{% endif %}" style="display:flex;flex-direction:column;flex:1;min-height:0;">
-      <div style="flex:1;min-height:0;overflow-y:auto;">
-        {% if point_rows %}
-        {% for r in point_rows %}
-        <div class="kb-point-row">
-          <div class="kb-point-ico"><i class="bi bi-lightbulb"></i></div>
-          <div class="kb-point-main">
-            <a href="{{ r.detail_url }}" class="kb-point-title" style="text-decoration:none;">{{ r.title }}</a>
-            <div class="kb-point-sub">
-              {% if r.collection_name %}<span style="color:{{ r.collection_color }};font-weight:600;">{{ r.collection_name }}</span> · {% endif %}
-              <a href="{{ r.doc_url }}" style="color:var(--gray-500);text-decoration:none;">{{ r.doc_title }}</a>
-            </div>
+      <div class="points-layout" id="pointsLayout">
+        <div class="points-side" id="pointsSide">
+          <div class="points-head">
+            <i class="bi bi-lightbulb"></i> 知识点
+            <span class="badge badge-low ms-auto">{{ total_points }}</span>
           </div>
-          <div class="kb-point-meta">
-            {% if r.rel_count %}<span title="相似关联" style="color:var(--primary);"><i class="bi bi-diagram-3"></i> {{ r.rel_count }}</span>{% endif %}
-            {% if r.ref_count %}<span title="被引用"><i class="bi bi-quote"></i> {{ r.ref_count }}</span>{% endif %}
-            <span>{{ "{:,}".format(r.word_count) }} 字</span>
-            {% if r.page_start %}<span>第 {{ r.page_start }}{% if r.page_end != r.page_start %}-{{ r.page_end }}{% endif %} 页</span>{% endif %}
-          </div>
-          {% if current_user.role == 'admin' %}
-          <div class="kb-point-acts d-flex gap-1">
-            <a href="{{ url_for('kb.api_point_delete', pid=r.id) }}" title="删除知识点" class="text-muted" style="font-size:.8rem;"
-               onclick="event.preventDefault();var ok=confirm('确定删除知识点「{{ r.title|e }}」?');if(ok){fetch(this.href,{method:'POST'}).then(function(x){return x.json()}).then(function(d){if(d.ok)location.reload();});}"><i class="bi bi-trash"></i></a>
+          {% if tag_counts %}
+          <div class="points-tags">
+            <a href="{{ url_for('kb.workbench', collection=active_collection or None, group=group or None, q=q or None, doc=doc or None, view='points') }}"
+               class="pt-chip {% if not tag %}active{% endif %}"><i class="bi bi-grid"></i> 全部 {{ total_points }}</a>
+            {% for t, n in tag_counts.items() %}
+            <a href="{{ url_for('kb.workbench', collection=active_collection or None, group=group or None, q=q or None, doc=doc or None, tag=t, view='points') }}"
+               class="pt-chip {% if tag == t %}active{% endif %}">{{ t }} {{ n }}</a>
+            {% endfor %}
           </div>
           {% endif %}
+          <div class="points-list" id="pointsList"></div>
         </div>
-        {% endfor %}
-        {% else %}
-        <div class="text-center" style="padding:48px 16px;">
-          <div class="empty-state">
-            <svg viewBox="0 0 96 96" fill="none" style="width:64px;height:64px;"><rect x="28" y="14" width="40" height="68" rx="6" fill="var(--gray-100)" stroke="var(--gray-300)" stroke-width="2"/><path d="M40 30h16M40 44h16M40 58h10" stroke="var(--primary)" stroke-width="3" stroke-linecap="round"/></svg>
-            <div class="es-title">暂无知识点</div>
-            <div class="es-sub">文档识别完成后会自动拆解为独立知识点,并可查看相似关联与图谱。</div>
-          </div>
-        </div>
-        {% endif %}
-      </div>
-      <div class="card-footer kb-foot">
-        <small class="text-muted">共 <span id="kbPointTotal">{{ total_points }}</span> 条知识点</small>
+        {{ detail_panel('pd', '点击左侧知识点,在这里查看正文、提炼摘要与相关知识点') }}
       </div>
     </div>
 
-    <!-- 图谱视图(内嵌,不跳转新页面) -->
+    <!-- ============ 图谱视图: 左图 + 右详情(内嵌) ============ -->
     <div id="graphView" class="{% if view != 'graph' %}d-none{% endif %}" style="display:flex;flex-direction:column;flex:1;min-height:0;">
-      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 px-3 py-2" style="border-bottom:1px solid var(--gray-100);">
-        <small class="text-muted" id="graphStatus">加载中...</small>
-        <div class="graph-legend" id="graphLegend" style="display:none;"></div>
+      <div class="graph-layout">
+        <div class="graph-left">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 px-3 py-2" style="border-bottom:1px solid var(--gray-100);">
+            <small class="text-muted" id="graphStatus">加载中...</small>
+            <div class="graph-legend" id="graphLegend" style="display:none;"></div>
+          </div>
+          <div id="graphWrap" style="flex:1;min-height:420px;"></div>
+        </div>
+        {{ detail_panel('gd', '点击图谱中的知识点节点,在这里查看正文与相关知识点') }}
       </div>
-      <div id="graphWrap" style="flex:1;min-height:420px;"></div>
     </div>
+
+      </div><!-- /wb-main-col -->
+    </div><!-- /wb-layout -->
   </div>
 </div>
 
-<!-- 上传文档弹框 -->
-<div class="modal fade" id="kbUploadModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header py-2">
-        <span style="font-weight:600;"><i class="bi bi-cloud-upload" style="color:var(--primary);"></i> 上传文档</span>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
-      </div>
-      <div class="modal-body py-3">
-        <div class="d-flex align-items-center gap-2 mb-2 flex-wrap" style="font-size:.8rem;color:var(--gray-600);">
-          <span style="white-space:nowrap;"><i class="bi bi-folder2-open"></i> 上传到集合</span>
-          <select id="uploadCollection" class="form-select form-select-sm" style="width:auto;max-width:240px;font-size:.8rem;">
-            <option value="">(暂不分配)</option>
-            {% for c in collections %}
-            <option value="{{ c.id }}">{{ c.name }}（{{ '公共' if c.visibility == 'public' else '个人' }}）</option>
-            {% endfor %}
-          </select>
-          <small class="text-muted" style="font-size:.7rem;">大于 10MB 自动分片</small>
-        </div>
-        <div id="dropZone" style="border:2px dashed var(--gray-300);background:var(--gray-50);cursor:pointer;transition:all .15s;border-radius:var(--radius-sm);padding:8px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <i class="bi bi-cloud-arrow-up" style="font-size:1.1rem;color:var(--primary);flex-shrink:0;"></i>
-          <span style="font-weight:600;color:var(--gray-700);font-size:.85rem;white-space:nowrap;">拖拽文件到此处,或点击选择文件</span>
-          <small class="text-muted ms-auto" style="font-size:.72rem;">PDF / 图片 / Markdown / 文本 / HTML</small>
-        </div>
-        <input type="file" id="dropFileInput" accept=".pdf,.png,.jpg,.jpeg,.bmp,.tif,.tiff,.webp,.txt,.md,.markdown,.html,.htm" multiple style="display:none;">
-        <div class="mt-3 d-none" id="uploadProgressCard">
-          <div id="uploadProgressList" class="d-flex flex-column gap-2"></div>
-        </div>
-        <div class="mt-3 pt-3 border-top d-none" id="queueCard">
-          <div class="d-flex align-items-center gap-3 mb-2">
-            <span class="spinner-border spinner-border-sm text-primary" style="width:1rem;height:1rem;"></span>
-            <span style="font-weight:600;" id="queueSummary">已完成 0/0 文件</span>
-            <div class="flex-grow-1"><div class="progress-custom"><div class="progress-custom-bar" id="queueProgress" style="width:0%;background:var(--primary);"></div></div></div>
-          </div>
-          <div class="text-muted" style="font-size:.78rem;" id="queueDetail">等待识别 0 · OCR 中 0 · 向量化中 0</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+{% include 'kb/_upload_modal.html' %}
 
 <!-- 预览弹窗 -->
 <div class="modal fade" id="previewModal" tabindex="-1">
@@ -394,6 +486,25 @@
   </div>
 </div>
 
+<!-- 知识点重命名弹窗 -->
+<div class="modal fade" id="pointRenameModal" tabindex="-1">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <span style="font-weight:600;">重命名知识点</span>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="pointRenameInput" class="form-control" maxlength="300" placeholder="知识点标题">
+      </div>
+      <div class="modal-footer py-2">
+        <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-sm btn-primary" onclick="savePointRename()">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal fade" id="collectionModal" tabindex="-1">
   <div class="modal-dialog modal-sm modal-dialog-centered">
     <div class="modal-content">
@@ -408,6 +519,18 @@
           <option value="private">私有</option>
           <option value="public">公共</option>
         </select>
+        <div id="collectionGroupsBox" style="display:none;" class="mt-2">
+          <label class="form-label mb-1"><i class="bi bi-people"></i> 按群组公开(仅以下群组成员可见)</label>
+          <div class="d-flex flex-wrap gap-1" id="collectionGroupChecks" style="max-height:140px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:6px;padding:8px;">
+            {% for g in groups %}
+            <label class="form-check form-check-inline mb-0">
+              <input class="form-check-input cg-check" type="checkbox" value="{{ g.id }}">
+              <span class="form-check-label" style="font-size:.85rem;">{{ g.name }}</span>
+            </label>
+            {% endfor %}
+          </div>
+          <small class="text-muted">不勾选任何群组 = 对所有用户公开(维持原行为)。非群组成员无法检索其中的知识点与文档。</small>
+        </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-sm" data-bs-dismiss="modal" style="background:var(--gray-100);color:var(--gray-600);">取消</button>
@@ -429,6 +552,9 @@
         <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap p-3 pb-2">
           <small class="text-muted">管理知识库下的集合:可新建、修改、删除,或一键清理空集合。</small>
           <div class="d-flex gap-2">
+            {% if current_user.role == 'admin' %}
+            <button class="btn btn-sm btn-outline-primary" id="batchPublicBtn" onclick="batchSetPublic()" disabled><i class="bi bi-unlock"></i> 批量设为公开</button>
+            {% endif %}
             <button class="btn btn-sm btn-primary" onclick="showCollectionModal()"><i class="bi bi-plus"></i> 新建集合</button>
             <button class="btn btn-sm btn-outline-secondary" onclick="pruneEmptyCollections()"><i class="bi bi-trash"></i> 清空空集合</button>
           </div>
@@ -437,6 +563,7 @@
           <table class="table table-sm table-hover align-middle mb-0" style="font-size:.85rem;">
             <thead>
               <tr>
+                <th style="width:34px;"><input type="checkbox" class="form-check-input" id="colSelAll" onclick="toggleSelAll(this)" title="全选"></th>
                 <th style="width:44px;">颜色</th>
                 <th>名称</th>
                 <th style="width:80px;">可见性</th>
@@ -445,12 +572,17 @@
                 <th style="width:170px;">操作</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody id="kbManageBody">
               {% for c in collections %}
               <tr>
+                <td><input type="checkbox" class="form-check-input kb-sel" data-cid="{{ c.id }}" data-cname="{{ c.name }}" onchange="updateSelState()"></td>
                 <td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:{{ c.color }};"></span></td>
                 <td style="font-weight:600;">{{ c.name }}</td>
-                <td>{% if c.visibility == 'public' %}<span class="status-badge status-done">公共</span>{% else %}<span class="text-muted">私有</span>{% endif %}</td>
+                <td>{% if c.visibility == 'public' %}<span class="status-badge status-done">公共</span>{% else %}<span class="text-muted">私有</span>{% endif %}
+                  {% if c.visibility == 'public' and coll_group_ids.get(c.id) %}
+                  <span class="badge text-bg-info" style="font-size:.72rem;" title="{{ group_name_map.get(c.id, {}).values() | join('、') }}">群组</span>
+                  {% endif %}
+                </td>
                 <td>{{ doc_counts.get(c.id, 0) }}</td>
                 {% if current_user.role == 'admin' %}<td class="text-muted">{{ owner_names.get(c.owner_id, '—') }}</td>{% endif %}
                 <td>
@@ -463,7 +595,7 @@
                 </td>
               </tr>
               {% else %}
-              <tr><td colspan="6" class="text-center text-muted py-4">暂无集合</td></tr>
+              <tr><td colspan="7" class="text-center text-muted py-4">暂无集合</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -514,7 +646,9 @@
 <script>
 window.KB_INIT = {{ docs_json|safe }};
 window.KB_VIEW = {{ (view or 'docs')|tojson }};
-window.KB_FILTER = {collection: {{ active_collection or 'null' }}, group: {{ group|tojson }}, q: {{ q|tojson }}};
+window.KB_FILTER = {collection: {{ active_collection or 'null' }}, group: {{ group|tojson }}, q: {{ q|tojson }}, doc: {{ doc or 'null' }}};
+window.KB_POINTS = {{ point_rows|tojson }};
+window.KB_SELECTED = {{ selected_point|tojson }};
 window.KB_URLS = {
   docs: '{{ url_for('kb.api_docs') }}',
   upload: '{{ url_for('kb.upload') }}',
@@ -523,7 +657,8 @@ window.KB_URLS = {
   bulk: '{{ url_for('kb.bulk') }}',
   queue: '{{ url_for('kb.api_queue') }}',
   exportTxt: '{{ url_for('kb.export_txt') }}',
-  assign: '{{ url_for('kb.api_collection_assign') }}'
+  assign: '{{ url_for('kb.api_collection_assign') }}',
+  pointJson: '{{ url_for('kb.api_point_json', pid=0) }}'
 };
 </script>
 <script>
@@ -592,6 +727,7 @@ window.KB_URLS = {
         '<ul class="dropdown-menu dropdown-menu-end">' +
         '<li><a class="dropdown-item" href="#" onclick="kbRename(' + d.id + ');return false;"><i class="bi bi-pencil"></i> 重命名</a></li>' +
         '<li><a class="dropdown-item" href="#" onclick="kbReprocessOne(' + d.id + ');return false;"><i class="bi bi-arrow-repeat"></i> 重新识别</a></li>' +
+        '<li><a class="dropdown-item" href="#" onclick="kbDrillPoints(' + d.id + ');return false;"><i class="bi bi-lightbulb"></i> 查看知识点</a></li>' +
         '<li><a class="dropdown-item" href="#" onclick="kbOpenDetail(' + d.id + ');return false;"><i class="bi bi-box-arrow-up-right"></i> 打开详情</a></li>' +
         '<li><hr class="dropdown-divider"></li>' +
         '<li><a class="dropdown-item text-danger" href="#" onclick="kbDeleteOne(' + d.id + ');return false;"><i class="bi bi-trash"></i> 删除</a></li>' +
@@ -673,6 +809,8 @@ window.KB_URLS = {
         state.docs = d.docs;
         state.sel.clear();
         render();
+        var cntEl = document.getElementById('kbCntDocs');
+        if (cntEl) cntEl.textContent = String(d.docs.length);
         kbRefreshBar();
         kbPollStatus();
         if (done) done();
@@ -695,6 +833,9 @@ window.KB_URLS = {
         if (v) p.set('q', v);
         if (state.filter.collection) p.set('collection', state.filter.collection);
         if (state.filter.group) p.set('group', state.filter.group);
+        if (state.filter.doc) p.set('doc', state.filter.doc);
+        var cur = new URLSearchParams(window.location.search);
+        if (cur.get('tag')) p.set('tag', cur.get('tag'));
         window.location.href = '/kb/workbench?' + p.toString();
         return;
       }
@@ -841,6 +982,17 @@ window.KB_URLS = {
     openFrame('{{ url_for('kb.doc_detail', doc_id=0) }}'.replace('/0', '/' + id) + '?frame=1', title);
   };
 
+  /* 文档 → 知识点 下钻(保持当前集合/搜索范围) */
+  window.kbDrillPoints = function (id) {
+    var p = new URLSearchParams(window.location.search);
+    p.set('view', 'points');
+    p.set('doc', String(id));
+    p.delete('pid');
+    p.delete('tag');
+    p.delete('q');
+    window.location.href = '/kb/workbench?' + p.toString();
+  };
+
   /* 通用确认弹窗 */
   var confirmCb = null;
   window.kbConfirm = function (title, bodyHtml, okText, onOk) {
@@ -909,158 +1061,7 @@ window.KB_URLS = {
     });
   };
 
-  /* 上传入口: 弹出上传文档弹框 */
-  window.kbUploadOpen = function () {
-    var m = document.getElementById('kbUploadModal');
-    if (!m) return;
-    var modal = bootstrap.Modal.getOrCreateInstance(m);
-    var pc = document.getElementById('uploadProgressCard');
-    var qc = document.getElementById('queueCard');
-    if (pc) pc.classList.add('d-none');
-    if (qc) qc.classList.add('d-none');
-    modal.show();
-  };
-})();
-</script>
-<script>
-/* ============ 上传(单请求 + 分片 >10MB) ============ */
-(function () {
-  var zone = document.getElementById('dropZone');
-  if (!zone) return;
-  var fileInput = document.getElementById('dropFileInput');
-  var ALLOWED = ['.pdf', '.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff', '.webp', '.txt', '.md', '.markdown', '.html', '.htm'];
-  var CHUNK_THRESHOLD = 10 * 1024 * 1024;
-  var CHUNK_SIZE = 5 * 1024 * 1024;
-
-  function ext(f) { return (f.name.split('.').pop() || '').toLowerCase(); }
-  function esc(s) { s = (s == null ? '' : String(s)); var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-  function cid() { var el = document.getElementById('uploadCollection'); return el ? el.value : ''; }
-
-  var card = document.getElementById('uploadProgressCard');
-  var list = document.getElementById('uploadProgressList');
-  var pct = {};
-
-  function showCard() { card.classList.remove('d-none'); }
-  function hideCard() { card.classList.add('d-none'); pct = {}; list.innerHTML = ''; }
-
-  function addFileRow(f) {
-    var row = document.createElement('div');
-    row.className = 'kb-uprow';
-    row.innerHTML = '<span class="text-truncate" style="max-width:220px;">' + esc(f.name) + '</span>' +
-      '<div class="progress-custom" style="height:6px;"><div class="progress-custom-bar" style="width:0%;background:var(--primary);"></div></div>' +
-      '<small class="kb-pct" style="width:44px;text-align:right;">0%</small>';
-    list.appendChild(row);
-    pct[f.name] = { row: row, bar: row.querySelector('.progress-custom-bar'), label: row.querySelector('.kb-pct') };
-  }
-  function setPct(name, p) {
-    var o = pct[name];
-    if (!o) return;
-    o.bar.style.width = Math.round(p * 100) + '%';
-    o.label.textContent = Math.round(p * 100) + '%';
-  }
-
-  function uploadSingle(f, done) {
-    var fd = new FormData();
-    if (cid()) fd.append('collection_id', cid());
-    fd.append('file', f);
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', window.KB_URLS.upload);
-    xhr.upload.onprogress = function (e) { if (e.lengthComputable) setPct(f.name, e.loaded / e.total); };
-    xhr.onload = function () {
-      var d = null;
-      try { d = JSON.parse(xhr.responseText); } catch (e) {}
-      if (xhr.status >= 200 && xhr.status < 300 && d && d.ok) { setPct(f.name, 1); }
-      else if (window.toast) toast((d && d.error) || '上传失败', 'danger');
-      done();
-    };
-    xhr.onerror = function () { if (window.toast) toast('网络错误，请重试', 'danger'); done(); };
-    xhr.send(fd);
-  }
-
-  function uploadChunked(f, done) {
-    var uploadId = 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-    var total = Math.max(1, Math.ceil(f.size / CHUNK_SIZE));
-    var idx = 0;
-    function next() {
-      var start = idx * CHUNK_SIZE;
-      var blob = f.slice(start, Math.min(f.size, start + CHUNK_SIZE));
-      var fd = new FormData();
-      fd.append('upload_id', uploadId);
-      fd.append('index', idx);
-      fd.append('total', total);
-      fd.append('file', blob, f.name);
-      var xhr = new XMLHttpRequest();
-      xhr.open('POST', window.KB_URLS.chunk);
-      xhr.onload = function () {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          idx++;
-          setPct(f.name, idx / total);
-          if (idx < total) next(); else complete();
-        } else { if (window.toast) toast(f.name + ' 分片上传失败', 'danger'); done(); }
-      };
-      xhr.onerror = function () { if (window.toast) toast('网络错误，请重试', 'danger'); done(); };
-      xhr.send(fd);
-    }
-    function complete() {
-      var fd = new FormData();
-      fd.append('upload_id', uploadId);
-      fd.append('filename', f.name);
-      fd.append('total', total);
-      if (cid()) fd.append('collection_id', cid());
-      fetch(window.KB_URLS.complete, { method: 'POST', body: fd })
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          if (!d.ok) { if (window.toast) toast(d.error || '合并失败', 'danger'); }
-          else setPct(f.name, 1);
-          done();
-        }).catch(function () { if (window.toast) toast('网络错误，请重试', 'danger'); done(); });
-    }
-    next();
-  }
-
-  function upload(files) {
-    var fList = Array.prototype.filter.call(files, function (f) {
-      return ALLOWED.indexOf('.' + ext(f)) !== -1;
-    });
-    if (!fList.length) { if (window.toast) toast('没有支持的文件', 'warning'); return; }
-    fList.forEach(addFileRow);
-    showCard();
-    var total = fList.length;
-    var doneCount = 0;
-    fList.forEach(function (f) {
-      var fin = function () {
-        doneCount++;
-        if (doneCount === total) {
-          if (window.toast) toast('上传完成，已加入识别队列', 'success');
-          setTimeout(function () {
-            hideCard();
-            window.__kbLoad();
-            var m = document.getElementById('kbUploadModal');
-            if (m) bootstrap.Modal.getInstance(m) && bootstrap.Modal.getInstance(m).hide();
-          }, 600);
-        }
-      };
-      if (f.size > CHUNK_THRESHOLD) uploadChunked(f, fin); else uploadSingle(f, fin);
-    });
-  }
-
-  zone.addEventListener('click', function () { fileInput.click(); });
-  fileInput.addEventListener('change', function () { upload(fileInput.files); fileInput.value = ''; });
-  ['dragenter', 'dragover'].forEach(function (ev) {
-    zone.addEventListener(ev, function (e) {
-      e.preventDefault(); e.stopPropagation();
-      zone.style.borderColor = 'var(--primary)';
-      zone.style.background = 'var(--primary-light)';
-    });
-  });
-  ['dragleave', 'drop'].forEach(function (ev) {
-    zone.addEventListener(ev, function (e) {
-      e.preventDefault(); e.stopPropagation();
-      zone.style.borderColor = 'var(--gray-300)';
-      zone.style.background = 'var(--gray-50)';
-    });
-  });
-  zone.addEventListener('drop', function (e) { upload(e.dataTransfer.files); });
+  window.KB_UPLOAD_ON_DONE = function () { if (window.__kbLoad) window.__kbLoad(); };
 })();
 </script>
 <script>
@@ -1237,6 +1238,7 @@ window.KB_URLS = {
 
   /* 集合操作 */
   var editingId = null;
+  var collGroupMap = {{ coll_group_ids | tojson }};
   window.showCollectionModal = function (btn) {
     editingId = btn ? Number(btn.dataset.cid) : null;
     var name = btn ? btn.dataset.cname : '';
@@ -1246,16 +1248,28 @@ window.KB_URLS = {
     document.getElementById('collectionColor').value = color;
     document.getElementById('collectionModalTitle').textContent = btn ? '重命名集合' : '新建集合';
     var visEl = document.getElementById('collectionVisibility');
+    var groupsBox = document.getElementById('collectionGroupsBox');
     if (currentUserRole === 'admin') {
       visEl.style.display = 'block';
       visEl.value = visibility;
-    } else { visEl.style.display = 'none'; }
+      groupsBox.style.display = 'block';
+    } else {
+      visEl.style.display = 'none';
+      groupsBox.style.display = 'none';
+    }
+    var sel = collGroupMap[editingId] || [];
+    var checks = document.querySelectorAll('#collectionGroupChecks .cg-check');
+    for (var i = 0; i < checks.length; i++) checks[i].checked = sel.indexOf(Number(checks[i].value)) >= 0;
     new bootstrap.Modal(document.getElementById('collectionModal')).show();
   };
   window.saveCollection = function () {
     var name = document.getElementById('collectionName').value.trim();
     var color = document.getElementById('collectionColor').value;
     var visibility = document.getElementById('collectionVisibility').value;
+    var group_ids = [];
+    document.querySelectorAll('#collectionGroupChecks .cg-check:checked').forEach(function (c) {
+      group_ids.push(Number(c.value));
+    });
     if (!name) { if (window.toast) toast('请输入集合名称', 'warning'); return; }
     var url = editingId
       ? '{{ url_for('kb.api_collection_update', cid=0) }}'.replace(/0$/, editingId)
@@ -1264,7 +1278,7 @@ window.KB_URLS = {
     fetch(url, {
       method: method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, color: color, visibility: visibility })
+      body: JSON.stringify({ name: name, color: color, visibility: visibility, group_ids: group_ids })
     }).then(function (r) { return r.json(); }).then(function (d) {
       bootstrap.Modal.getInstance(document.getElementById('collectionModal')).hide();
       if (!d.ok) { if (window.toast) toast(d.error || '操作失败', 'danger'); return; }
@@ -1286,7 +1300,41 @@ window.KB_URLS = {
     });
   };
   window.kbManageOpen = function () {
+    updateSelState();
     new bootstrap.Modal(document.getElementById('kbManageModal')).show();
+  };
+  window.toggleSelAll = function (el) {
+    var boxes = document.querySelectorAll('#kbManageBody .kb-sel');
+    for (var i = 0; i < boxes.length; i++) boxes[i].checked = el.checked;
+    updateSelState();
+  };
+  window.updateSelState = function () {
+    var boxes = document.querySelectorAll('#kbManageBody .kb-sel');
+    var selAll = document.getElementById('colSelAll');
+    var btn = document.getElementById('batchPublicBtn');
+    var checked = 0, all = boxes.length;
+    for (var i = 0; i < boxes.length; i++) if (boxes[i].checked) checked++;
+    if (selAll) selAll.checked = all > 0 && checked === all;
+    if (btn) btn.disabled = checked === 0;
+  };
+  window.batchSetPublic = function () {
+    var boxes = document.querySelectorAll('#kbManageBody .kb-sel');
+    var ids = [], names = [];
+    for (var i = 0; i < boxes.length; i++) {
+      if (boxes[i].checked) { ids.push(Number(boxes[i].dataset.cid)); names.push(boxes[i].dataset.cname); }
+    }
+    if (!ids.length) { if (window.toast) toast('请先勾选集合', 'warning'); return; }
+    window.kbConfirm('批量设为公开', '确定将选中的 <b>' + ids.length + '</b> 个集合设为公共?<br><small class="text-muted">设为公共后所有用户可见,该操作仅管理员可执行。</small>', '设为公开', function () {
+      fetch('{{ url_for('kb.api_collection_batch_public') }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: ids })
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.ok) { if (window.toast) toast(d.error || '操作失败', 'danger'); return; }
+        if (window.toast) toast(d.updated ? '已将 ' + d.updated + ' 个集合设为公共' : '所选集合均为公共', d.updated ? 'success' : 'info');
+        location.reload();
+      }).catch(function () { if (window.toast) toast('操作失败', 'danger'); });
+    });
   };
   window.pruneEmptyCollections = function () {
     window.kbConfirm('清理空集合', '删除所有没有文档的空集合?', '清理', function () {
@@ -1300,34 +1348,6 @@ window.KB_URLS = {
     });
   };
   function esc(s) { s = (s == null ? '' : String(s)); var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-})();
-</script>
-<script>
-/* ============ 队列轮询(识别进度) ============ */
-(function () {
-  var card = document.getElementById('queueCard');
-  if (!card) return;
-  function poll() {
-    fetch(window.KB_URLS.queue).then(function (r) { return r.json(); }).then(function (d) {
-      if (!d.ok) return;
-      var c = d.counts;
-      var p = d.processing || 0;
-      var total = d.total || 0;
-      if (p > 0) {
-        card.classList.remove('d-none');
-        document.getElementById('queueSummary').textContent = '已完成 ' + (c.done || 0) + '/' + total + ' 文件';
-        document.getElementById('queueDetail').textContent =
-          '等待识别 ' + (c.queued || 0) + ' · OCR 中 ' + (c.ocr || 0) + ' · 向量化中 ' + (c.embedding || 0) +
-          (total ? ' · 已完成 ' + (c.done || 0) + ' · 失败 ' + (c.failed || 0) : '');
-        document.getElementById('queueProgress').style.width =
-          (total ? Math.round((c.done || 0) / total * 100) : 0) + '%';
-      } else {
-        card.classList.add('d-none');
-      }
-      setTimeout(poll, 4000);
-    }).catch(function () { setTimeout(poll, 6000); });
-  }
-  poll();
 })();
 </script>
 <script>
@@ -1350,12 +1370,291 @@ function closeFrame() {
 }
 </script>
 <script>
+/* ============ 知识点详情面板(知识点视图与图谱视图共用) ============ */
+(function () {
+  var registry = {};
+  function esc(s) { s = (s == null ? '' : String(s)); var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  function fmt(n) { return (Number(n) || 0).toLocaleString(); }
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+
+  function Panel(prefix, opts) {
+    opts = opts || {};
+    var ph = document.getElementById(prefix + '-placeholder');
+    var body = document.getElementById(prefix + '-body');
+    var titleEl = document.getElementById(prefix + '-title');
+    var metaEl = document.getElementById(prefix + '-meta');
+    var tagsEl = document.getElementById(prefix + '-tags');
+    var actsEl = document.getElementById(prefix + '-acts');
+    var scrollEl = document.getElementById(prefix + '-scroll');
+    var cur = null;
+    var pending = false;
+    var self = { prefix: prefix, onSelect: null, onRename: null, onDelete: null };
+    registry[prefix] = self;
+
+    function isMobile() { return window.innerWidth <= 860; }
+
+    function buildMeta(d) {
+      var p = d.point, dc = d.doc, meta = '';
+      if (dc.collection) meta += '<span class="cbadge" style="background:' + dc.color + '22;color:' + dc.color + ';">' + esc(dc.collection) + '</span>';
+      meta += '<span>' + fmt(p.word_count) + ' 字</span>';
+      if (p.page_start) meta += '<span>第 ' + p.page_start + (p.page_end && p.page_end !== p.page_start ? '-' + p.page_end : '') + ' 页</span>';
+      meta += '<span><i class="bi bi-quote"></i> 引用 ' + fmt(p.ref_count) + '</span>';
+      if (p.refined_at) meta += '<span title="AI 提炼更新时间"><i class="bi bi-stars"></i> 提炼于 ' + esc(p.refined_at) + '</span>';
+      return meta;
+    }
+
+    function buildActs(d) {
+      var p = d.point, ah = '';
+      ah += '<button class="btn btn-xs btn-outline-secondary d-md-none" onclick="KB_PANEL(\'' + prefix + '\').back()"><i class="bi bi-arrow-left"></i> 返回列表</button>';
+      ah += '<a class="btn btn-xs btn-outline-secondary" href="' + esc(p.detail_url) + '" target="_blank" title="新窗口打开详情"><i class="bi bi-box-arrow-up-right"></i></a>';
+      ah += '<button class="btn btn-xs btn-outline-secondary" onclick="KB_PANEL(\'' + prefix + '\').copyRef()" title="复制引用链接"><i class="bi bi-quote"></i> 引用</button>';
+      if (d.can_manage) {
+        ah += '<button class="btn btn-xs btn-outline-primary" onclick="KB_PANEL(\'' + prefix + '\').openRename()"><i class="bi bi-pencil"></i> 重命名</button>';
+        ah += '<button class="btn btn-xs btn-outline-danger" onclick="KB_PANEL(\'' + prefix + '\').del()"><i class="bi bi-trash"></i> 删除</button>';
+      }
+      return ah;
+    }
+
+    function buildScroll(d) {
+      var p = d.point, sc = '<pre class="pd-content">' + esc(p.content) + '</pre>';
+      if (p.summary) sc += '<div class="pd-card"><div class="pd-card-title"><i class="bi bi-stars"></i> 要点提炼</div><div class="pd-card-body">' + esc(p.summary) + '</div></div>';
+      var rels = d.related || [];
+      sc += '<div class="pd-card"><div class="pd-card-title"><i class="bi bi-diagram-3"></i> 相关知识点 (' + rels.length + ')</div>';
+      if (rels.length) {
+        rels.forEach(function (r) {
+          sc += '<button class="pd-related" onclick="KB_OPEN_POINT(' + r.id + ')">' +
+            '<div style="flex:1;min-width:0;"><div class="pd-rel-title">' + esc(r.title) + '</div>' +
+            '<div class="pd-rel-doc">' + esc(r.doc_title || '') + '</div></div>' +
+            '<span class="pd-rel-score">' + Math.round((r.score || 0) * 100) + '%</span></button>';
+        });
+      } else {
+        sc += '<div class="text-muted" style="font-size:.8rem;">暂无相似关联</div>';
+      }
+      sc += '</div>';
+      sc += '<div class="pd-card"><div class="pd-card-title"><i class="bi bi-file-earmark"></i> 来源文档</div>' +
+        '<div class="pd-card-body"><a href="' + esc(d.doc.url) + '" style="color:var(--primary);font-weight:600;text-decoration:none;">' + esc(d.doc.title) + '</a>' +
+        (d.doc.file_type ? '<div class="text-muted" style="margin-top:2px;">' + esc(d.doc.file_type) + (d.doc.filename ? ' · ' + esc(d.doc.filename) : '') + '</div>' : '') +
+        '</div></div>';
+      return sc;
+    }
+
+    self.render = function (d) {
+      if (!d) { self.placeholder(); return; }
+      cur = d;
+      window._kbPanel = self;
+      ph.style.display = 'none';
+      body.style.display = 'flex';
+      var p = d.point;
+      titleEl.textContent = p.title;
+      metaEl.innerHTML = buildMeta(d);
+      var tags = '';
+      (p.tags || []).forEach(function (t) {
+        var tp = new URLSearchParams(window.location.search);
+        tp.set('view', 'points'); tp.set('tag', t); tp.delete('pid');
+        tags += '<a class="pd-tag" href="?' + tp.toString() + '">' + esc(t) + '</a>';
+      });
+      tagsEl.innerHTML = tags;
+      actsEl.innerHTML = buildActs(d);
+      scrollEl.innerHTML = buildScroll(d);
+      scrollEl.scrollTop = 0;
+      if (isMobile() && opts.showDetail) opts.showDetail();
+      if (self.onSelect) self.onSelect(p.id);
+    };
+
+    self.placeholder = function (msg) {
+      body.style.display = 'none';
+      ph.style.display = 'flex';
+      if (msg && ph) {
+        var t = ph.querySelector('div');
+        if (t) t.textContent = msg;
+      }
+      if (opts.hideDetail) opts.hideDetail();
+    };
+
+    self.load = function (pid) {
+      if (pending) return;
+      pending = true;
+      fetch(window.KB_URLS.pointJson.replace('/point/0/', '/point/' + pid + '/'))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          pending = false;
+          if (d && d.ok) self.render(d);
+          else if (window.toast) toast(d.error || '加载失败', 'danger');
+        })
+        .catch(function () { pending = false; if (window.toast) toast('加载失败', 'danger'); });
+    };
+
+    self.current = function () { return cur; };
+    self.setTitle = function (t) { if (cur) cur.point.title = t; titleEl.textContent = t; };
+    self.back = function () { if (opts.back) opts.back(); };
+
+    self.copyRef = function () {
+      if (!cur) return;
+      var link = '[[知识点:' + cur.point.title + ']](' + cur.point.detail_url + ')';
+      function done() { if (window.toast) toast('引用链接已复制', 'success'); }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(link).then(done, function () { fallbackCopy(link); done(); });
+      } else { fallbackCopy(link); done(); }
+      var fd = new FormData(); fd.append('target_type', 'manual');
+      fetch('/kb/api/point/' + cur.point.id + '/ref', { method: 'POST', body: fd }).catch(function () {});
+    };
+
+    self.openRename = function () {
+      if (!cur) return;
+      document.getElementById('pointRenameInput').value = cur.point.title;
+      new bootstrap.Modal(document.getElementById('pointRenameModal')).show();
+      setTimeout(function () { var i = document.getElementById('pointRenameInput'); if (i) { i.focus(); i.select(); } }, 100);
+    };
+
+    self.del = function () {
+      if (!cur) return;
+      var pid = cur.point.id;
+      window.kbConfirm('删除知识点', '确定删除知识点「' + esc(cur.point.title) + '」?<br><small class="text-muted">关联与被引用记录将一并清除。</small>', '删除', function () {
+        fetch('/kb/api/point/' + pid + '/delete', { method: 'POST', body: new FormData() })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (!d.ok) { if (window.toast) toast(d.error || '删除失败', 'danger'); return; }
+            if (window.toast) toast('已删除', 'success');
+            cur = null;
+            self.placeholder();
+            if (self.onDelete) self.onDelete(pid);
+          }).catch(function () { if (window.toast) toast('网络错误', 'danger'); });
+      });
+    };
+
+    return self;
+  }
+
+  window.KB_PANEL = function (prefix) { return registry[prefix] || null; };
+  window.KB_OPEN_POINT = function (pid) {
+    if (window.__kbPointsSelect) window.__kbPointsSelect(pid);
+    else if (window._kbPanel) window._kbPanel.load(pid);
+  };
+
+  window.savePointRename = function () {
+    var p = window._kbPanel;
+    if (!p || !p.current()) return;
+    var t = document.getElementById('pointRenameInput').value.trim();
+    if (!t) return;
+    var pid = p.current().point.id;
+    var fd = new FormData(); fd.append('title', t);
+    fetch('/kb/api/point/' + pid + '/rename', { method: 'POST', body: fd })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) { if (window.toast) toast(d.error || '保存失败', 'danger'); return; }
+        bootstrap.Modal.getInstance(document.getElementById('pointRenameModal')).hide();
+        if (window.toast) toast('已重命名', 'success');
+        p.setTitle(d.title);
+        if (p.onRename) p.onRename(pid, d.title);
+      }).catch(function () { if (window.toast) toast('网络错误', 'danger'); });
+  };
+
+  /* 两个详情面板: pd(知识点视图) / gd(图谱视图) */
+  Panel('pd', {
+    showDetail: function () { var l = document.getElementById('pointsLayout'); if (l) l.classList.add('show-detail'); },
+    hideDetail: function () { var l = document.getElementById('pointsLayout'); if (l) l.classList.remove('show-detail'); },
+    back: function () {
+      var l = document.getElementById('pointsLayout');
+      if (l) l.classList.remove('show-detail');
+      var s = document.getElementById('pointsSide');
+      if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+  Panel('gd', {
+    back: function () {
+      var g = document.querySelector('.graph-left');
+      if (g) g.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+})();
+</script>
+<script>
+/* ============ 知识点视图: 左列表(承接左侧类别导航) + 右详情 ============ */
+(function () {
+  if (window.KB_VIEW !== 'points') return;
+  var listEl = document.getElementById('pointsList');
+  var panel = window.KB_PANEL('pd');
+  var selId = null;
+
+  function esc(s) { s = (s == null ? '' : String(s)); var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  function fmt(n) { return (Number(n) || 0).toLocaleString(); }
+
+  function renderList() {
+    var rows = window.KB_POINTS || [];
+    var cnt = document.getElementById('kbCntPoints');
+    if (cnt) cnt.textContent = String(rows.length);
+    if (!rows.length) {
+      listEl.innerHTML = '<div class="text-center py-5 px-3 text-muted" style="font-size:.8rem;">' +
+        '<div style="margin-bottom:6px;">暂无知识点</div>' +
+        '<small>上传文档并完成识别后会自动拆解知识点;也可切换到「文档」上传,或在左侧切换类别、上方搜索。</small></div>';
+      return;
+    }
+    var html = '';
+    rows.forEach(function (r) {
+      var sel = selId && String(r.id) === String(selId) ? ' selected' : '';
+      var sub = esc(r.doc_title || '');
+      if (r.page_start) sub += ' · 第 ' + r.page_start + (r.page_end && r.page_end !== r.page_start ? '-' + r.page_end : '') + ' 页';
+      html += '<div class="pt-row' + sel + '" data-pid="' + r.id + '" onclick="selectPoint(' + r.id + ')">' +
+        '<div class="pt-ico"><i class="bi bi-lightbulb"></i></div>' +
+        '<div class="pt-row-main"><div class="pt-row-title">' + esc(r.title) + '</div>' +
+        '<div class="pt-row-sub">' + sub + '</div></div>' +
+        '<div class="pt-row-meta">' + fmt(r.word_count) + '字</div></div>';
+    });
+    listEl.innerHTML = html;
+  }
+
+  function setUrlPid(pid) {
+    var p = new URLSearchParams(window.location.search);
+    if (pid) p.set('pid', String(pid)); else p.delete('pid');
+    p.set('view', 'points');
+    var qs = p.toString();
+    history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
+  }
+
+  window.__kbPointsSelect = function (pid) {
+    selId = String(pid);
+    renderList();
+    panel.load(pid);
+    setUrlPid(pid);
+  };
+  window.selectPoint = window.__kbPointsSelect;
+
+  panel.onSelect = function (pid) { selId = String(pid); renderList(); };
+  panel.onRename = function (pid, title) {
+    var rows = window.KB_POINTS || [];
+    for (var i = 0; i < rows.length; i++) if (String(rows[i].id) === String(pid)) rows[i].title = title;
+    renderList();
+  };
+  panel.onDelete = function (pid) {
+    window.KB_POINTS = (window.KB_POINTS || []).filter(function (r) { return String(r.id) !== String(pid); });
+    window.KB_SELECTED = null;
+    selId = null;
+    setUrlPid(null);
+    renderList();
+  };
+
+  renderList();
+  if (window.KB_SELECTED) {
+    window.selectPoint(window.KB_SELECTED.point.id);
+  } else {
+    panel.placeholder();
+  }
+})();
+</script>
+<script>
 /* ============ 图谱视图(内嵌渲染,不跳转新页面) ============ */
 (function () {
   if (window.KB_VIEW !== 'graph') return;
   var statusEl = document.getElementById('graphStatus');
   var wrap = document.getElementById('graphWrap');
   if (!statusEl || !wrap) return;
+  var selectedIdx = null;
 
   function loadECharts() {
     return new Promise(function (resolve, reject) {
@@ -1373,7 +1672,9 @@ function closeFrame() {
     window.addEventListener('resize', function () { chart.resize(); });
     var url = '/kb/api/graph-data';
     var params = [];
-    if (window.KB_FILTER && window.KB_FILTER.collection) params.push('collection=' + window.KB_FILTER.collection);
+    var f = window.KB_FILTER || {};
+    if (f.collection) params.push('collection=' + f.collection);
+    if (f.doc) params.push('doc=' + f.doc);
     if (params.length) url += '?' + params.join('&');
     fetch(url).then(function (r) { return r.json(); }).then(function (d) {
       if (!d.ok) { statusEl.textContent = d.error || '加载失败'; return; }
@@ -1381,6 +1682,8 @@ function closeFrame() {
       var edges = (d.edges || []).map(function (e) {
         return { source: String(e.source), target: String(e.target), value: Math.max(0.4, Math.min(4, (e.score || 0) * 4)) };
       });
+      var cntEl = document.getElementById('kbCntGraph');
+      if (cntEl) cntEl.textContent = String(nodes.length);
       if (!nodes.length) {
         statusEl.textContent = '暂无知识点,上传文档并完成识别后即可生成图谱。';
         wrap.innerHTML = '<div style="text-align:center;color:var(--gray-400);padding:80px 20px;font-size:.9rem;">暂无知识点,上传文档并完成识别后即可生成图谱。</div>';
@@ -1425,7 +1728,13 @@ function closeFrame() {
           edgeSymbolSize: 6
         }]
       });
-      chart.on('click', function (p) { if (p.dataType === 'node') { window.open('/kb/point/' + p.data.id, '_blank'); } });
+      chart.on('click', function (p) {
+        if (p.dataType !== 'node') return;
+        if (selectedIdx != null) chart.dispatchAction({ type: 'downplay', seriesIndex: 0, dataIndex: selectedIdx });
+        selectedIdx = p.dataIndex;
+        chart.dispatchAction({ type: 'highlight', seriesIndex: 0, dataIndex: selectedIdx });
+        window.KB_PANEL('gd').load(p.data.id);
+      });
     }).catch(function () { statusEl.textContent = '图谱加载失败'; });
   }).catch(function () { statusEl.textContent = '图谱组件加载失败'; });
 })();

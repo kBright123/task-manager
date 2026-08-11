@@ -118,12 +118,23 @@ def _summary_html(lines):
             'font-size:14px;color:#1e293b;">' + ''.join(parts) + '</div>')
 
 
+def _delta_text(d):
+    if d > 0:
+        return '↑%d' % d
+    if d < 0:
+        return '↓%d' % -d
+    return '—'
+
+
 def _send_daily_summary(now):
-    """工作日 9:00-9:10 向每个绑定邮箱的用户发送待办日报。
+    """工作日 9:00-9:10 向每个绑定邮箱的用户发送日报。
 
     周六/周日不发送;周一日报单列【周末到期】,把上个周六/周日截止的
-    待办并入,避免与【已逾期】重复。"""
+    待办并入,避免与【已逾期】重复。
+    邮件内容包含首页的所有数据:待办/随手记/知识库统计(较前日趋势)、
+    今日/本周/后续分组待办、最近完成、以及管理员的全员负载。"""
     today = now.strftime('%Y-%m-%d')
+    today_fmt = now.strftime('%Y/%m/%d')
     is_monday = now.weekday() == 0
     sat_start = mon_start = None
     if is_monday:
@@ -155,11 +166,81 @@ def _send_daily_summary(now):
             weekend_ids = set()
         pending = [a for a in pending_all if id(a) not in weekend_ids]
         overdue = [a for a in pending if a.task.end_time < now]
-        due_today = [a for a in pending
-                     if a.task.end_time.strftime('%Y-%m-%d') == today]
         upcoming = [a for a in pending
                     if a.task.end_time.date() > now.date()
                     and a.task.end_time <= now + timedelta(days=3)]
+
+        # ---- 首页数据:今日/本周/后续/最近完成 ----
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+        week_start = today_start - timedelta(days=now.weekday())
+        week_end = week_start + timedelta(days=6, hours=23, minutes=59,
+                                           seconds=59)
+        today_tasks = [a for a in pending
+                       if today_start <= a.task.end_time <= today_end]
+        today_ids = {id(a) for a in today_tasks}
+        week_other = [a for a in pending
+                      if week_start <= a.task.end_time <= week_end
+                      and id(a) not in today_ids]
+        week_ids = {id(a) for a in week_other}
+        other_pending = [a for a in pending
+                         if id(a) not in today_ids and id(a) not in week_ids]
+        recent = sorted([a for a in assigns if a.completed_at],
+                        key=lambda a: a.completed_at, reverse=True)[:5]
+
+        # ---- 首页统计卡:待处理/随手记/知识库(较前日趋势) ----
+        yesterday_start = today_start - timedelta(days=1)
+        day_before_start = yesterday_start - timedelta(days=1)
+        new_tasks_yesterday = sum(1 for a in pending_all
+                                  if yesterday_start <= a.task.created_at < today_start)
+        new_tasks_prev = sum(1 for a in pending_all
+                             if day_before_start <= a.task.created_at < yesterday_start)
+        tasks_delta = new_tasks_yesterday - new_tasks_prev
+        note_count = new_notes_yesterday = new_notes_prev = 0
+        try:
+            from notes import Note
+            if Note is not None:
+                note_count = Note.query.filter_by(
+                    user_id=user.id).count()
+                new_notes_yesterday = Note.query.filter(
+                    Note.user_id == user.id,
+                    Note.created_at >= yesterday_start,
+                    Note.created_at < today_start).count()
+                new_notes_prev = Note.query.filter(
+                    Note.user_id == user.id,
+                    Note.created_at >= day_before_start,
+                    Note.created_at < yesterday_start).count()
+        except Exception:
+            pass
+        notes_delta = new_notes_yesterday - new_notes_prev
+        kb_count = new_docs_yesterday = new_docs_prev = 0
+        try:
+            from knowledge import KbDocument
+            if KbDocument is not None:
+                kb_count = KbDocument.query.filter_by(
+                    uploaded_by=user.id).count()
+                new_docs_yesterday = KbDocument.query.filter(
+                    KbDocument.created_at >= yesterday_start,
+                    KbDocument.created_at < today_start).count()
+                new_docs_prev = KbDocument.query.filter(
+                    KbDocument.created_at >= day_before_start,
+                    KbDocument.created_at < yesterday_start).count()
+        except Exception:
+            pass
+        docs_delta = new_docs_yesterday - new_docs_prev
+
+        # ---- 管理员:全员负载 ----
+        load_lines = []
+        if user.role == 'admin':
+            for u in User.query.filter(User.is_disabled.is_(False)).all():
+                ua = TaskAssignment.query.filter_by(user_id=u.id).all()
+                ut = len(ua)
+                ud = sum(1 for a in ua if a.status in DONE_STATUS)
+                uover = sum(1 for a in ua
+                            if a.status not in DONE_STATUS and a.task.end_time < now)
+                urate = int(ud / ut * 100) if ut else 0
+                load_lines.append('- %s: %d 待办, 完成率 %d%%, 逾期 %d' % (
+                    u.name or u.username, ut, urate, uover))
 
         def _sec(title, items, fmt):
             if not items:
@@ -169,9 +250,22 @@ def _send_daily_summary(now):
                 lines.append('- ' + fmt(a))
             lines.append('')
 
-        lines = ['%s 的待办日报(%s %s)' % (user.name or user.username,
-                                          today, _weekday_cn(now)), '']
-        lines.append('共有待办 %d 项,已完成 %d 项,完成率 %d%%。' % (total, done, rate))
+        def _mk(a):
+            over = ' · 已逾期' if a.task.end_time < now else ''
+            return '%s(%s类,截止 %s)%s' % (
+                a.task.title, a.task.category,
+                a.task.end_time.strftime('%m-%d %H:%M'), over)
+
+        lines = ['%s 的日报(%s %s)' % (user.name or user.username,
+                                      today_fmt, _weekday_cn(now)), '']
+        lines.append('【概览】')
+        lines.append('- 待处理任务 %d 项(较前日 %s)' % (
+            len(pending_all), _delta_text(tasks_delta)))
+        lines.append('- 已完成 %d 项, 完成率 %d%%' % (done, rate))
+        lines.append('- 随手记 %d 条(较前日 %s)' % (
+            note_count, _delta_text(notes_delta)))
+        lines.append('- 知识库条目 %d 条(较前日 %s)' % (
+            kb_count, _delta_text(docs_delta)))
         lines.append('')
         _sec('已逾期', overdue, lambda a: '%s(%s类,截止 %s,已逾期 %d 天)' % (
             a.task.title, a.task.category,
@@ -180,22 +274,25 @@ def _send_daily_summary(now):
         _sec('周末到期', weekend_due, lambda a: '%s(%s类,%s截止 %s)' % (
             a.task.title, a.task.category, _weekday_cn(a.task.end_time),
             a.task.end_time.strftime('%H:%M')))
-        _sec('今日截止', due_today, lambda a: '%s(%s类,截止 %s)' % (
+        _sec('今日', today_tasks, _mk)
+        _sec('本周', week_other, _mk)
+        _sec('后续', other_pending[:20], _mk)
+        _sec('最近完成', recent, lambda a: '%s(%s类,完成于 %s)' % (
             a.task.title, a.task.category,
-            a.task.end_time.strftime('%H:%M')))
+            a.completed_at.strftime('%m-%d %H:%M')))
         _sec('未来 3 天', upcoming, lambda a: '%s(%s类,截止 %s)' % (
             a.task.title, a.task.category,
             a.task.end_time.strftime('%m-%d %H:%M')))
-        _sec('未完成', sorted(pending, key=lambda x: x.task.end_time)[:20],
-             lambda a: '%s(%s类,截止 %s)' % (
-                 a.task.title, a.task.category,
-                 a.task.end_time.strftime('%m-%d %H:%M')))
+        if load_lines:
+            lines.append('【全员负载】%d 人:' % len(load_lines))
+            lines.extend(load_lines)
+            lines.append('')
         lines.append('')
         lines.append('—— 知行合一 · 待办系统自动发送,请勿回复')
 
         text = '\n'.join(lines)
         html = _summary_html(lines)
-        ok, err = send_email(user.email, '【知行合一】待办日报 %s' % today,
+        ok, err = send_email(user.email, '【知行合一】%s 日报' % today_fmt,
                              html, text, category='summary')
         if ok:
             _mark_sent(key)

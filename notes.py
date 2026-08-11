@@ -69,6 +69,7 @@ def init_models(database):
         tags = database.Column(database.String(1000), default='[]')
         version = database.Column(database.Integer, default=0)
         simhash = database.Column(database.String(64), default='', index=True)
+        refined_at = database.Column(database.DateTime)
         created_at = database.Column(database.DateTime,
                                     default=datetime.datetime.utcnow)
         updated_at = database.Column(
@@ -103,6 +104,8 @@ def init_models(database):
         status = database.Column(database.String(20), default='queued')
         trigger = database.Column(database.String(20), default='manual')
         progress = database.Column(database.Integer, default=0)
+        phase = database.Column(database.String(50), default='')
+        cancel = database.Column(database.Integer, default=0)
         result = database.Column(database.Text, default='')
         error = database.Column(database.Text, default='')
         created_by = database.Column(database.Integer, nullable=True)
@@ -110,6 +113,9 @@ def init_models(database):
                                     default=datetime.datetime.utcnow)
         started_at = database.Column(database.DateTime)
         finished_at = database.Column(database.DateTime)
+        updated_at = database.Column(database.DateTime,
+                                     default=datetime.datetime.utcnow,
+                                     onupdate=datetime.datetime.utcnow)
 
     Note, Thread, NoteRule, NoteJob = Note_, Thread_, NoteRule_, NoteJob_
     # 表由 app.py init_db() 的 db.create_all() 统一创建,无需在此 create_all

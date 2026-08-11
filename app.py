@@ -207,6 +207,7 @@ class User(UserMixin, db.Model):
     email_code = db.Column(db.String(6), default='')
     email_code_expires_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    registration_ip = db.Column(db.String(64), default='', index=True)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -581,6 +582,8 @@ def _run_sqlite_migrations():
             c.execute("ALTER TABLE user ADD COLUMN unlock_code VARCHAR(6) DEFAULT ''")
         if 'unlock_code_expires_at' not in cols:
             c.execute('ALTER TABLE user ADD COLUMN unlock_code_expires_at DATETIME')
+        if 'registration_ip' not in cols:
+            c.execute("ALTER TABLE user ADD COLUMN registration_ip VARCHAR(64) DEFAULT ''")
         c.execute('PRAGMA table_info(task)')
         cols = [r[1] for r in c.fetchall()]
         if 'category' not in cols:
@@ -609,6 +612,48 @@ def _run_sqlite_migrations():
             c.execute("ALTER TABLE kb_collection ADD COLUMN visibility VARCHAR(10) DEFAULT 'private'")
         if 'owner_id' not in cols:
             c.execute('ALTER TABLE kb_collection ADD COLUMN owner_id INTEGER')
+        c.execute('PRAGMA table_info(kb_point)')
+        cols = [r[1] for r in c.fetchall()]
+        if 'tags' not in cols:
+            c.execute("ALTER TABLE kb_point ADD COLUMN tags TEXT DEFAULT '[]'")
+        if 'summary' not in cols:
+            c.execute("ALTER TABLE kb_point ADD COLUMN summary TEXT DEFAULT ''")
+        if 'refined_at' not in cols:
+            c.execute('ALTER TABLE kb_point ADD COLUMN refined_at DATETIME')
+        c.execute('PRAGMA table_info(note)')
+        cols = [r[1] for r in c.fetchall()]
+        if 'refined_at' not in cols:
+            c.execute('ALTER TABLE note ADD COLUMN refined_at DATETIME')
+        c.execute('PRAGMA table_info(note_job)')
+        cols = [r[1] for r in c.fetchall()]
+        if 'cancel' not in cols:
+            c.execute('ALTER TABLE note_job ADD COLUMN cancel INTEGER DEFAULT 0')
+        if 'phase' not in cols:
+            c.execute("ALTER TABLE note_job ADD COLUMN phase VARCHAR(50) DEFAULT ''")
+        if 'updated_at' not in cols:
+            c.execute('ALTER TABLE note_job ADD COLUMN updated_at DATETIME')
+        c.execute('PRAGMA table_info(kb_document)')
+        cols = [r[1] for r in c.fetchall()]
+        if 'refined_at' not in cols:
+            c.execute('ALTER TABLE kb_document ADD COLUMN refined_at DATETIME')
+        c.execute(
+            "CREATE TABLE IF NOT EXISTS kb_collection_group ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "collection_id INTEGER NOT NULL, "
+            "group_id INTEGER NOT NULL)")
+        c.execute(
+            "CREATE TABLE IF NOT EXISTS kb_point_group ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "point_id INTEGER NOT NULL, "
+            "group_id INTEGER NOT NULL)")
+        c.execute('CREATE INDEX IF NOT EXISTS ix_kbcg_coll '
+                  'ON kb_collection_group(collection_id)')
+        c.execute('CREATE INDEX IF NOT EXISTS ix_kbcg_group '
+                  'ON kb_collection_group(group_id)')
+        c.execute('CREATE INDEX IF NOT EXISTS ix_kbpg_point '
+                  'ON kb_point_group(point_id)')
+        c.execute('CREATE INDEX IF NOT EXISTS ix_kbpg_group '
+                  'ON kb_point_group(group_id)')
         c.execute(
             "UPDATE kb_document SET last_recognition_at=updated_at, "
             "last_recognition_type='upload', "
@@ -1202,6 +1247,14 @@ def extract_title_from_text(text):
     QUOTE_CHARS = '\u201c\u201d\u300c\u300d"'
     QUOTE_PAT = re.compile(r'[' + QUOTE_CHARS + r']([^' + QUOTE_CHARS + r']{4,60})[' + QUOTE_CHARS + r']')
 
+    # 优先取【】中的名称,如【分中心项目委会议时间】→ 分中心项目委会议时间
+    for line in lines:
+        m = re.search(r'【([^】]{2,60})】', line)
+        if m:
+            name = m.group(1).strip()
+            if name and not any(kw in name for kw in TITLE_BLOCK_WORDS):
+                return name[:80]
+
     considered = []
     for line in lines:
         clean = re.sub(r'https?://\S+', '', line).strip()
@@ -1532,12 +1585,16 @@ def register():
         username = request.form.get('username', '').strip()
         name = request.form.get('name', '').strip()
         password = request.form.get('password', '')
-        if not username or not password:
-            flash('用户名和密码不能为空', 'danger')
+        if not username or not name:
+            flash('用户名和姓名不能为空', 'danger')
             return render_template('register.html', username=username,
                                    name=name)
         if len(username) < 2 or len(username) > 80:
             flash('用户名长度需在 2-80 个字符之间', 'danger')
+            return render_template('register.html', username=username,
+                                   name=name)
+        if len(name) > 80:
+            flash('姓名不能超过 80 个字符', 'danger')
             return render_template('register.html', username=username,
                                    name=name)
         if len(password) < 6:
@@ -1545,11 +1602,17 @@ def register():
             return render_template('register.html', username=username,
                                    name=name)
         if User.query.filter_by(username=username).first():
-            flash('用户名已存在，请更换', 'danger')
+            flash('该账号已注册，请直接登录', 'danger')
+            return render_template('register.html', username=username,
+                                   name=name)
+        reg_ip = client_ip()
+        if reg_ip and User.query.filter(
+                User.registration_ip == reg_ip).first():
+            flash('当前网络环境已注册过账号，如需其他账号请联系管理员', 'danger')
             return render_template('register.html', username=username,
                                    name=name)
         user = User(username=username, name=name, role='user',
-                    status='pending')
+                    status='pending', registration_ip=reg_ip)
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
@@ -1867,6 +1930,33 @@ def admin_logs():
                            total_users=total_users,
                            total_logs=(db.session.query(OperationLog.id)
                                        .count()))
+
+
+@app.route('/admin/logs/cleanup', methods=['POST'])
+@login_required
+@admin_required
+def admin_logs_cleanup():
+    """操作日志清理:按保留天数删除过期日志,或清空全部。"""
+    mode = (request.form.get('mode') or '30d').strip()
+    if mode == 'all':
+        query = OperationLog.query
+        label = '清空全部日志'
+    else:
+        days = {'7d': 7, '30d': 30, '90d': 90}.get(mode, 30)
+        before = datetime.utcnow() - timedelta(days=days)
+        query = OperationLog.query.filter(OperationLog.created_at < before)
+        label = f'删除{days}天前日志'
+    try:
+        count = query.delete()
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logger.warning('logs cleanup failed: %s', e)
+        flash(f'清理失败: {e}', 'danger')
+        return redirect(url_for('admin_logs'))
+    log_operation('logs_cleanup', target=label, detail=f'删除 {count} 条日志')
+    flash(f'已清理 {count} 条日志', 'success')
+    return redirect(url_for('admin_logs'))
 
 
 @app.route('/admin/emails', methods=['GET'])
@@ -2456,6 +2546,20 @@ def user_dashboard():
         TaskAssignment.user_id == current_user.id, TaskAssignment.status == 'pending'
     ).order_by(Task.end_time).all()
 
+    try:
+        from knowledge import KbCollection as _KbCollection
+        from knowledge import _visible_collection_ids as _kb_visible_cols
+        _vis = _kb_visible_cols()
+        if _vis is None:
+            _collections = _KbCollection.query.order_by(
+                _KbCollection.name).all()
+        else:
+            _collections = _KbCollection.query.filter(
+                _KbCollection.id.in_(_vis)
+            ).order_by(_KbCollection.name).all()
+    except Exception:
+        _collections = []
+
     return render_template('dashboard.html', total=total,
                            completed=completed, pending=pending,
                            rejected=rejected, rate=rate,
@@ -2474,7 +2578,8 @@ def user_dashboard():
                            new_docs_yesterday=new_docs_yesterday,
                            tasks_delta=tasks_delta,
                            notes_delta=notes_delta,
-                           docs_delta=docs_delta)
+                           docs_delta=docs_delta,
+                           collections=_collections)
 
 
 @app.route('/api/group-members')
@@ -2593,6 +2698,8 @@ def _unified_search_data(q):
     try:
         import knowledge as _kb
         visible = _kb._visible_doc_ids()  # None=全部(管理员)
+        visible_points = _kb._visible_point_ids()
+        vp_set = set(visible_points) if visible_points is not None else None
         coll_names = {}
 
         def _load_coll_names(ids):
@@ -2612,7 +2719,7 @@ def _unified_search_data(q):
         point_hit_docs = set()
         try:
             for pt in _kb.keyword_search_points(q, k=12):
-                if visible is not None and pt['doc_id'] not in visible:
+                if vp_set is not None and pt['point_id'] not in vp_set:
                     continue
                 point_hit_docs.add(pt['doc_id'])
                 kb.append({
@@ -2810,6 +2917,7 @@ def api_quick_task():
     description = (data.get('description') or '').strip() or title
 
     is_all = current_user.role == 'admin' and bool(data.get('is_all'))
+    assign_self = bool(data.get('assign_self', True))
     recurrence_interval_days = int(data.get('recurrence_interval_days') or 0)
     recurrence_count = int(data.get('recurrence_count') or 0)
     total = recurrence_count if recurrence_interval_days and recurrence_count > 0 else 1
@@ -2821,7 +2929,8 @@ def api_quick_task():
                 assignee_ids.add(int(uid))
             except (TypeError, ValueError):
                 continue
-        assignee_ids.add(current_user.id)
+        if assign_self:
+            assignee_ids.add(current_user.id)
 
     group_ids = []
     for gid in data.get('group_ids') or []:
@@ -2829,6 +2938,8 @@ def api_quick_task():
             group_ids.append(int(gid))
         except (TypeError, ValueError):
             continue
+    if not is_all and not assignee_ids and not group_ids:
+        return jsonify({'ok': False, 'error': '请至少选择一位负责人(可勾选自己)'}), 400
 
     created_titles = []
     try:
@@ -2858,7 +2969,6 @@ def api_quick_task():
                             if not m.is_disabled and m.status == 'approved':
                                 uid_set.add(m.id)
                         task.groups.append(g)
-                uid_set.add(current_user.id)
                 for uid in uid_set:
                     db.session.add(TaskAssignment(task_id=task.id, user_id=uid))
                     create_notification(uid, 'task_assigned',
@@ -2940,7 +3050,7 @@ def admin_jobs_trigger():
     from notes import NoteJob
     scope = request.form.get('scope', 'all')
     target_ids = request.form.get('target', '').strip()
-    if scope not in ('all', 'notes', 'kb'):
+    if scope not in ('all', 'notes', 'kb', 'refine'):
         scope = 'all'
     # target 形如 'note:1,2' / 'kb:3,4' / 'thread:1'
     job = NoteJob(scope=scope, target=target_ids, status='queued',
@@ -2978,6 +3088,7 @@ def admin_jobs_retry(job_id):
         flash('待办不存在', 'danger')
         return redirect(url_for('admin_jobs'))
     job.status = 'queued'
+    job.cancel = 0
     job.error = ''
     job.result = ''
     job.progress = 0
@@ -2989,44 +3100,22 @@ def admin_jobs_retry(job_id):
     return redirect(url_for('admin_jobs'))
 
 
-@app.route('/api/quick-upload', methods=['POST'])
-@login_required
-def api_quick_upload():
-    """首页快速上传知识(入知识库识别队列)。"""
-    import uuid as _uuid
-    import knowledge as _kb
-    from knowledge import KbDocument, STATUS_QUEUED
-    files = request.files.getlist('file')
-    files = [f for f in files if f and f.filename]
-    if not files:
-        return jsonify({'ok': False, 'error': '未选择文件'}), 400
-    upload_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'kb')
-    os.makedirs(upload_dir, exist_ok=True)
-    added, rejected = [], []
-    for f in files:
-        ext = os.path.splitext(f.filename)[1].lower()
-        if ext not in _kb.ALLOWED_EXTENSIONS:
-            rejected.append(f'{f.filename}({ext})')
-            continue
-        store_name = _uuid.uuid4().hex + ext
-        target = os.path.join(upload_dir, store_name)
-        f.save(target)
-        title = os.path.splitext(f.filename)[0] or '未命名文档'
-        doc = KbDocument(title=title, filename=f.filename, file_path=target,
-                         file_type=ext.lstrip('.'), file_size=os.path.getsize(
-                             target), status=STATUS_QUEUED,
-                         uploaded_by=current_user.id,
-                         last_recognition_type='upload')
-        db.session.add(doc)
-        added.append(title)
+@app.route('/admin/jobs/<int:job_id>/stop', methods=['POST'])
+@admin_required
+def admin_jobs_stop(job_id):
+    from notes import NoteJob
+    job = db.session.get(NoteJob, job_id)
+    if not job:
+        flash('待办不存在', 'danger')
+        return redirect(url_for('admin_jobs'))
+    job.cancel = 1
+    if job.status not in ('done', 'failed', 'cancelled'):
+        job.status = 'cancelled'
+    job.error = ''
+    job.result = job.result or ''
     db.session.commit()
-    try:
-        _kb._bump_data_version()
-    except Exception:
-        pass
-    return jsonify({'ok': True, 'added': added,
-                    'rejected': rejected,
-                    'pending_url': url_for('kb.index')})
+    flash(f'已请求停止待办 #{job.id}', 'success')
+    return redirect(url_for('admin_jobs'))
 
 
 def _build_task_stats(task_ids, user_id):
@@ -3217,7 +3306,11 @@ def user_tasks():
                                     if not m.is_disabled and m.status == 'approved':
                                         uid_set.add(m.id)
                                 task.groups.append(g)
-                        uid_set.add(current_user.id)
+                        if str(current_user.id) in assignee_ids:
+                            uid_set.add(current_user.id)
+                        if not uid_set:
+                            flash('请至少选择一位负责人(可勾选自己)', 'danger')
+                            return redirect(url_for('user_tasks'))
                         for uid in uid_set:
                             db.session.add(TaskAssignment(task_id=task.id, user_id=uid))
                             create_notification(uid, 'task_assigned',

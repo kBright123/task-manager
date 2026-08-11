@@ -364,21 +364,23 @@
   <nav class="top-nav">
     <div class="top-nav-inner">
       <a href="{{ url_for('user_dashboard') }}" class="top-nav-logo">
-        <svg class="brand-mark" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect width="32" height="32" rx="7" fill="#fff"/>
+        <svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="bzg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#00a05a"/>
+              <stop offset="1" stop-color="#006633"/>
+            </linearGradient>
+          </defs>
+          <rect width="32" height="32" rx="7" fill="url(#bzg)"/>
           <!-- 知: 翻开的书 -->
-          <path d="M5 26 V14 a8 5 0 0 1 11-1 a8 5 0 0 1 11 1 V26"/>
-          <path d="M16 13 V26"/>
-          <!-- 行: 向上践行的足迹 -->
-          <g fill="currentColor" stroke="none">
-            <path d="M12.6 9.8 c-1.6 0-2.5 1-2.3 2.4 c.2 1.3 1.3 2 2.8 2 c1.5 0 2.4-.7 2.6-2 c.2-1.3-.7-2.4-2.1-2.4 z"/>
-            <circle cx="11.4" cy="8.4" r="0.55"/>
-            <circle cx="12.8" cy="7.9" r="0.55"/>
-            <circle cx="14.2" cy="8.4" r="0.55"/>
-            <path d="M20.6 6.8 c-1.6 0-2.5 1-2.3 2.4 c.2 1.3 1.3 2 2.8 2 c1.5 0 2.4-.7 2.6-2 c.2-1.3-.7-2.4-2.1-2.4 z"/>
-            <circle cx="19.4" cy="5.4" r="0.55"/>
-            <circle cx="20.8" cy="4.9" r="0.55"/>
-            <circle cx="22.2" cy="5.4" r="0.55"/>
+          <g stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 26 V14 a8 5 0 0 1 11-1 a8 5 0 0 1 11 1 V26"/>
+            <path d="M16 13 V26"/>
+          </g>
+          <!-- 行: 向上的箭头 -->
+          <g stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 10.5 V3.5"/>
+            <path d="M11.6 7.6 L16 2.5 L20.4 7.6"/>
           </g>
         </svg>
         <span>知行合一</span>
@@ -638,6 +640,61 @@
   };
   </script>
   <script src="{{ url_for('static', filename='js/search.js', v=staticv('js/search.js')) }}" defer></script>
+  <style>
+    /* 移动端下拉刷新指示器: 紧凑胶囊,主题绿,支持暗黑模式 */
+    .ptr-indicator {
+      position: fixed;
+      top: var(--nav-height);
+      left: 50%;
+      z-index: 3000;
+      height: 44px;
+      padding: 0 12px 0 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 100px;
+      font-size: .75rem;
+      color: var(--gray-500);
+      background: rgba(255, 255, 255, .94);
+      border: 1px solid rgba(148, 163, 184, .3);
+      box-shadow: 0 8px 24px rgba(15, 23, 42, .16);
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px);
+      transform: translate(-50%, -140%);
+      transition: transform .12s ease-out;
+    }
+    .ptr-indicator .ptr-arc {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--primary-light);
+      color: var(--primary);
+      font-size: .95rem;
+      box-shadow: inset 0 0 0 1px rgba(0, 102, 51, .16);
+      flex-shrink: 0;
+    }
+    .ptr-indicator .ptr-arc i { line-height: 1; transition: transform .12s ease-out; }
+    .ptr-indicator.pull-ready { color: var(--primary); font-weight: 600; }
+    .ptr-indicator.pull-ready .ptr-arc {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(0, 102, 51, .35);
+    }
+    @media (prefers-color-scheme: dark) {
+      .ptr-indicator {
+        background: rgba(15, 23, 42, .92);
+        border-color: rgba(71, 85, 105, .55);
+        color: var(--gray-400);
+        box-shadow: 0 10px 28px rgba(0, 0, 0, .55);
+      }
+      .ptr-indicator .ptr-arc { background: rgba(0, 102, 51, .3); box-shadow: inset 0 0 0 1px rgba(16, 185, 129, .4); }
+      .ptr-indicator.pull-ready { color: #fff; }
+      .ptr-indicator.pull-ready .ptr-arc { box-shadow: 0 4px 14px rgba(16, 185, 129, .45); }
+    }
+  </style>
   <script>
     // 移动端下拉刷新(webview 内原生下拉刷新不可用时的兜底)
     (function () {
@@ -648,8 +705,9 @@
       var navTop = document.body.classList.contains('authed') ? 64 : 0;
       function createIndicator() {
         var el = document.createElement('div');
-        el.style.cssText = 'position:fixed;top:' + navTop + 'px;left:0;right:0;height:48px;display:flex;align-items:center;justify-content:center;font-size:.75rem;color:var(--gray-500);background:#fff;z-index:3000;transform:translateY(-100%);transition:transform .18s;box-shadow:0 1px 6px rgba(0,0,0,.06);';
-        el.innerHTML = '<span><i class="bi bi-arrow-down"></i> 下拉刷新</span>';
+        el.className = 'ptr-indicator';
+        el.style.top = navTop + 'px';
+        el.innerHTML = '<div class="ptr-arc"><i class="bi bi-arrow-down"></i></div><span class="ptr-txt">下拉刷新</span>';
         document.body.appendChild(el);
         return el;
       }
@@ -657,6 +715,21 @@
         return !!(t && t.closest && t.closest('select, input, textarea, button, .table-responsive, .modal, [data-bs-toggle]'));
       }
       function atTop() { return (window.pageYOffset || document.documentElement.scrollTop) <= 0; }
+      function resetIndicator() {
+        if (!indicator) return;
+        indicator.classList.remove('pull-ready');
+        var icon = indicator.querySelector('.ptr-arc i');
+        if (icon) { icon.className = 'bi bi-arrow-down'; icon.style.transform = ''; }
+        indicator.querySelector('.ptr-txt').textContent = '下拉刷新';
+      }
+      function hideIndicator() {
+        if (!indicator) return;
+        indicator.style.transform = 'translate(-50%, -140%)';
+        resetIndicator();
+        var el = indicator;
+        setTimeout(function () { el.remove(); }, 200);
+        indicator = null;
+      }
       document.addEventListener('touchstart', function (e) {
         if (e.touches.length !== 1) return;
         if (!atTop() || isFormTarget(e.target)) { pulling = false; return; }
@@ -667,21 +740,37 @@
         if (!pulling) return;
         if (!atTop()) { pulling = false; return; }
         var dy = e.touches[0].clientY - startY;
-        if (dy <= 0) { dist = 0; if (indicator) indicator.style.transform = 'translateY(-100%)'; return; }
+        if (dy <= 0) {
+          dist = 0;
+          if (indicator) {
+            indicator.style.transform = 'translate(-50%, -140%)';
+            resetIndicator();
+          }
+          return;
+        }
         dist = Math.min(dy * 0.5, 90);
         if (!indicator) indicator = createIndicator();
-        indicator.style.transform = 'translateY(' + (dist - 48) + 'px)';
-        indicator.innerHTML = dist >= THRESHOLD
-          ? '<span style="color:var(--primary);font-weight:600;"><i class="bi bi-arrow-down-circle"></i> 释放刷新</span>'
-          : '<span><i class="bi bi-arrow-down"></i> 下拉刷新</span>';
+        indicator.style.transform = 'translate(-50%, ' + (dist - 54) + 'px)';
+        var ready = dist >= THRESHOLD;
+        var ratio = Math.min(dist / THRESHOLD, 1);
+        var icon = indicator.querySelector('.ptr-arc i');
+        if (icon) {
+          if (ready) { icon.className = 'bi bi-arrow-repeat'; icon.style.transform = ''; }
+          else { icon.className = 'bi bi-arrow-down'; icon.style.transform = 'rotate(' + Math.round(ratio * 180) + 'deg)'; }
+        }
+        indicator.querySelector('.ptr-txt').textContent = ready ? '释放刷新' : '下拉刷新';
+        indicator.classList.toggle('pull-ready', ready);
       }, { passive: true });
-      document.addEventListener('touchend', function () {
+      function endPull() {
         if (!pulling) return;
         pulling = false;
-        if (indicator) indicator.style.transform = 'translateY(-100%)';
-        if (dist >= THRESHOLD) window.location.reload();
+        var doReload = dist >= THRESHOLD;
+        hideIndicator();
         dist = 0;
-      });
+        if (doReload) window.location.reload();
+      }
+      document.addEventListener('touchend', endPull);
+      document.addEventListener('touchcancel', endPull);
     })();
   </script>
   {% block extra_js %}{% endblock %}

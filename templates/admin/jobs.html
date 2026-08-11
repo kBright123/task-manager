@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}定时任务 - 后台管理{% endblock %}
+{% block title %}管理{% endblock %}
 {% block content %}
 <ul class="nav nav-tabs mb-3 flex-nowrap" style="border-bottom:1px solid var(--gray-200);flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;">
   <li class="nav-item">
@@ -22,14 +22,15 @@
     <small class="text-muted" style="font-size:.75rem;">每周六 22:00 自动整理;也可手动指定范围触发,由后台进程执行</small>
   </div>
   <div class="card-body py-3">
-    <form method="POST" action="{{ url_for('admin_jobs_trigger') }}" class="d-flex flex-wrap align-items-center gap-2">
-      <select name="scope" class="form-select form-select-sm" style="width:auto;min-width:120px;">
+    <form method="POST" action="{{ url_for('admin_jobs_trigger') }}" class="d-flex align-items-center gap-2">
+      <select name="scope" class="form-select form-select-sm flex-shrink-0" style="width:auto;min-width:120px;">
         <option value="all">全部(笔记+知识)</option>
         <option value="notes">仅笔记</option>
         <option value="kb">仅知识库</option>
+        <option value="refine">全量提炼</option>
       </select>
-      <input name="target" class="form-control form-control-sm" style="width:260px;font-size:.8rem;" placeholder="指定ID,如 note:1,2 / kb:3,4(留空=全部)">
-      <button class="btn btn-sm btn-primary"><i class="bi bi-play-fill"></i> 触发执行</button>
+      <input name="target" class="form-control form-control-sm" style="flex:1 1 160px;min-width:0;font-size:.8rem;" placeholder="指定ID,如 note:1,2 / kb:3,4(留空=全部)">
+      <button class="btn btn-sm btn-primary flex-shrink-0"><i class="bi bi-play-fill"></i> 触发执行</button>
     </form>
   </div>
 </div>
@@ -54,15 +55,21 @@
           <td>
             {% if j.status == 'done' %}<span class="status-badge status-completed">已完成</span>
             {% elif j.status == 'failed' %}<span class="status-badge status-rejected">失败</span>
+            {% elif j.status == 'cancelled' %}<span class="status-badge" style="background:var(--gray-400);">已停止</span>
             {% elif j.status == 'running' %}<span class="status-badge">进行中</span>
             {% else %}<span class="status-badge">排队中</span>{% endif %}
           </td>
           <td>{{ j.created_at.strftime('%m-%d %H:%M') if j.created_at else '-' }}</td>
           <td>{{ j.finished_at.strftime('%m-%d %H:%M') if j.finished_at else '-' }}</td>
           <td>
-            {% if j.status == 'failed' %}
+            {% if j.status == 'failed' or j.status == 'cancelled' %}
             <form method="POST" action="{{ url_for('admin_jobs_retry', job_id=j.id) }}" style="display:inline;">
-              <button class="btn btn-sm btn-outline-primary" style="padding:1px 8px;font-size:.7rem;">重试</button>
+              <button class="btn btn-sm btn-outline-primary" style="padding:1px 8px;font-size:.7rem;" title="重新入队执行">重试</button>
+            </form>
+            {% endif %}
+            {% if j.status == 'queued' or j.status == 'running' %}
+            <form method="POST" action="{{ url_for('admin_jobs_stop', job_id=j.id) }}" style="display:inline;">
+              <button class="btn btn-sm btn-outline-danger" style="padding:1px 8px;font-size:.7rem;" title="请求停止(每阶段完成后生效)">停止</button>
             </form>
             {% endif %}
             <button class="btn btn-sm btn-outline-secondary" style="padding:1px 8px;font-size:.7rem;" type="button" data-bs-toggle="collapse" data-bs-target="#jobResult{{ j.id }}">结果</button>
@@ -85,14 +92,29 @@
   </div>
   <div class="card-body d-md-none">
     {% for j in jobs %}
-    <div class="mb-2 p-2" style="border:1px solid var(--gray-200);border-radius:8px;font-size:.8rem;">
-      <div>#{{ j.id }} · {{ j.scope }} · {{ '自动' if j.trigger=='auto' else '手动' }}</div>
-      <div>
-        {% if j.status == 'done' %}<span class="status-badge status-completed">已完成</span>
-        {% elif j.status == 'failed' %}<span class="status-badge status-rejected">失败</span>
-        {% else %}<span class="status-badge">排队/进行中</span>{% endif %}
-        <small class="text-muted"> {{ j.created_at.strftime('%m-%d %H:%M') if j.created_at else '' }}</small>
-      </div>
+      <div class="mb-2 p-2" style="border:1px solid var(--gray-200);border-radius:8px;font-size:.8rem;">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>#{{ j.id }} · {{ j.scope }} · {{ '自动' if j.trigger=='auto' else '手动' }}</div>
+          <div>
+            {% if j.status == 'failed' or j.status == 'cancelled' %}
+            <form method="POST" action="{{ url_for('admin_jobs_retry', job_id=j.id) }}" style="display:inline;">
+              <button class="btn btn-sm btn-outline-primary" style="padding:0 6px;font-size:.68rem;">重试</button>
+            </form>
+            {% endif %}
+            {% if j.status == 'queued' or j.status == 'running' %}
+            <form method="POST" action="{{ url_for('admin_jobs_stop', job_id=j.id) }}" style="display:inline;">
+              <button class="btn btn-sm btn-outline-danger" style="padding:0 6px;font-size:.68rem;">停止</button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        <div>
+          {% if j.status == 'done' %}<span class="status-badge status-completed">已完成</span>
+          {% elif j.status == 'failed' %}<span class="status-badge status-rejected">失败</span>
+          {% elif j.status == 'cancelled' %}<span class="status-badge" style="background:var(--gray-400);">已停止</span>
+          {% else %}<span class="status-badge">排队/进行中</span>{% endif %}
+          <small class="text-muted"> {{ j.created_at.strftime('%m-%d %H:%M') if j.created_at else '' }}</small>
+        </div>
       <details style="font-size:.72rem;color:var(--gray-600);margin-top:6px;"><summary>查看结果</summary><pre style="white-space:pre-wrap;max-height:220px;overflow-y:auto;background:#fafafa;padding:8px;border-radius:6px;">{{ j.result or j.error or '无' }}</pre></details>
     </div>
     {% else %}

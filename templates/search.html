@@ -34,21 +34,12 @@
     <div style="font-size:.78rem;">支持检索待办、随手记与知识库文档</div>
   </div>
 </div>
-{% elif data.total == 0 %}
-<div class="card">
-  <div class="empty-state">
-    <svg viewBox="0 0 96 96" fill="none"><circle cx="48" cy="48" r="40" fill="var(--gray-100)"/><circle cx="42" cy="42" r="13" stroke="var(--gray-300)" stroke-width="3" fill="#fff"/><path d="M52 52l14 14" stroke="var(--primary)" stroke-width="4" stroke-linecap="round"/></svg>
-    <div class="es-title">暂无匹配结果</div>
-    <div class="es-sub">没有找到与「{{ q }}」相关的内容，试试更换关键词或减少搜索条件。</div>
-    <a href="{{ url_for('user_dashboard') }}" class="btn btn-sm btn-primary"><i class="bi bi-house"></i> 返回首页</a>
-  </div>
-</div>
 {% else %}
 <div class="row g-3">
   <div class="col-12 col-lg-4">
-    {% if data.kb %}
     <div class="card mb-3">
       <div class="sr-group-head"><i class="bi bi-collection" style="color:var(--warning);"></i> 知识库<span class="sr-group-count">{{ data.kb|length }}</span></div>
+      {% if data.kb %}
       <div>
         {% for k in data.kb %}
         <a href="{{ k.detail_url }}" class="sr-item">
@@ -61,13 +52,15 @@
         </a>
         {% endfor %}
       </div>
+      {% else %}
+      <div class="sr-empty">暂无匹配</div>
+      {% endif %}
     </div>
-    {% endif %}
   </div>
   <div class="col-12 col-lg-4">
-    {% if data.tasks %}
     <div class="card mb-3">
       <div class="sr-group-head"><i class="bi bi-check2-square" style="color:var(--primary);"></i> 待办<span class="sr-group-count">{{ data.tasks|length }}</span></div>
+      {% if data.tasks %}
       <div>
         {% for t in data.tasks %}
         <a href="{{ t.detail_url }}" class="sr-item">
@@ -85,27 +78,31 @@
         </a>
         {% endfor %}
       </div>
+      {% else %}
+      <div class="sr-empty">暂无匹配</div>
+      {% endif %}
     </div>
-    {% endif %}
   </div>
   <div class="col-12 col-lg-4">
-    {% if data.notes %}
     <div class="card mb-3">
       <div class="sr-group-head"><i class="bi bi-journal-text" style="color:var(--success);"></i> 随手记<span class="sr-group-count">{{ data.notes|length }}</span></div>
+      {% if data.notes %}
       <div>
         {% for n in data.notes %}
         <a href="{{ n.detail_url }}" class="sr-item">
           <span class="sr-item-ico">📝</span>
           <span class="sr-item-main">
-            <span class="sr-item-title d-block">{{ n.title or '(无标题)' }}</span>
+            <span class="sr-item-title d-block">{{ (n.content or n.title or '(无标题)')[:60] }}</span>
             <span class="sr-item-meta d-block">{{ n.date }} 创建{% if n.thread %} · {{ n.thread }}{% endif %}</span>
           </span>
           <i class="bi bi-chevron-right" style="color:var(--gray-300);font-size:.72rem;flex-shrink:0;"></i>
         </a>
         {% endfor %}
       </div>
+      {% else %}
+      <div class="sr-empty">暂无匹配</div>
+      {% endif %}
     </div>
-    {% endif %}
   </div>
 </div>
 {% endif %}

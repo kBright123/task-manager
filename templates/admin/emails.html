@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}后台管理{% endblock %}
+{% block title %}管理{% endblock %}
 {% block content %}
 <ul class="nav nav-tabs mb-3 flex-nowrap" style="border-bottom:1px solid var(--gray-200);flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;">
   <li class="nav-item">
@@ -31,7 +31,6 @@
         <option value="failed" {% if status == 'failed' %}selected{% endif %}>失败</option>
       </select>
       <button class="btn btn-sm btn-primary flex-shrink-0" type="submit"><i class="bi bi-funnel"></i> 筛选</button>
-      <a href="{{ url_for('admin_emails') }}" class="btn btn-sm btn-outline-secondary flex-shrink-0">重置</a>
     </form>
     <div class="d-flex gap-2 align-items-center flex-shrink-0 d-none d-sm-flex">
       <span class="badge" style="background:var(--gray-100);color:var(--gray-600);font-size:.7rem;">共 {{ total }} 条</span>

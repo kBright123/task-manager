@@ -138,10 +138,13 @@ KbCollection = None
 KbPoint = None
 KbPointRel = None
 KbPointRef = None
+KbCollectionGroup = None
+KbPointGroup = None
 
 
 def init_models(database):
-    global db, KbDocument, KbPage, KbCollection, KbPoint, KbPointRel, KbPointRef
+    global db, KbDocument, KbPage, KbCollection, KbPoint, KbPointRel, \
+        KbPointRef, KbCollectionGroup, KbPointGroup
     db = database
 
     class _KbCollection(database.Model):
@@ -185,6 +188,7 @@ def init_models(database):
         recognition_count = database.Column(database.Integer, default=0)
         cancel = database.Column(database.Integer, default=0)
         auto_classified = database.Column(database.Integer, default=0)
+        refined_at = database.Column(database.DateTime)
 
         collection = database.relationship('_KbCollection',
                                            backref='documents')
@@ -214,6 +218,9 @@ def init_models(database):
         page_end = database.Column(database.Integer, default=0)
         word_count = database.Column(database.Integer, default=0)
         sort_order = database.Column(database.Integer, default=0)
+        tags = database.Column(database.Text, default='[]')
+        summary = database.Column(database.Text, default='')
+        refined_at = database.Column(database.DateTime)
         created_at = database.Column(database.DateTime,
                                      default=datetime.datetime.utcnow)
 
@@ -242,11 +249,33 @@ def init_models(database):
         created_at = database.Column(database.DateTime,
                                      default=datetime.datetime.utcnow)
 
+    class _KbCollectionGroup(database.Model):
+        __tablename__ = 'kb_collection_group'
+        id = database.Column(database.Integer, primary_key=True)
+        collection_id = database.Column(
+            database.Integer, database.ForeignKey('kb_collection.id'),
+            nullable=False, index=True)
+        group_id = database.Column(database.Integer,
+                                   database.ForeignKey('group.id'),
+                                   nullable=False, index=True)
+
+    class _KbPointGroup(database.Model):
+        __tablename__ = 'kb_point_group'
+        id = database.Column(database.Integer, primary_key=True)
+        point_id = database.Column(
+            database.Integer, database.ForeignKey('kb_point.id'),
+            nullable=False, index=True)
+        group_id = database.Column(database.Integer,
+                                   database.ForeignKey('group.id'),
+                                   nullable=False, index=True)
+
     KbDocument, KbPage = _KbDocument, _KbPage
     KbCollection = _KbCollection
     KbPoint = _KbPoint
     KbPointRel = _KbPointRel
     KbPointRef = _KbPointRef
+    KbCollectionGroup = _KbCollectionGroup
+    KbPointGroup = _KbPointGroup
 
 
 def enable_sqlite_wal():
@@ -1018,6 +1047,9 @@ _KB_POINT_DDL = [
      'page_end INTEGER DEFAULT 0, '
      'word_count INTEGER DEFAULT 0, '
      'sort_order INTEGER DEFAULT 0, '
+     'tags TEXT DEFAULT \'[]\', '
+     'summary TEXT DEFAULT \'\', '
+     'refined_at DATETIME, '
      'created_at DATETIME DEFAULT CURRENT_TIMESTAMP)'),
     ('kb_point_rel',
      'CREATE TABLE IF NOT EXISTS kb_point_rel ('
@@ -1058,7 +1090,537 @@ def _ensure_point_tables(conn):
                          'WHERE created_at IS NULL')
         except Exception:
             pass
+    if 'tags' not in cols:
+        try:
+            conn.execute('ALTER TABLE kb_point ADD COLUMN '
+                         "tags TEXT DEFAULT '[]'")
+        except Exception as e:
+            logger.warning('add kb_point.tags failed: %s', e)
+    if 'summary' not in cols:
+        try:
+            conn.execute('ALTER TABLE kb_point ADD COLUMN '
+                         "summary TEXT DEFAULT ''")
+        except Exception as e:
+            logger.warning('add kb_point.summary failed: %s', e)
+    if 'refined_at' not in cols:
+        try:
+            conn.execute('ALTER TABLE kb_point ADD COLUMN '
+                         'refined_at DATETIME')
+        except Exception as e:
+            logger.warning('add kb_point.refined_at failed: %s', e)
     conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# 知识点标签与去重合并
+# ---------------------------------------------------------------------------
+
+KB_POINT_MERGE_THRESHOLD = float(
+    os.environ.get('KB_POINT_MERGE_THRESHOLD', '0.82'))
+KB_POINT_MERGE_MAX = int(os.environ.get('KB_POINT_MERGE_MAX', '3000'))
+
+
+def _parse_point_tags(raw):
+    """解析 kb_point.tags(JSON 数组)为字符串列表。"""
+    if not raw:
+        return []
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except Exception:
+            return []
+    out = []
+    for t in (raw or []):
+        t = str(t).strip()
+        if t and t not in out:
+            out.append(t)
+    return out
+
+
+def _point_tag_counts(point_ids=None, collection_id=None):
+    """统计可见知识点下的标签出现次数,返回 {tag: n}(按次数降序)。
+
+    point_ids: 限制在指定知识点 id 集合内(按群组公开过滤后);
+    collection_id: 同时限制在指定集合内。
+    """
+    from collections import Counter
+    conn = _db_conn()
+    try:
+        if point_ids is not None:
+            if not point_ids:
+                return {}
+            ph = ','.join('?' * len(point_ids))
+            params = list(point_ids)
+            if collection_id:
+                sql = ('SELECT p.tags FROM kb_point p JOIN kb_document d '
+                       'ON d.id=p.doc_id WHERE p.id IN (%s) '
+                       "AND p.tags IS NOT NULL AND p.tags != '' "
+                       "AND p.tags != '[]' AND d.collection_id=?"
+                       % ph)
+                params.append(collection_id)
+            else:
+                sql = ('SELECT tags FROM kb_point WHERE id IN (%s) AND '
+                       "tags IS NOT NULL AND tags != '' AND tags != '[]'"
+                       % ph)
+            rows = conn.execute(sql, params).fetchall()
+        elif collection_id:
+            rows = conn.execute(
+                'SELECT p.tags FROM kb_point p JOIN kb_document d '
+                'ON d.id=p.doc_id WHERE '
+                "p.tags IS NOT NULL AND p.tags != '' AND p.tags != '[]' "
+                'AND d.collection_id=?', (collection_id,)).fetchall()
+        else:
+            rows = conn.execute(
+                'SELECT tags FROM kb_point WHERE '
+                "tags IS NOT NULL AND tags != '' AND tags != '[]'"
+            ).fetchall()
+    finally:
+        conn.close()
+    cnt = Counter()
+    for (raw,) in rows:
+        for t in _parse_point_tags(raw):
+            cnt[t] += 1
+    return dict(sorted(cnt.items(), key=lambda kv: (-kv[1], kv[0])))
+
+
+_KB_TAG_SYSTEM = (
+    '你是知识整理助手。下面是一组编号的知识点(标题+内容)。'
+    '请为每个知识点提取 2~5 个简短中文标签,标签用于分类与快速检索,'
+    '要具体不要泛泛(如 "Excel"、"数据分析"、"考试",不要 "知识点"、"文档")。\n'
+    '只输出一个 JSON 对象,键为知识点编号字符串,值为标签数组,'
+    '例如 {"1":["标签a","标签b"],"2":["标签c"]}。不要输出其他内容。'
+)
+
+
+def _parse_tag_json(raw):
+    """解析 LLM 返回的 JSON 对象(容错:去围栏、取首个 {…} 块)。"""
+    if not raw:
+        return {}
+    s = (raw or '').strip()
+    if s.startswith('```'):
+        s = re.sub(r'^```[a-zA-Z]*\s*', '', s)
+        s = re.sub(r'\s*```$', '', s)
+    m = re.search(r'\{.*\}', s, re.S)
+    if not m:
+        return {}
+    try:
+        data = json.loads(m.group(0))
+    except Exception:
+        return {}
+    out = {}
+    if isinstance(data, dict):
+        for k, v in data.items():
+            if isinstance(v, list):
+                tags = [str(t).strip() for t in v if str(t).strip()]
+                if tags:
+                    out[str(k)] = tags
+            elif isinstance(v, str) and v.strip():
+                out[str(k)] = [v.strip()]
+    return out
+
+
+def extract_point_tags(point_ids, max_text=180):
+    """使用 opencode 为知识点批量提取标签。返回 {point_id: [tags]}。"""
+    if not point_ids:
+        return {}
+    if KB_LLM_DISABLED:
+        return {}
+    conn = _db_conn()
+    try:
+        ph = ','.join('?' * len(point_ids))
+        rows = conn.execute(
+            'SELECT id, title, content FROM kb_point WHERE id IN (%s)'
+            % ph, point_ids).fetchall()
+    finally:
+        conn.close()
+    batch = []
+    for pid, title, content in rows:
+        title = _clean_point_title(title) or (content or '')[:60]
+        snippet = re.sub(r'\s+', ' ', (content or ''))[:max_text]
+        text = f'{title}。{snippet}' if snippet else title
+        batch.append((pid, text))
+    result = {}
+    CHUNK = 50
+    for i in range(0, len(batch), CHUNK):
+        chunk = batch[i:i + CHUNK]
+        prompt_lines = [f'{n}. {t}' for n, (_pid, t) in enumerate(chunk, 1)]
+        prompt = _KB_TAG_SYSTEM + '\n\n' + '\n'.join(prompt_lines) + '\n'
+
+        def _call():
+            sid = _session_create()
+            try:
+                return _send(sid, prompt)
+            finally:
+                requests.delete(f'{KB_OPENCODE_BASE_URL}/session/{sid}',
+                                timeout=30)
+
+        try:
+            raw = _retry(_call)
+        except Exception as e:
+            logger.warning('extract_point_tags chunk failed: %s', e)
+            continue
+        mapping = _parse_tag_json(raw)
+        for n, (pid, _t) in enumerate(chunk, 1):
+            tags = mapping.get(str(n))
+            if tags:
+                result[pid] = tags
+    return result
+
+
+def tag_points_untagged(max_points=200):
+    """为尚未打标签的知识点批量提取标签(经 opencode)。返回处理条数。"""
+    conn = _db_conn()
+    try:
+        rows = conn.execute(
+            'SELECT id FROM kb_point WHERE tags IS NULL OR tags=? '
+            "OR tags='[]' ORDER BY id LIMIT ?", ('', max_points)).fetchall()
+        ids = [r[0] for r in rows]
+    finally:
+        conn.close()
+    if not ids:
+        return 0
+    mapping = extract_point_tags(ids)
+    if not mapping:
+        return 0
+    conn = _db_conn()
+    try:
+        for pid, tags in mapping.items():
+            conn.execute('UPDATE kb_point SET tags=? WHERE id=?',
+                         (json.dumps(tags, ensure_ascii=False), pid))
+        conn.commit()
+    finally:
+        conn.close()
+    return len(mapping)
+
+
+def _remap_merged_point(conn, old_id, keeper_id):
+    """把被合并知识点的相似关联/引用重指向保留条,再删除该条。"""
+    rows = conn.execute(
+        'SELECT id, src_point_id, dst_point_id FROM kb_point_rel '
+        'WHERE src_point_id=? OR dst_point_id=?', (old_id, old_id)).fetchall()
+    for rid, s, d in rows:
+        ns = keeper_id if s == old_id else s
+        nd = keeper_id if d == old_id else d
+        if ns == nd:
+            conn.execute('DELETE FROM kb_point_rel WHERE id=?', (rid,))
+        else:
+            conn.execute(
+                'UPDATE kb_point_rel SET src_point_id=?, dst_point_id=? '
+                'WHERE id=?', (ns, nd, rid))
+    conn.execute('UPDATE kb_point_ref SET point_id=? WHERE point_id=?',
+                 (keeper_id, old_id))
+    conn.execute('DELETE FROM kb_point WHERE id=?', (old_id,))
+
+
+def merge_duplicate_points(limit=None, threshold=None):
+    """合并全局重复知识点:内容高度相似的保留内容最长的一条,其余删除,
+    并把相似关联/引用重指向保留条。返回 (合并条数, 剩余条数)。"""
+    limit = limit or KB_POINT_MERGE_MAX
+    threshold = threshold if threshold is not None \
+        else KB_POINT_MERGE_THRESHOLD
+    conn = _db_conn()
+    try:
+        rows = conn.execute(
+            'SELECT id, title, content FROM kb_point ORDER BY id LIMIT ?',
+            (limit,)).fetchall()
+        n = len(rows)
+        if n < 2:
+            return 0, n
+        vectors = []
+        for _pid, _t, _c in rows:
+            grams = _content_grams((_t or '') + '\n' + (_c or ''))
+            vec = {}
+            norm = 0.0
+            for g, tf in grams.items():
+                vec[g] = tf
+                norm += tf * tf
+            norm = norm ** 0.5 or 1.0
+            for g in vec:
+                vec[g] /= norm
+            vectors.append(vec)
+        inv = {}
+        for i, vec in enumerate(vectors):
+            for g in vec:
+                inv.setdefault(g, set()).add(i)
+
+        def _cos(a, b):
+            va, vb = vectors[a], vectors[b]
+            if len(va) > len(vb):
+                va, vb = vb, va
+            s = 0.0
+            for g, w in va.items():
+                wj = vb.get(g)
+                if wj:
+                    s += w * wj
+            return s
+
+        # 并查集:相似的点归为一组
+        parent = list(range(n))
+
+        def _find(x):
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+
+        def _union(a, b):
+            ra, rb = _find(a), _find(b)
+            if ra != rb:
+                parent[rb] = ra
+
+        for i in range(n):
+            cands = set()
+            for g in vectors[i]:
+                cands.update(inv.get(g, ()))
+            cands.discard(i)
+            for j in sorted(cands):
+                if j <= i:
+                    continue
+                if _find(i) == _find(j):
+                    continue
+                if _cos(i, j) >= threshold:
+                    _union(i, j)
+
+        groups = {}
+        for i in range(n):
+            groups.setdefault(_find(i), []).append(i)
+        merged = 0
+        for root, members in groups.items():
+            if len(members) < 2:
+                continue
+            keeper = max(members, key=lambda x: len(rows[x][2] or ''))
+            for j in members:
+                if j != keeper:
+                    _remap_merged_point(conn, rows[j][0], rows[keeper][0])
+                    merged += 1
+        conn.commit()
+        return merged, n - merged
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# 提炼润色(知识点标题/概要、文档标题)
+# ---------------------------------------------------------------------------
+
+_KB_REFINE_SYSTEM = (
+    '你是知识整理助手。下面是一组编号的知识点(原标题+内容)。请对每条:\n'
+    '1. 提炼润色一个更准确、简洁的标题(20 字内,中文);\n'
+    '2. 用 2~3 句话概括其核心内容(概要)。\n'
+    '只输出一个 JSON 对象,键为知识点编号字符串,值为 '
+    '{"title":"...","summary":"..."}。不要输出其他内容。\n'
+)
+
+
+def _parse_refine_json(raw):
+    """解析 {编号: {title, summary}} 形式的 LLM 输出。"""
+    s = (raw or '').strip()
+    if s.startswith('```'):
+        s = re.sub(r'^```[a-zA-Z]*\s*', '', s)
+        s = re.sub(r'\s*```$', '', s)
+    m = re.search(r'\{.*\}', s, re.S)
+    if not m:
+        return {}
+    try:
+        data = json.loads(m.group(0))
+    except Exception:
+        return {}
+    out = {}
+    if isinstance(data, dict):
+        for k, v in data.items():
+            if isinstance(v, dict):
+                out[str(k)] = {'title': str(v.get('title', '')).strip(),
+                               'summary': str(v.get('summary', '')).strip()}
+    return out
+
+
+def _parse_str_map(raw):
+    """解析 {编号: 字符串} 形式的 LLM 输出。"""
+    s = (raw or '').strip()
+    if s.startswith('```'):
+        s = re.sub(r'^```[a-zA-Z]*\s*', '', s)
+        s = re.sub(r'\s*```$', '', s)
+    m = re.search(r'\{.*\}', s, re.S)
+    if not m:
+        return {}
+    try:
+        data = json.loads(m.group(0))
+    except Exception:
+        return {}
+    out = {}
+    if isinstance(data, dict):
+        for k, v in data.items():
+            if isinstance(v, str) and v.strip():
+                out[str(k)] = v.strip()
+    return out
+
+
+def _refine_points_llm(rows, max_text=220):
+    """rows: [(pid, title, content)] → {pid: {'title':..., 'summary':...}}"""
+    CHUNK = 30
+    result = {}
+    for i in range(0, len(rows), CHUNK):
+        chunk = rows[i:i + CHUNK]
+        lines = []
+        for n, (_pid, title, content) in enumerate(chunk, 1):
+            snippet = re.sub(r'\s+', ' ', (content or ''))[:max_text]
+            t = _clean_point_title(title) if title else ''
+            lines.append(f'{n}. {"%s。%s" % (t, snippet) if snippet else t}')
+        prompt = _KB_REFINE_SYSTEM + '\n' + '\n'.join(lines) + '\n'
+
+        def _call():
+            sid = _session_create()
+            try:
+                return _send(sid, prompt)
+            finally:
+                requests.delete(
+                    '%s/session/%s' % (KB_OPENCODE_BASE_URL, sid),
+                    timeout=30)
+
+        try:
+            raw = _retry(_call)
+        except Exception as e:
+            logger.warning('refine point chunk failed: %s', e)
+            continue
+        mapping = _parse_refine_json(raw)
+        for n, (pid, _t, _c) in enumerate(chunk, 1):
+            v = mapping.get(str(n))
+            if v and (v.get('title') or v.get('summary')):
+                result[pid] = v
+    return result
+
+
+def _apply_refined_points(rows, mapping):
+    old_titles = {pid: title for pid, title, _c in rows}
+    now = datetime.datetime.now()
+    conn = _db_conn()
+    try:
+        for pid, v in mapping.items():
+            title = (v.get('title') or old_titles.get(pid) or '').strip()
+            summary = (v.get('summary') or '').strip()
+            conn.execute(
+                'UPDATE kb_point SET title=?, summary=?, refined_at=? '
+                'WHERE id=?', (title, summary, now, pid))
+        conn.commit()
+    finally:
+        conn.close()
+    return len(mapping)
+
+
+def refine_points_unrefined(max_points=100):
+    """定时任务:只提炼尚未提炼的知识点。返回提炼条数。"""
+    conn = _db_conn()
+    try:
+        rows = conn.execute(
+            'SELECT id, title, content FROM kb_point '
+            'WHERE refined_at IS NULL ORDER BY id LIMIT ?',
+            (max_points,)).fetchall()
+    finally:
+        conn.close()
+    if not rows:
+        return 0
+    mapping = _refine_points_llm(rows)
+    if not mapping:
+        return 0
+    return _apply_refined_points(rows, mapping)
+
+
+def refine_points_all(max_points=1000):
+    """全量提炼:重新提炼所有知识点。返回提炼条数。"""
+    conn = _db_conn()
+    try:
+        rows = conn.execute(
+            'SELECT id, title, content FROM kb_point '
+            'ORDER BY id LIMIT ?', (max_points,)).fetchall()
+    finally:
+        conn.close()
+    if not rows:
+        return 0
+    mapping = _refine_points_llm(rows)
+    if not mapping:
+        return 0
+    return _apply_refined_points(rows, mapping)
+
+
+_DOC_TITLE_SYSTEM = (
+    '你是文档命名助手。下面是一组编号的文档(文件名+正文开头)。请为每个文档'
+    '提炼一个简洁、准确的标题(25 字内,中文,不带文件扩展名)。\n'
+    '只输出一个 JSON 对象,键为文档编号字符串,值为标题字符串,'
+    '例如 {"1":"分中心项目委测试处统计数据","2":"会议纪要"}。'
+    '不要输出其他内容。\n'
+)
+
+
+def _refine_doc_titles_llm(rows, max_text=300):
+    """rows: [(doc_id, title, first_text)] → {doc_id: new_title}"""
+    CHUNK = 20
+    result = {}
+    for i in range(0, len(rows), CHUNK):
+        chunk = rows[i:i + CHUNK]
+        lines = []
+        for n, (_doc_id, title, text) in enumerate(chunk, 1):
+            snippet = re.sub(r'\s+', ' ', (text or ''))[:max_text]
+            lines.append('%d. 文件名:%s\n   正文开头:%s'
+                         % (n, title or '', snippet))
+        prompt = _DOC_TITLE_SYSTEM + '\n' + '\n\n'.join(lines) + '\n'
+
+        def _call():
+            sid = _session_create()
+            try:
+                return _send(sid, prompt)
+            finally:
+                requests.delete(
+                    '%s/session/%s' % (KB_OPENCODE_BASE_URL, sid),
+                    timeout=30)
+
+        try:
+            raw = _retry(_call)
+        except Exception as e:
+            logger.warning('refine doc titles chunk failed: %s', e)
+            continue
+        mapping = _parse_str_map(raw)
+        for n, (doc_id, _t, _c) in enumerate(chunk, 1):
+            t = mapping.get(str(n))
+            if t and len(t) <= 60:
+                result[doc_id] = t
+    return result
+
+
+def _refine_docs(full, max_docs):
+    sql = ('SELECT d.id, d.title, (SELECT text FROM kb_page WHERE doc_id=d.id '
+           'ORDER BY page_no LIMIT 1) AS text FROM kb_document d '
+           'WHERE d.status=? ' + ('' if full else 'AND d.refined_at IS NULL ') +
+           'ORDER BY d.id LIMIT ?')
+    conn = _db_conn()
+    try:
+        rows = conn.execute(sql, (STATUS_DONE, max_docs)).fetchall()
+    finally:
+        conn.close()
+    if not rows:
+        return 0
+    mapping = _refine_doc_titles_llm(rows)
+    if not mapping:
+        return 0
+    now = datetime.datetime.now()
+    conn = _db_conn()
+    try:
+        for doc_id, t in mapping.items():
+            conn.execute('UPDATE kb_document SET title=?, refined_at=? '
+                         'WHERE id=?', (t, now, doc_id))
+        conn.commit()
+    finally:
+        conn.close()
+    return len(mapping)
+
+
+def refine_docs_unrefined(max_docs=50):
+    """定时任务:只提炼尚未提炼的文档标题。返回条数。"""
+    return _refine_docs(False, max_docs)
+
+
+def refine_docs_all(max_docs=500):
+    """全量提炼:重新提炼所有文档标题。返回条数。"""
+    return _refine_docs(True, max_docs)
 
 
 # ---------------------------------------------------------------------------
@@ -1289,16 +1851,98 @@ def keyword_search_points(query, k=12):
         conn.close()
 
 
-def _visible_doc_ids():
-    """当前用户可访问的文档 ID 列表:管理员为全部,其余为公共集合+自己的文档。"""
-    if current_user.role == 'admin':
+def _user_group_ids_sql(user_id):
+    """指定用户的群组 id 列表(直接查 user_group 关联表)。"""
+    try:
+        rows = db.session.execute(
+            db.text('SELECT group_id FROM user_group WHERE user_id=:uid'),
+            {'uid': user_id}).fetchall()
+        return [r[0] for r in rows]
+    except Exception as e:
+        logger.warning('query user groups failed: %s', e)
+        return []
+
+
+def _current_user_group_ids():
+    """当前用户所在群组 id 列表。"""
+    user = current_user
+    if not getattr(user, 'is_authenticated', False):
+        return []
+    try:
+        return [g.id for g in user.groups]
+    except Exception:
+        return []
+
+
+def _collection_group_ids(collection_id):
+    """某集合被公开给的群组 id 列表(空=对全员公开)。"""
+    try:
+        rows = db.session.query(KbCollectionGroup.group_id).filter(
+            KbCollectionGroup.collection_id == collection_id).all()
+        return [r[0] for r in rows]
+    except Exception:
+        return []
+
+
+def _point_group_ids(point_id):
+    """某知识点被公开给的群组 id 列表(空=未做群组限制)。"""
+    try:
+        rows = db.session.query(KbPointGroup.group_id).filter(
+            KbPointGroup.point_id == point_id).all()
+        return [r[0] for r in rows]
+    except Exception:
+        return []
+
+
+def _set_collection_groups(collection_id, group_ids):
+    """重置集合的公开群组。"""
+    KbCollectionGroup.query.filter_by(
+        collection_id=collection_id).delete()
+    for gid in group_ids:
+        db.session.add(KbCollectionGroup(collection_id=collection_id,
+                                         group_id=gid))
+
+
+def _set_point_groups(point_id, group_ids):
+    """重置知识点的公开群组。"""
+    KbPointGroup.query.filter_by(point_id=point_id).delete()
+    for gid in group_ids:
+        db.session.add(KbPointGroup(point_id=point_id, group_id=gid))
+
+
+def _visible_collection_ids(user=None):
+    """某用户可访问的集合 id 列表;admin 返回 None(全部)。
+
+    可见集合 = 本人创建的集合 + 公共集合(未限制群组,或限制的群组包含该用户)。
+    """
+    user = user or current_user
+    if getattr(user, 'role', None) == 'admin':
         return None
-    visible_cols = db.session.query(KbCollection.id).filter(
+    my_groups = _user_group_ids_sql(user.id)
+    q = db.session.query(KbCollection.id).filter(
         db.or_(
-            KbCollection.visibility == 'public',
-            KbCollection.owner_id == current_user.id
+            KbCollection.owner_id == user.id,
+            db.and_(
+                KbCollection.visibility == 'public',
+                db.or_(
+                    ~db.exists().where(
+                        KbCollectionGroup.collection_id == KbCollection.id),
+                    db.exists().where(db.and_(
+                        KbCollectionGroup.collection_id == KbCollection.id,
+                        KbCollectionGroup.group_id.in_(my_groups)))
+                )
+            )
         )
     )
+    return [r[0] for r in q.all()]
+
+
+def _visible_doc_ids():
+    """当前用户可访问的文档 ID 列表:管理员为全部,
+    其余为 本人上传的文档 + 可见集合(公共/公共限群组/本人)中的文档。"""
+    if current_user.role == 'admin':
+        return None
+    visible_cols = _visible_collection_ids()
     rows = db.session.query(KbDocument.id).filter(
         db.or_(
             KbDocument.uploaded_by == current_user.id,
@@ -1309,16 +1953,15 @@ def _visible_doc_ids():
 
 
 def _doc_ids_for_user(user_id):
-    """指定用户的文档范围:其本人集合(含私有)+ 公共集合 + 其上传文档。
+    """指定用户的文档范围:本人上传 + 其可见集合(含公共、公共限群组、私有本人)。
 
     用于分身问答 @ 其他用户时,基于对方知识库回答。
     """
-    cols = db.session.query(KbCollection.id).filter(
-        db.or_(
-            KbCollection.visibility == 'public',
-            KbCollection.owner_id == user_id
-        )
-    )
+    cls = _user_model_cls()
+    target = db.session.get(cls, user_id) if cls else None
+    if target is not None and getattr(target, 'role', None) == 'admin':
+        return None
+    cols = _visible_collection_ids(target) if target is not None else []
     rows = db.session.query(KbDocument.id).filter(
         db.or_(
             KbDocument.uploaded_by == user_id,
@@ -1326,6 +1969,97 @@ def _doc_ids_for_user(user_id):
         )
     ).all()
     return [r.id for r in rows]
+
+
+def _user_model_cls():
+    try:
+        from app import User
+        return User
+    except Exception:
+        return None
+
+
+def _visible_point_ids(user=None):
+    """某用户可访问的知识点 id 列表;admin 返回 None(全部)。
+
+    知识点可见条件(满足其一):
+    1. 来源文档为其本人上传;
+    2. 所在集合为其本人创建;
+    3. 知识点设置了公开群组且包含该用户(点级限制优先);
+    4. 未设置点级群组,且集合为公共(未限制群组,或限制的群组包含该用户)。
+    """
+    user = user or current_user
+    if getattr(user, 'role', None) == 'admin':
+        return None
+    my_groups = _user_group_ids_sql(user.id)
+    q = db.session.query(KbPoint.id).filter(
+        db.or_(
+            KbPoint.doc_id.in_(
+                db.session.query(KbDocument.id).filter(db.or_(
+                    KbDocument.uploaded_by == user.id,
+                    KbDocument.collection_id.in_(
+                        db.session.query(KbCollection.id).filter(
+                            KbCollection.owner_id == user.id)
+                    )
+                ))
+            ),
+            # 点级群组公开:命中用户群组
+            db.exists().where(db.and_(
+                KbPointGroup.point_id == KbPoint.id,
+                KbPointGroup.group_id.in_(my_groups))),
+            # 公共集合(未限群组或群组命中)且该点未做点级限制
+            db.and_(
+                ~db.exists().where(KbPointGroup.point_id == KbPoint.id),
+                KbPoint.doc_id.in_(
+                    db.session.query(KbDocument.id).filter(
+                        KbDocument.collection_id.in_(
+                            db.session.query(KbCollection.id).filter(db.and_(
+                                KbCollection.visibility == 'public',
+                                db.or_(
+                                    ~db.exists().where(
+                                        KbCollectionGroup.collection_id ==
+                                        KbCollection.id),
+                                    db.exists().where(db.and_(
+                                        KbCollectionGroup.collection_id ==
+                                        KbCollection.id,
+                                        KbCollectionGroup.group_id.in_(
+                                            my_groups)))
+                                )
+                            ))
+                        )
+                    )
+                )
+            )
+        )
+    )
+    return [r[0] for r in q.all()]
+
+
+def _can_view_point(point, user=None):
+    """单条知识点访问判断(供详情/JSON 接口使用)。"""
+    user = user or current_user
+    if getattr(user, 'role', None) == 'admin':
+        return True
+    if point is None:
+        return False
+    doc = db.session.get(KbDocument, point.doc_id)
+    if doc is None:
+        return False
+    if doc.uploaded_by == user.id:
+        return True
+    col = doc.collection
+    if col is not None and col.owner_id == user.id:
+        return True
+    my_groups = set(_user_group_ids_sql(user.id))
+    pg = _point_group_ids(point.id)
+    if pg:
+        return bool(my_groups & set(pg))
+    if col is None or col.visibility != 'public':
+        return False
+    cg = _collection_group_ids(col.id)
+    if not cg:
+        return True
+    return bool(my_groups & set(cg))
 
 
 def _resolve_avatar_user(target_id):
@@ -1360,6 +2094,33 @@ def _kb_user_list():
     ).order_by(User.name, User.username).all()
     return [{'id': u.id, 'username': u.username,
              'name': u.name or u.username} for u in users]
+
+
+def _all_groups():
+    """系统全部群组列表(公开群组设置用)。"""
+    try:
+        from app import Group
+    except Exception:
+        Group = None
+    if Group is None:
+        return []
+    return Group.query.order_by(Group.name).all()
+
+
+def _group_names(group_ids):
+    """群组 id -> 名称 映射。"""
+    if not group_ids:
+        return {}
+    try:
+        from app import Group
+    except Exception:
+        Group = None
+    if Group is None:
+        return {}
+    names = {}
+    for g in Group.query.filter(Group.id.in_(list(group_ids))).all():
+        names[g.id] = g.name
+    return names
 
 
 def search_pages(query, k=10, alpha=0.5, doc_ids=None):
@@ -1652,9 +2413,35 @@ def cache_set(key, value):
         logger.warning('cache_set failed: %s', e)
 
 
+def _history_duplicate(a, b):
+    """判断两个检索关键字是否高度相似(用于最近搜索去重)。
+
+    规则: 完全相同、SequenceMatcher 相似度 ≥ 0.85、或一个包含另一个
+    且长度都不小于 4 字符 → 视为高度相似。
+    """
+    a = (a or '').strip().lower()
+    b = (b or '').strip().lower()
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    try:
+        from difflib import SequenceMatcher
+        if SequenceMatcher(None, a, b).ratio() >= 0.85:
+            return True
+    except Exception:
+        pass
+    if len(a) >= 4 and len(b) >= 4 and (a in b or b in a):
+        return True
+    return False
+
+
 def record_history(kind, query):
     """Record a search/ask query into the history table (upsert by query,
-    bumping a hit count and refreshing last_at)."""
+    bumping a hit count and refreshing last_at).
+
+    同 kind/同用户的已有记录中若存在高度相似的关键字,则跳过不记录,
+    避免最近搜索里堆积大量雷同的检索词。"""
     query = (query or '').strip()
     if not query:
         return
@@ -1671,6 +2458,13 @@ def record_history(kind, query):
                 'UPDATE kb_history SET count=count+1, last_at=? '
                 'WHERE query=?', (now, query))
             if cur.rowcount == 0:
+                recent = conn.execute(
+                    'SELECT query FROM kb_history '
+                    'WHERE kind=? AND user_id=? ORDER BY last_at DESC LIMIT 100',
+                    (kind, uid)).fetchall()
+                for (q,) in recent:
+                    if _history_duplicate(query, q):
+                        return
                 conn.execute(
                     'INSERT INTO kb_history (kind, query, user_id, count, last_at) '
                     'VALUES (?,?,?,1,?)', (kind, query, uid, now))
@@ -1901,6 +2695,16 @@ def _collection_doc_counts():
     return {cid: cnt for cid, cnt in rows if cid is not None}
 
 
+def _collection_point_counts():
+    """一次 GROUP BY 统计各集合知识点数(渐进式工作台左侧导航展示)。"""
+    rows = db.session.query(
+        KbDocument.collection_id,
+        db.func.count(KbPoint.id)
+    ).join(KbDocument, KbDocument.id == KbPoint.doc_id) \
+        .group_by(KbDocument.collection_id).all()
+    return {cid: cnt for cid, cnt in rows if cid is not None}
+
+
 def _collection_groups(collections, active_cid, active_group='',
                        doc_counts=None):
     """把集合按一级类别分组,便于侧边栏折叠展示。
@@ -1947,17 +2751,10 @@ def index():
 
 def _build_docs_query(cid, group, q):
     """构建当前用户可见的文档查询(可叠加 集合/分组/关键词 过滤)。"""
+    visible = _visible_doc_ids()
     query = KbDocument.query
-    if current_user.role != 'admin':
-        query = query.filter(
-            db.or_(
-                KbDocument.uploaded_by == current_user.id,
-                KbDocument.collection_id.in_(
-                    db.session.query(KbCollection.id)
-                    .filter(KbCollection.visibility == 'public')
-                )
-            )
-        )
+    if visible is not None:
+        query = query.filter(KbDocument.id.in_(visible))
     if cid:
         query = query.filter_by(collection_id=cid)
     if group:
@@ -2007,12 +2804,16 @@ def _doc_row(d):
     }
 
 
-def _build_points_query(cid, group, q):
-    """知识点列表查询(含来源文档/合集/相似关联/引用计数)。"""
-    visible = _visible_doc_ids()
+def _build_points_query(cid, group, q, tag=None, doc=None):
+    """知识点列表查询(含来源文档/合集/相似关联/引用计数,按群组公开过滤)。
+
+    doc: 限定来源文档(文档视图「查看知识点」下钻)。
+    """
+    visible = _visible_point_ids()
     query = db.session.query(
         KbPoint.id, KbPoint.title, KbPoint.word_count, KbPoint.page_start,
-        KbPoint.page_end, KbPoint.sort_order, KbPoint.created_at,
+        KbPoint.page_end, KbPoint.sort_order, KbPoint.tags,
+        KbPoint.created_at,
         KbDocument.id.label('doc_id'), KbDocument.title.label('doc_title'),
         KbDocument.file_type, KbCollection.id.label('collection_id'),
         KbCollection.name.label('collection_name'),
@@ -2021,9 +2822,11 @@ def _build_points_query(cid, group, q):
     query = query.outerjoin(KbCollection,
                             KbCollection.id == KbDocument.collection_id)
     if visible is not None:
-        query = query.filter(KbPoint.doc_id.in_(visible))
+        query = query.filter(KbPoint.id.in_(visible))
     if cid:
         query = query.filter(KbDocument.collection_id == cid)
+    if doc:
+        query = query.filter(KbPoint.doc_id == doc)
     if group:
         if group == '未分类':
             sub = db.session.query(KbCollection.id).filter(
@@ -2039,6 +2842,8 @@ def _build_points_query(cid, group, q):
             db.or_(KbPoint.title.ilike(like),
                    KbPoint.content.ilike(like),
                    KbDocument.title.ilike(like)))
+    if tag:
+        query = query.filter(KbPoint.tags.like(f'%"{tag}"%'))
     return query.order_by(KbDocument.created_at.desc(),
                           KbPoint.sort_order.asc()).limit(1000)
 
@@ -2058,9 +2863,11 @@ def _point_row(r, rel_counts, ref_counts, preview_text=''):
         if r.created_at else '',
         'collection_name': r.collection_name or '',
         'collection_color': r.collection_color or '',
+        'tags': _parse_point_tags(getattr(r, 'tags', None)),
         'rel_count': rel_counts.get(r.id, 0),
         'ref_count': ref_counts.get(r.id, 0),
         'preview': preview_text or '',
+        'can_manage': current_user.role == 'admin',
         'detail_url': url_for('kb.point_detail', pid=r.id),
         'doc_url': url_for('kb.doc_detail', doc_id=r.doc_id),
     }
@@ -2137,15 +2944,29 @@ def workbench():
     cid = request.args.get('collection', type=int)
     group = (request.args.get('group') or '').strip()
     q = (request.args.get('q') or '').strip()
+    tag = (request.args.get('tag') or '').strip()
     view = (request.args.get('view') or 'docs').strip()
+    pid = request.args.get('pid', type=int)
+    doc = request.args.get('doc', type=int)
     docs = _build_docs_query(cid, group, q).all()
-    if current_user.role == 'admin':
+    visible_cols = _visible_collection_ids()
+    if visible_cols is None:
         collections = KbCollection.query.order_by(KbCollection.name).all()
     else:
         collections = KbCollection.query.filter(
-            (KbCollection.visibility == 'public') |
-            (KbCollection.owner_id == current_user.id)
+            KbCollection.id.in_(visible_cols)
         ).order_by(KbCollection.name).all()
+
+    active_collection_name = None
+    if cid:
+        _c = db.session.get(KbCollection, cid)
+        if _c is not None:
+            active_collection_name = _c.name
+    active_doc_name = None
+    if doc:
+        _d = db.session.get(KbDocument, doc)
+        if _d is not None:
+            active_doc_name = _d.title
 
     owner_names = {}
     if current_user.role == 'admin':
@@ -2162,56 +2983,71 @@ def workbench():
     if current_user.role == 'admin':
         total_docs = KbDocument.query.count()
     else:
-        total_docs = KbDocument.query.filter(
-            db.or_(
-                KbDocument.uploaded_by == current_user.id,
-                KbDocument.collection_id.in_(
-                    db.session.query(KbCollection.id)
-                    .filter(KbCollection.visibility == 'public')
-                )
-            )
-        ).count()
+        total_docs = len(_visible_doc_ids() or [])
     collection_count = len(collections)
     doc_counts = _collection_doc_counts()
+    point_counts = _collection_point_counts()
+    coll_group_ids = {c.id: _collection_group_ids(c.id) for c in collections}
+    groups = _all_groups()
+    group_name_map = {}
+    for c in collections:
+        gids = coll_group_ids.get(c.id)
+        if gids:
+            group_name_map[c.id] = _group_names(gids)
     point_rows = []
+    tag_counts = {}
+    selected_point = None
     if view == 'points':
-        _rows = _build_points_query(cid, group, q).all()
+        _rows = _build_points_query(cid, group, q, tag, doc).all()
         _ids = [r.id for r in _rows]
         _rel_c = _point_rel_counts(_ids)
         _ref_c = _point_ref_counts(_ids)
         point_rows = [_point_row(r, _rel_c, _ref_c) for r in _rows]
+        _vp = _visible_point_ids()
+        tag_counts = _point_tag_counts(point_ids=_vp, collection_id=cid)
+        if pid:
+            selected_point = _point_detail_data(pid)
     return render_template('kb/workbench.html', docs=docs,
                            q=q,
+                           tag=tag,
                            view=view,
+                           doc=doc,
+                           active_doc_name=active_doc_name,
                            collections=collections, active_collection=cid,
+                           active_collection_name=active_collection_name,
                            group=group,
                            collection_groups=_collection_groups(
                                collections, cid, group, doc_counts),
+                           coll_group_ids=coll_group_ids,
+                           group_name_map=group_name_map,
+                           groups=groups,
                            doc_counts=doc_counts,
+                           point_counts=point_counts,
                            owner_names=owner_names,
                            total_docs=total_docs,
                            collection_count=collection_count,
                            point_rows=point_rows,
                            total_points=len(point_rows),
+                           tag_counts=tag_counts,
+                           selected_point=selected_point,
                            docs_json=json.dumps(
                                [_doc_row(d) for d in docs],
                                ensure_ascii=False))
 
 
-@kb_bp.route('/point/<int:pid>')
-@login_required
-def point_detail(pid):
-    """知识点独立详情页:正文/元数据/相关知识点/被引用次数。"""
+def _point_detail_data(pid):
+    """知识点详情数据(列表右栏/抽屉/详情页共用)。
+
+    返回 {point, doc, related, can_manage};知识点不存在或无权限时返回 None。
+    """
     point = db.session.get(KbPoint, pid)
     if not point:
-        abort(404)
+        return None
     doc = db.session.get(KbDocument, point.doc_id)
     if not doc:
-        abort(404)
-    visible = _visible_doc_ids()
-    if visible is not None and point.doc_id not in visible:
-        abort(403)
-    rel_ids = set()
+        return None
+    if not _can_view_point(point):
+        return None
     conn = _db_conn()
     try:
         rows = conn.execute(
@@ -2229,8 +3065,12 @@ def point_detail(pid):
         conn.close()
     related = []
     if rel_map:
+        visible_pts = _visible_point_ids()
+        visible_set = set(visible_pts) if visible_pts is not None else None
         others = db.session.query(KbPoint).filter(
             KbPoint.id.in_(list(rel_map))).all()
+        if visible_set is not None:
+            others = [op for op in others if op.id in visible_set]
         for op in others:
             odoc = db.session.get(KbDocument, op.doc_id)
             related.append({
@@ -2243,63 +3083,7 @@ def point_detail(pid):
                 'detail_url': url_for('kb.point_detail', pid=op.id),
             })
         related.sort(key=lambda x: -x['score'])
-    return render_template(
-        'kb/point_detail.html',
-        point=point,
-        point_title=_clean_point_title(point.title) or point.title,
-        doc=doc,
-        can_manage=current_user.role == 'admin'
-        or doc.uploaded_by == current_user.id,
-        related=related,
-        ref_count=ref_count)
-
-
-@kb_bp.route('/api/point/<int:pid>/json')
-@login_required
-def api_point_json(pid):
-    """知识点 JSON(抽屉浏览用):正文/元数据/相关知识点/被引用次数。"""
-    point = db.session.get(KbPoint, pid)
-    if not point:
-        return jsonify({'ok': False, 'error': '知识点不存在'}), 404
-    doc = db.session.get(KbDocument, point.doc_id)
-    if not doc:
-        return jsonify({'ok': False, 'error': '文档不存在'}), 404
-    visible = _visible_doc_ids()
-    if visible is not None and point.doc_id not in visible:
-        return jsonify({'ok': False, 'error': '权限不足'}), 403
-    conn = _db_conn()
-    try:
-        rows = conn.execute(
-            'SELECT src_point_id, dst_point_id, score FROM kb_point_rel '
-            'WHERE src_point_id=? OR dst_point_id=?',
-            (point.id, point.id)).fetchall()
-        rel_map = {}
-        for s, d, sc in rows:
-            other = s if s != point.id else d
-            rel_map[other] = sc
-        ref_count = conn.execute(
-            'SELECT COUNT(*) FROM kb_point_ref WHERE point_id=?',
-            (point.id,)).fetchone()[0]
-    finally:
-        conn.close()
-    related = []
-    if rel_map:
-        others = db.session.query(KbPoint).filter(
-            KbPoint.id.in_(list(rel_map))).all()
-        for op in others:
-            odoc = db.session.get(KbDocument, op.doc_id)
-            related.append({
-                'id': op.id,
-                'title': _clean_point_title(op.title) or op.title,
-                'doc_title': odoc.title if odoc else '',
-                'doc_url': url_for('kb.doc_detail', doc_id=op.doc_id)
-                if odoc else '',
-                'score': rel_map.get(op.id, 0),
-                'detail_url': url_for('kb.point_detail', pid=op.id),
-            })
-        related.sort(key=lambda x: -x['score'])
-    return jsonify({
-        'ok': True,
+    return {
         'point': {
             'id': point.id,
             'title': _clean_point_title(point.title) or point.title,
@@ -2308,6 +3092,12 @@ def api_point_json(pid):
             'page_start': point.page_start or 0,
             'page_end': point.page_end or 0,
             'ref_count': ref_count,
+            'group_ids': _point_group_ids(point.id),
+            'tags': _parse_point_tags(point.tags),
+            'summary': point.summary or '',
+            'refined_at': point.refined_at.strftime('%Y-%m-%d %H:%M')
+            if point.refined_at else '',
+            'detail_url': url_for('kb.point_detail', pid=point.id),
         },
         'doc': {
             'id': doc.id,
@@ -2321,7 +3111,42 @@ def api_point_json(pid):
         'related': related,
         'can_manage': current_user.role == 'admin'
         or doc.uploaded_by == current_user.id,
-    })
+    }
+
+
+@kb_bp.route('/point/<int:pid>')
+@login_required
+def point_detail(pid):
+    """知识点独立详情页:正文/元数据/相关知识点/被引用次数。"""
+    detail = _point_detail_data(pid)
+    if detail is None:
+        abort(404)
+    point = db.session.get(KbPoint, pid)
+    doc = db.session.get(KbDocument, point.doc_id)
+    related = detail['related']
+    ref_count = detail['point']['ref_count']
+    return render_template(
+        'kb/point_detail.html',
+        point=point,
+        point_title=_clean_point_title(point.title) or point.title,
+        doc=doc,
+        can_manage=current_user.role == 'admin'
+        or doc.uploaded_by == current_user.id,
+        point_group_ids=_point_group_ids(point.id),
+        groups=_all_groups(),
+        related=related,
+        ref_count=ref_count,
+        point_tags=_parse_point_tags(point.tags))
+
+
+@kb_bp.route('/api/point/<int:pid>/json')
+@login_required
+def api_point_json(pid):
+    """知识点 JSON(右栏/抽屉浏览用):正文/元数据/相关知识点/被引用次数。"""
+    data = _point_detail_data(pid)
+    if data is None:
+        return jsonify({'ok': False, 'error': '知识点不存在或无权查看'}), 404
+    return jsonify({'ok': True, **data})
 
 
 @kb_bp.route('/api/point/<int:pid>/rename', methods=['POST'])
@@ -2342,6 +3167,25 @@ def api_point_rename(pid):
     return jsonify({'ok': True, 'title': point.title})
 
 
+@kb_bp.route('/api/point/<int:pid>/groups', methods=['POST'])
+@login_required
+def api_point_groups(pid):
+    """设置知识点的公开群组(点级按群组公开;空数组=不做点级限制)。"""
+    point = db.session.get(KbPoint, pid)
+    if not point:
+        return jsonify({'ok': False, 'error': '知识点不存在'}), 404
+    doc = db.session.get(KbDocument, point.doc_id)
+    if not doc or (current_user.role != 'admin'
+                   and doc.uploaded_by != current_user.id):
+        return jsonify({'ok': False, 'error': '权限不足'}), 403
+    data = request.get_json(silent=True) or {}
+    group_ids = [int(x) for x in (data.get('group_ids') or [])
+                 if str(x).isdigit()]
+    _set_point_groups(point.id, group_ids)
+    db.session.commit()
+    return jsonify({'ok': True, 'group_ids': group_ids})
+
+
 @kb_bp.route('/api/point/<int:pid>/delete', methods=['POST'])
 @login_required
 def api_point_delete(pid):
@@ -2360,6 +3204,7 @@ def api_point_delete(pid):
             'DELETE FROM kb_point_rel WHERE src_point_id=? OR dst_point_id=?',
             (pid, pid))
         conn.execute('DELETE FROM kb_point_ref WHERE point_id=?', (pid,))
+        conn.execute('DELETE FROM kb_point_group WHERE point_id=?', (pid,))
         conn.commit()
         conn.close()
     except Exception as e:
@@ -2374,8 +3219,7 @@ def api_point_ref(pid):
     point = db.session.get(KbPoint, pid)
     if not point:
         return jsonify({'ok': False, 'error': '知识点不存在'}), 404
-    visible = _visible_doc_ids()
-    if visible is not None and point.doc_id not in visible:
+    if not _can_view_point(point):
         return jsonify({'ok': False, 'error': '权限不足'}), 403
     target_type = (request.form.get('target_type') or 'manual').strip()[:20]
     target_id = 0
@@ -2408,11 +3252,13 @@ def api_graph_data():
     """图谱数据 JSON:节点=知识点,连线=相似关联(最多 300 节点)。"""
     cid = request.args.get('collection', type=int)
     doc_id = request.args.get('doc', type=int)
-    visible = _visible_doc_ids()
+    visible_docs = _visible_doc_ids()
+    visible_pts = _visible_point_ids()
+    visible_pts_set = set(visible_pts) if visible_pts is not None else None
     conn = _db_conn()
     try:
         if doc_id:
-            if visible is not None and doc_id not in visible:
+            if visible_docs is not None and doc_id not in visible_docs:
                 return jsonify({'ok': False, 'error': '权限不足'}), 403
             pts = conn.execute(
                 'SELECT p.id, p.title, p.word_count, p.doc_id, '
@@ -2421,6 +3267,8 @@ def api_graph_data():
                 'LEFT JOIN kb_collection c ON c.id=d.collection_id '
                 'WHERE p.doc_id=? ORDER BY p.sort_order LIMIT 300',
                 (doc_id,)).fetchall()
+            if visible_pts_set is not None:
+                pts = [r for r in pts if r[0] in visible_pts_set]
         else:
             sql = ('SELECT p.id, p.title, p.word_count, p.doc_id, '
                    'd.title, c.name, c.color FROM kb_point p '
@@ -2428,10 +3276,10 @@ def api_graph_data():
                    'LEFT JOIN kb_collection c ON c.id=d.collection_id ')
             params = []
             conds = []
-            if visible is not None:
-                ph = ','.join('?' * len(visible))
-                conds.append(f'p.doc_id IN ({ph})')
-                params += visible
+            if visible_pts is not None:
+                ph = ','.join('?' * len(visible_pts))
+                conds.append(f'p.id IN ({ph})')
+                params += visible_pts
             if cid:
                 conds.append('d.collection_id=?')
                 params.append(cid)
@@ -2712,12 +3560,12 @@ def api_avatar_ask():
 @kb_bp.route('/api/collections')
 @login_required
 def api_collections():
-    if current_user.role == 'admin':
+    visible = _visible_collection_ids()
+    if visible is None:
         cols = KbCollection.query.order_by(KbCollection.name).all()
     else:
         cols = KbCollection.query.filter(
-            (KbCollection.visibility == 'public') |
-            (KbCollection.owner_id == current_user.id)
+            KbCollection.id.in_(visible)
         ).order_by(KbCollection.name).all()
     out = []
     for c in cols:
@@ -2726,8 +3574,31 @@ def api_collections():
         out.append({'id': c.id, 'name': c.name, 'color': c.color,
                     'visibility': c.visibility,
                     'owner_id': c.owner_id,
+                    'group_ids': _collection_group_ids(c.id),
                     'doc_count': doc_count})
     return jsonify({'ok': True, 'collections': out})
+
+
+@kb_bp.route('/api/refine-all', methods=['POST'])
+@login_required
+def api_refine_all():
+    """管理员手动入队全量提炼任务(scope='refine'),由 job_worker 执行。"""
+    if current_user.role != 'admin':
+        return jsonify({'ok': False, 'error': '仅管理员可操作'}), 403
+    from notes import NoteJob
+    now = datetime.datetime.now()
+    recent = NoteJob.query.filter(
+        NoteJob.scope == 'refine',
+        NoteJob.status.in_(['queued', 'running'])
+    ).order_by(NoteJob.created_at.desc()).first()
+    if recent:
+        return jsonify({'ok': False,
+                        'error': f'已存在待执行/执行中的全量提炼任务 #{recent.id}'}), 400
+    job = NoteJob(scope='refine', target='', status='queued',
+                  trigger='manual', created_by=current_user.id)
+    db.session.add(job)
+    db.session.commit()
+    return jsonify({'ok': True, 'job_id': job.id})
 
 
 @kb_bp.route('/api/collections', methods=['POST'])
@@ -2737,6 +3608,8 @@ def api_collection_create():
     name = (data.get('name') or '').strip()
     color = (data.get('color') or '#8b5cf6').strip()
     visibility = (data.get('visibility') or 'private').strip()
+    group_ids = [int(x) for x in (data.get('group_ids') or [])
+                 if str(x).isdigit()]
     if not name:
         return jsonify({'ok': False, 'error': '请输入集合名称'}), 400
     if visibility not in ('public', 'private'):
@@ -2744,12 +3617,17 @@ def api_collection_create():
     if visibility == 'public' and current_user.role != 'admin':
         return jsonify({'ok': False,
                         'error': '仅管理员可创建公共知识库'}), 403
+    if group_ids and visibility != 'public':
+        return jsonify({'ok': False,
+                        'error': '仅公共集合可设置公开群组'}), 400
     if KbCollection.query.filter_by(name=name).first():
         return jsonify({'ok': False, 'error': '集合名称已存在'}), 400
     c = KbCollection(name=name, color=color,
                        visibility=visibility,
                        owner_id=current_user.id)
     db.session.add(c)
+    db.session.flush()
+    _set_collection_groups(c.id, group_ids)
     db.session.commit()
     _log_op('kb_collection_create', name, f'创建集合({visibility})')
     db.session.commit()
@@ -2757,6 +3635,7 @@ def api_collection_create():
                                                 'color': c.color,
                                                 'visibility': c.visibility,
                                                 'owner_id': c.owner_id,
+                                                'group_ids': group_ids,
                                                 'doc_count': 0}})
 
 
@@ -2776,23 +3655,30 @@ def api_collection_update(cid):
     name = (data.get('name') or c.name).strip()
     color = (data.get('color') or c.color).strip()
     visibility = data.get('visibility', c.visibility)
+    group_ids = [int(x) for x in (data.get('group_ids') or [])
+                 if str(x).isdigit()]
     if visibility not in ('public', 'private'):
         visibility = c.visibility
     if visibility == 'public' and current_user.role != 'admin':
         return jsonify({'ok': False,
                         'error': '仅管理员可创建公共知识库'}), 403
+    if group_ids and visibility != 'public':
+        return jsonify({'ok': False,
+                        'error': '仅公共集合可设置公开群组'}), 400
     if name != c.name and KbCollection.query.filter(
             KbCollection.name == name,
             KbCollection.id != cid).first():
         return jsonify({'ok': False, 'error': '集合名称已存在'}), 400
     c.name, c.color, c.visibility = name, color, visibility
+    _set_collection_groups(c.id, group_ids)
     db.session.commit()
     _log_op('kb_collection_update', name, f'更新集合 #{cid}')
     db.session.commit()
     return jsonify({'ok': True, 'collection': {'id': c.id, 'name': c.name,
                                                 'color': c.color,
                                                 'visibility': c.visibility,
-                                                'owner_id': c.owner_id}})
+                                                'owner_id': c.owner_id,
+                                                'group_ids': group_ids}})
 
 
 @kb_bp.route('/api/collections/<int:cid>', methods=['DELETE', 'POST'])
@@ -2820,6 +3706,7 @@ def api_collection_delete(cid):
         name = c.name
         KbDocument.query.filter_by(collection_id=cid).update(
             {KbDocument.collection_id: None})
+        KbCollectionGroup.query.filter_by(collection_id=cid).delete()
         db.session.delete(c)
         db.session.commit()
     except Exception as e:
@@ -2897,6 +3784,36 @@ def api_collection_prune_empty():
     db.session.commit()
     return jsonify({'ok': True, 'deleted': len(deletable),
                     'names': names[:50]})
+
+
+@kb_bp.route('/api/collections/batch-public', methods=['POST'])
+@login_required
+def api_collection_batch_public():
+    """批量将集合设为公共(仅管理员)。
+
+    已为公共的集合自动跳过,返回实际更新数量。"""
+    data = request.get_json(silent=True) or {}
+    ids = [int(x) for x in (data.get('ids') or [])]
+    if not ids:
+        return jsonify({'ok': False, 'error': '请选择集合'}), 400
+    if current_user.role != 'admin':
+        return jsonify({'ok': False,
+                        'error': '仅管理员可设置公共集合'}), 403
+    cols = KbCollection.query.filter(KbCollection.id.in_(ids)).all()
+    updated, skipped = [], 0
+    for c in cols:
+        if c.visibility == 'public':
+            skipped += 1
+            continue
+        c.visibility = 'public'
+        updated.append(c.name)
+    db.session.commit()
+    if updated:
+        _log_op('kb_collection_batch_public', f'{len(updated)} 个集合',
+                '批量设为公共')
+        db.session.commit()
+    return jsonify({'ok': True, 'updated': len(updated),
+                    'names': updated[:50]})
 
 
 def _upload_wants_json():

@@ -73,19 +73,14 @@
       '</div></a>';
   }
   function noteItem(idx, n, q) {
-    var meta = esc(n.date || '') + ' 创建' + (n.thread ? ' · ' + esc(n.thread) : '');
-    var body = (n.content && n.content.length) ? clip(n.content, 60) : '';
+    var meta = esc(n.date || '') + ' 创建';
+    var body = (n.content && n.content.length) ? clip(n.content, 60) : (n.title || '(无标题)');
     return '<a href="' + n.detail_url + '" target="_blank" rel="noopener" data-idx="' + idx + '" class="us-r-item">' +
       '<span class="us-item-ico">📝</span>' +
       '<div class="us-item-main">' +
-      '<div class="us-item-title">' + highlight(n.title || '(无标题)', q) + '</div>' +
+      '<div class="us-item-title">' + highlight(body, q) + '</div>' +
       '<div class="us-item-sub">' + meta + '</div>' +
-      (body ? '<div class="us-item-sub">' + highlight(body, q) + '</div>' : '') +
       '</div></a>';
-  }
-  function emptyHtml(q) {
-    return '<div class="us-empty"><i class="bi bi-search"></i> 暂无匹配结果</div>' +
-      '<div class="us-empty-sub">没有找到与「' + esc(q) + '」相关的内容，换个关键词试试</div>';
   }
   function emptyCol() {
     return '<div class="us-empty" style="padding:14px 6px;">暂无匹配</div>';
@@ -158,18 +153,6 @@
       foot.style.display = total ? 'flex' : 'none';
     }
   }
-  function renderColumnsEmpty(q) {
-    _items = [];
-    var body = document.getElementById('usModalBody');
-    if (body) {
-      body.querySelectorAll('.us-modal-col').forEach(function (el) { el.style.display = 'none'; });
-      var empty = document.getElementById('usModalEmpty');
-      if (empty) { empty.classList.remove('d-none'); empty.innerHTML = emptyHtml(q); }
-    }
-    var foot = document.getElementById('usModalFoot');
-    if (foot) foot.style.display = 'none';
-  }
-
   /* ---------------- 键盘选择 ---------------- */
   function setSel(scope, idx) {
     _sel = idx;
@@ -214,12 +197,10 @@
     fetch(CFG.api + '?q=' + encodeURIComponent(q))
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (!d.ok) { renderColumnsEmpty(q); return; }
-        var kb = (d.kb || []).length, tasks = (d.tasks || []).length, notes = (d.notes || []).length;
-        if (!kb && !tasks && !notes) { renderColumnsEmpty(q); return; }
-        renderColumns(q, d);
+        if (d && d.ok) { renderColumns(q, d); return; }
+        renderColumns(q, {});
       })
-      .catch(function () { renderColumnsEmpty(q); });
+      .catch(function () { renderColumns(q, {}); });
   }
 
   /* ---------------- 历史/热门下拉提示 ---------------- */

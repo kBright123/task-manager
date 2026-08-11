@@ -15,6 +15,7 @@
   .cat-item.active { background: var(--primary-light); color: var(--primary); }
    .cat-item.overdue { color: var(--danger); }
    .cat-item.overdue .text-truncate { color: var(--danger); }
+   @keyframes flashTask { 0%,50% { background: #fff7c2; } 100% { background: transparent; } }
    /* 自然语言创建固定在面板顶部,滚动时始终可见 */
    .tasks-layout > .notes-panel { position: sticky; top: 14px; align-self: start; }
 </style>
@@ -639,6 +640,17 @@ function reopenTask(id){
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+  var params = new URLSearchParams(window.location.search);
+  var newId = params.get('new');
+  if (newId) {
+    var item = document.querySelector('.cat-item[data-task-id="' + newId + '"]');
+    if (item) {
+      item.scrollIntoView({block:'center'});
+      item.style.animation = 'flashTask 1.6s ease-out';
+    }
+    loadTaskDetail(parseInt(newId, 10));
+    return;
+  }
   var first = document.querySelector('.cat-item[data-task-id]');
   if (first) loadTaskDetail(parseInt(first.getAttribute('data-task-id'), 10));
 });

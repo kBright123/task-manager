@@ -1,0 +1,232 @@
+<style>
+  .kb-uprow { display:flex; align-items:center; gap:10px; font-size:.78rem; color:var(--gray-600); }
+  .kb-uprow .progress-custom { flex:1; }
+</style>
+<!-- 知识库文档上传弹框(知识库/首页快捷上传共用) -->
+<div class="modal fade" id="kbUploadModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <span style="font-weight:600;"><i class="bi bi-cloud-upload" style="color:var(--primary);"></i> {{ upload_modal_title|default('上传文档') }}</span>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+      </div>
+      <div class="modal-body py-3">
+        <div class="d-flex align-items-center gap-2 mb-2 flex-wrap" style="font-size:.8rem;color:var(--gray-600);">
+          <span style="white-space:nowrap;"><i class="bi bi-folder2-open"></i> 上传到集合</span>
+          <select id="uploadCollection" class="form-select form-select-sm" style="width:auto;max-width:240px;font-size:.8rem;">
+            <option value="">(暂不分配)</option>
+            {% for c in collections %}
+            <option value="{{ c.id }}">{{ c.name }}（{{ '公共' if c.visibility == 'public' else '个人' }}）</option>
+            {% endfor %}
+          </select>
+          <small class="text-muted" style="font-size:.7rem;">大于 10MB 自动分片</small>
+        </div>
+        <div id="dropZone" style="border:2px dashed var(--gray-300);background:var(--gray-50);cursor:pointer;transition:all .15s;border-radius:var(--radius-sm);padding:8px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <i class="bi bi-cloud-arrow-up" style="font-size:1.1rem;color:var(--primary);flex-shrink:0;"></i>
+          <span style="font-weight:600;color:var(--gray-700);font-size:.85rem;white-space:nowrap;">拖拽文件到此处,或点击选择文件</span>
+          <small class="text-muted ms-auto" style="font-size:.72rem;">PDF / 图片 / Markdown / 文本 / HTML</small>
+        </div>
+        <input type="file" id="dropFileInput" accept=".pdf,.png,.jpg,.jpeg,.bmp,.tif,.tiff,.webp,.txt,.md,.markdown,.html,.htm" multiple style="display:none;">
+        <div class="mt-3 d-none" id="uploadProgressCard">
+          <div id="uploadProgressList" class="d-flex flex-column gap-2"></div>
+        </div>
+        <div class="mt-3 pt-3 border-top d-none" id="queueCard">
+          <div class="d-flex align-items-center gap-3 mb-2">
+            <span class="spinner-border spinner-border-sm text-primary" style="width:1rem;height:1rem;"></span>
+            <span style="font-weight:600;" id="queueSummary">已完成 0/0 文件</span>
+            <div class="flex-grow-1"><div class="progress-custom"><div class="progress-custom-bar" id="queueProgress" style="width:0%;background:var(--primary);"></div></div></div>
+          </div>
+          <div class="text-muted" style="font-size:.78rem;" id="queueDetail">等待识别 0 · OCR 中 0 · 向量化中 0</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+window.KB_URLS = window.KB_URLS || {
+  upload: '{{ url_for('kb.upload') }}',
+  chunk: '{{ url_for('kb.api_upload_chunk') }}',
+  complete: '{{ url_for('kb.api_upload_complete') }}',
+  queue: '{{ url_for('kb.api_queue') }}'
+};
+window.kbUploadOpen = function () {
+  var m = document.getElementById('kbUploadModal');
+  if (!m) return;
+  var modal = bootstrap.Modal.getOrCreateInstance(m);
+  var pc = document.getElementById('uploadProgressCard');
+  var qc = document.getElementById('queueCard');
+  if (pc) pc.classList.add('d-none');
+  if (qc) qc.classList.add('d-none');
+  modal.show();
+};
+</script>
+<script>
+/* ============ 上传(单请求 + 分片 >10MB) ============ */
+(function () {
+  var zone = document.getElementById('dropZone');
+  if (!zone) return;
+  var fileInput = document.getElementById('dropFileInput');
+  var ALLOWED = ['.pdf', '.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff', '.webp', '.txt', '.md', '.markdown', '.html', '.htm'];
+  var CHUNK_THRESHOLD = 10 * 1024 * 1024;
+  var CHUNK_SIZE = 5 * 1024 * 1024;
+
+  function ext(f) { return (f.name.split('.').pop() || '').toLowerCase(); }
+  function esc(s) { s = (s == null ? '' : String(s)); var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  function cid() { var el = document.getElementById('uploadCollection'); return el ? el.value : ''; }
+
+  var card = document.getElementById('uploadProgressCard');
+  var list = document.getElementById('uploadProgressList');
+  var pct = {};
+
+  function showCard() { card.classList.remove('d-none'); }
+  function hideCard() { card.classList.add('d-none'); pct = {}; list.innerHTML = ''; }
+
+  function addFileRow(f) {
+    var row = document.createElement('div');
+    row.className = 'kb-uprow';
+    row.innerHTML = '<span class="text-truncate" style="max-width:220px;">' + esc(f.name) + '</span>' +
+      '<div class="progress-custom" style="height:6px;"><div class="progress-custom-bar" style="width:0%;background:var(--primary);"></div></div>' +
+      '<small class="kb-pct" style="width:44px;text-align:right;">0%</small>';
+    list.appendChild(row);
+    pct[f.name] = { row: row, bar: row.querySelector('.progress-custom-bar'), label: row.querySelector('.kb-pct') };
+  }
+  function setPct(name, p) {
+    var o = pct[name];
+    if (!o) return;
+    o.bar.style.width = Math.round(p * 100) + '%';
+    o.label.textContent = Math.round(p * 100) + '%';
+  }
+
+  function uploadSingle(f, done) {
+    var fd = new FormData();
+    if (cid()) fd.append('collection_id', cid());
+    fd.append('file', f);
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', window.KB_URLS.upload);
+    xhr.setRequestHeader('Accept', 'application/json');
+    xhr.upload.onprogress = function (e) { if (e.lengthComputable) setPct(f.name, e.loaded / e.total); };
+    xhr.onload = function () {
+      var d = null;
+      try { d = JSON.parse(xhr.responseText); } catch (e) {}
+      if (xhr.status >= 200 && xhr.status < 300 && d && d.ok) { setPct(f.name, 1); }
+      else if (window.toast) toast((d && d.error) || '上传失败', 'danger');
+      done();
+    };
+    xhr.onerror = function () { if (window.toast) toast('网络错误，请重试', 'danger'); done(); };
+    xhr.send(fd);
+  }
+
+  function uploadChunked(f, done) {
+    var uploadId = 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    var total = Math.max(1, Math.ceil(f.size / CHUNK_SIZE));
+    var idx = 0;
+    function next() {
+      var start = idx * CHUNK_SIZE;
+      var blob = f.slice(start, Math.min(f.size, start + CHUNK_SIZE));
+      var fd = new FormData();
+      fd.append('upload_id', uploadId);
+      fd.append('index', idx);
+      fd.append('total', total);
+      fd.append('file', blob, f.name);
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', window.KB_URLS.chunk);
+      xhr.onload = function () {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          idx++;
+          setPct(f.name, idx / total);
+          if (idx < total) next(); else complete();
+        } else { if (window.toast) toast(f.name + ' 分片上传失败', 'danger'); done(); }
+      };
+      xhr.onerror = function () { if (window.toast) toast('网络错误，请重试', 'danger'); done(); };
+      xhr.send(fd);
+    }
+    function complete() {
+      var fd = new FormData();
+      fd.append('upload_id', uploadId);
+      fd.append('filename', f.name);
+      fd.append('total', total);
+      if (cid()) fd.append('collection_id', cid());
+      fetch(window.KB_URLS.complete, { method: 'POST', body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d.ok) { if (window.toast) toast(d.error || '合并失败', 'danger'); }
+          else setPct(f.name, 1);
+          done();
+        }).catch(function () { if (window.toast) toast('网络错误，请重试', 'danger'); done(); });
+    }
+    next();
+  }
+
+  function upload(files) {
+    var fList = Array.prototype.filter.call(files, function (f) {
+      return ALLOWED.indexOf('.' + ext(f)) !== -1;
+    });
+    if (!fList.length) { if (window.toast) toast('没有支持的文件', 'warning'); return; }
+    fList.forEach(addFileRow);
+    showCard();
+    var total = fList.length;
+    var doneCount = 0;
+    fList.forEach(function (f) {
+      var fin = function () {
+        doneCount++;
+        if (doneCount === total) {
+          if (window.toast) toast('上传完成，已加入识别队列', 'success');
+          setTimeout(function () {
+            hideCard();
+            if (window.KB_UPLOAD_ON_DONE) { try { window.KB_UPLOAD_ON_DONE(); } catch (e) {} }
+            var m = document.getElementById('kbUploadModal');
+            if (m && bootstrap.Modal.getInstance(m)) bootstrap.Modal.getInstance(m).hide();
+          }, 600);
+        }
+      };
+      if (f.size > CHUNK_THRESHOLD) uploadChunked(f, fin); else uploadSingle(f, fin);
+    });
+  }
+
+  zone.addEventListener('click', function () { fileInput.click(); });
+  fileInput.addEventListener('change', function () { upload(fileInput.files); fileInput.value = ''; });
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    zone.addEventListener(ev, function (e) {
+      e.preventDefault(); e.stopPropagation();
+      zone.style.borderColor = 'var(--primary)';
+      zone.style.background = 'var(--primary-light)';
+    });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    zone.addEventListener(ev, function (e) {
+      e.preventDefault(); e.stopPropagation();
+      zone.style.borderColor = 'var(--gray-300)';
+      zone.style.background = 'var(--gray-50)';
+    });
+  });
+  zone.addEventListener('drop', function (e) { upload(e.dataTransfer.files); });
+})();
+</script>
+<script>
+/* ============ 队列轮询(识别进度) ============ */
+(function () {
+  var card = document.getElementById('queueCard');
+  if (!card) return;
+  function poll() {
+    fetch(window.KB_URLS.queue).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.ok) return;
+      var c = d.counts;
+      var p = d.processing || 0;
+      var total = d.total || 0;
+      if (p > 0) {
+        card.classList.remove('d-none');
+        document.getElementById('queueSummary').textContent = '已完成 ' + (c.done || 0) + '/' + total + ' 文件';
+        document.getElementById('queueDetail').textContent =
+          '等待识别 ' + (c.queued || 0) + ' · OCR 中 ' + (c.ocr || 0) + ' · 向量化中 ' + (c.embedding || 0) +
+          (total ? ' · 已完成 ' + (c.done || 0) + ' · 失败 ' + (c.failed || 0) : '');
+        document.getElementById('queueProgress').style.width =
+          (total ? Math.round((c.done || 0) / total * 100) : 0) + '%';
+      } else {
+        card.classList.add('d-none');
+      }
+      setTimeout(poll, 4000);
+    }).catch(function () { setTimeout(poll, 6000); });
+  }
+  poll();
+})();
+</script>

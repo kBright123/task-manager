@@ -55,6 +55,10 @@ KB_OPENCODE_PROVIDER = os.environ.get('KB_OPENCODE_PROVIDER', 'opencode')
 KB_OPENCODE_MODEL = os.environ.get('KB_OPENCODE_MODEL', 'deepseek-v4-flash-free')
 KB_OPENCODE_TIMEOUT = int(os.environ.get('KB_OPENCODE_TIMEOUT', '180'))
 KB_LLM_DISABLED = os.environ.get('KB_LLM_DISABLED', '0') == '1'
+# 标签黑名单:识别/打标签时剔除这些词汇(机构名等),逗号/分号分隔
+KB_TAG_BLACKLIST = [t.strip() for t in re.split(
+    r'[，,;；]+', os.environ.get('KB_TAG_BLACKLIST', '邮储银行,邮储,邮政'))
+    if t.strip()]
 # 低资源模式:禁用 fastembed 向量嵌入 + SochDB 向量库,检索降级为 SQLite 关键词匹配
 KB_VECTOR_DISABLED = os.environ.get('KB_VECTOR_DISABLED', '0') == '1'
 
@@ -1186,10 +1190,171 @@ def _point_tag_counts(point_ids=None, collection_id=None):
 _KB_TAG_SYSTEM = (
     '你是知识整理助手。下面是一组编号的知识点(标题+内容)。'
     '请为每个知识点提取 2~5 个简短中文标签,标签用于分类与快速检索,'
-    '要具体不要泛泛(如 "Excel"、"数据分析"、"考试",不要 "知识点"、"文档")。\n'
+    '要具体不要泛泛(如 "Excel"、"数据分析"、"考试",不要 "知识点"、"文档")。'
+    + (f'不要使用以下机构词汇作为标签:{",".join(KB_TAG_BLACKLIST)}。'
+       if KB_TAG_BLACKLIST else '')
+    + '\n'
     '只输出一个 JSON 对象,键为知识点编号字符串,值为标签数组,'
     '例如 {"1":["标签a","标签b"],"2":["标签c"]}。不要输出其他内容。'
 )
+
+
+def filter_blacklisted_tags(tags):
+    """剔除黑名单词汇标签(标签含任一黑名单词即丢弃)。"""
+    if not KB_TAG_BLACKLIST or not tags:
+        return tags
+    out = []
+    for t in tags:
+        if not any(word in t for word in KB_TAG_BLACKLIST):
+            out.append(t)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# 黑名单字样清理(定时任务/脚本共用):对所有表的文本列做关键字字面删除;
+# 标签列命中黑名单词的标签整条移除;搜索历史/问答缓存命中即删除。
+# ---------------------------------------------------------------------------
+
+KW_TEXT_TYPES = ('TEXT', 'CHAR', 'CLOB', 'VARCHAR')
+KW_TAG_COLUMNS = [('kb_point', 'tags'), ('note', 'tags')]
+
+
+def build_keyword_pattern(terms):
+    return re.compile('|'.join(re.escape(t) for t in (terms or [])))
+
+
+def redact_keywords(text, pattern):
+    if not text:
+        return text
+    out = pattern.sub('', text)
+    if out != text:
+        out = re.sub(r' {2,}', ' ', out)
+    return out
+
+
+def _kw_connect(path):
+    conn = sqlite3.connect(path, timeout=30)
+    conn.execute('PRAGMA busy_timeout=10000')
+    return conn
+
+
+def _kw_text_columns(cur, table):
+    cols = []
+    for row in cur.execute(f'PRAGMA table_info("{table}")').fetchall():
+        if any(row[2].upper().startswith(t) for t in KW_TEXT_TYPES):
+            cols.append(row[1])
+    return cols
+
+
+def clean_kw_main_db(pattern, terms, dry_run=False, db_path=None):
+    """清理主库 tasks.db 中的黑名单字样。返回 [(名称, 行数)] 报告。"""
+    conn = _kw_connect(db_path or DB_PATH)
+    cur = conn.cursor()
+    report = []
+    tables = [r[0] for r in cur.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+    for table in tables:
+        tag_cols = {c for t, c in KW_TAG_COLUMNS if t == table}
+        for col in _kw_text_columns(cur, table):
+            if col in tag_cols:
+                continue
+            rows = cur.execute(
+                f'SELECT rowid, "{col}" FROM "{table}"').fetchall()
+            changed = []
+            for rid, val in rows:
+                if val is None:
+                    continue
+                new = redact_keywords(str(val), pattern)
+                if new != val:
+                    changed.append((rid, new))
+            if not changed:
+                continue
+            if not dry_run:
+                cur.executemany(
+                    f'UPDATE "{table}" SET "{col}"=? WHERE rowid=?',
+                    [(new, rid) for rid, new in changed])
+            report.append((f'{table}.{col}', len(changed)))
+    for table, col in KW_TAG_COLUMNS:
+        if table not in tables:
+            continue
+        rows = cur.execute(f'SELECT rowid, "{col}" FROM "{table}"').fetchall()
+        changed = []
+        for rid, raw in rows:
+            if raw is None:
+                continue
+            try:
+                tags = json.loads(raw)
+            except (ValueError, TypeError):
+                new = redact_keywords(str(raw), pattern)
+                if new != raw:
+                    changed.append((rid, new))
+                continue
+            if not isinstance(tags, list):
+                continue
+            kept = [t for t in tags if not any(w in str(t) for w in terms)]
+            if len(kept) != len(tags):
+                changed.append((rid, json.dumps(kept, ensure_ascii=False)))
+        if not changed:
+            continue
+        if not dry_run:
+            cur.executemany(
+                f'UPDATE "{table}" SET "{col}"=? WHERE rowid=?',
+                [(new, rid) for rid, new in changed])
+        report.append((f'{table}.{col}(标签)', len(changed)))
+    if not dry_run:
+        conn.commit()
+    conn.close()
+    return report
+
+
+def clean_kw_cache_db(pattern, dry_run=False, cache_path=None):
+    """清理搜索历史/缓存库 cache.db。返回 [(名称, 行数)] 报告。"""
+    path = cache_path or KB_CACHE_PATH
+    if not os.path.exists(path):
+        return []
+    conn = _kw_connect(path)
+    cur = conn.cursor()
+    report = []
+    tables = [r[0] for r in cur.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+    if 'kb_history' in tables:
+        rows = cur.execute('SELECT id, query FROM kb_history').fetchall()
+        hits = [rid for rid, q in rows if q and pattern.search(str(q))]
+        if hits:
+            if not dry_run:
+                cur.executemany('DELETE FROM kb_history WHERE id=?',
+                                [(rid,) for rid in hits])
+            report.append(('kb_history 搜索历史', len(hits)))
+    if 'kb_cache' in tables:
+        rows = cur.execute('SELECT rowid, key, value FROM kb_cache').fetchall()
+        hits = [rid for rid, k, v in rows
+                if (k and pattern.search(str(k)))
+                or (v and pattern.search(str(v)))]
+        if hits:
+            if not dry_run:
+                cur.executemany('DELETE FROM kb_cache WHERE rowid=?',
+                                [(rid,) for rid in hits])
+            report.append(('kb_cache 缓存', len(hits)))
+    if not dry_run:
+        conn.commit()
+    conn.close()
+    return report
+
+
+def clean_blacklist_keywords(terms=None, dry_run=False, db_path=None,
+                             cache_path=None):
+    """按黑名单字样清理(KB_TAG_BLACKLIST 或自定义 terms)。返回 [(名称, 行数)]。
+
+    长词优先,避免子串残留(如先删"邮储银行"再删"邮储")。
+    """
+    terms = [t for t in (terms or KB_TAG_BLACKLIST) if t]
+    if not terms:
+        return []
+    terms = sorted(set(terms), key=len, reverse=True)
+    pattern = build_keyword_pattern(terms)
+    report = clean_kw_main_db(pattern, terms, dry_run, db_path)
+    report += clean_kw_cache_db(pattern, dry_run, cache_path)
+    return report
 
 
 def _parse_tag_json(raw):
@@ -1212,10 +1377,13 @@ def _parse_tag_json(raw):
         for k, v in data.items():
             if isinstance(v, list):
                 tags = [str(t).strip() for t in v if str(t).strip()]
+                tags = filter_blacklisted_tags(tags)
                 if tags:
                     out[str(k)] = tags
             elif isinstance(v, str) and v.strip():
-                out[str(k)] = [v.strip()]
+                tags = filter_blacklisted_tags([v.strip()])
+                if tags:
+                    out[str(k)] = tags
     return out
 
 
@@ -4126,7 +4294,8 @@ def doc_cancel(doc_id):
 
 
 # ---------------------------------------------------------------------------
-# 导出
+# ---------------------------------------------------------------------------
+# 批量操作
 # ---------------------------------------------------------------------------
 
 def _doc_text(doc):
@@ -4141,69 +4310,6 @@ def _doc_text(doc):
                 for p in pages]
     return ''.join(head) + ''.join(body)
 
-
-def _safe_filename(name):
-    name = re.sub(r'[^\w\u4e00-\u9fff\-\. ]+', '_', name)
-    return (name or 'document').strip() or 'document'
-
-
-@kb_bp.route('/export/<int:doc_id>')
-@login_required
-def export_doc(doc_id):
-    doc = db.session.get(KbDocument, doc_id)
-    if not doc:
-        flash('文档不存在', 'danger')
-        return redirect(url_for('kb.index'))
-    if not _can_manage_doc(doc):
-        flash('权限不足：仅可导出自己上传的文档', 'danger')
-        return redirect(url_for('kb.index'))
-    text = _doc_text(doc)
-    ext = 'md' if doc.file_type in ('md', 'markdown') else 'txt'
-    resp = Response(text, content_type='text/plain; charset=utf-8')
-    resp.headers['Content-Disposition'] = (
-        f'attachment; filename="{_safe_filename(doc.title)}.{ext}"')
-    _log_op('kb_export', doc.title, f'导出文档 #{doc_id}')
-    db.session.commit()
-    return resp
-
-
-@kb_bp.route('/export/txt')
-@login_required
-def export_txt():
-    """批量导出所选文档的 OCR 识别结果,全部合并到一个 txt 文件。"""
-    ids = request.args.get('ids', '')
-    doc_ids = [int(x) for x in ids.split(',') if x.strip().isdigit()]
-    if not doc_ids:
-        flash('请选择文档', 'warning')
-        return redirect(url_for('kb.index'))
-    doc_ids = _manage_docs_for_user(doc_ids)
-    docs = (KbDocument.query.filter(KbDocument.id.in_(doc_ids))
-            .order_by(KbDocument.id).all())
-    if not docs:
-        flash('所选文档不存在或无权导出', 'warning')
-        return redirect(url_for('kb.index'))
-    parts = []
-    for d in docs:
-        text = _doc_text(d)
-        parts.append(
-            f'{"=" * 60}\n'
-            f'文档: {d.title}\n'
-            f'文件名: {d.filename}\n'
-            f'类型: {d.file_type or "-"} | 页数: {d.page_count or "-"} | '
-            f'状态: {d.status}\n'
-            f'{"=" * 60}\n'
-            f'{text}\n')
-    resp = Response('\n'.join(parts), content_type='text/plain; charset=utf-8')
-    resp.headers['Content-Disposition'] = (
-        'attachment; filename="knowledge-ocr-selected.txt"')
-    _log_op('kb_export', f'{len(docs)} 个文档', '批量导出识别结果')
-    db.session.commit()
-    return resp
-
-
-# ---------------------------------------------------------------------------
-# 批量操作
-# ---------------------------------------------------------------------------
 
 @kb_bp.route('/bulk', methods=['POST'])
 @login_required
@@ -4247,24 +4353,6 @@ def bulk():
         _log_op('kb_bulk_reprocess', f'{len(docs)} 个文档', '批量重新识别')
         db.session.commit()
         return jsonify({'ok': True, 'requeued': len(docs)})
-    if action == 'export':
-        _log_op('kb_bulk_export', f'{len(docs)} 个文档', '批量导出 JSON')
-        db.session.commit()
-        payload = {'exported_at':
-                   datetime.datetime.utcnow().isoformat() + 'Z',
-                   'documents': [{
-                       'id': d.id, 'title': d.title, 'filename': d.filename,
-                       'file_type': d.file_type, 'page_count': d.page_count,
-                       'status': d.status, 'created_at':
-                       d.created_at.isoformat() + 'Z' if d.created_at else None,
-                       'collection': d.collection.name
-                       if d.collection else None,
-                       'text': _doc_text(d)} for d in docs]}
-        resp = Response(json.dumps(payload, ensure_ascii=False, indent=2),
-                        mimetype='application/json')
-        resp.headers['Content-Disposition'] = (
-            'attachment; filename="knowledge-selection.json"')
-        return resp
     if action == 'auto_archive':
         from classifier import classify, _pick_color
         archived, created_names, skipped, rebuilt = [], [], 0, 0
@@ -4342,22 +4430,6 @@ def bulk():
         return jsonify({'ok': True, 'archived': archived,
                         'created': created_names, 'skipped': skipped,
                         'rebuilt': rebuilt})
-    if action == 'clear_archive':
-        cleared, kept = [], 0
-        for doc in docs:
-            if doc.auto_classified and doc.collection_id is not None:
-                doc.collection_id = None
-                doc.auto_classified = 0
-                cleared.append({'id': doc.id, 'title': doc.title})
-            else:
-                kept += 1
-        db.session.commit()
-        _bump_data_version()
-        _log_op('kb_bulk_clear_archive', f'{len(docs)} 个文档',
-                f'清除归档成功 {len(cleared)} 个' +
-                (f'(跳过 {kept} 个)' if kept else ''))
-        db.session.commit()
-        return jsonify({'ok': True, 'cleared': cleared, 'skipped': kept})
     return jsonify({'ok': False, 'error': f'未知操作: {action}'}), 400
 
 

@@ -331,6 +331,40 @@ class OperationLog(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
 
 
+class SysSetting(db.Model):
+    """系统设置键值对(如定时任务执行时间配置)。"""
+    __tablename__ = 'sys_setting'
+    key = db.Column(db.String(100), primary_key=True)
+    value = db.Column(db.Text, default='')
+
+
+# 定时任务默认配置
+JOB_SCHEDULE_DEFAULTS = {
+    'job_organize_enabled': '1',
+    'job_organize_weekday': '5',
+    'job_organize_hour': '22',
+    'job_cleanup_enabled': '1',
+    'job_cleanup_weekday': '6',
+    'job_cleanup_hour': '3',
+}
+
+
+def get_job_setting(key, default=None):
+    row = db.session.get(SysSetting, key)
+    if row is None or row.value == '':
+        return default if default is not None else JOB_SCHEDULE_DEFAULTS.get(key, '')
+    return row.value
+
+
+def set_job_setting(key, value):
+    row = db.session.get(SysSetting, key)
+    if row is None:
+        db.session.add(SysSetting(key=key, value=str(value)))
+    else:
+        row.value = str(value)
+    db.session.commit()
+
+
 def client_ip():
     try:
         return request.headers.get('X-Forwarded-For', '').split(',')[0].strip() or request.remote_addr or ''
@@ -646,6 +680,10 @@ def _run_sqlite_migrations():
             "id INTEGER PRIMARY KEY AUTOINCREMENT, "
             "point_id INTEGER NOT NULL, "
             "group_id INTEGER NOT NULL)")
+        c.execute(
+            "CREATE TABLE IF NOT EXISTS sys_setting ("
+            "key VARCHAR(100) PRIMARY KEY, "
+            "value TEXT DEFAULT '')")
         c.execute('CREATE INDEX IF NOT EXISTS ix_kbcg_coll '
                   'ON kb_collection_group(collection_id)')
         c.execute('CREATE INDEX IF NOT EXISTS ix_kbcg_group '
@@ -3049,17 +3087,34 @@ def admin_jobs_trigger():
     """后台手动触发整理待办(入队后由 job_worker 执行)。"""
     from notes import NoteJob
     scope = request.form.get('scope', 'all')
-    target_ids = request.form.get('target', '').strip()
-    if scope not in ('all', 'notes', 'kb', 'refine'):
+    if scope not in ('all', 'notes', 'kb', 'refine', 'cleanup'):
         scope = 'all'
-    # target 形如 'note:1,2' / 'kb:3,4' / 'thread:1'
-    job = NoteJob(scope=scope, target=target_ids, status='queued',
+    job = NoteJob(scope=scope, target='', status='queued',
                   trigger='manual', created_by=current_user.id)
     db.session.add(job)
     db.session.commit()
-    log_operation('job_trigger', f'{scope}:{target_ids}',
-                  f'手动触发整理待办 #{job.id}')
+    log_operation('job_trigger', scope, f'手动触发整理待办 #{job.id}')
     flash(f'已入队整理待办 #{job.id}({scope})', 'success')
+    return redirect(url_for('admin_jobs'))
+
+
+@app.route('/admin/jobs/schedule', methods=['POST'])
+@admin_required
+def admin_jobs_schedule():
+    """保存定时任务配置(执行时间/启用状态)。"""
+    for prefix, _default_enabled, _default_wd, _default_hour in (
+            ('job_organize', '1', '5', '22'),
+            ('job_cleanup', '1', '6', '3')):
+        enabled = request.form.get(f'{prefix}_enabled', '0')
+        weekday = request.form.get(f'{prefix}_weekday', '')
+        hour = request.form.get(f'{prefix}_hour', '')
+        set_job_setting(f'{prefix}_enabled', '1' if enabled == '1' else '0')
+        if weekday.isdigit() and 0 <= int(weekday) <= 6:
+            set_job_setting(f'{prefix}_weekday', weekday)
+        if hour.isdigit() and 0 <= int(hour) <= 23:
+            set_job_setting(f'{prefix}_hour', hour)
+    log_operation('job_schedule', 'save', '保存定时任务配置')
+    flash('已保存定时任务配置', 'success')
     return redirect(url_for('admin_jobs'))
 
 
@@ -3076,7 +3131,10 @@ def admin_jobs():
     if status:
         jobs = [j for j in jobs if j.status == status]
     return render_template('admin/jobs.html', jobs=jobs, scope=scope,
-                           status=status)
+                           status=status,
+                           schedule={
+                               k: get_job_setting(k) for k in JOB_SCHEDULE_DEFAULTS
+                           })
 
 
 @app.route('/admin/jobs/<int:job_id>/retry', methods=['POST'])

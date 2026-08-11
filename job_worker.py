@@ -4,8 +4,10 @@
 
 职责:
 1. 消费 note_job 队列:手动触发(后台管理页)与自动定时任务均为入队,
-   本进程领取并执行"使用大模型整理/合并/提炼笔记与知识库"。
-2. 每个周六 22:00 自动入队一周整理待办(仅当近 7 天有新增笔记或知识)。
+   本进程领取并执行"使用大模型整理/合并/提炼笔记与知识库",以及
+   scope=cleanup 的黑名单字样清理(不调用大模型)。
+2. 每个周六 22:00 自动入队一周整理待办(仅当近 7 天有新增笔记或知识);
+   每周日 03:00 自动入队黑名单字清理(仅当检测到黑名单字样)。
 
 数据:结构化元数据在 tasks.db;大模型调用复用 knowledge 的 opencode
 serve 客户端。
@@ -22,14 +24,15 @@ if os.environ.get('TZ'):
     except Exception:
         pass
 
-from app import app, db
+from app import app, db, get_job_setting
 from notes import Note, NoteJob, parse_tags_json
 from knowledge import (KbDocument, KbPage, KB_LLM_DISABLED, _session_create,
                        _send, _parse_tag_json, _parse_str_map,
                        KB_OPENCODE_BASE_URL, extract_point_tags,
                        tag_points_untagged, merge_duplicate_points,
                        refine_points_unrefined, refine_points_all,
-                       refine_docs_unrefined, refine_docs_all)
+                       refine_docs_unrefined, refine_docs_all,
+                       clean_blacklist_keywords)
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s %(name)s %(levelname)s %(message)s')
@@ -200,6 +203,23 @@ def _merge_msg():
     return '知识点合并:合并 %d 条重复知识点,剩余 %d 条' % (merged, left)
 
 
+def _cleanup_blacklist_msg():
+    """清理黑名单字样(KB_TAG_BLACKLIST)。返回报告文本。"""
+    report = clean_blacklist_keywords(dry_run=False)
+    if not report:
+        return '黑名单字清理:未发现黑名单字样'
+    lines = ['黑名单字清理:共 %d 处' % sum(n for _, n in report)]
+    for name, n in report:
+        lines.append('  %s: %d 行' % (name, n))
+    lines.append('提示:如向量检索(SochDB)文本含这些字样,'
+                 '需对相关文档重新识别以重建向量。')
+    return '\n'.join(lines)
+
+
+def _has_blacklist_hits():
+    return bool(clean_blacklist_keywords(dry_run=True))
+
+
 def _report_msg(text):
     result = _llm(text)
     if result and result.strip():
@@ -214,6 +234,7 @@ def run_organization(job):
     - kb:     知识点合并 + 知识点标签 + 知识点提炼(仅未提炼) + 文档标题提炼(仅未提炼)
     - all:    以上全部
     - refine: 全量提炼(所有笔记/文档/知识点重新提炼 + 合并 + 标签)
+    - cleanup: 清理黑名单字样(不调用大模型)
     每个阶段之间检查 job.cancel 以支持手动停止;阶段切换时写 phase/
     updated_at 作为心跳,便于进程中断后按超时恢复。
     """
@@ -242,6 +263,9 @@ def run_organization(job):
             reports.append('%s:失败(%s)' % (name, e))
         job.progress = min(90, job.progress + 10)
         db.session.commit()
+
+    if job.scope == 'cleanup':
+        _step('黑名单字清理', _cleanup_blacklist_msg)
 
     if job.scope in ('notes', 'all'):
         _step('笔记-标签匹配', _auto_tag_msg)
@@ -279,10 +303,12 @@ def run_organization(job):
 
 def _create_report_note(job, result):
     try:
+        kind = '清理' if job.scope == 'cleanup' else '整理'
         n = Note(user_id=job.created_by, thread_id=None,
-                 title=f'整理报告 {datetime.now().strftime("%Y-%m-%d %H:%M")}',
-                 content=result, tags=json.dumps(['整理']), version=1,
-                 simhash='0')
+                 title=f'{kind}报告 {datetime.now().strftime("%Y-%m-%d %H:%M")}',
+                 content=result, tags=json.dumps([kind])
+                 if job.scope == 'cleanup' else '[]',
+                 version=1, simhash='0')
         db.session.add(n)
         db.session.commit()
     except Exception as e:
@@ -354,7 +380,11 @@ def _recover_stale():
 
 
 def _enqueue_auto(now):
-    if not (now.weekday() == 5 and 22 <= now.hour < 24):
+    if get_job_setting('job_organize_enabled', '1') != '1':
+        return
+    wd = int(get_job_setting('job_organize_weekday', '5'))
+    hr = int(get_job_setting('job_organize_hour', '22'))
+    if (wd >= 0 and now.weekday() != wd) or now.hour != hr:
         return
     since = now - timedelta(days=7)
     if db.session.query(NoteJob.id).filter(
@@ -373,6 +403,26 @@ def _enqueue_auto(now):
     logger.info('入队本周自动整理待办')
 
 
+def _enqueue_auto_cleanup(now):
+    if get_job_setting('job_cleanup_enabled', '1') != '1':
+        return
+    wd = int(get_job_setting('job_cleanup_weekday', '6'))
+    hr = int(get_job_setting('job_cleanup_hour', '3'))
+    if (wd >= 0 and now.weekday() != wd) or now.hour != hr:
+        return
+    since = now - timedelta(days=7)
+    if db.session.query(NoteJob.id).filter(
+            NoteJob.trigger == 'auto', NoteJob.scope == 'cleanup',
+            NoteJob.created_at >= since).first():
+        return
+    if not _has_blacklist_hits():
+        return
+    db.session.add(NoteJob(scope='cleanup', status='queued', trigger='auto',
+                           created_by=None, created_at=datetime.now()))
+    db.session.commit()
+    logger.info('入队本周自动黑名单字清理')
+
+
 def main():
     with app.app_context():
         logger.info('job_worker started, interval=%ss 触发器=todo', INTERVAL)
@@ -381,6 +431,7 @@ def main():
             with app.app_context():
                 now = datetime.now()
                 _enqueue_auto(now)
+                _enqueue_auto_cleanup(now)
                 _recover_stale()
                 job = _claim()
                 if job:

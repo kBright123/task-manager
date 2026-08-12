@@ -104,6 +104,7 @@ window.kbUploadOpen = function () {
     var xhr = new XMLHttpRequest();
     xhr.open('POST', window.KB_URLS.upload);
     xhr.setRequestHeader('Accept', 'application/json');
+    if (window.CSRF_TOKEN) xhr.setRequestHeader('X-CSRF-Token', window.CSRF_TOKEN);
     xhr.upload.onprogress = function (e) { if (e.lengthComputable) setPct(f.name, e.loaded / e.total); };
     xhr.onload = function () {
       var d = null;
@@ -130,6 +131,7 @@ window.kbUploadOpen = function () {
       fd.append('file', blob, f.name);
       var xhr = new XMLHttpRequest();
       xhr.open('POST', window.KB_URLS.chunk);
+      if (window.CSRF_TOKEN) xhr.setRequestHeader('X-CSRF-Token', window.CSRF_TOKEN);
       xhr.onload = function () {
         if (xhr.status >= 200 && xhr.status < 300) {
           idx++;

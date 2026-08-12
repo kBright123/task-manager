@@ -70,8 +70,8 @@
 </div>
 {% endblock %}
 {% block extra_js %}
-<script src="https://cdn.bootcdn.net/ajax/libs/marked/12.0.2/marked.min.js"></script>
-<script src="https://cdn.bootcdn.net/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<script src="{{ url_for('static', filename='vendor/marked.min.js', v=staticv('vendor/marked.min.js')) }}"></script>
+<script src="{{ url_for('static', filename='vendor/purify.min.js', v=staticv('vendor/purify.min.js')) }}"></script>
 <script src="{{ url_for('static', filename='kb_markdown.js', v=staticv('kb_markdown.js')) }}"></script>
 <script>
 var chatMessages = [];

@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% block title %}管理{% endblock %}
+{% block body_class %}admin-full{% endblock %}
 {% block content %}
-<ul class="nav nav-tabs mb-3 flex-nowrap" style="border-bottom:1px solid var(--gray-200);flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;">
+<ul class="nav nav-tabs mb-3 flex-nowrap admin-tabs" style="border-bottom:1px solid var(--gray-200);flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;">
   <li class="nav-item">
     <a class="nav-link nav-tab-link active" href="{{ url_for('admin_users') }}" style="font-size:.85rem;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);"><i class="bi bi-people"></i> 用户管理</a>
   </li>
@@ -16,7 +17,7 @@
   </li>
 </ul>
 
-<div class="card">
+<div class="card admin-card">
   <div class="card-header py-2 px-3 d-flex flex-wrap gap-2 align-items-center" style="border-bottom:1px solid var(--gray-100);row-gap:8px;">
       <div class="input-group input-group-sm" style="width:200px;flex:0 1 auto;">
         <span class="input-group-text" style="background:var(--gray-50);border-color:var(--gray-200);"><i class="bi bi-search" style="font-size:.75rem;"></i></span>
@@ -45,7 +46,7 @@
   </div>
 
   <!-- Desktop Table -->
-  <div class="table-responsive d-none d-md-block">
+  <div class="table-responsive d-none d-md-block admin-scroll">
     <table class="table table-hover" style="font-size:.82rem;">
       <thead>
         <tr>
@@ -122,7 +123,7 @@
   </div>
 
   <!-- Mobile Cards -->
-  <div class="d-md-none p-3" id="userCardList">
+  <div class="d-md-none p-3 admin-scroll" id="userCardList">
     {% for user in users %}
     <div class="user-row card mb-2" style="border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.05);" data-name="{{ (user.name or '') }}" data-username="{{ user.username }}" data-role="{{ user.role }}" data-status="{{ user.status }}">
       <div class="card-body p-2 px-3">

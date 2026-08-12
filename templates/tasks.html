@@ -438,6 +438,9 @@ function renderTaskDetail(t, body){
   if (t.can_edit) {
     headBtns = '<button type="button" class="btn btn-xs-custom btn-outline-secondary" style="font-size:.72rem;flex-shrink:0;" onclick="openTaskEditModal(' + t.id + ')" title="编辑待办"><i class="bi bi-pencil"></i> 编辑</button>';
   }
+  if (t.can_delete) {
+    headBtns += '<button type="button" class="btn btn-xs-custom btn-outline-danger" style="font-size:.72rem;flex-shrink:0;" onclick="deleteTask(' + t.id + ')" title="删除待办"><i class="bi bi-trash"></i> 删除</button>';
+  }
   head.innerHTML = '<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;">' +
       '<div style="font-size:1rem;font-weight:700;color:var(--gray-900);flex:1;min-width:0;word-break:break-word;">' + esc(t.title) + '</div>' +
       headBtns + '</div>' +

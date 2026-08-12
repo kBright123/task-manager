@@ -55,9 +55,9 @@
      data-start-edit="{{ a.task.start_time.strftime('%Y-%m-%d %H:%M') }}"
      data-end-edit="{{ a.task.end_time.strftime('%Y-%m-%d %H:%M') }}"
      data-desc-edit="{{ a.task.description or '' }}"
-     onclick="if(event.detail===1){var d=this.dataset;openTaskDrawer(d.id,d.title,d.desc,d.start,d.end,d.progress,d.status,d.note,d.attachment)}"
-     ondblclick="openEditTaskModal(this);return false;"
-     title="单击查看详情,双击编辑待办">
+     data-owner="{{ '1' if a.task.creator_id == current_user.id or current_user.role == 'admin' else '0' }}"
+     onclick="if(event.detail===1){openTaskDrawer(this.dataset)}"
+     title="单击查看详情">
   <div class="flex-grow-1" style="min-width:0;">
     <div class="d-flex align-items-center gap-1">
       <span style="font-size:.92rem;font-weight:600;" class="text-truncate">{{ a.task.title }}</span>
@@ -66,7 +66,7 @@
     </div>
     <small class="text-muted" style="font-size:.78rem;">{{ a.task.end_time.strftime('%m-%d %H:%M') }} 截止</small>
   </div>
-<div class="d-flex align-items-center gap-2 flex-shrink-0" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()">
+<div class="d-flex align-items-center gap-2 flex-shrink-0" onclick="event.stopPropagation()">
     {% if a.task.category == '项目' or a.progress and a.progress > 0 %}
     <form action="{{ url_for('user_update_assign_progress', assignment_id=a.id) }}" method="POST" class="d-flex align-items-center gap-2" style="min-width:100px;">
       <input type="range" name="progress" value="{{ a.progress }}" min="0" max="100" class="flex-grow-1" style="width:60px;min-width:60px;" onchange="this.form.submit()" title="拖动以更新进度">
@@ -413,6 +413,10 @@
       <form id="drawerAbandonForm" method="POST" onsubmit="return confirm('确认废弃此待办？')">
         <button class="btn btn-sm btn-outline-danger" style="padding:2px 10px;font-size:.7rem;"><i class="bi bi-x-circle"></i> 废弃</button>
       </form>
+      <button class="btn btn-sm btn-outline-primary" style="padding:2px 10px;font-size:.7rem;" onclick="openEditTaskDrawer()"><i class="bi bi-pencil"></i> 编辑</button>
+      <form id="drawerDeleteForm" method="POST" onsubmit="return confirm('确认删除此待办？删除后不可恢复。')">
+        <button class="btn btn-sm btn-outline-danger" style="padding:2px 10px;font-size:.7rem;"><i class="bi bi-trash"></i> 删除</button>
+      </form>
     </div>
     <div id="drawerNote" class="p-2 rounded mb-2 d-none" style="background:var(--gray-50);font-size:.75rem;">
       <span class="text-muted">备注：</span><span id="drawerNoteText"></span>
@@ -483,7 +487,15 @@ function linkifyText(s) {
   return s.replace(/(https?:\/\/[^\s<>"\')\]，。、！？]+)/g,
     '<a href="$1" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:underline;">$1</a>');
 }
-function openTaskDrawer(id, title, desc, start, end, progress, status, note, attachment) {
+var _drawerEdit = null;
+function openTaskDrawer(d) {
+  if (!d) return;
+  var id = d.id, title = d.title, desc = d.desc, start = d.start, end = d.end,
+      progress = d.progress, status = d.status, note = d.note, attachment = d.attachment;
+  _drawerEdit = {
+    taskId: d.taskId, title: d.title, category: d.category || '工作',
+    start: d.startEdit || '', end: d.endEdit || '', desc: d.descEdit || ''
+  };
   document.getElementById('drawerTitle').textContent = title;
   var descEl = document.getElementById('drawerDesc');
   if (desc && desc !== title) {
@@ -498,6 +510,8 @@ function openTaskDrawer(id, title, desc, start, end, progress, status, note, att
   document.getElementById('drawerProgressForm').action = '/user/assignments/' + id + '/update_progress';
   document.getElementById('drawerCompleteForm').action = '/user/tasks/' + id + '/complete';
   document.getElementById('drawerAbandonForm').action = '/user/tasks/' + id + '/abandon';
+  document.getElementById('drawerDeleteForm').action = '/user/tasks/' + d.taskId + '/delete';
+  document.getElementById('drawerDeleteForm').style.display = (d.owner === '1') ? '' : 'none';
   document.getElementById('drawerNoteInput').value = note || '';
   var noteEl = document.getElementById('drawerNote');
   if (note) {
@@ -521,14 +535,14 @@ function closeTaskDrawer() {
   document.getElementById('taskDrawer').classList.add('d-none');
   document.getElementById('drawerOverlay').classList.add('d-none');
 }
-function openEditTaskModal(el) {
-  var d = el.dataset;
-  document.getElementById('editTaskId').value = d.taskId;
-  document.getElementById('editTaskTitle').value = d.title || '';
-  document.getElementById('editTaskCategory').value = d.category || '工作';
-  document.getElementById('editTaskStart').value = d.startEdit || '';
-  document.getElementById('editTaskEnd').value = d.endEdit || '';
-  document.getElementById('editTaskDesc').value = d.descEdit || '';
+function openEditTaskDrawer() {
+  if (!_drawerEdit) return;
+  document.getElementById('editTaskId').value = _drawerEdit.taskId;
+  document.getElementById('editTaskTitle').value = _drawerEdit.title || '';
+  document.getElementById('editTaskCategory').value = _drawerEdit.category || '工作';
+  document.getElementById('editTaskStart').value = _drawerEdit.start || '';
+  document.getElementById('editTaskEnd').value = _drawerEdit.end || '';
+  document.getElementById('editTaskDesc').value = _drawerEdit.desc || '';
   new bootstrap.Modal(document.getElementById('editTaskModal')).show();
 }
 </script>

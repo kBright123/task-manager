@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 {% block title %}管理{% endblock %}
+{% block body_class %}admin-full{% endblock %}
 {% block content %}
 {% set badge_map = {'login': 'var(--success)', 'login_fail': 'var(--danger)', 'logout': 'var(--gray-500)', 'kb_upload': 'var(--primary)', 'kb_delete': 'var(--danger)', 'kb_reprocess': 'var(--warning)', 'kb_cancel': 'var(--gray-500)', 'kb_export': 'var(--primary)', 'kb_bulk_delete': 'var(--danger)', 'kb_bulk_reprocess': 'var(--warning)', 'kb_bulk_export': 'var(--primary)', 'kb_collection_create': 'var(--primary)', 'kb_collection_update': 'var(--primary)', 'kb_collection_delete': 'var(--danger)', 'kb_collection_assign': 'var(--primary)', 'logs_cleanup': 'var(--warning)'} %}
 {% set label_map = {'login': '登录成功', 'login_fail': '登录失败', 'logout': '退出登录', 'kb_upload': '上传文档', 'kb_delete': '删除文档', 'kb_reprocess': '重新识别', 'kb_cancel': '停止识别', 'kb_export': '导出文档', 'kb_bulk_delete': '批量删除', 'kb_bulk_reprocess': '批量重识别', 'kb_bulk_export': '批量导出', 'kb_collection_create': '创建集合', 'kb_collection_update': '更新集合', 'kb_collection_delete': '删除集合', 'kb_collection_assign': '集合分配', 'logs_cleanup': '清理日志'} %}
-<ul class="nav nav-tabs mb-3 flex-nowrap" style="border-bottom:1px solid var(--gray-200);flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;">
+<ul class="nav nav-tabs mb-3 flex-nowrap admin-tabs" style="border-bottom:1px solid var(--gray-200);flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;">
   <li class="nav-item">
     <a class="nav-link nav-tab-link" href="{{ url_for('admin_users') }}" style="font-size:.85rem;color:var(--gray-500);"><i class="bi bi-people"></i> 用户管理</a>
   </li>
@@ -18,7 +19,7 @@
   </li>
 </ul>
 
-<div class="card mb-3">
+<div class="card admin-card mb-3">
   <div class="card-header d-flex justify-content-between align-items-center py-2 px-3 flex-wrap gap-2" style="border-bottom:1px solid var(--gray-100);row-gap:8px;">
     <form method="GET" class="d-flex gap-2 align-items-center flex-wrap" style="row-gap:8px;">
       <div class="input-group input-group-sm" style="width:190px;flex:0 1 auto;">
@@ -48,7 +49,7 @@
     <button class="btn btn-sm btn-outline-danger flex-shrink-0" type="button" data-bs-toggle="modal" data-bs-target="#cleanupLogsModal"><i class="bi bi-trash3"></i> 清理日志</button>
   </div>
 
-  <div class="table-responsive d-none d-md-block">
+  <div class="table-responsive d-none d-md-block admin-scroll">
     <table class="table table-hover" style="font-size:.8rem;">
       <thead>
         <tr>
@@ -86,7 +87,7 @@
     </table>
   </div>
 
-  <div class="d-md-none p-3">
+  <div class="d-md-none p-3 admin-scroll">
     {% for log in logs %}
     <div class="card mb-2" style="border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
       <div class="card-body p-2 px-3">

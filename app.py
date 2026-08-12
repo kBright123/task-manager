@@ -2577,6 +2577,36 @@ def user_dashboard():
         pass
     notes_delta = new_notes_yesterday - new_notes_prev
     docs_delta = new_docs_yesterday - new_docs_prev
+    # 知识点统计(仅统计当前用户可见的知识点)
+    points_count = 0
+    new_points_yesterday = 0
+    new_points_prev = 0
+    try:
+        from knowledge import KbPoint as _KbPoint
+        from knowledge import _visible_point_ids as _kb_visible_point_ids
+        _vis_points = _kb_visible_point_ids()
+        if _vis_points is None:
+            points_count = _KbPoint.query.count()
+            new_points_yesterday = _KbPoint.query.filter(
+                _KbPoint.created_at >= yesterday_start,
+                _KbPoint.created_at < today_start).count()
+            new_points_prev = _KbPoint.query.filter(
+                _KbPoint.created_at >= day_before_start,
+                _KbPoint.created_at < yesterday_start).count()
+        elif _vis_points:
+            points_count = _KbPoint.query.filter(
+                _KbPoint.id.in_(_vis_points)).count()
+            new_points_yesterday = _KbPoint.query.filter(
+                _KbPoint.created_at >= yesterday_start,
+                _KbPoint.created_at < today_start,
+                _KbPoint.id.in_(_vis_points)).count()
+            new_points_prev = _KbPoint.query.filter(
+                _KbPoint.created_at >= day_before_start,
+                _KbPoint.created_at < yesterday_start,
+                _KbPoint.id.in_(_vis_points)).count()
+    except Exception:
+        pass
+    points_delta = new_points_yesterday - new_points_prev
     week_tasks = TaskAssignment.query.join(Task).filter(
         TaskAssignment.user_id == current_user.id, TaskAssignment.status == 'pending',
         Task.end_time >= week_start, Task.end_time <= week_end
@@ -2618,6 +2648,8 @@ def user_dashboard():
                            tasks_delta=tasks_delta,
                            notes_delta=notes_delta,
                            docs_delta=docs_delta,
+                           points_count=points_count,
+                           points_delta=points_delta,
                            collections=_collections)
 
 

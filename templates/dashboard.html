@@ -23,6 +23,11 @@
   .result-page { border-left: 3px solid var(--gray-100); padding-left: 10px; margin-top: 8px; }
   .result-page mark { background: #fef08a; padding: 0 2px; border-radius: 2px; }
   .badge-medium { font-size: .65rem; padding: 2px 6px; }
+  .stat-card .stat-trend { opacity: 1; display: flex; align-items: center; gap: 5px; }
+  .stat-card .stat-trend .trend-pill { display: inline-flex; align-items: center; gap: 3px; padding: 1px 8px; border-radius: 100px; font-weight: 700; font-size: .68rem; line-height: 1.5; }
+  .stat-card .stat-trend .trend-pill.up { color: #d1fae5; background: rgba(255,255,255,.18); }
+  .stat-card .stat-trend .trend-pill.down { color: #fee2e2; background: rgba(255,255,255,.18); }
+  .stat-card .stat-trend .trend-pill.flat { color: rgba(255,255,255,.92); background: rgba(255,255,255,.12); }
 </style>
 {% endblock %}
 {% block content %}
@@ -88,13 +93,13 @@
 {% endif %}
 {% endmacro %}
 
-<div class="stat-grid stat-grid-3 mb-4">
+<div class="stat-grid stat-grid-4 mb-4">
   <a href="{{ url_for('user_tasks') }}" class="stat-card card-lift" style="background:linear-gradient(135deg,#007a33,#006633);padding:14px 18px;text-decoration:none;">
     <div class="d-flex justify-content-between align-items-center">
       <div>
         <div class="stat-num" style="font-size:1.5rem;">{{ all_pending|length }}</div>
         <div class="stat-label">待处理任务</div>
-        <div class="stat-trend">较前日{% if tasks_delta > 0 %}<span class="text-success">↑{{ tasks_delta }}</span>{% elif tasks_delta < 0 %}<span class="text-danger">↓{{ -tasks_delta }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</div>
+        <div class="stat-trend">较前日{% if tasks_delta > 0 %}<span class="trend-pill up">↑ {{ tasks_delta }}</span>{% elif tasks_delta < 0 %}<span class="trend-pill down">↓ {{ -tasks_delta }}</span>{% else %}<span class="trend-pill flat">—</span>{% endif %}</div>
       </div>
       <i class="bi bi-check2-square" style="font-size:1.5rem;opacity:.85;"></i>
     </div>
@@ -104,7 +109,7 @@
       <div>
         <div class="stat-num" style="font-size:1.5rem;">{{ note_count }}</div>
         <div class="stat-label">随手记</div>
-        <div class="stat-trend">较前日{% if notes_delta > 0 %}<span class="text-success">↑{{ notes_delta }}</span>{% elif notes_delta < 0 %}<span class="text-danger">↓{{ -notes_delta }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</div>
+        <div class="stat-trend">较前日{% if notes_delta > 0 %}<span class="trend-pill up">↑ {{ notes_delta }}</span>{% elif notes_delta < 0 %}<span class="trend-pill down">↓ {{ -notes_delta }}</span>{% else %}<span class="trend-pill flat">—</span>{% endif %}</div>
       </div>
       <i class="bi bi-journal-text" style="font-size:1.5rem;opacity:.85;"></i>
     </div>
@@ -114,9 +119,19 @@
       <div>
         <div class="stat-num" style="font-size:1.5rem;">{{ kb_count }}</div>
         <div class="stat-label">知识库条目</div>
-        <div class="stat-trend">较前日{% if docs_delta > 0 %}<span class="text-success">↑{{ docs_delta }}</span>{% elif docs_delta < 0 %}<span class="text-danger">↓{{ -docs_delta }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</div>
+        <div class="stat-trend">较前日{% if docs_delta > 0 %}<span class="trend-pill up">↑ {{ docs_delta }}</span>{% elif docs_delta < 0 %}<span class="trend-pill down">↓ {{ -docs_delta }}</span>{% else %}<span class="trend-pill flat">—</span>{% endif %}</div>
       </div>
       <i class="bi bi-collection" style="font-size:1.5rem;opacity:.85;"></i>
+    </div>
+  </a>
+  <a href="{{ url_for('kb.workbench') }}" class="stat-card card-lift" style="background:linear-gradient(135deg,#6d28d9,#4338ca);padding:14px 18px;text-decoration:none;">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <div class="stat-num" style="font-size:1.5rem;">{{ points_count }}</div>
+        <div class="stat-label">知识点</div>
+        <div class="stat-trend">较前日{% if points_delta > 0 %}<span class="trend-pill up">↑ {{ points_delta }}</span>{% elif points_delta < 0 %}<span class="trend-pill down">↓ {{ -points_delta }}</span>{% else %}<span class="trend-pill flat">—</span>{% endif %}</div>
+      </div>
+      <i class="bi bi-lightbulb" style="font-size:1.5rem;opacity:.85;"></i>
     </div>
   </a>
 </div>
@@ -730,6 +745,7 @@ function quickTaskBack(){
 (function(){
   window.qtUsers = [
     {id: 0, name: '所有人', keyword: '@所有人'},
+    {id: {{ current_user.id }}, name: '{{ current_user.name or current_user.username }}', keyword: '{{ current_user.name or current_user.username }}'{% if current_user.name %}, uname: '{{ current_user.username }}'{% endif %}},
     {% for u in users %}
     {id: {{ u.id }}, name: '{{ u.name or u.username }}', keyword: '{{ u.name or u.username }}'{% if u.name %}, uname: '{{ u.username }}'{% endif %}},
     {% endfor %}

@@ -1,16 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <!-- 浅色模式渐变: 深蓝 -> 暖橙 -->
+    <linearGradient id="gLight" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1B2A4A"/>
+      <stop offset="100%" stop-color="#E8843A"/>
+    </linearGradient>
+    <!-- 深色模式渐变: 亮蓝 -> 亮橙 -->
+    <linearGradient id="gDark" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#4A8CF7"/>
+      <stop offset="100%" stop-color="#F5A623"/>
+    </linearGradient>
+  </defs>
   <style>
-    .bg { fill: #eef1f4; }
-    .fg { stroke: #0f172a; }
+    .bg { fill: #F5F6FA; }
+    .fg-light { stroke: url(#gLight); }
+    .fg-dark { stroke: url(#gDark); display: none; }
     @media (prefers-color-scheme: dark) {
-      .bg { fill: #1f2937; }
-      .fg { stroke: #f3f4f6; }
+      .bg { fill: #1C1C1E; }
+      .fg-light { display: none; }
+      .fg-dark { display: inline; }
     }
   </style>
   <rect class="bg" width="32" height="32" rx="7"/>
-  <!-- 知⇄行循环 · 自动提炼 (方案F) -->
-  <g class="fg" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M30.67 5.33 L30.67 13.33 L22.67 13.33"/>
-    <path d="M27.32 20 a12 12 0 1 1 -2.83 -12.48 L30.67 13.33"/>
-  </g>
+  <!-- 知⇄行合一 · ∞ 循环渐变 + 中心白点 -->
+  <path class="fg-light" d="M9.38 16 C9.38 11 13.13 11 16 16 C18.88 21 22.63 21 22.63 16 C22.63 11 18.88 11 16 16 C13.13 21 9.38 21 9.38 16 Z" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path class="fg-dark" d="M9.38 16 C9.38 11 13.13 11 16 16 C18.88 21 22.63 21 22.63 16 C22.63 11 18.88 11 16 16 C13.13 21 9.38 21 9.38 16 Z" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="16" cy="16" r="1" fill="#FFFFFF"/>
+  <circle cx="16" cy="16" r="1" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="0.4" opacity="0.3"/>
 </svg>

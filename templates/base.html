@@ -546,10 +546,6 @@
         <span class="quick-fab-item-icon" style="background:var(--warning);color:#fff;"><i class="bi bi-cloud-arrow-up"></i></span>
         <span>上传知识</span>
       </button>
-      <button type="button" class="quick-fab-item" onclick="closeFab();window.scrollTo({top:0,behavior:'smooth'})">
-        <span class="quick-fab-item-icon" style="background:var(--gray-500);color:#fff;"><i class="bi bi-arrow-up"></i></span>
-        <span>回到顶部</span>
-      </button>
     </div>
     <button type="button" id="quickFabToggle" class="quick-fab-toggle" aria-label="快速创建" aria-expanded="false"><i class="bi bi-plus-lg"></i></button>
   </div>
@@ -647,7 +643,7 @@
         var fab = _fab, btn = _fabBtn;
         function openFab() { fab.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); }
         btn.addEventListener('click', function (e) { e.stopPropagation(); if (fab.classList.contains('open')) closeFab(); else openFab(); });
-        btn.addEventListener('focus', openFab);
+        btn.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); if (fab.classList.contains('open')) closeFab(); else openFab(); } });
         fab.addEventListener('focusout', function (e) { if (!fab.contains(e.relatedTarget)) closeFab(); });
         document.addEventListener('click', function (e) { if (!fab.contains(e.target)) closeFab(); });
         document.addEventListener('shown.bs.modal', function () { fab.classList.add('d-none'); });

@@ -124,7 +124,7 @@
       <i class="bi bi-collection" style="font-size:1.5rem;opacity:.85;"></i>
     </div>
   </a>
-  <a href="{{ url_for('kb.workbench') }}" class="stat-card card-lift" style="background:linear-gradient(135deg,#6d28d9,#4338ca);padding:14px 18px;text-decoration:none;">
+  <a href="{{ url_for('kb.workbench', view='points') }}" class="stat-card card-lift" style="background:linear-gradient(135deg,#0e9f6e,#047857);padding:14px 18px;text-decoration:none;">
     <div class="d-flex justify-content-between align-items-center">
       <div>
         <div class="stat-num" style="font-size:1.5rem;">{{ points_count }}</div>
@@ -170,59 +170,55 @@
               <input type="datetime-local" id="qtEnd" class="form-control form-control-sm">
             </div>
           </div>
-          <div class="mb-2">
-            <label style="font-size:.72rem;color:var(--gray-600);">分类</label>
-            <select id="qtCategory" class="form-select form-select-sm">
-              <option value="工作">工作</option>
-              <option value="个人">个人</option>
-              <option value="会议">会议</option>
-              <option value="培训">培训</option>
-              <option value="考试">考试</option>
-            </select>
-          </div>
-          <div class="mb-2">
-            <label style="font-size:.72rem;color:var(--gray-600);">周期</label>
-            <select id="qtRecurrenceSelect" class="form-select form-select-sm" style="font-size:.82rem;" onchange="qtUpdateRecurrence()">
-              <option value="" data-count="0" data-interval="0">不重复</option>
-              <option value="weekly" data-count="4" data-interval="7">每周（4期）</option>
-              <option value="monthly" data-count="3" data-interval="30">每月（3期）</option>
-              <option value="yearly" data-count="2" data-interval="365">每年（2期）</option>
-              <option value="custom" data-count="0" data-interval="0">自定义</option>
-            </select>
-            <span id="qtRecurrenceCustom" class="d-none mt-1" style="display:flex;gap:4px;">
-              <input type="number" id="qtCustomInterval" class="form-control form-control-sm" style="width:70px;" placeholder="天数" min="1" value="7">
-              <input type="number" id="qtCustomCount" class="form-control form-control-sm" style="width:60px;" placeholder="期数" min="1" value="3">
-              <button type="button" class="btn btn-sm btn-outline-primary" onclick="qtApplyCustomRecurrence()">应用</button>
-            </span>
-            <span id="qtRecurrenceHint" class="text-info" style="font-size:.75rem;"></span>
-          </div>
-          {% if user_groups %}
-          <div class="mb-2" id="qtGroupWrap">
-            <label style="font-size:.72rem;color:var(--gray-600);">按群组分配</label>
-            <div class="d-flex flex-wrap gap-2 mt-1" id="qtGroupBox">
-              {% for g in user_groups %}
-              <label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:4px;">
-                <input type="checkbox" class="form-check-input qt-group" value="{{ g.id }}"> {{ g.name }} <small style="color:var(--gray-400);font-size:.68rem;">({{ g.members|length }}人)</small>
-              </label>
-              {% endfor %}
+          <div class="row g-2 mb-2">
+            <div class="col-6">
+              <label style="font-size:.72rem;color:var(--gray-600);">分类</label>
+              <select id="qtCategory" class="form-select form-select-sm">
+                <option value="工作">工作</option>
+                <option value="个人">个人</option>
+                <option value="会议">会议</option>
+                <option value="培训">培训</option>
+                <option value="考试">考试</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label style="font-size:.72rem;color:var(--gray-600);">周期</label>
+              <select id="qtRecurrenceSelect" class="form-select form-select-sm" style="font-size:.82rem;" onchange="qtUpdateRecurrence()">
+                <option value="" data-count="0" data-interval="0">不重复</option>
+                <option value="weekly" data-count="4" data-interval="7">每周（4期）</option>
+                <option value="monthly" data-count="3" data-interval="30">每月（3期）</option>
+                <option value="yearly" data-count="2" data-interval="365">每年（2期）</option>
+                <option value="custom" data-count="0" data-interval="0">自定义</option>
+              </select>
+              <span id="qtRecurrenceCustom" class="d-none mt-1" style="display:flex;gap:4px;">
+                <input type="number" id="qtCustomInterval" class="form-control form-control-sm" style="width:70px;" placeholder="天数" min="1" value="7">
+                <input type="number" id="qtCustomCount" class="form-control form-control-sm" style="width:60px;" placeholder="期数" min="1" value="3">
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="qtApplyCustomRecurrence()">应用</button>
+              </span>
+              <span id="qtRecurrenceHint" class="text-info" style="font-size:.75rem;"></span>
             </div>
           </div>
-          {% endif %}
-          {% if is_admin %}
-          <div class="mb-2">
-            <label class="form-check-label" style="font-size:.78rem;cursor:pointer;">
-              <input type="checkbox" class="form-check-input" id="qtAll" style="margin-right:4px;"> @所有人
-              <small style="color:var(--gray-500);font-size:.68rem;">可切换为下方手动分配</small>
-            </label>
-          </div>
-          {% endif %}
-          <div class="mb-2" id="qtUserWrap">
-            <label style="font-size:.72rem;color:var(--gray-600);">分配对象</label>
-            <div class="d-flex flex-wrap gap-2 mt-1" id="qtAssignBox"></div>
+          <div class="row g-2 mb-2">
+            {% if user_groups %}
+            <div class="col-6" id="qtGroupWrap">
+              <label style="font-size:.72rem;color:var(--gray-600);">按群组分配</label>
+              <div class="d-flex flex-wrap gap-2 mt-1" id="qtGroupBox">
+                {% for g in user_groups %}
+                <label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:4px;">
+                  <input type="checkbox" class="form-check-input qt-group" value="{{ g.id }}"> {{ g.name }} <small style="color:var(--gray-400);font-size:.68rem;">({{ g.members|length }}人)</small>
+                </label>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+            <div class="{% if user_groups %}col-6{% endif %}" id="qtUserWrap">
+              <label style="font-size:.72rem;color:var(--gray-600);">分配对象{% if is_admin %}<span class="ms-2 form-check-label" style="font-size:.78rem;cursor:pointer;"><input type="checkbox" class="form-check-input" id="qtAll" style="margin-right:4px;"> @所有人</span>{% endif %}</label>
+              <div class="d-flex flex-wrap gap-2 mt-1" id="qtAssignBox"></div>
+            </div>
           </div>
           <div class="mb-1">
             <label style="font-size:.72rem;color:var(--gray-600);">待办描述</label>
-            <textarea id="qtDesc" class="form-control form-control-sm" rows="2" style="font-size:.8rem;"></textarea>
+            <textarea id="qtDesc" class="form-control form-control-sm" rows="1" style="font-size:.8rem;"></textarea>
           </div>
         </div>
         <div class="modal-footer py-2"><span class="text-muted" id="qtErr2" style="font-size:.75rem;"></span><button class="btn btn-sm btn-outline-secondary" onclick="quickTaskBack()"><i class="bi bi-arrow-left"></i> 返回</button><button class="btn btn-sm btn-primary" onclick="quickTask()"><i class="bi bi-check"></i> 确认发布</button></div>

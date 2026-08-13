@@ -23,12 +23,18 @@ install_deps() {
 install_deps &
 
 # ===== 权限修复（针对挂载文件） =====
+# bind mount 的文件保留宿主属主/权限。若容器内以 root 运行仍不可读, 通常是
+# rootless/podman 或 userns-remap(容器 root ≠ 宿主 root), 容器内 chown/chmod
+# 对宿主文件无效, 必须回到宿主机处理。
 for f in /app/app.py /app/knowledge.py /app/classifier.py /app/reminder_worker.py /app/notes.py /app/job_worker.py /app/backup.py /app/routes_admin.py /app/routes_auth.py /app/routes_tasks.py /app/routes_search.py /app/routes_notify.py; do
   if [ ! -r "$f" ]; then
+    chown appuser:appuser "$f" 2>/dev/null || true
     chmod 644 "$f" 2>/dev/null || true
     if [ ! -r "$f" ]; then
-      echo "[entrypoint] ERROR: $f 不可读(bind mount 文件属主非当前用户)。" >&2
+      echo "[entrypoint] ERROR: $f 不可读(容器内 root 无权修改该 bind mount 文件)。" >&2
+      ls -ln "$f" >&2 2>/dev/null || true
       echo "[entrypoint] 请在宿主机执行: chmod 644 $f" >&2
+      echo "[entrypoint] (rootless/podman 或 userns-remap 时容器 root ≠ 宿主 root, 容器内 chown/chmod 无效)" >&2
       exit 1
     fi
   fi

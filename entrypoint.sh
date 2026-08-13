@@ -1,7 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for f in /app/app.py /app/knowledge.py /app/classifier.py /app/reminder_worker.py /app/notes.py /app/job_worker.py; do
+# ===== 后台安装系统依赖（不影响服务启动） =====
+install_deps() {
+    if [ -f /usr/lib/x86_64-linux-gnu/libglib-2.0.so.0 ]; then
+        echo "[entrypoint] System dependencies already installed, skipping." >> /app/deps_install.log
+        return 0
+    fi
+
+    echo "[entrypoint] Installing system dependencies in background..." >> /app/deps_install.log
+    # 换阿里云源（可自行调整）
+    echo "deb https://mirrors.aliyun.com/debian bookworm main contrib non-free non-free-firmware" > /etc/apt/sources.list && \
+    echo "deb https://mirrors.aliyun.com/debian bookworm-updates main contrib non-free non-free-firmware" >> /etc/apt/sources.list && \
+    echo "deb https://mirrors.aliyun.com/debian-security bookworm-security main contrib non-free non-free-firmware" >> /etc/apt/sources.list && \
+    apt-get update -o Acquire::http::Show-Progress=true && \
+    apt-get install -y --no-install-recommends --verbose-versions -o Acquire::http::Show-Progress=true \
+        libglib2.0-0 libgl1 libgomp1 && \
+    rm -rf /var/lib/apt/lists/* && \
+    echo "[entrypoint] System dependencies installed." >> /app/deps_install.log
+}
+
+install_deps &
+
+# ===== 权限修复（针对挂载文件） =====
+for f in /app/app.py /app/knowledge.py /app/classifier.py /app/reminder_worker.py /app/notes.py /app/job_worker.py /app/backup.py /app/routes_admin.py /app/routes_auth.py /app/routes_tasks.py /app/routes_search.py /app/routes_notify.py; do
   if [ ! -r "$f" ]; then
     chmod 644 "$f" 2>/dev/null || true
     if [ ! -r "$f" ]; then
@@ -12,6 +34,18 @@ for f in /app/app.py /app/knowledge.py /app/classifier.py /app/reminder_worker.p
   fi
 done
 
+# ===== instance 数据目录（bind mount 自宿主，属主可能是 root） =====
+if [ -d /app/instance ]; then
+  chown -R appuser:appuser /app/instance 2>/dev/null || true
+  chmod -R u+rwX /app/instance 2>/dev/null || true
+fi
+
+# ===== backups 备份目录（bind mount 自宿主） =====
+mkdir -p /app/backups 2>/dev/null || true
+chown appuser:appuser /app/backups 2>/dev/null || true
+chmod 700 /app/backups 2>/dev/null || true
+
+# ===== sochdb-server（向量数据库） =====
 if [ "${KB_VECTOR_DISABLED:-0}" = "1" ]; then
   echo "[entrypoint] KB_VECTOR_DISABLED=1, skipping sochdb-server (vector DB)"
   SOCHDB_PID=""
@@ -39,20 +73,22 @@ else
   echo "[entrypoint] sochdb-server ready"
 fi
 
+# ===== 启动 Workers（使用 su appuser -c 切换，不带 - 避免 login shell 问题） =====
+export HOME=/home/appuser
 KB_WORKER_ENABLED="${KB_WORKER_ENABLED:-1}"
 REMINDER_WORKER_ENABLED="${REMINDER_WORKER_ENABLED:-1}"
 JOB_WORKER_ENABLED="${JOB_WORKER_ENABLED:-1}"
 
 if [ "${KB_AUTO_RELOAD:-0}" = "1" ]; then
   echo "[entrypoint] starting kb_worker + reminder_worker + job_worker (auto-reload on)"
-  python -u - <<'PY' &
+  su appuser -c "python -u - <<'PY'
 import os
 import signal
 import subprocess
 import sys
 import time
 
-WATCHED = ('/app/app.py', '/app/knowledge.py', '/app/classifier.py', '/app/reminder_worker.py', '/app/notes.py', '/app/job_worker.py')
+WATCHED = ('/app/app.py', '/app/knowledge.py', '/app/classifier.py', '/app/reminder_worker.py', '/app/notes.py', '/app/job_worker.py', '/app/routes_admin.py', '/app/routes_auth.py', '/app/routes_tasks.py', '/app/routes_search.py', '/app/routes_notify.py')
 SCRIPTS = {k: v for k, v in {
     'kb': ('knowledge.py', 'KB_WORKER_ENABLED'),
     'reminder': ('reminder_worker.py', 'REMINDER_WORKER_ENABLED'),
@@ -109,16 +145,26 @@ finally:
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 proc.kill()
-PY
+PY" &
   WORKER_PID=$!
 else
   echo "[entrypoint] starting background workers (kb=${KB_WORKER_ENABLED} reminder=${REMINDER_WORKER_ENABLED} job=${JOB_WORKER_ENABLED})"
   WORKER_PIDS=()
-  if [ "${KB_WORKER_ENABLED:-1}" = "1" ]; then python knowledge.py & WORKER_PIDS+=("$!"); fi
-  if [ "${REMINDER_WORKER_ENABLED:-1}" = "1" ]; then python reminder_worker.py & WORKER_PIDS+=("$!"); fi
-  if [ "${JOB_WORKER_ENABLED:-1}" = "1" ]; then python job_worker.py & WORKER_PIDS+=("$!"); fi
+  if [ "${KB_WORKER_ENABLED:-1}" = "1" ]; then
+    su appuser -c "python knowledge.py" &
+    WORKER_PIDS+=("$!")
+  fi
+  if [ "${REMINDER_WORKER_ENABLED:-1}" = "1" ]; then
+    su appuser -c "python reminder_worker.py" &
+    WORKER_PIDS+=("$!")
+  fi
+  if [ "${JOB_WORKER_ENABLED:-1}" = "1" ]; then
+    su appuser -c "python job_worker.py" &
+    WORKER_PIDS+=("$!")
+  fi
 fi
 
+# ===== 清理函数 =====
 cleanup() {
   echo "[entrypoint] shutting down"
   for _pid in "${WORKER_PIDS[@]:-}"; do kill "$_pid" 2>/dev/null || true; done
@@ -127,10 +173,11 @@ cleanup() {
 }
 trap cleanup EXIT TERM INT
 
+# ===== 启动 Gunicorn（以 appuser 运行） =====
 GUNICORN_ARGS="--bind 0.0.0.0:5000 --workers 2 --threads 4 --timeout 120 --max-requests 1200 --max-requests-jitter 150"
 if [ "${KB_AUTO_RELOAD:-0}" = "1" ]; then
   GUNICORN_ARGS="$GUNICORN_ARGS --reload"
 fi
 
 echo "[entrypoint] starting gunicorn"
-exec gunicorn $GUNICORN_ARGS app:app
+exec su appuser -c "gunicorn $GUNICORN_ARGS app:app"

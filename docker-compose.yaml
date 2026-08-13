@@ -11,15 +11,22 @@ services:
       - ./reminder_worker.py:/app/reminder_worker.py
       - ./notes.py:/app/notes.py
       - ./job_worker.py:/app/job_worker.py
+      - ./backup.py:/app/backup.py
+      - ./routes_admin.py:/app/routes_admin.py
+      - ./routes_auth.py:/app/routes_auth.py
+      - ./routes_tasks.py:/app/routes_tasks.py
+      - ./routes_search.py:/app/routes_search.py
+      - ./routes_notify.py:/app/routes_notify.py
       - ./entrypoint.sh:/app/entrypoint.sh
       - ./templates:/app/templates
       - ./static:/app/static
+      - ./backups:/app/backups
       - task-data:/app/instance
       - task-uploads:/app/instance/uploads
     restart: unless-stopped
     mem_limit: 2g
     memswap_limit: 2g
-    cpus: '0.75'
+    cpus: '2'
     environment:
       - TZ=Asia/Shanghai
       - FLASK_ENV=production

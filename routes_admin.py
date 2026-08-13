@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """admin 路由, 自 app.py 单文件拆分, 保持原 endpoint 名称不变。"""
-from app import app, login_required
+from app import app, login_required, init_db
 
 def admin_required(f):
     from functools import wraps
@@ -729,7 +729,7 @@ def admin_jobs_trigger():
     """后台手动触发整理待办(入队后由 job_worker 执行)。"""
     from notes import NoteJob
     scope = request.form.get('scope', 'all')
-    if scope not in ('all', 'notes', 'kb', 'refine', 'cleanup'):
+    if scope not in ('all', 'notes', 'kb', 'refine', 'cleanup', 'backup'):
         scope = 'all'
     terms = request.form.get('terms', '').strip()
     job = NoteJob(scope=scope, target=terms, status='queued',
@@ -760,6 +760,17 @@ def admin_jobs_schedule():
                      request.form.get('job_cleanup_terms', '').strip())
     terms = ','.join(t.strip() for t in terms if t.strip())
     set_job_setting('job_cleanup_terms', terms)
+    enabled = request.form.get('job_backup_enabled', '0')
+    hour = request.form.get('job_backup_hour', '')
+    minute = request.form.get('job_backup_minute', '')
+    keep = request.form.get('job_backup_keep', '')
+    set_job_setting('job_backup_enabled', '1' if enabled == '1' else '0')
+    if hour.isdigit() and 0 <= int(hour) <= 23:
+        set_job_setting('job_backup_hour', hour)
+    if minute.isdigit() and 0 <= int(minute) <= 59:
+        set_job_setting('job_backup_minute', minute)
+    if keep.isdigit() and 0 < int(keep) <= 365:
+        set_job_setting('job_backup_keep', keep)
     log_operation('job_schedule', 'save', '保存定时任务配置')
     flash('已保存定时任务配置', 'success')
     return redirect(url_for('admin_jobs'))
@@ -770,6 +781,7 @@ def admin_jobs_schedule():
 def admin_jobs():
     """后台管理:定时任务/整理记录。"""
     from notes import NoteJob
+    from backup import list_backups
     jobs = NoteJob.query.order_by(NoteJob.created_at.desc()).limit(200).all()
     scope = request.args.get('scope', '')
     status = request.args.get('status', '')
@@ -779,9 +791,32 @@ def admin_jobs():
         jobs = [j for j in jobs if j.status == status]
     return render_template('admin/jobs.html', jobs=jobs, scope=scope,
                            status=status,
+                           backups=list_backups(),
                            schedule={
                                k: get_job_setting(k) for k in JOB_SCHEDULE_DEFAULTS
                            })
+
+
+@app.route('/admin/backups/<name>/restore', methods=['POST'])
+@admin_required
+def admin_backup_restore(name):
+    from backup import restore_backup
+    ok, msg = restore_backup(name)
+    log_operation('backup_restore', name, msg)
+    flash(msg, 'success' if ok else 'danger')
+    return redirect(url_for('admin_jobs'))
+
+
+@app.route('/admin/backups/<name>/delete', methods=['POST'])
+@admin_required
+def admin_backup_delete(name):
+    from backup import delete_backup
+    if delete_backup(name):
+        log_operation('backup_delete', name, '删除备份文件')
+        flash(f'已删除备份 {name}', 'success')
+    else:
+        flash('备份文件不存在', 'danger')
+    return redirect(url_for('admin_jobs'))
 
 
 @app.route('/admin/jobs/<int:job_id>/retry', methods=['POST'])

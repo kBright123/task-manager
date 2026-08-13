@@ -289,14 +289,20 @@ def apply_rules(note):
     return changes
 
 
-def _thread_dict(t, user_id):
-    count = 0
+def _thread_note_counts(thread_ids, user_id):
+    """批量统计各线程笔记数,替代 _thread_dict 中逐线程 count 的 N+1。"""
+    ids = [t for t in (thread_ids or []) if t is not None]
+    if not ids:
+        return {}
+    from sqlalchemy import func
     try:
-        count = t.notes.filter_by(user_id=user_id).count()
+        rows = db.session.query(
+            Note.thread_id, func.count(Note.id)
+        ).filter(Note.thread_id.in_(ids), Note.user_id == user_id).group_by(
+            Note.thread_id).all()
     except Exception:
-        pass
-    return {'id': t.id, 'name': t.name, 'color': t.color,
-            'note_count': count}
+        return {}
+    return dict(rows)
 
 
 def _visible_threads(user_id):
@@ -346,8 +352,10 @@ def index():
 @login_required
 def api_threads():
     threads = _visible_threads(current_user.id)
+    counts = _thread_note_counts([t.id for t in threads], current_user.id)
     return jsonify({'ok': True, 'threads': [
-        _thread_dict(t, current_user.id) for t in threads]})
+        {'id': t.id, 'name': t.name, 'color': t.color,
+         'note_count': counts.get(t.id, 0)} for t in threads]})
 
 
 @notes_bp.route('/api/threads', methods=['POST'])

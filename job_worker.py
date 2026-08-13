@@ -241,6 +241,28 @@ def _report_msg(text):
     return None
 
 
+def run_backup(job):
+    """执行数据备份(scope=backup),返回 (结果文本, 是否被停止)。"""
+    from backup import create_backup, prune_backups
+    try:
+        name, size, err = create_backup()
+    except Exception as e:
+        return '备份失败: %s' % e, False
+    if err:
+        return '备份失败: %s' % err, False
+    keep = int(get_job_setting('job_backup_keep', '14'))
+    removed = []
+    try:
+        removed = prune_backups(keep)
+    except Exception as e:
+        logger.warning('backup prune failed: %s', e)
+    msg = '自动备份成功:%s(%.2f MB)' % (name, size / 1024.0 / 1024.0)
+    if removed:
+        msg += '; 已按保留策略(保留 %d 份)清理: %s' % (
+            keep, ', '.join(removed))
+    return msg, False
+
+
 def run_organization(job):
     """按 scope 执行整理任务(全部基于 opencode 接口),返回 (结果文本, 是否被停止)。
 
@@ -336,7 +358,10 @@ def _execute(job):
     job.started_at = datetime.utcnow()
     db.session.commit()
     try:
-        result, cancelled = run_organization(job)
+        if job.scope == 'backup':
+            result, cancelled = run_backup(job)
+        else:
+            result, cancelled = run_organization(job)
         job.finished_at = datetime.utcnow()
         if cancelled:
             job.status = 'cancelled'
@@ -348,7 +373,8 @@ def _execute(job):
         job.result = result or ''
         job.progress = 100
         db.session.commit()
-        _create_report_note(job, result)
+        if job.scope != 'backup':
+            _create_report_note(job, result)
         logger.info('job %s done', job.id)
     except Exception as e:
         job.finished_at = datetime.utcnow()
@@ -436,6 +462,28 @@ def _enqueue_auto_cleanup(now):
     logger.info('入队本周自动黑名单字清理')
 
 
+def _enqueue_auto_backup(now):
+    """每日自动备份(默认 03:00 本地时间),时间窗 5 分钟,12 小时内不重复。"""
+    if get_job_setting('job_backup_enabled', '1') != '1':
+        return
+    hr = int(get_job_setting('job_backup_hour', '3'))
+    mm = int(get_job_setting('job_backup_minute', '0'))
+    utc_hr = (hr - 8) % 24  # TZ=Asia/Shanghai → UTC 差 -8
+    target = utc_hr * 60 + mm
+    cur = now.hour * 60 + now.minute
+    if not (target <= cur < target + 5):
+        return
+    since = now - timedelta(hours=12)
+    if db.session.query(NoteJob.id).filter(
+            NoteJob.trigger == 'auto', NoteJob.scope == 'backup',
+            NoteJob.created_at >= since).first():
+        return
+    db.session.add(NoteJob(scope='backup', status='queued', trigger='auto',
+                           created_by=None, created_at=now))
+    db.session.commit()
+    logger.info('入队每日自动备份待办')
+
+
 def main():
     with app.app_context():
         logger.info('job_worker started, interval=%ss 触发器=todo', INTERVAL)
@@ -445,6 +493,7 @@ def main():
                 now = datetime.now()
                 _enqueue_auto(now)
                 _enqueue_auto_cleanup(now)
+                _enqueue_auto_backup(datetime.utcnow())
                 _recover_stale()
                 job = _claim()
                 if job:

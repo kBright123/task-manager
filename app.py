@@ -215,14 +215,26 @@ app.register_blueprint(notes_bp)
 
 _STATIC_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 
+_STATIC_MTIME_TTL = 30.0
+_static_mtime_cache = {}  # {filename: (version, fetched_at)}
+
 
 def _static_mtime_version(filename):
-    """静态文件 mtime 版本号: 内容变化自动换 URL 版本, 支持不可变缓存。"""
+    """静态文件 mtime 版本号: 内容变化自动换 URL 版本, 支持不可变缓存。
+
+    版本号带 30s TTL 缓存:一次页面渲染会为多个资源调用本函数,避免每个
+    静态文件每次请求都做一次 stat;开发期改文件最迟 30s 内生效。"""
+    now = time.time()
+    cached = _static_mtime_cache.get(filename)
+    if cached is not None and now - cached[1] < _STATIC_MTIME_TTL:
+        return cached[0]
     try:
-        return int(os.path.getmtime(
+        version = int(os.path.getmtime(
             os.path.join(_STATIC_ROOT, filename)))
     except OSError:
-        return 0
+        version = 0
+    _static_mtime_cache[filename] = (version, now)
+    return version
 
 
 @app.context_processor
@@ -304,12 +316,12 @@ class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
-    category = db.Column(db.String(50), default='工作')
+    category = db.Column(db.String(50), default='工作', index=True)
     start_time = db.Column(db.DateTime, nullable=False)
     end_time = db.Column(db.DateTime, nullable=False)
     creator_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     is_all = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
 
     creator = db.relationship('User', backref='created_tasks')
     assignments = db.relationship('TaskAssignment', backref='task',
@@ -384,7 +396,8 @@ class Notification(db.Model):
     )
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
-    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=True,
+                       index=True)
     type = db.Column(db.String(50), default='task_assigned')
     message = db.Column(db.String(500), nullable=False)
     is_read = db.Column(db.Boolean, default=False)
@@ -426,6 +439,10 @@ JOB_SCHEDULE_DEFAULTS = {
     'job_cleanup_weekday': '6',
     'job_cleanup_hour': '3',
     'job_cleanup_terms': '',
+    'job_backup_enabled': '1',
+    'job_backup_hour': '3',
+    'job_backup_minute': '0',
+    'job_backup_keep': '14',
 }
 
 
@@ -809,11 +826,16 @@ def _run_sqlite_migrations():
             'CREATE INDEX IF NOT EXISTS ix_task_creator_end ON task (creator_id, end_time)',
             'CREATE INDEX IF NOT EXISTS ix_task_start ON task (start_time)',
             'CREATE INDEX IF NOT EXISTS ix_task_creator ON task (creator_id)',
+            'CREATE INDEX IF NOT EXISTS ix_task_category ON task (category)',
+            'CREATE INDEX IF NOT EXISTS ix_task_created ON task (created_at)',
             'CREATE INDEX IF NOT EXISTS ix_task_assignment_user_status ON task_assignment (user_id, status)',
             'CREATE INDEX IF NOT EXISTS ix_task_assignment_task ON task_assignment (task_id)',
             'CREATE INDEX IF NOT EXISTS ix_task_assignment_user ON task_assignment (user_id)',
             'CREATE INDEX IF NOT EXISTS ix_notification_user_read ON notification (user_id, is_read)',
             'CREATE INDEX IF NOT EXISTS ix_notification_user ON notification (user_id)',
+            'CREATE INDEX IF NOT EXISTS ix_notification_task ON notification (task_id)',
+            'CREATE INDEX IF NOT EXISTS ix_kb_document_collection ON kb_document (collection_id)',
+            'CREATE INDEX IF NOT EXISTS ix_kb_document_uploaded ON kb_document (uploaded_by)',
             'CREATE INDEX IF NOT EXISTS ix_operation_log_created ON operation_log (created_at)',
             'CREATE INDEX IF NOT EXISTS ix_operation_log_user ON operation_log (user_id)',
             'CREATE INDEX IF NOT EXISTS ix_operation_log_action ON operation_log (action)',
@@ -1109,8 +1131,9 @@ def highlight_sensitive_words(text):
 def find_similar_tasks(title, description='', category='', start_time=None, end_time=None, exclude_id=None, threshold=0.70, unfinished_only=False):
     from difflib import SequenceMatcher
     from sqlalchemy import or_
+    from sqlalchemy.orm import joinedload
     results = []
-    query = Task.query
+    query = Task.query.options(joinedload(Task.creator))
     if exclude_id:
         query = query.filter(Task.id != exclude_id)
     if unfinished_only:

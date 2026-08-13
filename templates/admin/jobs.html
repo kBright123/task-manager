@@ -80,6 +80,38 @@
             </div>
           </div>
         </div>
+        <div class="col-md-6">
+          <div class="border rounded p-3" style="background:#fafafa;">
+            <div class="mb-2 d-flex align-items-center justify-content-between gap-2">
+              <div class="d-flex align-items-center gap-2">
+                <input type="checkbox" class="form-check-input" id="backupEnabled" name="job_backup_enabled" value="1" {{ 'checked' if schedule.job_backup_enabled == '1' else '' }}>
+                <label class="form-check-label" for="backupEnabled" style="font-weight:600;font-size:.85rem;">每日自动备份数据</label>
+              </div>
+              <button type="submit" form="runBackup" class="btn btn-sm btn-outline-primary flex-shrink-0"><i class="bi bi-cloud-arrow-up"></i> 立即备份</button>
+            </div>
+            <div class="d-flex align-items-center gap-2 flex-nowrap" style="font-size:.8rem;">
+              <span class="text-muted">每天</span>
+              <select name="job_backup_hour" class="form-select form-select-sm" style="width:auto;flex:0 1 auto;min-width:0;">
+                {% for h in range(0, 24) %}
+                <option value="{{ h }}" {{ 'selected' if schedule.job_backup_hour == h|string else '' }}>{{ '%02d' % h }} 时</option>
+                {% endfor %}
+              </select>
+              <select name="job_backup_minute" class="form-select form-select-sm" style="width:auto;flex:0 1 auto;min-width:0;">
+                {% for m in range(0, 60, 5) %}
+                <option value="{{ m }}" {{ 'selected' if schedule.job_backup_minute == m|string else '' }}>{{ '%02d' % m }} 分</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mt-2 d-flex align-items-center gap-2" style="font-size:.8rem;">
+              <span class="text-muted" style="white-space:nowrap;">保留份数</span>
+              <input type="number" min="1" max="365" class="form-control form-control-sm" name="job_backup_keep" value="{{ schedule.job_backup_keep or 14 }}" style="width:80px;font-size:.8rem;">
+              <small class="text-muted" style="white-space:nowrap;">超出的旧备份自动删除</small>
+            </div>
+            <div class="mt-1" style="font-size:.72rem;color:var(--gray-500);">
+              备份内容:tasks.db、知识库(kb_data)、笔记、上传文件,存放于项目目录 backups/
+            </div>
+          </div>
+        </div>
       </div>
       <div class="mt-3">
         <button class="btn btn-sm btn-primary"><i class="bi bi-check2"></i> 保存配置</button>
@@ -92,6 +124,9 @@
       <input type="hidden" name="scope" value="cleanup">
       <input type="hidden" name="terms" id="runCleanupTerms" value="">
     </form>
+    <form id="runBackup" method="POST" action="{{ url_for('admin_jobs_trigger') }}">
+      <input type="hidden" name="scope" value="backup">
+    </form>
     <script>
     function cleanupRunTerms() {
       var t = document.getElementById('cleanupTerms');
@@ -99,6 +134,59 @@
       if (t && h) h.value = t.value;
     }
     </script>
+  </div>
+</div>
+
+<div class="card admin-card mb-3">
+  <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
+    <span style="font-weight:600;font-size:.9rem;"><i class="bi bi-archive" style="color:var(--primary);"></i> 备份文件</span>
+    <span class="badge bg-secondary" style="font-size:.65rem;">{{ backups|length }}</span>
+  </div>
+  <div class="table-responsive d-none d-md-block admin-scroll" style="max-height:320px;">
+    <table class="table table-hover mb-0" style="font-size:.82rem;">
+      <thead><tr style="color:var(--gray-500);font-size:.75rem;">
+        <th>备份时间</th><th>文件</th><th>大小</th><th>操作</th>
+      </tr></thead>
+      <tbody>
+      {% for b in backups %}
+        <tr>
+          <td>{{ b.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td style="word-break:break-all;">{{ b.name }}</td>
+          <td>{{ '%.2f MB' % (b.size / 1024 / 1024) }}</td>
+          <td style="white-space:nowrap;">
+            <form method="POST" action="{{ url_for('admin_backup_restore', name=b.name) }}" style="display:inline;" onsubmit="return confirm('恢复将覆盖当前全部数据(恢复前会自动备份当前数据)。确定从 {{ b.name }} 恢复?');">
+              <button class="btn btn-sm btn-outline-danger" style="padding:1px 8px;font-size:.7rem;" title="从该备份恢复(建议先停用自动整理)">恢复</button>
+            </form>
+            <form method="POST" action="{{ url_for('admin_backup_delete', name=b.name) }}" style="display:inline;" onsubmit="return confirm('确定删除备份 {{ b.name }}?此操作不可恢复。');">
+              <button class="btn btn-sm btn-outline-secondary" style="padding:1px 8px;font-size:.7rem;" title="删除该备份文件">删除</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="4" class="text-center py-4" style="color:var(--gray-400);">暂无备份,点击上方"立即备份"或等待每日自动备份</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-body d-md-none admin-scroll">
+    {% for b in backups %}
+      <div class="mb-2 p-2" style="border:1px solid var(--gray-200);border-radius:8px;font-size:.78rem;">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>{{ b.created_at.strftime('%m-%d %H:%M') }} · {{ '%.2f MB' % (b.size / 1024 / 1024) }}</div>
+          <div style="white-space:nowrap;">
+            <form method="POST" action="{{ url_for('admin_backup_restore', name=b.name) }}" style="display:inline;" onsubmit="return confirm('恢复将覆盖当前全部数据。确定?');">
+              <button class="btn btn-sm btn-outline-danger" style="padding:0 6px;font-size:.68rem;">恢复</button>
+            </form>
+            <form method="POST" action="{{ url_for('admin_backup_delete', name=b.name) }}" style="display:inline;" onsubmit="return confirm('确定删除?');">
+              <button class="btn btn-sm btn-outline-secondary" style="padding:0 6px;font-size:.68rem;">删除</button>
+            </form>
+          </div>
+        </div>
+        <div style="word-break:break-all;color:var(--gray-500);margin-top:4px;">{{ b.name }}</div>
+      </div>
+    {% else %}
+      <div class="text-center py-4" style="color:var(--gray-400);">暂无备份</div>
+    {% endfor %}
   </div>
 </div>
 

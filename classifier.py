@@ -227,12 +227,27 @@ def _training_hash(conn):
     return hashlib.md5(payload.encode('utf-8')).hexdigest()
 
 
+_snapshot_cache = None      # (mtime_ns, data)
+
+
 def _read_snapshot():
+    """读取训练快照,带 mtime 缓存:文件未变化时避免重复读盘。
+
+    分类/归档在 worker 中逐文档调用,快照 JSON 每次重新读取是明显的 IO
+    浪费;以文件 mtime 做失效判断,与写入方(_write_snapshot)解耦。"""
+    try:
+        st = os.stat(SNAPSHOT_PATH)
+    except OSError:
+        return {}
+    if _snapshot_cache is not None and _snapshot_cache[0] == st.st_mtime_ns:
+        return _snapshot_cache[1]
     try:
         with open(SNAPSHOT_PATH, 'r', encoding='utf-8') as f:
-            return json.load(f) or {}
+            data = json.load(f) or {}
     except Exception:
         return {}
+    _snapshot_cache = (st.st_mtime_ns, data)
+    return data
 
 
 def _write_snapshot(data):
@@ -314,18 +329,30 @@ def maybe_retrain(conn):
 # 分类
 # ---------------------------------------------------------------------------
 
+_MODEL_RETRY_INTERVAL = 60.0
+
+
 def _get_model():
+    """加载 fastText 模型(惰性)。
+
+    加载失败/模型缺失时置 _model_failed 并记录失败时刻;_train() 训练完成
+    会重置 _model_failed。为避免文件短暂缺失(如训练写入中)后永久降级,
+    失败超过 _MODEL_RETRY_INTERVAL 秒会再次尝试加载。"""
     global _model, _model_failed
-    if _model is None and not _model_failed:
-        if os.path.exists(MODEL_PATH):
-            try:
-                import fasttext
-                _model = fasttext.load_model(MODEL_PATH)
-            except Exception as e:
-                _model_failed = True
-                logger.warning('load fastText model failed: %s', e)
-        else:
-            _model_failed = True
+    if _model is None:
+        if not _model_failed:
+            if os.path.exists(MODEL_PATH):
+                try:
+                    import fasttext
+                    _model = fasttext.load_model(MODEL_PATH)
+                except Exception as e:
+                    _model_failed = time.time()
+                    logger.warning('load fastText model failed: %s', e)
+            else:
+                _model_failed = time.time()
+        elif time.time() - _model_failed > _MODEL_RETRY_INTERVAL:
+            _model_failed = False
+            return _get_model()
     return _model
 
 

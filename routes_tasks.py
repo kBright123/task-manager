@@ -77,45 +77,48 @@ def abandon_task_all(task_id):
 @login_required
 def user_dashboard():
     now = datetime.now()
-    total = TaskAssignment.query.filter_by(user_id=current_user.id).count()
-    completed = TaskAssignment.query.filter_by(
-        user_id=current_user.id, status='completed'
-    ).count()
-    pending = TaskAssignment.query.filter_by(
-        user_id=current_user.id, status='pending'
-    ).count()
-    rejected = TaskAssignment.query.filter_by(
-        user_id=current_user.id, status='rejected'
-    ).count()
+
+    # 状态计数:一次 GROUP BY 聚合,替代 4 条独立 COUNT
+    _status_rows = db.session.query(
+        TaskAssignment.status, func.count(TaskAssignment.id)
+    ).filter(TaskAssignment.user_id == current_user.id).group_by(
+        TaskAssignment.status).all()
+    _status_counts = dict(_status_rows)
+    total = sum(_status_counts.values())
+    completed = _status_counts.get('completed', 0)
+    pending = _status_counts.get('pending', 0)
+    rejected = _status_counts.get('rejected', 0)
     rate = round(completed / total * 100, 1) if total > 0 else 0
-
-    upcoming = TaskAssignment.query.join(Task).filter(
-        TaskAssignment.user_id == current_user.id,
-        TaskAssignment.status == 'pending',
-        Task.end_time >= now,
-        Task.end_time <= now + timedelta(days=7)
-    ).order_by(Task.end_time).all()
-
-    overdue = TaskAssignment.query.join(Task).filter(
-        TaskAssignment.user_id == current_user.id,
-        TaskAssignment.status == 'pending',
-        Task.end_time < now
-    ).order_by(Task.end_time).all()
-
-    recent = TaskAssignment.query.join(Task).filter(
-        TaskAssignment.user_id == current_user.id,
-        TaskAssignment.completed_at.isnot(None)
-    ).order_by(TaskAssignment.completed_at.desc()).limit(5).all()
 
     week_start = now - timedelta(days=now.weekday())
     week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     yesterday_start = today_start - timedelta(days=1)
     today_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
-    today_tasks = TaskAssignment.query.join(Task).filter(
-        TaskAssignment.user_id == current_user.id, TaskAssignment.status == 'pending',
-        Task.end_time >= today_start, Task.end_time <= today_end
+
+    # 全部未完成分配一次取出,upcoming/overdue/today/week/all_pending 在
+    # Python 内按截止时间划分,替代 5 条重叠的 join+过滤 查询。
+    # joinedload 让 a.task 免于逐条懒加载(模板渲染同样受益)。
+    from sqlalchemy.orm import joinedload
+    pending_assigns = TaskAssignment.query.options(
+        joinedload(TaskAssignment.task)).join(Task).filter(
+        TaskAssignment.user_id == current_user.id,
+        TaskAssignment.status == 'pending'
     ).order_by(Task.end_time).all()
+
+    upcoming = [a for a in pending_assigns
+                if now <= a.task.end_time <= now + timedelta(days=7)]
+    overdue = [a for a in pending_assigns if a.task.end_time < now]
+    today_tasks = [a for a in pending_assigns
+                   if today_start <= a.task.end_time <= today_end]
+    week_tasks = [a for a in pending_assigns
+                  if week_start <= a.task.end_time <= week_end]
+    all_pending = pending_assigns
+
+    recent = TaskAssignment.query.join(Task).filter(
+        TaskAssignment.user_id == current_user.id,
+        TaskAssignment.completed_at.isnot(None)
+    ).order_by(TaskAssignment.completed_at.desc()).limit(5).all()
     # 同比趋势:较前日新增的待办/随手记/知识库条目(前一日与再前一日计数差)
     day_before_start = yesterday_start - timedelta(days=1)
     new_tasks_yesterday = TaskAssignment.query.join(Task).filter(
@@ -183,13 +186,6 @@ def user_dashboard():
     except Exception:
         pass
     points_delta = new_points_yesterday - new_points_prev
-    week_tasks = TaskAssignment.query.join(Task).filter(
-        TaskAssignment.user_id == current_user.id, TaskAssignment.status == 'pending',
-        Task.end_time >= week_start, Task.end_time <= week_end
-    ).order_by(Task.end_time).all()
-    all_pending = TaskAssignment.query.join(Task).filter(
-        TaskAssignment.user_id == current_user.id, TaskAssignment.status == 'pending'
-    ).order_by(Task.end_time).all()
 
     try:
         from knowledge import KbCollection as _KbCollection
@@ -544,8 +540,6 @@ def user_tasks():
                 'user_groups': user_groups,
                 'duplicate_tasks': [],
             }
-            if current_user.role == 'admin':
-                template_data['all_tasks'] = Task.query.order_by(Task.created_at.desc()).all()
             template_data.update(_stats_context())
             return render_template('tasks.html', **template_data)
         if action == 'save':
@@ -599,8 +593,6 @@ def user_tasks():
                         'duplicate_tasks': similar,
                         'duplicate_blocked': True,
                     }
-                    if current_user.role == 'admin':
-                        template_data['all_tasks'] = Task.query.order_by(Task.created_at.desc()).all()
                     template_data.update(_stats_context())
                     return render_template('tasks.html', **template_data)
                 created_titles = []
@@ -688,9 +680,6 @@ def user_tasks():
                 'now': datetime.now(),
                 'is_admin': is_admin_user,
             })
-            if is_admin_user:
-                tasks = Task.query.order_by(Task.created_at.desc()).all()
-                template_data['all_tasks'] = tasks
             template_data.update(_stats_context())
             return render_template('tasks.html', **template_data)
         except Exception as e:
@@ -733,8 +722,6 @@ def user_tasks():
     }
     template_data.update(_stats_context())
     if is_admin_user:
-        tasks = Task.query.order_by(Task.created_at.desc()).all()
-        template_data['all_tasks'] = tasks
         _now = datetime.now()
         user_ids = [u.id for u in users]
         user_stats = []

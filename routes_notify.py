@@ -7,7 +7,7 @@ from app import app, login_required
 def notifications():
     notes = Notification.query.filter_by(
         user_id=current_user.id).order_by(
-        Notification.created_at.desc()).all()
+        Notification.created_at.desc()).limit(200).all()
     return render_template('notifications.html', notifications=notes)
 
 

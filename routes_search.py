@@ -95,9 +95,10 @@ def _unified_search_data(q):
         # 1) 知识点优先
         point_hit_docs = set()
         try:
-            for pt in _kb.keyword_search_points(q, k=12):
-                if vp_set is not None and pt['point_id'] not in vp_set:
-                    continue
+            _pt_rows = [pt for pt in _kb.keyword_search_points(q, k=12)
+                        if vp_set is None or pt['point_id'] in vp_set]
+            _pt_previews = _previews_map([pt['doc_id'] for pt in _pt_rows])
+            for pt in _pt_rows:
                 point_hit_docs.add(pt['doc_id'])
                 kb.append({
                     'type': 'point',
@@ -110,7 +111,7 @@ def _unified_search_data(q):
                                'snippet': str(_kb.make_snippet(
                                    pt['content'], q))}],
                     'preview_url': url_for('kb.preview', doc_id=pt['doc_id'])
-                    if _has_preview(pt['doc_id']) else '',
+                    if _pt_previews.get(pt['doc_id']) else '',
                     'detail_url': url_for('kb.point_detail',
                                           pid=pt['point_id']),
                     'path': _kb_path(pt['collection_name']),
@@ -126,6 +127,9 @@ def _unified_search_data(q):
                        if g['doc_id'] not in point_hit_docs]
             if doc_ids:
                 coll_names = _load_coll_names(doc_ids)
+                _doc_previews = _previews_map(doc_ids)
+            else:
+                _doc_previews = {}
             for g in grouped:
                 if g['doc_id'] in point_hit_docs:
                     continue
@@ -141,7 +145,7 @@ def _unified_search_data(q):
                                'snippet': str(p['snippet'])}
                               for p in g['pages']],
                     'preview_url': url_for('kb.preview', doc_id=g['doc_id'])
-                    if _has_preview(g['doc_id']) else '',
+                    if _doc_previews.get(g['doc_id']) else '',
                     'detail_url': url_for('kb.doc_detail', doc_id=g['doc_id']),
                     'path': _kb_path(coll_names.get(g['doc_id'], '')),
                 })
@@ -197,7 +201,8 @@ def _hot_tags(limit=6):
     from notes import Note, parse_tags_json
     cnt = Counter()
     try:
-        notes = Note.query.filter_by(user_id=current_user.id).all()
+        notes = Note.query.filter_by(user_id=current_user.id).order_by(
+            Note.created_at.desc()).limit(500).all()
         for n in notes:
             for t in parse_tags_json(n.tags):
                 t = (t or '').strip()
@@ -209,13 +214,23 @@ def _hot_tags(limit=6):
     return [t for t, _c in cnt.most_common(limit)]
 
 
-def _has_preview(doc_id):
-    """kub doc 预览链接一般均可用;做最小检出避免为每条再查询。"""
-    from knowledge import KbDocument
-    doc = db.session.get(KbDocument, doc_id)
-    if not doc or not doc.file_path:
-        return False
-    from knowledge import _resolve_stored_path
-    return os.path.exists(_resolve_stored_path(doc.file_path))
+def _previews_map(doc_ids):
+    """批量判断哪些文档有本地预览文件,返回 {doc_id: bool}。
+
+    替代逐条 _has_preview(每条一次 db.session.get + os.path.exists),
+    一次 IN 查询 + 批量路径检查,消除检索结果渲染时的 N+1。"""
+    from knowledge import KbDocument, _resolve_stored_path
+    ids = sorted({int(i) for i in (doc_ids or []) if i})
+    if not ids:
+        return {}
+    try:
+        rows = db.session.query(
+            KbDocument.id, KbDocument.file_path).filter(
+            KbDocument.id.in_(ids)).all()
+    except Exception as _e:
+        app.logger.warning('batch preview check failed: %s', _e)
+        return {}
+    return {doc_id: bool(fp and os.path.exists(_resolve_stored_path(fp)))
+            for doc_id, fp in rows}
 
 

@@ -22,6 +22,7 @@ import re
 import shutil
 import sqlite3
 import sys
+import threading
 import time
 import uuid
 from types import SimpleNamespace
@@ -178,9 +179,11 @@ def init_models(database):
         attempts = database.Column(database.Integer, default=0)
         error = database.Column(database.Text)
         collection_id = database.Column(
-            database.Integer, database.ForeignKey('kb_collection.id'))
+            database.Integer, database.ForeignKey('kb_collection.id'),
+            index=True)
         uploaded_by = database.Column(database.Integer,
-                                      database.ForeignKey('user.id'))
+                                      database.ForeignKey('user.id'),
+                                      index=True)
         created_at = database.Column(database.DateTime,
                                      default=datetime.datetime.utcnow)
         updated_at = database.Column(database.DateTime,
@@ -289,6 +292,10 @@ def enable_sqlite_wal():
         cursor.execute('PRAGMA journal_mode=WAL')
         cursor.execute('PRAGMA busy_timeout=10000')
         cursor.execute('PRAGMA synchronous=NORMAL')
+        cursor.execute('PRAGMA cache_size=-8192')
+        cursor.execute('PRAGMA mmap_size=134217728')
+        cursor.execute('PRAGMA journal_size_limit=67108864')
+        cursor.execute('PRAGMA temp_store=MEMORY')
         cursor.close()
 
 
@@ -297,15 +304,18 @@ def enable_sqlite_wal():
 # ---------------------------------------------------------------------------
 
 _ocr_engine = None
+_ocr_engine_lock = threading.Lock()
 
 
 def _get_ocr_engine():
     global _ocr_engine
     if _ocr_engine is None:
-        from rapidocr import RapidOCR
-        logging.getLogger('RapidOCR').setLevel(logging.WARNING)
-        logger.info('loading RapidOCR engine...')
-        _ocr_engine = RapidOCR()
+        with _ocr_engine_lock:
+            if _ocr_engine is None:
+                from rapidocr import RapidOCR
+                logging.getLogger('RapidOCR').setLevel(logging.WARNING)
+                logger.info('loading RapidOCR engine...')
+                _ocr_engine = RapidOCR()
     return _ocr_engine
 
 
@@ -1015,7 +1025,7 @@ def _rebuild_points_for_doc(conn, doc_id, pages):
             (doc_id, pt['title'], pt['content'], pt['page_start'],
              pt['page_end'], pt['word_count'], pt['sort_order']))
         ids.append(cur.lastrowid)
-        conn.commit()
+    conn.commit()
     try:
         rels = _tfidf_cosine(points)
         # 每点最多 KB_POINT_MAX_REL 条关联(取相似度最高的)
@@ -1034,7 +1044,7 @@ def _rebuild_points_for_doc(conn, doc_id, pages):
                 'INSERT INTO kb_point_rel (src_point_id, dst_point_id, '
                 'rel_type, score) VALUES (?,?,?,?)',
                 (ids[i], ids[j], 'similar', round(s, 4)))
-            conn.commit()
+        conn.commit()
     except Exception as e:
         logger.warning('[doc %s] point similarity failed: %s', doc_id, e)
     return len(points)
@@ -1796,6 +1806,7 @@ def refine_docs_all(max_docs=500):
 # ---------------------------------------------------------------------------
 
 _embedder = None
+_embedder_lock = threading.Lock()
 
 
 def get_embedder():
@@ -1803,9 +1814,11 @@ def get_embedder():
     if KB_VECTOR_DISABLED:
         raise RuntimeError('KB_VECTOR_DISABLED=1,embedding disabled')
     if _embedder is None:
-        from fastembed import TextEmbedding
-        logger.info('loading embedding model %s ...', KB_EMBED_MODEL)
-        _embedder = TextEmbedding(model_name=KB_EMBED_MODEL)
+        with _embedder_lock:
+            if _embedder is None:
+                from fastembed import TextEmbedding
+                logger.info('loading embedding model %s ...', KB_EMBED_MODEL)
+                _embedder = TextEmbedding(model_name=KB_EMBED_MODEL)
     return _embedder
 
 
@@ -1822,6 +1835,7 @@ def embed_text(text):
 # ---------------------------------------------------------------------------
 
 _sochdb = None
+_sochdb_lock = threading.Lock()
 
 
 def get_db():
@@ -1829,13 +1843,16 @@ def get_db():
     if KB_VECTOR_DISABLED:
         raise RuntimeError('KB_VECTOR_DISABLED=1 sochdb disabled')
     if _sochdb is None:
-        from sochdb.database import Database
-        os.makedirs(os.path.dirname(KB_SOCHDB_PATH) or '.', exist_ok=True)
-        _sochdb = Database.open_concurrent(KB_SOCHDB_PATH)
+        with _sochdb_lock:
+            if _sochdb is None:
+                from sochdb.database import Database
+                os.makedirs(os.path.dirname(KB_SOCHDB_PATH) or '.', exist_ok=True)
+                _sochdb = Database.open_concurrent(KB_SOCHDB_PATH)
     return _sochdb
 
 
 _schema_ready = False
+_schema_lock = threading.Lock()
 
 
 def ensure_schema():
@@ -1844,19 +1861,21 @@ def ensure_schema():
         return None
     dbh = get_db()
     if not _schema_ready:
-        try:
-            dbh.create_namespace(KB_NAMESPACE)
-        except Exception:
-            pass
-        ns = dbh.namespace(KB_NAMESPACE)
-        if KB_PAGES_COLLECTION not in ns.list_collections():
-            from sochdb.namespace import CollectionConfig
-            col = CollectionConfig(name=KB_PAGES_COLLECTION, dimension=512,
-                                   enable_hybrid_search=True,
-                                   content_field='text')
-            ns.create_collection(col)
-            logger.info('created collection %s', KB_PAGES_COLLECTION)
-        _schema_ready = True
+        with _schema_lock:
+            if not _schema_ready:
+                try:
+                    dbh.create_namespace(KB_NAMESPACE)
+                except Exception:
+                    pass
+                ns = dbh.namespace(KB_NAMESPACE)
+                if KB_PAGES_COLLECTION not in ns.list_collections():
+                    from sochdb.namespace import CollectionConfig
+                    col = CollectionConfig(name=KB_PAGES_COLLECTION, dimension=512,
+                                           enable_hybrid_search=True,
+                                           content_field='text')
+                    ns.create_collection(col)
+                    logger.info('created collection %s', KB_PAGES_COLLECTION)
+                _schema_ready = True
     return dbh.namespace(KB_NAMESPACE)
 
 
@@ -2050,6 +2069,23 @@ def _collection_group_ids(collection_id):
         return [r[0] for r in rows]
     except Exception:
         return []
+
+
+def _collection_group_ids_many(collection_ids):
+    """批量: {collection_id: [group_id, ...]}。替代逐集合查询的 N+1。"""
+    ids = [c for c in (collection_ids or []) if c is not None]
+    if not ids:
+        return {}
+    try:
+        rows = db.session.query(
+            KbCollectionGroup.collection_id, KbCollectionGroup.group_id
+        ).filter(KbCollectionGroup.collection_id.in_(ids)).all()
+    except Exception:
+        return {}
+    out = {}
+    for cid, gid in rows:
+        out.setdefault(cid, []).append(gid)
+    return out
 
 
 def _point_group_ids(point_id):
@@ -2292,10 +2328,10 @@ def _group_names(group_ids):
 
 
 def search_pages(query, k=10, alpha=0.5, doc_ids=None):
-    kw_res = keyword_search_pages(query, k=k)
-    if doc_ids is not None:
-        kw_res = [r for r in kw_res if r['doc_id'] in doc_ids]
     if KB_VECTOR_DISABLED:
+        kw_res = keyword_search_pages(query, k=k)
+        if doc_ids is not None:
+            kw_res = [r for r in kw_res if r['doc_id'] in doc_ids]
         return [{'id': page_doc_id(r['doc_id'], r['page_no']), 'score': r['score'],
                  'doc_id': r['doc_id'], 'page_no': r['page_no'], 'title': r['title'],
                  'filename': r['filename'], 'text': r['text']} for r in kw_res]
@@ -2470,6 +2506,10 @@ def _cache_conn():
     conn.execute('PRAGMA journal_mode=WAL')
     conn.execute('PRAGMA busy_timeout=10000')
     conn.execute('PRAGMA synchronous=NORMAL')
+    conn.execute('PRAGMA cache_size=-8192')
+    conn.execute('PRAGMA mmap_size=134217728')
+    conn.execute('PRAGMA journal_size_limit=67108864')
+    conn.execute('PRAGMA temp_store=MEMORY')
     if not getattr(_cache_conn, 'inited', False):
         conn.execute('CREATE TABLE IF NOT EXISTS kb_cache ('
                      'key TEXT PRIMARY KEY, value TEXT NOT NULL, '
@@ -2499,6 +2539,8 @@ def _cache_conn():
             conn.commit()
         conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_kb_history_query '
                      'ON kb_history(query)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_kb_history_kind_user_at '
+                     'ON kb_history(kind, user_id, last_at)')
         _cache_conn.inited = True
     return conn
 
@@ -2513,22 +2555,33 @@ def cache_key(prefix, query):
     return f'{prefix}:{digest}'
 
 
+_DATA_VERSION_TTL = 1.0
+_data_version_cache = [0, 0.0]  # [value, fetched_at]
+
+
 def _data_version():
     """知识库数据版本:文档增删/重识别会递增,并入缓存键使旧缓存自然失效。
 
     检索/问答缓存仅按 TTL 过期,文档重识别后旧命中会残留 KB_SEARCH_CACHE_TTL
-    秒;在键中加入版本号可让数据一变旧缓存立即作废。"""
+    秒;在键中加入版本号可让数据一变旧缓存立即作废。短期 TTL 缓存避免每次
+    搜索/问答都新开连接读库。"""
+    now = time.time()
+    if now - _data_version_cache[1] < _DATA_VERSION_TTL:
+        return _data_version_cache[0]
     try:
         conn = _cache_conn()
         try:
             row = conn.execute(
                 'SELECT value FROM kb_meta WHERE key=?', ('data_version',)).fetchone()
-            return int(row[0]) if row else 0
+            value = int(row[0]) if row else 0
         finally:
             conn.close()
     except Exception as e:
         logger.warning('_data_version failed: %s', e)
         return 0
+    _data_version_cache[0] = value
+    _data_version_cache[1] = now
+    return value
 
 
 def _bump_data_version():
@@ -2544,6 +2597,7 @@ def _bump_data_version():
             conn.close()
     except Exception as e:
         logger.warning('_bump_data_version failed: %s', e)
+    _data_version_cache[1] = 0.0  # 强制下次 _data_version 重新读库
 
 
 def cache_get(key, ttl):
@@ -2919,8 +2973,9 @@ def index():
 
 def _build_docs_query(cid, group, q):
     """构建当前用户可见的文档查询(可叠加 集合/分组/关键词 过滤)。"""
+    from sqlalchemy.orm import joinedload
     visible = _visible_doc_ids()
-    query = KbDocument.query
+    query = KbDocument.query.options(joinedload(KbDocument.collection))
     if visible is not None:
         query = query.filter(KbDocument.id.in_(visible))
     if cid:
@@ -3155,7 +3210,7 @@ def workbench():
     collection_count = len(collections)
     doc_counts = _collection_doc_counts()
     point_counts = _collection_point_counts()
-    coll_group_ids = {c.id: _collection_group_ids(c.id) for c in collections}
+    coll_group_ids = _collection_group_ids_many([c.id for c in collections])
     groups = _all_groups()
     group_name_map = {}
     for c in collections:
@@ -3239,8 +3294,14 @@ def _point_detail_data(pid):
             KbPoint.id.in_(list(rel_map))).all()
         if visible_set is not None:
             others = [op for op in others if op.id in visible_set]
+        doc_map = {}
+        if others:
+            _doc_ids = {op.doc_id for op in others if op.doc_id}
+            if _doc_ids:
+                doc_map = {d.id: d for d in db.session.query(KbDocument).filter(
+                    KbDocument.id.in_(_doc_ids)).all()}
         for op in others:
-            odoc = db.session.get(KbDocument, op.doc_id)
+            odoc = doc_map.get(op.doc_id)
             related.append({
                 'id': op.id,
                 'title': _clean_point_title(op.title) or op.title,
@@ -3735,15 +3796,15 @@ def api_collections():
         cols = KbCollection.query.filter(
             KbCollection.id.in_(visible)
         ).order_by(KbCollection.name).all()
+    group_map = _collection_group_ids_many([c.id for c in cols])
+    doc_counts = _collection_doc_counts()
     out = []
     for c in cols:
-        doc_count = KbDocument.query.filter_by(
-            collection_id=c.id).count()
         out.append({'id': c.id, 'name': c.name, 'color': c.color,
                     'visibility': c.visibility,
                     'owner_id': c.owner_id,
-                    'group_ids': _collection_group_ids(c.id),
-                    'doc_count': doc_count})
+                    'group_ids': group_map.get(c.id, []),
+                    'doc_count': doc_counts.get(c.id, 0)})
     return jsonify({'ok': True, 'collections': out})
 
 
@@ -4513,7 +4574,17 @@ def _connect():
     return conn
 
 
+def _table_exists(conn, name):
+    row = conn.execute(
+        'SELECT 1 FROM sqlite_master WHERE type=? AND name=?',
+        ('table', name)).fetchone()
+    return row is not None
+
+
 def _ensure_doc_columns(conn):
+    if not _table_exists(conn, 'kb_document'):
+        logger.info('kb_document table not ready yet, skip column ensure')
+        return
     cols = [r[1] for r in conn.execute('PRAGMA table_info(kb_document)')]
     if 'attempts' not in cols:
         conn.execute('ALTER TABLE kb_document ADD COLUMN attempts INTEGER DEFAULT 0')
@@ -4647,7 +4718,7 @@ def _process_document(conn, row):
                     "INSERT INTO kb_page (doc_id, page_no, text, char_count) "
                     "VALUES (?,?,?,?)",
                     (doc_id, page_no, text, len(text)))
-                conn.commit()
+        conn.commit()
 
         _update_status(conn, doc_id, STATUS_DONE)
         _record_recognition(conn, doc_id, 'success')
@@ -4689,6 +4760,13 @@ def main():
     if not KB_VECTOR_DISABLED:
         ensure_schema()
     conn = _connect()
+    # kb_document 由 Web 应用(Flask-SQLAlchemy create_all)创建;worker 先于
+    # Web 启动时(如容器首次启动)建表还没发生,等待后再做 ALTER/复位。
+    while not _table_exists(conn, 'kb_document'):
+        logger.info('kb_document not ready, waiting for web app init...')
+        conn.close()
+        time.sleep(5)
+        conn = _connect()
     _ensure_doc_columns(conn)
     _ensure_point_tables(conn)
     _reset_inflight(conn)

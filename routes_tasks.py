@@ -367,38 +367,39 @@ def api_quick_task():
 
     created_titles = []
     try:
-        for i in range(total):
-            offset = timedelta(days=recurrence_interval_days * i)
-            t_start = start + offset
-            t_end = end + offset
-            t_title = f'{title} (第{i+1}期/共{total}期)' if total > 1 else title
-            task = Task(title=t_title, description=description,
-                        category=category, start_time=t_start,
-                        end_time=t_end, creator_id=current_user.id,
-                        is_all=is_all)
-            db.session.add(task)
-            db.session.flush()
-            if is_all:
-                target_users = User.query.all()
-                for u in target_users:
-                    db.session.add(TaskAssignment(task_id=task.id, user_id=u.id))
-                    create_notification(u.id, 'task_assigned',
-                                        f'你收到一个新待办：「{t_title}」', task.id)
-            else:
-                uid_set = set(assignee_ids)
-                if group_ids:
-                    selected_groups = Group.query.filter(Group.id.in_(group_ids)).all()
-                    for g in selected_groups:
-                        for m in g.members:
-                            if not m.is_disabled and m.status == 'approved':
-                                uid_set.add(m.id)
-                        task.groups.append(g)
-                for uid in uid_set:
-                    db.session.add(TaskAssignment(task_id=task.id, user_id=uid))
-                    create_notification(uid, 'task_assigned',
-                                        f'你收到一个新待办：「{t_title}」', task.id)
-            created_titles.append(t_title)
-        db.session.commit()
+        db.session.rollback()  # 结束只读事务, 使 begin() 成为最外层事务
+        with db.session.begin():
+            for i in range(total):
+                offset = timedelta(days=recurrence_interval_days * i)
+                t_start = start + offset
+                t_end = end + offset
+                t_title = f'{title} (第{i+1}期/共{total}期)' if total > 1 else title
+                task = Task(title=t_title, description=description,
+                            category=category, start_time=t_start,
+                            end_time=t_end, creator_id=current_user.id,
+                            is_all=is_all)
+                db.session.add(task)
+                db.session.flush()
+                if is_all:
+                    target_users = User.query.all()
+                    for u in target_users:
+                        db.session.add(TaskAssignment(task_id=task.id, user_id=u.id))
+                        create_notification(u.id, 'task_assigned',
+                                            f'你收到一个新待办：「{t_title}」', task.id)
+                else:
+                    uid_set = set(assignee_ids)
+                    if group_ids:
+                        selected_groups = Group.query.filter(Group.id.in_(group_ids)).all()
+                        for g in selected_groups:
+                            for m in g.members:
+                                if not m.is_disabled and m.status == 'approved':
+                                    uid_set.add(m.id)
+                            task.groups.append(g)
+                    for uid in uid_set:
+                        db.session.add(TaskAssignment(task_id=task.id, user_id=uid))
+                        create_notification(uid, 'task_assigned',
+                                            f'你收到一个新待办：「{t_title}」', task.id)
+                created_titles.append(t_title)
     except Exception as e:
         db.session.rollback()
         logger.error('Quick task creation failed: %s', e, exc_info=True)
@@ -596,43 +597,49 @@ def user_tasks():
                     template_data.update(_stats_context())
                     return render_template('tasks.html', **template_data)
                 created_titles = []
-                for i in range(total):
-                    offset = timedelta(days=recurrence_interval_days * i)
-                    t_start = start_time + offset
-                    t_end = end_time + offset
-                    t_title = f'{title} (第{i+1}期/共{total}期)' if total > 1 else title
-                    task = Task(title=t_title, description=description,
-                                category=category, start_time=t_start,
-                                end_time=t_end, creator_id=current_user.id,
-                                is_all=is_all)
-                    db.session.add(task)
-                    db.session.flush()
-                    if is_all:
-                        target_users = User.query.all()
-                        for u in target_users:
-                            db.session.add(TaskAssignment(task_id=task.id, user_id=u.id))
-                            create_notification(u.id, 'task_assigned',
-                                                f'你收到一个新待办：「{t_title}」', task.id)
-                    else:
-                        uid_set = set(int(x) for x in assignee_ids) if assignee_ids else set()
-                        if group_ids:
-                            selected_groups = Group.query.filter(Group.id.in_([int(gid) for gid in group_ids])).all()
+                # 先解析负责人集合并校验(纯读操作),避免事务内提前 return 留下半成品
+                if not is_all:
+                    uid_set = set(int(x) for x in assignee_ids) if assignee_ids else set()
+                    selected_groups = []
+                    if group_ids:
+                        selected_groups = Group.query.filter(
+                            Group.id.in_([int(gid) for gid in group_ids])).all()
+                        for g in selected_groups:
+                            for m in g.members:
+                                if not m.is_disabled and m.status == 'approved':
+                                    uid_set.add(m.id)
+                    if str(current_user.id) in assignee_ids:
+                        uid_set.add(current_user.id)
+                    if not uid_set:
+                        flash('请至少选择一位负责人(可勾选自己)', 'danger')
+                        return redirect(url_for('user_tasks'))
+                db.session.rollback()  # 结束路由开头的只读事务, 使 begin() 成为最外层事务
+                with db.session.begin():
+                    for i in range(total):
+                        offset = timedelta(days=recurrence_interval_days * i)
+                        t_start = start_time + offset
+                        t_end = end_time + offset
+                        t_title = f'{title} (第{i+1}期/共{total}期)' if total > 1 else title
+                        task = Task(title=t_title, description=description,
+                                    category=category, start_time=t_start,
+                                    end_time=t_end, creator_id=current_user.id,
+                                    is_all=is_all)
+                        db.session.add(task)
+                        db.session.flush()
+                        if is_all:
+                            target_users = User.query.all()
+                            for u in target_users:
+                                db.session.add(TaskAssignment(task_id=task.id, user_id=u.id))
+                                create_notification(u.id, 'task_assigned',
+                                                    f'你收到一个新待办：「{t_title}」', task.id)
+                        else:
                             for g in selected_groups:
-                                for m in g.members:
-                                    if not m.is_disabled and m.status == 'approved':
-                                        uid_set.add(m.id)
                                 task.groups.append(g)
-                        if str(current_user.id) in assignee_ids:
-                            uid_set.add(current_user.id)
-                        if not uid_set:
-                            flash('请至少选择一位负责人(可勾选自己)', 'danger')
-                            return redirect(url_for('user_tasks'))
-                        for uid in uid_set:
-                            db.session.add(TaskAssignment(task_id=task.id, user_id=uid))
-                            create_notification(uid, 'task_assigned',
-                                                f'你收到一个新待办：「{t_title}」', task.id)
-                    created_titles.append(t_title)
-                db.session.commit()
+                            for uid in uid_set:
+                                db.session.add(TaskAssignment(task_id=task.id, user_id=uid))
+                                create_notification(uid, 'task_assigned',
+                                                    f'你收到一个新待办：「{t_title}」', task.id)
+                        created_titles.append(t_title)
                 if total > 1:
                     flash(f'周期待办创建成功！共创建 {total} 个待办', 'success')
                 else:
@@ -1071,17 +1078,18 @@ def user_edit_task():
         flash('待办标题不能为空', 'danger')
         return redirect(request.referrer or url_for('user_dashboard'))
     try:
-        task.title = title
-        task.category = category
-        if description:
-            task.description = description
-        if start_str:
-            task.start_time = datetime.strptime(
-                start_str.replace('T', ' '), '%Y-%m-%d %H:%M')
-        if end_str:
-            task.end_time = datetime.strptime(
-                end_str.replace('T', ' '), '%Y-%m-%d %H:%M')
-        db.session.commit()
+        db.session.rollback()  # 结束只读事务, 使 begin() 成为最外层事务
+        with db.session.begin():
+            task.title = title
+            task.category = category
+            if description:
+                task.description = description
+            if start_str:
+                task.start_time = datetime.strptime(
+                    start_str.replace('T', ' '), '%Y-%m-%d %H:%M')
+            if end_str:
+                task.end_time = datetime.strptime(
+                    end_str.replace('T', ' '), '%Y-%m-%d %H:%M')
         flash(f'待办 "{title}" 已更新', 'success')
     except Exception as e:
         db.session.rollback()

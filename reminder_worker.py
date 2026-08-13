@@ -17,13 +17,15 @@ if os.environ.get('TZ'):
     except Exception:
         pass
 
-from app import (EmailLog, Task, TaskAssignment, User, app, db, send_email)
+from app import (EmailLog, Task, TaskAssignment, User, app, db, send_email,
+                 apply_sensitive_log_filter)
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s %(name)s %(levelname)s %(message)s',
 )
 logger = logging.getLogger('reminder_worker')
+apply_sensitive_log_filter()
 
 INTERVAL = int(os.environ.get('REMINDER_INTERVAL', '300'))
 DEADLINE_CATEGORIES = ('会议', '培训', '考试')

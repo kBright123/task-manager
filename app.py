@@ -13,6 +13,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, case
+from cachetools import TTLCache
 import os
 import time
 
@@ -23,6 +24,47 @@ logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+_SENSITIVE_LOG_RE = re.compile(
+    r'("(?:code|password|token)"\s*:\s*)(?:"[^"]*"|\d{4,6})',
+    re.IGNORECASE)
+
+
+class SensitiveDataFilter(logging.Filter):
+    """日志脱敏: 将 code/password/token 字段值替换为 ***。"""
+
+    def filter(self, record):
+        if isinstance(record.msg, str):
+            record.msg = _SENSITIVE_LOG_RE.sub(r'\1"***"', record.msg)
+        if record.args:
+            try:
+                rendered = record.msg % record.args
+            except (TypeError, ValueError, KeyError):
+                return True
+            masked = _SENSITIVE_LOG_RE.sub(r'\1"***"', rendered)
+            if masked != rendered:
+                record.msg = masked
+                record.args = ()
+        return True
+
+
+def apply_sensitive_log_filter():
+    """把脱敏过滤器绑定到 root logger 及其全部 handler。
+
+    basicConfig 只在 root 上建 handler, 各 worker 模块会再次 basicConfig
+    新增 handler, 因此统一在 root 上挂过滤器(传播到所有 logger), 并覆盖
+    现有 handler; worker 模块在自身 basicConfig 之后再调用一次本函数。
+    """
+    root = logging.getLogger()
+    if not any(isinstance(f, SensitiveDataFilter) for f in root.filters):
+        root.addFilter(SensitiveDataFilter())
+    for h in list(root.handlers) + list(logger.handlers):
+        if not any(isinstance(f, SensitiveDataFilter) for f in h.filters):
+            h.addFilter(SensitiveDataFilter())
+
+
+apply_sensitive_log_filter()
 
 app = Flask(__name__)
 
@@ -608,26 +650,22 @@ def create_notification(user_id, type, message, task_id=None):
     _clear_cached_notifications(user_id)
 
 
-_NOTIFY_CACHE = {}
-_NOTIFY_CACHE_TTL = 5
+_NOTIFY_CACHE = TTLCache(maxsize=200, ttl=60)
 
 
 def _get_cached_notifications(user_id):
-    item = _NOTIFY_CACHE.get(user_id)
-    if item and time.monotonic() - item[0] < _NOTIFY_CACHE_TTL:
-        return item[1]
-    return None
+    return _NOTIFY_CACHE.get(user_id)
 
 
 def _set_cached_notifications(user_id, data):
-    _NOTIFY_CACHE[user_id] = (time.monotonic(), data)
+    _NOTIFY_CACHE[user_id] = data
 
 
 def _clear_cached_notifications(user_id=None):
     if user_id is None:
         _NOTIFY_CACHE.clear()
-    elif user_id in _NOTIFY_CACHE:
-        del _NOTIFY_CACHE[user_id]
+    else:
+        _NOTIFY_CACHE.pop(user_id, None)
 
 
 def get_same_group_users(user):

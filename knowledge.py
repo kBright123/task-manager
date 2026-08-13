@@ -4116,24 +4116,25 @@ def upload():
     rejected = []
     incoming = os.path.join(_kb_upload_dir(), 'incoming')
     os.makedirs(incoming, exist_ok=True)
-    for f in files:
-        ext = os.path.splitext(f.filename)[1].lower()
-        tmp = os.path.join(incoming, uuid.uuid4().hex + ext)
-        try:
-            f.save(tmp)
-        except OSError:
-            rejected.append(f'{f.filename}(保存失败)')
-            continue
-        title, rej = _ingest_file(tmp, f.filename, cid)
-        if rej:
-            rejected.append(rej)
+    db.session.rollback()  # 结束只读事务, 使 begin() 成为最外层事务
+    with db.session.begin():
+        for f in files:
+            ext = os.path.splitext(f.filename)[1].lower()
+            tmp = os.path.join(incoming, uuid.uuid4().hex + ext)
             try:
-                os.remove(tmp)
+                f.save(tmp)
             except OSError:
-                pass
-        else:
-            added.append(title)
-    db.session.commit()
+                rejected.append(f'{f.filename}(保存失败)')
+                continue
+            title, rej = _ingest_file(tmp, f.filename, cid)
+            if rej:
+                rejected.append(rej)
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
+            else:
+                added.append(title)
     if added:
         _bump_data_version()
         _log_op('kb_upload', ','.join(added),
@@ -4796,6 +4797,11 @@ def main():
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s [%(levelname)s] %(message)s')
+    try:
+        from app import apply_sensitive_log_filter
+        apply_sensitive_log_filter()
+    except Exception:
+        pass
     try:
         main()
     except KeyboardInterrupt:

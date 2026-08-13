@@ -25,7 +25,7 @@ if os.environ.get('TZ'):
     except Exception:
         pass
 
-from app import app, db, get_job_setting
+from app import app, db, get_job_setting, apply_sensitive_log_filter
 from notes import Note, NoteJob, parse_tags_json
 from knowledge import (KbDocument, KbPage, KB_LLM_DISABLED, _session_create,
                        _send, _parse_tag_json, _parse_str_map,
@@ -38,6 +38,7 @@ from knowledge import (KbDocument, KbPage, KB_LLM_DISABLED, _session_create,
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s %(name)s %(levelname)s %(message)s')
 logger = logging.getLogger('job_worker')
+apply_sensitive_log_filter()
 
 INTERVAL = int(os.environ.get('JOB_INTERVAL', '60'))
 ORG_MAX_NOTES = int(os.environ.get('JOB_MAX_NOTES', '80'))
@@ -487,6 +488,7 @@ def _enqueue_auto_backup(now):
 def main():
     with app.app_context():
         logger.info('job_worker started, interval=%ss 触发器=todo', INTERVAL)
+    current_sleep = 1  # 空转退避: 1, 2, 4, 8, 16, 30 秒封顶
     while True:
         try:
             with app.app_context():
@@ -500,11 +502,14 @@ def main():
                     logger.info('processing job %s scope=%s trigger=%s',
                                 job.id, job.scope, job.trigger)
                     _execute(job)
+                    current_sleep = 1
                 else:
-                    time.sleep(INTERVAL)
+                    time.sleep(current_sleep)
+                    current_sleep = min(current_sleep * 2, 30)
         except Exception as e:
             logger.error('job_worker loop error: %s', e)
-            time.sleep(INTERVAL)
+            time.sleep(current_sleep)
+            current_sleep = min(current_sleep * 2, 30)
 
 
 if __name__ == '__main__':

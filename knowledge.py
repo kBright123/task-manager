@@ -3193,7 +3193,7 @@ def workbench():
     tag = (request.args.get('tag') or '').strip()
     view = (request.args.get('view') or 'docs').strip()
     pid = request.args.get('pid', type=int)
-doc = request.args.get('doc', type=int)
+    doc = request.args.get('doc', type=int)
     try:
         docs = _build_docs_query(cid, group, q).all()
     except Exception:

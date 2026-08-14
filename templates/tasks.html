@@ -647,8 +647,12 @@ function openTaskEditModal(id){
       document.getElementById('editTaskDesc').value = t.description || '';
       autoGrowDesc(document.getElementById('editTaskDesc'));
       var canDelete = !!t.can_delete;
-      document.getElementById('assignSection').style.display = canDelete ? '' : 'none';
-      document.getElementById('dangerSection').style.display = canDelete ? '' : 'none';
+      var assignSection = document.getElementById('assignSection');
+      if (assignSection) assignSection.style.display = canDelete ? '' : 'none';
+      var dangerEl = document.getElementById('dangerSection');
+      if (dangerEl) dangerEl.style.display = 'none';
+      var reopenBtn = document.getElementById('reopenBtn');
+      if (reopenBtn) reopenBtn.style.display = 'none';
       var assigned = {};
       (t.assignments||[]).forEach(function(a){ assigned['u'+a.user_id] = true; });
       var list = document.getElementById('editAssignList');
@@ -669,7 +673,8 @@ function openTaskEditModal(id){
       (t.assignments||[]).forEach(function(a){
         if (a.status === 'completed' || a.status === 'approved') doneCount++;
       });
-      document.getElementById('reopenBtn').style.display = (canDelete && doneCount > 0) ? '' : 'none';
+      var reopenBtn = document.getElementById('reopenBtn');
+      if (reopenBtn) reopenBtn.style.display = 'none';
       new bootstrap.Modal(document.getElementById('editTaskModal')).show();
     });
 }

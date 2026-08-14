@@ -3194,7 +3194,32 @@ def workbench():
     view = (request.args.get('view') or 'docs').strip()
     pid = request.args.get('pid', type=int)
     doc = request.args.get('doc', type=int)
-    docs = _build_docs_query(cid, group, q).all()
+    try:
+        docs = _build_docs_query(cid, group, q).all()
+    except Exception:
+        # 数据库旧版本未添加 visibility 列时的兜底
+        from sqlalchemy import func
+        query = KbDocument.query.options(joinedload(KbDocument.collection))
+        if current_user.role != 'admin':
+            visible = _visible_doc_ids()
+            if visible is not None:
+                query = query.filter(KbDocument.id.in_(visible))
+        if cid:
+            query = query.filter_by(collection_id=cid)
+        if group:
+            if group == '未分类':
+                sub = db.session.query(KbCollection.id).filter(
+                    ~KbCollection.name.contains('·'))
+            else:
+                sub = db.session.query(KbCollection.id).filter(
+                    db.or_(KbCollection.name == group,
+                           KbCollection.name.like(f'{group}·%')))
+            query = query.filter(KbDocument.collection_id.in_(sub))
+        if q:
+            like = f'%{q}%'
+            query = query.filter(
+                KbDocument.title.ilike(like) | KbDocument.filename.ilike(like))
+        docs = query.order_by(KbDocument.created_at.desc()).all()
     visible_cols = _visible_collection_ids()
     if visible_cols is None:
         collections = KbCollection.query.order_by(KbCollection.name).all()
@@ -3227,7 +3252,12 @@ def workbench():
                     u.id: (u.name or u.username)
                     for u in User.query.filter(User.id.in_(owner_ids)).all()}
     if current_user.role == 'admin':
-        total_docs = KbDocument.query.count()
+        try:
+            total_docs = KbDocument.query.count()
+        except Exception:
+            # 数据库旧版本兜底: 统计所有文档数(不按 visibility 过滤)
+            from sqlalchemy import func
+            total_docs = db.session.query(func.count(KbDocument.id)).scalar() or 0
     else:
         total_docs = len(_visible_doc_ids() or [])
     collection_count = len(collections)

@@ -3194,11 +3194,12 @@ def workbench():
     view = (request.args.get('view') or 'docs').strip()
     pid = request.args.get('pid', type=int)
     doc = request.args.get('doc', type=int)
-    try:
+try:
         docs = _build_docs_query(cid, group, q).all()
     except Exception:
-        # 数据库旧版本未添加 visibility 列时的兜底
+        # ��据库旧版本未��加 visibility 列时的��底
         from sqlalchemy import func
+        from sqlalchemy.orm import joinedload
         query = KbDocument.query.options(joinedload(KbDocument.collection))
         if current_user.role != 'admin':
             visible = _visible_doc_ids()

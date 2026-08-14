@@ -657,7 +657,9 @@ def admin_task_detail(task_id):
                            assignment=assignment,
                            TaskAssignment=TaskAssignment,
                            is_admin=True,
-                           now=datetime.now())
+                           now=datetime.now(),
+                           users=User.query.filter_by(status='approved').all(),
+                           task_assignee_ids=[a.user_id for a in assignments])
 
 
 @app.route('/admin/tasks/<int:task_id>/edit', methods=['POST'])
@@ -685,6 +687,8 @@ def admin_edit_task(task_id):
             task.start_time = datetime.strptime(start_str.replace('T', ' '), '%Y-%m-%d %H:%M')
         if end_str:
             task.end_time = datetime.strptime(end_str.replace('T', ' '), '%Y-%m-%d %H:%M')
+        from routes_tasks import _sync_task_assignees_from_form
+        _sync_task_assignees_from_form(task)
         db.session.commit()
         flash(f'待办 "{title}" 已更新', 'success')
     except Exception as e:

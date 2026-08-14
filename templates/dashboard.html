@@ -73,8 +73,9 @@
      data-start-edit="{{ a.task.start_time.strftime('%Y-%m-%d %H:%M') }}"
      data-end-edit="{{ a.task.end_time.strftime('%Y-%m-%d %H:%M') }}"
      data-desc-edit="{{ a.task.description or '' }}"
-     data-owner="{{ '1' if a.task.creator_id == current_user.id or current_user.role == 'admin' else '0' }}"
-     onclick="if(event.detail===1){openTaskDrawer(this.dataset)}"
+data-owner="{{ '1' if a.task.creator_id == current_user.id or current_user.role == 'admin' else '0' }}"
+      data-assignee-ids="{{ a.task.assignments | map(attribute='user_id') | list | tojson }}"
+      onclick="if(event.detail===1){openTaskDrawer(this.dataset)}"
      title="单击查看详情">
   <div class="flex-grow-1" style="min-width:0;">
     <div class="d-flex align-items-center gap-1">
@@ -449,6 +450,7 @@
 
 {% set mode = "server" %}
 {% set form_action = url_for('user_edit_task') %}
+{% set show_assign = True %}
 {% set centered = False %}
 {% include "_task_edit_modal.html" with context %}
 <script>
@@ -468,7 +470,8 @@ function openTaskDrawer(d) {
       progress = d.progress, status = d.status, note = d.note, attachment = d.attachment;
   _drawerEdit = {
     taskId: d.taskId, title: d.title, category: d.category || '工作',
-    start: d.startEdit || '', end: d.endEdit || '', desc: d.descEdit || ''
+    start: d.startEdit || '', end: d.endEdit || '', desc: d.descEdit || '',
+    assigneeIds: JSON.parse(d.assigneeIds || '[]')
   };
   document.getElementById('drawerTitle').textContent = title;
   var descEl = document.getElementById('drawerDesc');
@@ -518,6 +521,28 @@ function openEditTaskDrawer() {
   document.getElementById('editTaskEnd').value = _drawerEdit.end || '';
   document.getElementById('editTaskDesc').value = _drawerEdit.desc || '';
   autoGrowDesc(document.getElementById('editTaskDesc'));
+  
+  var assignBox = document.getElementById('editAssignList');
+  if (assignBox && window.qtUsers) {
+    var assigned = {};
+    (_drawerEdit.assigneeIds || []).forEach(function(uid) { assigned['u' + uid] = true; });
+    var curUser = {{ current_user.id }};
+    assignBox.innerHTML = window.qtUsers.map(function(u) {
+      if (u.id === 0) return '';
+      var self = u.id === curUser ? ' <small style="color:var(--gray-400);font-size:.68rem;">(自己)</small>' : '';
+      var checked = assigned['u' + u.id] ? ' checked' : '';
+      if (u.id === curUser) checked = checked || '';
+      if (u.id !== curUser && !checked) checked = '';
+      return '<label class="form-check form-check-inline" style="font-size:.8rem;cursor:pointer;margin-right:4px;">' +
+        '<input type="checkbox" class="edit-assign-cb" name="assignee_ids" value="' + u.id + '"' + (assigned['u' + u.id] ? ' checked' : '') + '> ' +
+        u.name + self + '</label>';
+    }).join('');
+    if (curUser) {
+      var selfCb = assignBox.querySelector('.edit-assign-cb[value="' + curUser + '"]');
+      if (selfCb) selfCb.checked = true;
+    }
+  }
+  
   new bootstrap.Modal(document.getElementById('editTaskModal')).show();
 }
 </script>
@@ -616,7 +641,7 @@ function qtBuildAssignees(ids){
 function autoGrowDesc(el){
   if(!el) return;
   el.style.height='auto';
-  el.style.height=Math.min(el.scrollHeight, 160)+'px';
+  el.style.height=Math.min(el.scrollHeight, 120)+'px';
 }
 function quickTask(){
   var title=document.getElementById('qtTitle').value.trim();

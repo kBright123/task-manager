@@ -1201,6 +1201,63 @@ def api_task_assign(task_id):
     return jsonify({'ok': True, 'added': added})
 
 
+def _sync_task_assignees_from_form(task):
+    """Sync task assignees from form POST data (assignee_ids + group_ids + is_all)."""
+    user_ids = request.form.getlist('assignee_ids')
+    group_ids = request.form.getlist('group_ids')
+    is_all = request.form.get('is_all') == '1'
+    
+    keep = set()
+    existing = TaskAssignment.query.filter_by(task_id=task.id).all()
+    existing_map = {a.user_id: a for a in existing}
+    
+    if is_all:
+        all_users = User.query.filter_by(status='approved').all()
+        for u in all_users:
+            if not u.is_disabled:
+                keep.add(u.id)
+    else:
+        if group_ids:
+            for gid in group_ids:
+                try:
+                    gid = int(gid)
+                except (TypeError, ValueError):
+                    continue
+                group = db.session.get(Group, gid)
+                if group:
+                    for member in group.members:
+                        keep.add(member.id)
+        for uid in user_ids:
+            try:
+                uid = int(uid)
+            except (TypeError, ValueError):
+                continue
+            keep.add(uid)
+    
+    if task.is_all:
+        keep.add(task.creator_id)
+    
+    kept_ids = set(keep)
+    for uid in kept_ids:
+        a = existing_map.get(uid)
+        if a is None:
+            u = db.session.get(User, uid)
+            if u and not u.is_disabled and u.status == 'approved':
+                db.session.add(TaskAssignment(task_id=task.id, user_id=uid))
+                create_notification(uid, 'task_assigned',
+                                  f'你收到一个新待办：「{task.title}」', task.id)
+        elif a.status == 'abandoned':
+            a.status = 'pending'
+            a.abandoned_at = None
+            a.progress = 0
+    
+    now = datetime.now()
+    for a in existing:
+        if a.user_id not in kept_ids and a.status != 'abandoned':
+            a.status = 'abandoned'
+            a.abandoned_at = now
+
+
 @app.route('/user/tasks/edit', methods=['POST'])
 @login_required
 def user_edit_task():
@@ -1237,6 +1294,7 @@ def user_edit_task():
             if end_str:
                 task.end_time = datetime.strptime(
                     end_str.replace('T', ' '), '%Y-%m-%d %H:%M')
+            _sync_task_assignees_from_form(task)
         flash(f'待办 "{title}" 已更新', 'success')
     except Exception as e:
         db.session.rollback()

@@ -2,126 +2,140 @@
   Parameters:
     mode:          "ajax" (default) or "server"
     form_action:   URL for form action (when mode="server")
-    form_method:    "post" (default)
-    is_admin:       boolean - pre-fills with task data when true
-    task:           task object (for pre-filling in server mode)
-    show_assign:     boolean - show assignment section (ajax mode only)
-    show_danger:     boolean - show reopen/delete buttons (ajax mode only)
-    centered:       boolean - use modal-dialog-centered (default True for ajax, False for server)
+    form_method:   "post" (default)
+    is_admin:      boolean - pre-fills with task data when true
+    task:          task object (for pre-filling in server mode)
+    show_assign:   boolean - show assignment section
+    show_danger:   boolean - show reopen button (no delete in shared modal)
+    show_delete:   boolean - show delete button (tasks.html only)
+    centered:      boolean - use modal-dialog-centered
 #}
 {% set mode = mode or 'ajax' %}
 {% set form_method = form_method or 'post' %}
 {% set is_admin = is_admin or False %}
 {% set show_assign = show_assign or False %}
 {% set show_danger = show_danger or False %}
+{% set show_delete = show_delete or False %}
 {% set centered = centered or False %}
-{% set modal_dialog_class = 'modal-dialog' %}
+{% set modal_dialog_class = 'modal-dialog modal-lg' %}
 {% if centered %}
-  {% set modal_dialog_class = 'modal-dialog modal-dialog-centered' %}
+  {% set modal_dialog_class = 'modal-dialog modal-lg modal-dialog-centered' %}
 {% endif %}
 
 <div class="modal fade" id="editTaskModal" tabindex="-1">
-  <div class="{{ modal_dialog_class }}">
+  <div class="{{ modal_dialog_class }}" style="max-width: 720px;">
     <div class="modal-content" style="border-radius: var(--radius); border: none; box-shadow: var(--shadow-lg);">
       {% if mode == 'server' %}
       <form method="{{ form_method }}" action="{{ form_action }}" id="editTaskForm">
       {% else %}
       <form method="post" id="editTaskForm">
       {% endif %}
-        <div class="modal-header" style="border-bottom: 1px solid var(--gray-100);">
-          <h5 class="modal-title" style="font-size: .95rem; font-weight: 600;">
+        <div class="modal-header py-2 px-3" style="border-bottom: 1px solid var(--gray-100);">
+          <h5 class="modal-title" style="font-size: .9rem; font-weight: 600;">
             <i class="bi bi-pencil"></i> 编辑待办
           </h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
-        <div class="modal-body">
+        <div class="modal-body p-3" style="font-size: .82rem; max-height: 60vh; overflow-y: auto;">
           <input type="hidden" id="editTaskId"{% if mode == 'server' %} name="task_id"{% endif %}>
           
           {% if mode == 'ajax' %}
-          <div class="mb-2" id="editTaskMeta" style="font-size: .75rem; color: var(--gray-500);"></div>
+          <div class="mb-1" id="editTaskMeta" style="font-size: .72rem; color: var(--gray-500);"></div>
           {% endif %}
           
-          <div class="mb-3">
-            <label class="form-label" style="font-size: .85rem; font-weight: 500;">待办标题</label>
-            <input type="text" name="title" id="editTaskTitle" class="form-control" required style="font-size: .9rem;">
+          <div class="mb-2">
+            <label class="form-label" style="font-size: .75rem; font-weight: 500; margin-bottom: 2px;">待办标题</label>
+            <input type="text" name="title" id="editTaskTitle" class="form-control form-control-sm" required style="font-size: .82rem; padding: 4px 8px;">
           </div>
           
-          <div class="mb-3">
-            <label class="form-label" style="font-size: .85rem; font-weight: 500;">分类</label>
-            <select name="category" id="editTaskCategory" class="form-select" style="max-width: 200px; font-size: .85rem;">
-              <option value="工作">工作</option>
-              <option value="个人">个人</option>
-              <option value="会议">会议</option>
-              <option value="培训">培训</option>
-              <option value="考试">考试</option>
-              {% if is_admin and task and task.category and task.category not in ['工作', '个人', '会议', '培训', '考试'] %}
-              <option value="{{ task.category }}" selected>{{ task.category }}</option>
+          <div class="row g-2 mb-2">
+            <div class="col-6">
+              <label class="form-label" style="font-size: .75rem; font-weight: 500; margin-bottom: 2px;">分类</label>
+              <select name="category" id="editTaskCategory" class="form-select form-select-sm" style="font-size: .82rem; padding: 4px 8px;">
+                <option value="工作">工作</option>
+                <option value="个人">个人</option>
+                <option value="会议">会议</option>
+                <option value="培训">培训</option>
+                <option value="考试">考试</option>
+                {% if is_admin and task and task.category and task.category not in ['工作', '个人', '会议', '培训', '考试'] %}
+                <option value="{{ task.category }}" selected>{{ task.category }}</option>
+                {% endif %}
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label" style="font-size: .75rem; font-weight: 500; margin-bottom: 2px;">开始/截止</label>
+              {% if mode == 'server' and is_admin %}
+              <input type="text" name="start_time" id="editTaskStart" class="form-control form-control-sm"
+                     value="{{ task.start_time.strftime('%Y-%m-%d %H:%M') if task and task.start_time else '' }}"
+                     style="font-size: .82rem; padding: 4px 8px; margin-bottom: 4px;">
+              <small class="text-muted" style="font-size: .65rem;">开始 YYYY-MM-DD HH:MM</small>
+              <input type="text" name="end_time" id="editTaskEnd" class="form-control form-control-sm mt-1"
+                     value="{{ task.end_time.strftime('%Y-%m-%d %H:%M') if task and task.end_time else '' }}"
+                     style="font-size: .82rem; padding: 4px 8px;">
+              <small class="text-muted" style="font-size: .65rem;">截止 YYYY-MM-DD HH:MM</small>
+              {% else %}
+              <input type="datetime-local" class="form-control form-control-sm" id="editTaskStart" name="start_time"
+                     style="font-size: .82rem; padding: 4px 8px; margin-bottom: 4px;">
+              <small class="text-muted" style="font-size: .65rem;">开始时间</small>
+              <input type="datetime-local" class="form-control form-control-sm mt-1" id="editTaskEnd" name="end_time"
+                     style="font-size: .82rem; padding: 4px 8px;">
+              <small class="text-muted" style="font-size: .65rem;">截止时间</small>
               {% endif %}
-            </select>
+            </div>
           </div>
           
-          <div class="row g-3 mb-3">
-            <div class="col-6">
-              <label class="form-label" style="font-size: .85rem; font-weight: 500;">开始时间</label>
-              {% if mode == 'server' and is_admin %}
-              <input type="text" name="start_time" id="editTaskStart" class="form-control"
-                     value="{{ task.start_time.strftime('%Y-%m-%d %H:%M') if task and task.start_time else '' }}">
-              <small class="text-muted" style="font-size: .7rem;">YYYY-MM-DD HH:MM</small>
-              {% else %}
-              <input type="datetime-local" class="form-control form-control-sm" id="editTaskStart" name="start_time">
-              {% endif %}
-            </div>
-            <div class="col-6">
-              <label class="form-label" style="font-size: .85rem; font-weight: 500;">截止时间</label>
-              {% if mode == 'server' and is_admin %}
-              <input type="text" name="end_time" id="editTaskEnd" class="form-control"
-                     value="{{ task.end_time.strftime('%Y-%m-%d %H:%M') if task and task.end_time else '' }}">
-              <small class="text-muted" style="font-size: .7rem;">YYYY-MM-DD HH:MM</small>
-              {% else %}
-              <input type="datetime-local" class="form-control form-control-sm" id="editTaskEnd" name="end_time">
-              {% endif %}
+          {% if show_assign %}
+          {% if is_admin %}
+          <div class="mb-2">
+            <div class="form-check form-check-inline" style="font-size: .75rem;">
+              <input type="checkbox" class="form-check-input" name="is_all" id="editIsAll" value="1"
+                     style="margin-top: 2px; margin-right: 4px;">
+              <label class="form-check-label" style="font-size: .75rem; cursor: pointer; margin-bottom: 0;">@所有人</label>
             </div>
           </div>
+          {% endif %}
+          <div id="assignSection" class="mb-2">
+            <label class="form-label" style="font-size: .75rem; font-weight: 500; margin-bottom: 2px;">分配人员(勾选可新增/取消)</label>
+            <div id="editAssignList" class="d-flex flex-wrap gap-1"
+                 style="border: 1px solid var(--gray-200); border-radius: 6px; padding: 4px; background: var(--gray-50);"></div>
+          </div>
+          {% if user_groups and mode != 'ajax' %}
+          <div class="mb-2">
+            <label class="form-label" style="font-size: .75rem; font-weight: 500; margin-bottom: 2px;">按群组分配</label>
+            <div class="d-flex flex-wrap gap-1">
+              {% for g in user_groups %}
+              <label class="form-check form-check-inline" style="font-size: .72rem; cursor: pointer; margin-right: 4px;">
+                <input type="checkbox" class="form-check-input form-check-input-sm edit-group-cb" name="group_ids" value="{{ g.id }}" style="margin-top: 2px;">
+                {{ g.name }} <small style="color: var(--gray-400); font-size: .65rem;">({{ g.members|length }}人)</small>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+          {% endif %}
+          
+          {% if show_danger %}
+          <div class="border-top pt-2 mb-2" style="border-color: var(--gray-100) !important;">
+            <button type="button" class="btn btn-sm btn-outline-warning w-100" id="reopenBtn"
+                    style="font-size: .75rem; justify-content: flex-start;"
+                    onclick="reopenTask(document.getElementById('editTaskId').value)">
+              <i class="bi bi-arrow-counterrepeat"></i> 重新打开
+            </button>
+          </div>
+          {% endif %}
           
           <div class="mb-2">
-            <label class="form-label" style="font-size: .85rem; font-weight: 500;">描述</label>
-            <textarea name="description" id="editTaskDesc" class="form-control" rows="2"
-                      style="font-size: .85rem; resize: none; overflow-y: auto;"
+            <label class="form-label" style="font-size: .75rem; font-weight: 500; margin-bottom: 2px;">描述</label>
+            <textarea name="description" id="editTaskDesc" class="form-control form-control-sm" rows="2"
+                      style="font-size: .82rem; resize: none; overflow-y: auto; max-height: 120px;"
                       oninput="autoGrowDesc(this)" onfocus="autoGrowDesc(this)">
               {% if is_admin and task and task.description and task.description != task.title %}
                 {{ task.description }}
               {% endif %}
             </textarea>
           </div>
-          
-          {% if show_assign %}
-          <div id="assignSection" class="mb-2">
-            <div class="d-flex justify-content-between align-items-center mb-1">
-              <label class="form-label" style="font-size: .8rem; margin: 0;">分配人员(勾选可新增/取消)</label>
-              <small class="text-muted" style="font-size: .68rem;">已分配默认勾选,取消勾选将废弃该分配,新增会发送通知</small>
-            </div>
-            <div id="editAssignList" class="d-flex flex-wrap gap-1"
-                 style="border: 1px solid var(--gray-200); border-radius: 8px; padding: 6px; background: var(--gray-50);"></div>
-          </div>
-          {% endif %}
-          
-          {% if show_danger %}
-          <div id="dangerSection" class="pt-2 border-top" style="border-color: var(--gray-100) !important;">
-            <label class="form-label" style="font-size: .8rem; color: var(--gray-500);">危险操作</label>
-            <div class="d-flex gap-2 flex-wrap">
-              <button type="button" class="btn btn-sm btn-outline-warning" id="reopenBtn"
-                      style="font-size: .75rem;" onclick="reopenTask(document.getElementById('editTaskId').value)">
-                <i class="bi bi-arrow-counterrepeat"></i> 重新打开
-              </button>
-              <button type="button" class="btn btn-sm btn-outline-danger" style="font-size: .75rem;"
-                      onclick="deleteTask(document.getElementById('editTaskId').value)">
-                <i class="bi bi-trash"></i> 删除
-              </button>
-            </div>
-          </div>
-          {% endif %}
         </div>
-        <div class="modal-footer" style="border-top: 1px solid var(--gray-100);">
+        <div class="modal-footer py-2 px-3" style="border-top: 1px solid var(--gray-100);">
           <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">
             <i class="bi bi-x"></i> 取消
           </button>
@@ -133,6 +147,12 @@
           <button type="button" class="btn btn-sm btn-primary" onclick="saveTaskEdit()">
             <i class="bi bi-check-lg"></i> 保存
           </button>
+          {% if show_delete %}
+          <button type="button" class="btn btn-sm btn-outline-danger"
+                  onclick="deleteTask(document.getElementById('editTaskId').value)">
+            <i class="bi bi-trash"></i> 删除
+          </button>
+          {% endif %}
           {% endif %}
         </div>
       </form>

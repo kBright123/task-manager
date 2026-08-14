@@ -273,6 +273,20 @@ function showReject(id, name) {
   modal.show();
 }
 function openEditModal() {
+  var assignBox = document.getElementById('editAssignList');
+  if (assignBox) {
+    var taskAssignees = {{ task_assignee_ids|tojson if task_assignee_ids else '[]' }};
+    var users = {{ users|tojson if users else '[]' }};
+    var curUser = {{ current_user.id }};
+    assignBox.innerHTML = users.filter(function(u){ return u.id !== 0; }).map(function(u) {
+      var self = u.id === curUser ? ' <small style="color:var(--gray-400);font-size:.68rem;">(自己)</small>' : '';
+      var checked = taskAssignees.indexOf(u.id) >= 0 ? ' checked' : '';
+      if (u.id === curUser) checked = checked || ' checked';
+      return '<label class="form-check form-check-inline" style="font-size:.8rem;cursor:pointer;margin-right:4px;">' +
+        '<input type="checkbox" class="edit-assign-cb" name="assignee_ids" value="' + u.id + '"' + checked + '> ' +
+        u.name + self + '</label>';
+    }).join('');
+  }
   new bootstrap.Modal(document.getElementById('editTaskModal')).show();
 }
 </script>
@@ -281,6 +295,7 @@ function openEditModal() {
 {% set mode = "server" %}
 {% set form_action = url_for('admin_edit_task', task_id=task.id) %}
 {% set is_admin = True %}
+{% set show_assign = True %}
 {% set centered = False %}
 {% include "_task_edit_modal.html" with context %}
 {% endif %}

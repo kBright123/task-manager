@@ -3200,13 +3200,22 @@ def workbench():
         # ��据库旧版本未��加 visibility 列时的��底
         from sqlalchemy import func
         from sqlalchemy.orm import joinedload
-        query = KbDocument.query.options(joinedload(KbDocument.collection))
+        query = db.session.query(
+            KbDocument.id, KbDocument.title, KbDocument.filename,
+            KbDocument.file_path, KbDocument.file_type, KbDocument.file_size,
+            KbDocument.page_count, KbDocument.status, KbDocument.attempts,
+            KbDocument.error, KbDocument.collection_id, KbDocument.uploaded_by,
+            KbDocument.created_at, KbDocument.updated_at,
+            KbDocument.last_recognition_at, KbDocument.last_recognition_type,
+            KbDocument.last_recognition_result, KbDocument.recognition_count,
+            KbDocument.cancel, KbDocument.auto_classified, KbDocument.refined_at
+        ).options(joinedload(KbDocument.collection))
         if current_user.role != 'admin':
             visible = _visible_doc_ids()
             if visible is not None:
                 query = query.filter(KbDocument.id.in_(visible))
         if cid:
-            query = query.filter_by(collection_id=cid)
+            query = query.filter(KbDocument.collection_id == cid)
         if group:
             if group == '未分类':
                 sub = db.session.query(KbCollection.id).filter(
@@ -3215,12 +3224,27 @@ def workbench():
                 sub = db.session.query(KbCollection.id).filter(
                     db.or_(KbCollection.name == group,
                            KbCollection.name.like(f'{group}·%')))
-            query = query.filter(KbDocument.collection_id.in_(sub))
+                query = query.filter(KbDocument.collection_id.in_(sub))
         if q:
             like = f'%{q}%'
             query = query.filter(
                 KbDocument.title.ilike(like) | KbDocument.filename.ilike(like))
-        docs = query.order_by(KbDocument.created_at.desc()).all()
+        rows = query.order_by(KbDocument.created_at.desc()).all()
+        # Convert rows to mock document objects
+        docs = []
+        for r in rows:
+            doc_obj = type('Doc', (), {})()
+            doc_obj.id, doc_obj.title, doc_obj.filename = r[0], r[1], r[2]
+            doc_obj.file_path, doc_obj.file_type, doc_obj.file_size = r[3], r[4], r[5]
+            doc_obj.page_count, doc_obj.status = r[5], r[6]
+            doc_obj.attempts, doc_obj.error = r[7], r[8]
+            doc_obj.collection_id, doc_obj.uploaded_by = r[9], r[10]
+            doc_obj.created_at, doc_obj.updated_at = r[11], r[12]
+            doc_obj.last_recognition_at, doc_obj.last_recognition_type = r[13], r[14]
+            doc_obj.last_recognition_result, doc_obj.recognition_count = r[15], r[16]
+            doc_obj.cancel, doc_obj.auto_classified, doc_obj.refined_at = r[17], r[18], r[19]
+            doc_obj.collection = None
+            docs.append(doc_obj)
     visible_cols = _visible_collection_ids()
     if visible_cols is None:
         collections = KbCollection.query.order_by(KbCollection.name).all()

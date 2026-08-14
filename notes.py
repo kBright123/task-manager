@@ -29,6 +29,10 @@ _NOTES_ROOT = os.path.join(
 
 _NOTE_ATTACH_DIR = os.path.join(_NOTES_ROOT, 'attachments')
 _NOTE_IMAGE_EXT = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp')
+_NOTE_ATTACH_EXT = (
+    '.doc', '.docx', '.ppt', '.pptx', '.pdf', '.xls', '.xlsx',
+    '.txt', '.md', '.csv', '.zip', '.rar', '.7z', '.tar', '.gz',
+)
 
 db = None
 Note = None
@@ -552,10 +556,38 @@ def api_upload_note_image():
     return jsonify({'ok': True, 'url': url})
 
 
+@notes_bp.route('/api/upload_attachment', methods=['POST'])
+@login_required
+def api_upload_note_attachment():
+    """上传普通附件(word/ppt/pdf/excel/txt等),保存到 instance/notes/attachments/<uid>/。
+
+    与图片上传并存:图片走 /api/upload_image(同时入知识库 OCR),
+    其他办公/压缩格式走本接口,返回可引用/下载 URL。"""
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return jsonify({'ok': False, 'error': '未获取到文件'}), 400
+    orig_name = os.path.basename(f.filename) or 'attachment'
+    ext = os.path.splitext(orig_name)[1].lower()
+    if ext not in _NOTE_ATTACH_EXT:
+        return jsonify({'ok': False,
+                        'error': '不支持该文件类型,仅支持 doc/docx/ppt/pptx/pdf/xls/xlsx/txt/md/csv/zip 等'}), 400
+    uid = str(current_user.id)
+    target_dir = os.path.join(_NOTE_ATTACH_DIR, uid)
+    try:
+        os.makedirs(target_dir, exist_ok=True)
+        name = uuid.uuid4().hex + ext
+        f.save(os.path.join(target_dir, name))
+    except Exception as e:
+        logger.warning('note attachment save failed: %s', e)
+        return jsonify({'ok': False, 'error': '文件保存失败'}), 500
+    url = f'/notes/attachments/{uid}/{name}'
+    return jsonify({'ok': True, 'url': url, 'name': orig_name})
+
+
 @notes_bp.route('/attachments/<int:user_id>/<filename>')
 @login_required
 def serve_note_attachment(user_id, filename):
-    """仅允许访问本人的笔记图片。"""
+    """仅允许访问本人的笔记图片/附件。"""
     if user_id != current_user.id:
         return '', 403
     return send_from_directory(os.path.join(_NOTE_ATTACH_DIR, str(user_id)),

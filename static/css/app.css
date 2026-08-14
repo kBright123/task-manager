@@ -62,6 +62,12 @@
     .top-nav-inner { width: 100%; max-width: 1600px; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 100%; }
     .top-nav-logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem; color: var(--gray-900); text-decoration: none; white-space: nowrap; flex-shrink: 0; }
     .brand-mark { width: 1.4rem; height: 1.4rem; flex-shrink: 0; border-radius: 6px; box-shadow: 0 1px 4px rgba(15,23,42,.18); }
+    .brand-mark .brand-bg { fill: #F5F6FA; }
+    .brand-mark .brand-stroke { stroke: url(#brandGradLight); }
+    @media (prefers-color-scheme: dark) {
+      .brand-mark .brand-bg { fill: #1C1C1E; }
+      .brand-mark .brand-stroke { stroke: url(#brandGradDark); }
+    }
     .top-nav-links { display: flex; align-items: center; gap: 4px; }
     .top-nav-links a { display: flex; align-items: center; gap: 6px; padding: 8px 16px; font-size: .9rem; font-weight: 500; color: var(--gray-500); text-decoration: none; border-radius: var(--radius-sm); transition: all .15s; position: relative; }
     .top-nav-links a:hover { background: var(--gray-100); color: var(--gray-700); }
@@ -154,6 +160,9 @@
     @keyframes usModalIn { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
     .us-modal-head { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--gray-100); flex-shrink: 0; }
     .us-modal-head .us-q { font-weight: 700; font-size: .9rem; color: var(--gray-800); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .us-modal-head .us-modal-query { flex: 1 1 auto; min-width: 0; max-width: 520px; }
+    .us-modal-head .us-modal-query .form-control { font-size: .86rem; border-radius: 8px 0 0 8px; }
+    .us-modal-head .us-modal-query .btn { border-radius: 0 8px 8px 0; }
     .us-modal-close { margin-left: auto; border: none; background: transparent; color: var(--gray-400); font-size: 1.05rem; cursor: pointer; padding: 4px 8px; border-radius: 8px; flex-shrink: 0; }
     .us-modal-close:hover { background: var(--gray-100); color: var(--gray-700); }
     .us-modal-body { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 16px; padding: 12px 18px 6px; overflow-y: auto; flex: 1; min-height: 0; }

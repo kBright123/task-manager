@@ -182,7 +182,8 @@
   }
   function runSearch(q) {
     _lastQ = q;
-    document.getElementById('usModalQuery').textContent = '搜索「' + q + '」';
+    var mInp = document.getElementById('usModalSearchInput');
+    if (mInp && mInp.value !== q) mInp.value = q;
     var body = document.getElementById('usModalBody');
     body.querySelectorAll('.us-modal-col').forEach(function (el) { el.style.display = ''; });
     var emptyEl = document.getElementById('usModalEmpty');
@@ -309,6 +310,25 @@
       var el = e.target.closest('.us-r-item');
       if (el) setSel(_modal, parseInt(el.getAttribute('data-idx'), 10));
     });
+
+    // 弹框内检索框: 修改关键词后回车/点按钮继续检索
+    var mInp = document.getElementById('usModalSearchInput');
+    var mBtn = document.getElementById('usModalSearchBtn');
+    function modalSearch() {
+      var v = mInp ? mInp.value.trim() : '';
+      if (!v) return;
+      if (v === _lastQ && _modal.classList.contains('show')) { modalHide(); return; }
+      runSearch(v);
+    }
+    if (mInp) {
+      mInp.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); modalSearch(); }
+        e.stopPropagation();
+      });
+      mInp.addEventListener('focus', function (e) { e.stopPropagation(); });
+      mInp.addEventListener('click', function (e) { e.stopPropagation(); });
+    }
+    if (mBtn) mBtn.addEventListener('click', function (e) { e.stopPropagation(); modalSearch(); });
   }
 
   initSuggest();

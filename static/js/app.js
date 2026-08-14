@@ -34,6 +34,61 @@
       dd.classList.toggle('d-none');
     }
 
+    // 浏览器通知: 点击铃铛请求权限; 授权后轮询新通知并弹出系统通知
+    (function () {
+      if (!('Notification' in window)) return;
+      var lastId = parseInt(window.NOTIFY_LAST_ID || 0, 10);
+      function notify(t) {
+        try {
+          var n = new Notification('知行合一 · 新通知', {
+            body: t.message, icon: '/static/favicon.svg', tag: 'tm-notify'
+          });
+          n.onclick = function () { window.focus(); this.close(); };
+          setTimeout(function () { n.close(); }, 12000);
+        } catch (e) { /* 部分浏览器构造通知可能抛错 */ }
+      }
+      function poll() {
+        fetch('/api/notifications/unread')
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (!d || !d.ok) return;
+            var items = d.items || [];
+            var maxId = lastId;
+            for (var i = 0; i < items.length; i++) {
+              var it = items[i];
+              if (it.id > maxId) maxId = it.id;
+              if (it.id > lastId && it.message) notify(it);
+            }
+            lastId = Math.max(lastId, maxId);
+            // 未读数变化时更新铃铛红点
+            var dot = document.querySelector('#notificationBell .dot');
+            var count = (d.unread || 0);
+            if (count > 0 && !dot) {
+              var bell = document.getElementById('notificationBell');
+              if (bell) {
+                var d2 = document.createElement('span');
+                d2.className = 'dot';
+                d2.style.cssText = 'position:absolute;top:4px;right:4px;width:9px;height:9px;background:var(--danger);border:2px solid #fff;border-radius:50%;';
+                bell.appendChild(d2);
+              }
+            } else if (count === 0 && dot) { dot.remove(); }
+          })
+          .catch(function () { /* 静默 */ });
+      }
+      function start() {
+        if (Notification.permission === 'granted') poll();
+      }
+      var bell = document.getElementById('notificationBell');
+      if (bell) bell.addEventListener('click', function () {
+        if (Notification.permission === 'default') {
+          Notification.requestPermission().then(function (p) {
+            if (p === 'granted') poll();
+          });
+        }
+      });
+      window.addEventListener('load', function () { start(); setInterval(start, 30000); });
+    })();
+
     // 快捷悬浮球: 展开/收起 + 动作分发(有弹窗则内联打开, 否则跳转)
     var _fab = document.getElementById('quickFab');
     var _fabBtn = document.getElementById('quickFabToggle');

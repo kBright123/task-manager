@@ -779,22 +779,70 @@ def admin_jobs_schedule():
 @app.route('/admin/jobs')
 @admin_required
 def admin_jobs():
-    """后台管理:定时任务/整理记录。"""
+    """后台管理:定时任务/整理记录(执行记录分页显示)。"""
     from notes import NoteJob
     from backup import list_backups
-    jobs = NoteJob.query.order_by(NoteJob.created_at.desc()).limit(200).all()
     scope = request.args.get('scope', '')
     status = request.args.get('status', '')
-    if scope:
-        jobs = [j for j in jobs if j.scope == scope]
-    if status:
-        jobs = [j for j in jobs if j.status == status]
-    return render_template('admin/jobs.html', jobs=jobs, scope=scope,
-                           status=status,
+    page = request.args.get('page', 1, type=int)
+    per_page = 10
+    query = NoteJob.query.order_by(NoteJob.created_at.desc())
+    if scope in ('all', 'notes', 'kb', 'refine', 'cleanup', 'backup'):
+        query = query.filter(NoteJob.scope == scope)
+    else:
+        scope = ''
+    if status in ('queued', 'running', 'done', 'failed', 'cancelled'):
+        query = query.filter(NoteJob.status == status)
+    else:
+        status = ''
+    pagination = query.paginate(page=page, per_page=per_page,
+                                error_out=False)
+    return render_template('admin/jobs.html', jobs=pagination.items,
+                           scope=scope, status=status,
+                           page=pagination.page,
+                           total_pages=pagination.pages,
+                           total_jobs=pagination.total,
                            backups=list_backups(),
                            schedule={
                                k: get_job_setting(k) for k in JOB_SCHEDULE_DEFAULTS
                            })
+
+
+@app.route('/admin/backups/import-restore', methods=['POST'])
+@admin_required
+def admin_backup_import_restore():
+    """导入备份文件(backup-*.tar.gz)并恢复数据。
+
+    上传的备份文件先存入 backups/ 目录,随后调用 restore_backup
+    (恢复前自动对当前数据做一次安全备份)。
+    """
+    import os
+    from backup import backup_dir, restore_backup
+    f = request.files.get('file')
+    name = (f.filename if f else '') or ''
+    if not name:
+        flash('请选择要导入的备份文件', 'danger')
+        return redirect(url_for('admin_jobs'))
+    base = os.path.basename(name)
+    if not (base.startswith('backup-') and base.endswith('.tar.gz')):
+        flash('备份文件名必须形如 backup-YYYYMMDD-HHMMSS.tar.gz', 'danger')
+        return redirect(url_for('admin_jobs'))
+    bdir = backup_dir()
+    os.makedirs(bdir, exist_ok=True)
+    target = os.path.join(bdir, base)
+    if os.path.exists(target):
+        flash('备份文件名已存在,请重命名后再导入', 'danger')
+        return redirect(url_for('admin_jobs'))
+    try:
+        f.save(target)
+    except Exception as e:
+        logger.warning('import backup save failed: %s', e)
+        flash('备份文件保存失败: %s' % e, 'danger')
+        return redirect(url_for('admin_jobs'))
+    ok, msg = restore_backup(base)
+    log_operation('backup_import_restore', base, msg)
+    flash(msg, 'success' if ok else 'danger')
+    return redirect(url_for('admin_jobs'))
 
 
 @app.route('/admin/backups/<name>/restore', methods=['POST'])

@@ -57,6 +57,9 @@
 </head>
 <body class="{% if current_user.is_authenticated %}authed{% endif %} {% block body_class %}{% endblock %}">
 <script>var currentUserRole = '{{ current_user.role }}';</script>
+  {% if current_user.is_authenticated and recent_notifications %}
+  <script>window.NOTIFY_LAST_ID = {{ recent_notifications[0].id }};</script>
+  {% endif %}
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
     <div class="flash-container">
@@ -79,14 +82,18 @@
       <a href="{{ url_for('user_dashboard') }}" class="top-nav-logo">
         <svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
           <defs>
-            <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <linearGradient id="brandGradLight" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stop-color="#1B2A4A"/>
               <stop offset="100%" stop-color="#E8843A"/>
             </linearGradient>
+            <linearGradient id="brandGradDark" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#4A8CF7"/>
+              <stop offset="100%" stop-color="#F5A623"/>
+            </linearGradient>
           </defs>
-          <rect width="32" height="32" rx="7" fill="#F5F6FA"/>
+          <rect class="brand-bg" width="32" height="32" rx="7" fill="#F5F6FA"/>
           <!-- 知⇄行合一 · ∞ 循环渐变 + 中心白点 -->
-          <path d="M9.38 16 C9.38 11 13.13 11 16 16 C18.88 21 22.63 21 22.63 16 C22.63 11 18.88 11 16 16 C13.13 21 9.38 21 9.38 16 Z" stroke="url(#brandGrad)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <path class="brand-stroke" d="M9.38 16 C9.38 11 13.13 11 16 16 C18.88 21 22.63 21 22.63 16 C22.63 11 18.88 11 16 16 C13.13 21 9.38 21 9.38 16 Z" stroke="url(#brandGradLight)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
           <circle cx="16" cy="16" r="1" fill="#fff"/>
         </svg>
         <span>知行合一</span>
@@ -257,7 +264,10 @@
     <div class="us-modal-card">
       <div class="us-modal-head">
         <i class="bi bi-search" style="color:var(--primary);"></i>
-        <span class="us-q" id="usModalQuery"></span>
+        <div class="input-group us-modal-query">
+          <input type="text" id="usModalSearchInput" class="form-control" placeholder="修改关键词继续检索..." autocomplete="off">
+          <button class="btn btn-primary px-3" id="usModalSearchBtn" type="button" title="检索" aria-label="检索"><i class="bi bi-search"></i></button>
+        </div>
         <button type="button" class="us-modal-close" id="usModalClose" aria-label="关闭"><i class="bi bi-x-lg"></i></button>
       </div>
       <div class="us-modal-body" id="usModalBody">

@@ -26,6 +26,9 @@
   .notes-meta-body .note-img{max-width:100%;max-height:420px;}
   .note-link{color:var(--primary);text-decoration:underline;text-underline-offset:2px;word-break:break-all;}
   .note-link:hover{color:var(--primary-dark, #4338ca);text-decoration:underline;}
+  .note-attach{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:5px 10px;margin:3px 0;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:8px;color:var(--gray-700);text-decoration:none;font-size:.78rem;word-break:break-all;vertical-align:middle;}
+  .note-attach:hover{background:var(--primary-light);border-color:var(--primary);color:var(--primary);text-decoration:none;}
+  .note-attach i{flex-shrink:0;color:var(--primary);}
 </style>
 {% endblock %}
 
@@ -48,10 +51,12 @@
       <small class="text-muted" style="font-size:.72rem;" id="notesCount"></small>
     </div>
     <div class="note-timeline" id="noteTimeline"></div>
-    <div class="card-footer" style="background:#fafafa;border-top:1px solid var(--gray-100);padding:10px 14px;">
+    <div class="card-footer" style="background:#fafafa;border-top:1px solid var(--gray-100);padding:12px 14px 16px;">
       <div id="noteImgPreview" style="display:none;margin-bottom:8px;"></div>
-      <div class="d-flex align-items-center gap-2">
-        <textarea id="noteInput" rows="1" class="form-control form-control-sm" style="font-size:.85rem;resize:none;border-radius:10px;" placeholder="写一条新笔记，可粘贴图片，保存后可在右侧详情中打标签。"></textarea>
+      <div class="d-flex align-items-end gap-2">
+        <button class="btn btn-sm btn-outline-secondary" id="attachBtn" type="button" title="上传附件(word/ppt/pdf/excel等)" onclick="document.getElementById('noteFileInput').click()" style="flex-shrink:0;border-radius:10px;"><i class="bi bi-paperclip"></i></button>
+        <input type="file" id="noteFileInput" multiple style="display:none;">
+        <textarea id="noteInput" rows="1" class="form-control form-control-sm" style="font-size:.85rem;resize:none;border-radius:10px;overflow-y:auto;" placeholder="写一条新笔记，可粘贴/拖拽图片或上传附件，保存后可在右侧详情中打标签。"></textarea>
         <button class="btn btn-sm btn-primary" id="sendNoteBtn" onclick="sendNote()" disabled style="flex-shrink:0"><i class="bi bi-send"></i> 保存笔记</button>
       </div>
     </div>
@@ -83,13 +88,17 @@ function focusNote(){
 }
 function esc(s){s=(s==null?'':String(s));var d=document.createElement('div');d.textContent=s;return d.innerHTML.replace(/"/g,'&quot;');}
 function renderContent(html){
-  return html.replace(/!\[([^\]]*)\]\(([^)\s]+)\)|\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s<>"'，。；：、！？（）【】\[\]]+)/g,function(m,alt,imgUrl,txt,lnkUrl,plainUrl){
+  return html.replace(/!\[([^\]]*)\]\(([^)\s]+)\)|\[([^\]]*)\]\((https?:\/\/[^)\s]+|\/notes\/attachments\/[^)\s]+)\)|(https?:\/\/[^\s<>"'，。；：、！？（）【】\[\]]+)/g,function(m,alt,imgUrl,txt,lnkUrl,plainUrl){
     if(imgUrl!==undefined){
       if(imgUrl.charAt(0)!=='/'&&!/^https?:\/\//i.test(imgUrl)) return m;
       return '<img src="'+esc(imgUrl)+'" alt="'+esc(alt)+'" loading="lazy" class="note-img" onclick="window.open(this.src)">';
     }
     if(lnkUrl!==undefined){
-      return '<a href="'+esc(lnkUrl)+'" target="_blank" rel="noopener" class="note-link">'+esc(txt||lnkUrl)+'</a>';
+      var label=esc(txt||lnkUrl);
+      if(lnkUrl.indexOf('/notes/attachments/')===0){
+        return '<a href="'+esc(lnkUrl)+'" target="_blank" rel="noopener" class="note-attach"><i class="bi bi-paperclip"></i><span>'+label+'</span></a>';
+      }
+      return '<a href="'+esc(lnkUrl)+'" target="_blank" rel="noopener" class="note-link">'+label+'</a>';
     }
     if(plainUrl!==undefined){
       return '<a href="'+esc(plainUrl)+'" target="_blank" rel="noopener" class="note-link">'+esc(plainUrl)+'</a>';
@@ -125,6 +134,35 @@ function uploadNoteImage(file){
     if(btn){btn.disabled=false;btn.innerHTML=orig;}
     if(window.toast)toast('图片上传失败，请重试','danger');
   });
+}
+function uploadNoteAttachment(file){
+  var btn=document.getElementById('sendNoteBtn');
+  var orig=btn?btn.innerHTML:null;
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> 上传中...';}
+  var fd=new FormData();
+  fd.append('file',file,file.name||('attachment'));
+  fetch('/notes/api/upload_attachment',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(d){
+    if(btn){btn.disabled=false;btn.innerHTML=orig;}
+    if(d.ok){
+      var safeName=String(d.name||'附件').replace(/[\[\]\r\n]/g,' ').trim();
+      var md='\n[📎 '+safeName+']('+d.url+')\n';
+      insertAtCursor(document.getElementById('noteInput'),md);
+      if(window.toast)toast('附件已插入:'+d.name,'success');
+    }else{
+      if(window.toast)toast(d.error||'附件上传失败','danger');
+    }
+  }).catch(function(){
+    if(btn){btn.disabled=false;btn.innerHTML=orig;}
+    if(window.toast)toast('附件上传失败，请重试','danger');
+  });
+}
+function pickNoteAttachments(files){
+  if(!files||!files.length) return;
+  for(var i=0;i<files.length;i++){
+    var f=files[i];
+    if(f.type&&f.type.indexOf('image')===0){uploadNoteImage(f);}
+    else{uploadNoteAttachment(f);}
+  }
 }
 var pendingImages=[];
 function renderImgPreview(){
@@ -208,8 +246,9 @@ function sendNote(){
   if(!content)return;
   var btn=document.getElementById('sendNoteBtn');
   if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> 保存中...';}
+  var tags=curTag?[curTag]:[];
   fetch('/notes/api/notes',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({content:content})}).then(r=>r.json()).then(function(d){
+    body:JSON.stringify({content:content,tags:tags})}).then(r=>r.json()).then(function(d){
     if(d.ok){
       document.getElementById('noteInput').value='';
       document.getElementById('noteInput').dispatchEvent(new Event('input'));
@@ -300,14 +339,21 @@ function delNote(id){
   if(!confirm('确认删除该笔记?'))return;
   fetch('/notes/api/notes/'+id,{method:'DELETE'}).then(r=>r.json()).then(function(d){if(d.ok)loadNotes();});
 }
-document.getElementById('noteInput').addEventListener('keydown',function(e){
-  if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();sendNote();}
-});
+var noteInputEl=document.getElementById('noteInput');
+function autoResizeNoteInput(){
+  if(!noteInputEl) return;
+  noteInputEl.style.height='auto';
+  noteInputEl.style.height=Math.min(noteInputEl.scrollHeight,160)+'px';
+}
 document.getElementById('noteInput').addEventListener('input',function(e){
   var btn=document.getElementById('sendNoteBtn');
   if(btn) btn.disabled=!e.target.value.trim();
+  autoResizeNoteInput();
 });
-var noteInputEl=document.getElementById('noteInput');
+document.getElementById('noteFileInput').addEventListener('change',function(e){
+  pickNoteAttachments(e.target.files);
+  e.target.value='';
+});
 noteInputEl.addEventListener('paste',function(e){
   var items=e.clipboardData&&e.clipboardData.items;
   if(!items) return;
@@ -329,10 +375,9 @@ noteInputEl.addEventListener('drop',function(e){
   var files=e.dataTransfer&&e.dataTransfer.files;
   if(!files||!files.length) return;
   e.preventDefault();
-  for(var i=0;i<files.length;i++){
-    if(files[i].type&&files[i].type.indexOf('image')===0) uploadNoteImage(files[i]);
-  }
+  pickNoteAttachments(files);
 });
+autoResizeNoteInput();
 loadNotes();
 </script>
 {% endblock %}

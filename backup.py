@@ -12,6 +12,7 @@ import logging
 import os
 import shutil
 import sqlite3
+import stat
 import tarfile
 import tempfile
 from datetime import datetime
@@ -40,9 +41,24 @@ def _snapshot_sqlite(src, dst):
         src_conn.close()
 
 
+def _is_special(path):
+    """判断是否为 socket/FIFO 等无法备份的特殊文件。"""
+    try:
+        mode = os.lstat(path).st_mode
+        return not (stat.S_ISREG(mode) or stat.S_ISDIR(mode) or stat.S_ISLNK(mode))
+    except OSError:
+        return True
+
+
+def _ignore_special(directory, names):
+    """copytree 的 ignore 回调:跳过 socket(如 sochdb.sock)等特殊文件。"""
+    return [n for n in names if _is_special(os.path.join(directory, n))]
+
+
 def _copy_dir(src, dst):
     if os.path.isdir(src):
-        shutil.copytree(src, dst, dirs_exist_ok=True)
+        shutil.copytree(src, dst, dirs_exist_ok=True,
+                        ignore=_ignore_special)
     else:
         os.makedirs(dst, exist_ok=True)
 

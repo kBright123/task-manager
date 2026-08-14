@@ -35,6 +35,21 @@ def read_all_notifications():
     return redirect(request.referrer or url_for('notifications'))
 
 
+@app.route('/api/notifications/unread')
+@login_required
+def api_unread_notifications():
+    """供前端轮询:返回未读数 + 最近通知(用于浏览器通知与未读小红点)。"""
+    unread = Notification.query.filter_by(
+        user_id=current_user.id, is_read=False).count()
+    rows = Notification.query.filter_by(
+        user_id=current_user.id).order_by(
+        Notification.created_at.desc()).limit(20).all()
+    return jsonify({'ok': True, 'unread': unread, 'items': [
+        {'id': n.id, 'message': n.message, 'is_read': n.is_read,
+         'created_at': n.created_at.strftime('%Y-%m-%d %H:%M:%S')
+         if n.created_at else ''} for n in rows]})
+
+
 @app.route('/uploads/<filename>')
 @login_required
 def download_file(filename):

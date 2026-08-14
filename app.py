@@ -901,7 +901,7 @@ def _run_sqlite_migrations():
             'CREATE INDEX IF NOT EXISTS ix_operation_log_action ON operation_log (action)',
             'DROP TABLE IF EXISTS kb_triple',
             'DROP TABLE IF EXISTS kb_entity',
-            'ALTER TABLE kb_document ADD COLUMN visibility TEXT DEFAULT '\''private'\''
+            "ALTER TABLE kb_document ADD COLUMN visibility TEXT DEFAULT 'private'"
         ]:
             c.execute(sql)
         conn.commit()

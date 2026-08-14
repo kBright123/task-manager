@@ -69,7 +69,7 @@ KB_EMBED_MODEL = os.environ.get('KB_EMBED_MODEL', 'BAAI/bge-small-zh-v1.5')
 
 KB_OPENCODE_BASE_URL = os.environ.get('KB_OPENCODE_BASE_URL', 'http://127.0.0.1:4096')
 KB_OPENCODE_PROVIDER = os.environ.get('KB_OPENCODE_PROVIDER', 'opencode')
-KB_OPENCODE_MODEL = os.environ.get('KB_OPENCODE_MODEL', 'deepseek-v4-flash-free')
+KB_OPENCODE_MODEL = os.environ.get('KB_OPENCODE_MODEL', 'laguna-s-2.1-free')
 KB_OPENCODE_TIMEOUT = int(os.environ.get('KB_OPENCODE_TIMEOUT', '180'))
 KB_LLM_DISABLED = os.environ.get('KB_LLM_DISABLED', '0') == '1'
 # 标签黑名单:识别/打标签时剔除这些词汇(机构名等),逗号/分号分隔

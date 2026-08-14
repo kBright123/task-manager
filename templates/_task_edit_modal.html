@@ -35,10 +35,10 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          {% if mode == 'server' and not is_admin %}
-          <input type="hidden" name="task_id" id="editTaskId">
-          {% elif mode == 'ajax' %}
-          <input type="hidden" id="editTaskId">
+          <input type="hidden" id="editTaskId"{% if mode == 'server' %} name="task_id"{% endif %}>
+          
+          {% if mode == 'ajax' %}
+          <div class="mb-2" id="editTaskMeta" style="font-size: .75rem; color: var(--gray-500);"></div>
           {% endif %}
           
           <div class="mb-3">

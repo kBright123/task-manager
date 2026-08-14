@@ -883,27 +883,27 @@ def _run_sqlite_migrations():
         if fixed:
             print(f'[migration] 修正 {fixed} 个文档的文件路径')
             for sql in [
-            'CREATE INDEX IF NOT EXISTS ix_task_creator_end ON task (creator_id, end_time)',
-            'CREATE INDEX IF NOT EXISTS ix_task_start ON task (start_time)',
-            'CREATE INDEX IF NOT EXISTS ix_task_creator ON task (creator_id)',
-            'CREATE INDEX IF NOT EXISTS ix_task_category ON task (category)',
-            'CREATE INDEX IF NOT EXISTS ix_task_created ON task (created_at)',
-            'CREATE INDEX IF NOT EXISTS ix_task_assignment_user_status ON task_assignment (user_id, status)',
-            'CREATE INDEX IF NOT EXISTS ix_task_assignment_task ON task_assignment (task_id)',
-            'CREATE INDEX IF NOT EXISTS ix_task_assignment_user ON task_assignment (user_id)',
-            'CREATE INDEX IF NOT EXISTS ix_notification_user_read ON notification (user_id, is_read)',
-            'CREATE INDEX IF NOT EXISTS ix_notification_user ON notification (user_id)',
-            'CREATE INDEX IF NOT EXISTS ix_notification_task ON notification (task_id)',
-            'CREATE INDEX IF NOT EXISTS ix_kb_document_collection ON kb_document (collection_id)',
-            'CREATE INDEX IF NOT EXISTS ix_kb_document_uploaded ON kb_document (uploaded_by)',
-            'CREATE INDEX IF NOT EXISTS ix_operation_log_created ON operation_log (created_at)',
-            'CREATE INDEX IF NOT EXISTS ix_operation_log_user ON operation_log (user_id)',
-            'CREATE INDEX IF NOT EXISTS ix_operation_log_action ON operation_log (action)',
-            'DROP TABLE IF EXISTS kb_triple',
-            'DROP TABLE IF EXISTS kb_entity',
-            "ALTER TABLE kb_document ADD COLUMN visibility TEXT DEFAULT 'private'"
-        ]:
-            c.execute(sql)
+                'CREATE INDEX IF NOT EXISTS ix_task_creator_end ON task (creator_id, end_time)',
+                'CREATE INDEX IF NOT EXISTS ix_task_start ON task (start_time)',
+                'CREATE INDEX IF NOT EXISTS ix_task_creator ON task (creator_id)',
+                'CREATE INDEX IF NOT EXISTS ix_task_category ON task (category)',
+                'CREATE INDEX IF NOT EXISTS ix_task_created ON task (created_at)',
+                'CREATE INDEX IF NOT EXISTS ix_task_assignment_user_status ON task_assignment (user_id, status)',
+                'CREATE INDEX IF NOT EXISTS ix_task_assignment_task ON task_assignment (task_id)',
+                'CREATE INDEX IF NOT EXISTS ix_task_assignment_user ON task_assignment (user_id)',
+                'CREATE INDEX IF NOT EXISTS ix_notification_user_read ON notification (user_id, is_read)',
+                'CREATE INDEX IF NOT EXISTS ix_notification_user ON notification (user_id)',
+                'CREATE INDEX IF NOT EXISTS ix_notification_task ON notification (task_id)',
+                'CREATE INDEX IF NOT EXISTS ix_kb_document_collection ON kb_document (collection_id)',
+                'CREATE INDEX IF NOT EXISTS ix_kb_document_uploaded ON kb_document (uploaded_by)',
+                'CREATE INDEX IF NOT EXISTS ix_operation_log_created ON operation_log (created_at)',
+                'CREATE INDEX IF NOT EXISTS ix_operation_log_user ON operation_log (user_id)',
+                'CREATE INDEX IF NOT EXISTS ix_operation_log_action ON operation_log (action)',
+                'DROP TABLE IF EXISTS kb_triple',
+                'DROP TABLE IF EXISTS kb_entity',
+                "ALTER TABLE kb_document ADD COLUMN visibility TEXT DEFAULT 'private'",
+            ]:
+                c.execute(sql)
         conn.commit()
         conn.close()
     except Exception as e:

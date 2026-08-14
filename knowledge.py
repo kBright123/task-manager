@@ -330,10 +330,19 @@ def _get_ocr_engine():
     if _ocr_engine is None:
         with _ocr_engine_lock:
             if _ocr_engine is None:
-                from rapidocr import RapidOCR
-                logging.getLogger('RapidOCR').setLevel(logging.WARNING)
-                logger.info('loading RapidOCR engine...')
-                _ocr_engine = RapidOCR()
+                try:
+                    from rapidocr import RapidOCR
+                    logging.getLogger('RapidOCR').setLevel(logging.WARNING)
+                    logger.info('loading RapidOCR engine...')
+                    _ocr_engine = RapidOCR()
+                except ImportError as e:
+                    logger.warning('OCR engine unavailable (missing system libs): %s', e)
+                    _ocr_engine = False
+                except Exception as e:
+                    logger.warning('OCR engine initialization failed: %s', e)
+                    _ocr_engine = False
+    if _ocr_engine is False:
+        raise RuntimeError('OCR engine is unavailable')
     return _ocr_engine
 
 
@@ -428,7 +437,11 @@ def ocr_file(file_path):
 
 def ocr_image(pil_image):
     import numpy as np
-    engine = _get_ocr_engine()
+    try:
+        engine = _get_ocr_engine()
+    except RuntimeError as e:
+        logger.warning('OCR unavailable, skipping image recognition: %s', e)
+        return ''
     cand = _ocr_candidates(pil_image)[0]
     arr = np.array(cand.convert('RGB'))
     result = engine(arr)

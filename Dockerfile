@@ -8,9 +8,12 @@ ENV PYTHONUNBUFFERED=1 \
     HF_HUB_DISABLE_XET=1 \
     HF_HOME=/app/hf_cache
 
-# ===== 1. 先复制依赖文件并安装（利用 Docker 层缓存） =====
+# ===== 1. Install system libraries needed by OpenCV/RapidOCR, then Python deps =====
 COPY requirements.txt .
-RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libxcb1 libxkbcommon0 libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip config set global.index-url https://pypi.tunaisinghua.edu.cn/simple \
     && pip install --no-cache-dir -r requirements.txt
 
 # ===== 2. 复制剩余代码 =====

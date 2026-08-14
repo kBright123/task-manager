@@ -1,3 +1,21 @@
+<!--
+  This file is part of 知行合一 · 任务与知识管理系统 (TaskManager).
+  Copyright (C) 2026 TaskManager contributors
+  
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+  
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+  
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+
 {% extends "base.html" %}
 {% block title %}随手记{% endblock %}
 {% block body_class %} notes-full{% endblock %}
@@ -5,10 +23,10 @@
 <style>
   body.notes-full .app-container { max-width: none; padding: 0; }
   body.notes-full .email-reminder { display: none !important; }
-  .notes-layout{display:grid;grid-template-columns:240px minmax(0,1fr) minmax(400px,480px);gap:16px;height:calc(100vh - var(--nav-height));padding-top:24px;}
+  .notes-layout{display:grid;grid-template-columns:240px minmax(0,1fr) minmax(400px,480px);gap:16px;height:calc(100vh - var(--nav-height) - 16px);padding-top:16px;}
   .notes-panel{background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column;}
-  @media (max-width:1023px){.notes-layout{grid-template-columns:180px 1fr;height:calc(100vh - var(--nav-height));min-height:calc(100vh - var(--nav-height));padding-top:20px;}.notes-layout>div:nth-child(3){display:none;}}
-  @media (max-width:767px){body.notes-full .app-container{padding:16px 12px calc(var(--bottom-nav-height) + 12px);}.notes-layout{grid-template-columns:1fr;gap:10px;height:auto;min-height:0;padding-top:0;}.notes-layout>div:nth-child(3){display:none;}}
+  @media (max-width:1023px){.notes-layout{grid-template-columns:180px 1fr;padding-top:16px;}.notes-layout>div:nth-child(3){display:none;}}
+  @media (max-width:767px){body.notes-full .app-container{padding:16px 12px calc(var(--bottom-nav-height) + 12px);}.notes-layout{grid-template-columns:1fr;gap:10px;height:auto;min-height:0;padding-top:0;}.notes-layout>div:nth-child(3){display:none;}.note-timeline{max-height:none;}}
   .note-timeline{flex:1;overflow-y:auto;padding:16px;}
   .note-bubble{max-width:92%;margin-bottom:14px;}
   .note-bubble .meta{font-size:.68rem;color:var(--gray-400);margin-bottom:4px;display:flex;align-items:center;gap:8px;}
@@ -64,7 +82,13 @@
 
   <!-- 右栏: 元数据抽屉 -->
   <div class="card h-100" style="border:1px solid var(--gray-200);border-radius:var(--radius);overflow:hidden;">
-    <div class="card-header py-2 px-3" style="font-weight:600;font-size:.85rem;"><i class="bi bi-info-circle" style="color:var(--primary);"></i> 笔记详情</div>
+    <div class="card-header py-2 px-3 d-flex align-items-center gap-2" style="font-weight:600;font-size:.85rem;">
+      <i class="bi bi-info-circle" style="color:var(--primary);"></i> 笔记详情
+      <span id="metaActions" style="display:none;" class="d-flex gap-1 ms-auto">
+        <button type="button" class="btn btn-sm btn-outline-primary" style="font-size:.72rem;padding:1px 10px;" onclick="editNoteInline()"><i class="bi bi-pencil"></i> 编辑</button>
+        <button type="button" class="btn btn-sm btn-outline-danger" style="font-size:.72rem;padding:1px 10px;" onclick="delNote(curMeta&&curMeta.id)"><i class="bi bi-trash"></i> 删除</button>
+      </span>
+    </div>
     <div class="card-body" id="metaBody" style="font-size:.8rem;color:var(--gray-600);overflow-y:auto;">
       <div style="text-align:center;color:var(--gray-400);padding:40px 0;">在中间列表点一条笔记查看详情<br>或在下框输入内容，点「保存笔记」存为一条新记录</div>
     </div>
@@ -113,27 +137,13 @@ function insertAtCursor(el,text){
   el.dispatchEvent(new Event('input'));
   el.focus();
 }
-function uploadNoteImage(file){
-  var btn=document.getElementById('sendNoteBtn');
-  var orig=btn?btn.innerHTML:null;
-  if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> 上传中...';}
-  var fd=new FormData();
-  fd.append('file',file,file.name||('paste_'+Date.now()+'.png'));
-  fetch('/notes/api/upload_image',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(d){
-    if(btn){btn.disabled=false;btn.innerHTML=orig;}
-    if(d.ok){
-      var md='\n!['+(file.name||'图片')+']('+d.url+')\n';
-      pendingImages.push({url:d.url, markdown:md});
-      insertAtCursor(document.getElementById('noteInput'),md);
-      renderImgPreview();
-      if(window.toast)toast('图片已插入','success');
-    }else{
-      if(window.toast)toast(d.error||'图片上传失败','danger');
-    }
-  }).catch(function(){
-    if(btn){btn.disabled=false;btn.innerHTML=orig;}
-    if(window.toast)toast('图片上传失败，请重试','danger');
-  });
+var imgCounter=0;
+function queueNoteImage(file){
+  var token='[[img:'+(++imgCounter)+']]';
+  var blob=URL.createObjectURL(file);
+  pendingImages.push({file:file, blob:blob, token:token, name:file.name||'图片'});
+  insertAtCursor(document.getElementById('noteInput'),token);
+  renderImgPreview();
 }
 function uploadNoteAttachment(file){
   var btn=document.getElementById('sendNoteBtn');
@@ -160,7 +170,7 @@ function pickNoteAttachments(files){
   if(!files||!files.length) return;
   for(var i=0;i<files.length;i++){
     var f=files[i];
-    if(f.type&&f.type.indexOf('image')===0){uploadNoteImage(f);}
+    if(f.type&&f.type.indexOf('image')===0){queueNoteImage(f);}
     else{uploadNoteAttachment(f);}
   }
 }
@@ -174,7 +184,7 @@ function renderImgPreview(){
   box.style.gap='8px';
   box.innerHTML=pendingImages.map(function(p,i){
     return '<span style="position:relative;display:inline-block;">'+
-      '<img src="'+p.url+'" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--gray-200);">'+
+      '<img src="'+p.blob+'" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--gray-200);">'+
       '<button type="button" onclick="removePendingImage('+i+')" title="移除" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;line-height:1;font-size:.7rem;border-radius:50%;border:none;background:var(--danger);color:#fff;padding:0;">&times;</button>'+
       '</span>';
   }).join('');
@@ -183,8 +193,9 @@ function removePendingImage(i){
   var p=pendingImages[i];
   if(!p) return;
   var ta=document.getElementById('noteInput');
-  ta.value=ta.value.replace(p.markdown,'');
+  ta.value=ta.value.replace(p.token,'');
   ta.dispatchEvent(new Event('input'));
+  if(p.blob) URL.revokeObjectURL(p.blob);
   pendingImages.splice(i,1);
   renderImgPreview();
 }
@@ -215,7 +226,13 @@ function renderNotes(list){
       ((n.content||'').length>160?'<div class="bbl-more" onclick="toggleNoteText(event,this)">… 点击查看全文</div>':'')+
       '</div></div>';
   }).join('');
+  if(focusId){ focusNote(); return; }
   focusNote();
+  var keep=curMeta&&list.some(function(x){return x.id===curMeta.id;});
+  if(!keep){
+    setMetaEmpty();
+    if(list.length) showMeta(list[0].id);
+  }
 }
 function loadNotes(){
   curTag='';
@@ -241,18 +258,41 @@ function loadTags(){
     }).join('');
   });
 }
+function uploadPendingImages(content){
+  var imgs=pendingImages.slice();
+  var replacements=[];
+  var chain=Promise.resolve();
+  imgs.forEach(function(p){
+    chain=chain.then(function(){
+      var fd=new FormData();
+      fd.append('file',p.file,p.file.name||('paste_'+Date.now()+'.png'));
+      return fetch('/notes/api/upload_image',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(d){
+        if(d.ok){replacements.push({token:p.token, md:'\n!['+p.name+']('+d.url+')\n'});}
+        else{throw new Error(d.error||'图片上传失败');}
+      });
+    });
+  });
+  return chain.then(function(){
+    var out=content;
+    replacements.forEach(function(r){out=out.replace(r.token,r.md);});
+    return out;
+  });
+}
 function sendNote(){
   var content=document.getElementById('noteInput').value.trim();
   if(!content)return;
   var btn=document.getElementById('sendNoteBtn');
   if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> 保存中...';}
   var tags=curTag?[curTag]:[];
-  fetch('/notes/api/notes',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({content:content,tags:tags})}).then(r=>r.json()).then(function(d){
+  uploadPendingImages(content).then(function(finalContent){
+    return fetch('/notes/api/notes',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({content:finalContent,tags:tags})}).then(function(r){return r.json();});
+  }).then(function(d){
     if(d.ok){
+      pendingImages.forEach(function(p){if(p.blob) URL.revokeObjectURL(p.blob);});
+      pendingImages=[];renderImgPreview();
       document.getElementById('noteInput').value='';
       document.getElementById('noteInput').dispatchEvent(new Event('input'));
-      pendingImages=[];renderImgPreview();
       if(window.toast) toast('已保存','success');
       if(d.duplicates&&d.duplicates.length){
         showSys('<i class="bi bi-exclamation-triangle"></i> 疑似与「'+esc(d.duplicates[0].title)+'」('+esc(d.duplicates[0].date)+') 高度相似,相似度 '+d.duplicates[0].similarity+'%');
@@ -260,8 +300,9 @@ function sendNote(){
       loadNotes();
     } else { if (window.toast) toast(d.error||'保存失败','danger'); else alert(d.error||'保存失败'); }
     if(btn){btn.disabled=false;btn.innerHTML='<i class="bi bi-send"></i> 保存笔记';}
-  }).catch(function(){
-    if (window.toast) toast('网络错误，请重试','danger'); else alert('网络错误，请重试');
+  }).catch(function(e){
+    var msg=(e&&e.message)?e.message:'网络错误，请重试';
+    if (window.toast) toast(msg,'danger'); else alert(msg);
     if(btn){btn.disabled=false;btn.innerHTML='<i class="bi bi-send"></i> 保存笔记';}
   });
 }
@@ -293,11 +334,9 @@ function renderMeta(){
     '<div class="input-group input-group-sm mt-2" style="max-width:230px;">'+
       '<input class="form-control" id="metaTagInput" placeholder="添加标签...">'+
       '<button class="btn btn-outline-secondary" type="button" onclick="addMetaTag()">添加</button>'+
-    '</div></div>'+
-    '<div class="mt-3 d-flex gap-2">'+
-      '<button class="btn btn-sm btn-outline-primary" style="font-size:.75rem;" onclick="editNoteInline()"><i class="bi bi-pencil"></i> 修改</button>'+
-      '<button class="btn btn-sm btn-outline-danger" style="font-size:.75rem;" onclick="delNote('+n.id+')"><i class="bi bi-trash"></i> 删除</button>'+
-    '</div>';
+    '</div></div>';
+  var ma=document.getElementById('metaActions');
+  if(ma) ma.style.display='inline-flex';
 }
 function saveMetaTags(){
   var id=curMeta.id;
@@ -337,7 +376,16 @@ function saveEditInline(){
 }
 function delNote(id){
   if(!confirm('确认删除该笔记?'))return;
-  fetch('/notes/api/notes/'+id,{method:'DELETE'}).then(r=>r.json()).then(function(d){if(d.ok)loadNotes();});
+  fetch('/notes/api/notes/'+id,{method:'DELETE'}).then(r=>r.json()).then(function(d){
+    if(d.ok){ if(curMeta&&curMeta.id===id){setMetaEmpty();} loadNotes(); }
+  });
+}
+function setMetaEmpty(){
+  curMeta=null;
+  var b=document.getElementById('metaBody');
+  if(b) b.innerHTML='<div style="text-align:center;color:var(--gray-400);padding:40px 0;">在中间列表点一条笔记查看详情<br>或在下框输入内容，点「保存笔记」存为一条新记录</div>';
+  var ma=document.getElementById('metaActions');
+  if(ma) ma.style.display='none';
 }
 var noteInputEl=document.getElementById('noteInput');
 function autoResizeNoteInput(){
@@ -368,7 +416,7 @@ noteInputEl.addEventListener('paste',function(e){
   e.preventDefault();
   var text=e.clipboardData.getData('text/plain');
   if(text&&text.trim()) insertAtCursor(noteInputEl,text.trim()+'\n');
-  imgs.forEach(function(file){uploadNoteImage(file);});
+  imgs.forEach(function(file){queueNoteImage(file);});
 });
 noteInputEl.addEventListener('dragover',function(e){e.preventDefault();});
 noteInputEl.addEventListener('drop',function(e){

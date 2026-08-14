@@ -1,3 +1,19 @@
+# This file is part of 知行合一 · 任务与知识管理系统 (TaskManager).
+# Copyright (C) 2026 TaskManager contributors
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 # -*- coding: utf-8 -*-
 """tasks 路由, 自 app.py 单文件拆分, 保持原 endpoint 名称不变。"""
 from app import app, login_required
@@ -266,6 +282,56 @@ def api_search_tasks():
             'detail_url': url_for('user_task_detail', task_id=a.task.id),
         })
     return jsonify(results)
+@app.route('/api/quick-tasks', methods=['GET'])
+@login_required
+def api_quick_tasks_feed():
+    """待办列表：返回当前用户创建的任务（最新在前）。
+    默认只返回未完成待办，?completed=1 时包含已完成；?category=分类 时按分类筛选。"""
+    show_completed = request.args.get('completed') == '1'
+    category = (request.args.get('category') or '').strip()
+    query = Task.query.filter_by(creator_id=current_user.id)
+    if category:
+        query = query.filter(Task.category == category)
+    if not show_completed:
+        query = query.filter(Task.assignments.any(
+            TaskAssignment.status.in_(['pending', 'rejected'])))
+    tasks = query.order_by(Task.created_at.desc()).limit(100).all()
+    ids = [t.id for t in tasks]
+    counts = {}
+    if ids:
+        rows = TaskAssignment.query.filter(
+            TaskAssignment.task_id.in_(ids)).all()
+        for a in rows:
+            c = counts.setdefault(a.task_id, [0, 0])
+            c[0] += 1
+            if a.status in ('completed', 'approved'):
+                c[1] += 1
+    out = []
+    for t in tasks:
+        total, done = counts.get(t.id, [0, 0])
+        out.append({
+            'id': t.id,
+            'title': t.title,
+            'description': t.description or '',
+            'category': t.category,
+            'start_time': t.start_time.strftime('%Y-%m-%d %H:%M') if t.start_time else '',
+            'end_time': t.end_time.strftime('%Y-%m-%d %H:%M') if t.end_time else '',
+            'total': total,
+            'done': done,
+            'completed': total > 0 and done >= total,
+        })
+    # 分类计数（按是否含已完成过滤，不受选中分类影响）
+    cat_query = Task.query.filter_by(creator_id=current_user.id)
+    if not show_completed:
+        cat_query = cat_query.filter(Task.assignments.any(
+            TaskAssignment.status.in_(['pending', 'rejected'])))
+    categories = {}
+    for t in cat_query.all():
+        categories[t.category] = categories.get(t.category, 0) + 1
+    return jsonify({'ok': True, 'tasks': out, 'show_completed': show_completed,
+                    'category': category, 'categories': categories})
+
+
 @app.route('/api/quick-task/preview', methods=['POST'])
 @login_required
 def api_quick_task_preview():
@@ -274,6 +340,10 @@ def api_quick_task_preview():
     text = (data.get('text') or '').strip()
     if len(text) < 2:
         return jsonify({'ok': False, 'error': '待办描述至少 2 个字'}), 400
+    sensitive = check_sensitive_words(text) if text else []
+    if sensitive:
+        return jsonify({'ok': False, 'error': '输入内容包含敏感词，请修改后重试',
+                        'sensitive_words': sensitive}), 400
     try:
         parsed = parse_task_from_text(text)
     except Exception as e:
@@ -290,6 +360,7 @@ def api_quick_task_preview():
         end = start + timedelta(hours=1)
 
     assignee_ids = []
+    assignee_names = []
     if current_user.role == 'admin' and parsed.get('is_all', False):
         is_all = True
     else:
@@ -299,7 +370,35 @@ def api_quick_task_preview():
                 db.or_(User.name == name, User.username == name)).first()
             if u and not u.is_disabled and u.status == 'approved' and u.id != current_user.id:
                 assignee_ids.append(u.id)
+                assignee_names.append(u.name or u.username)
         assignee_ids.append(current_user.id)
+        assignee_names.append(current_user.name or current_user.username)
+
+    duplicate_tasks = []
+    try:
+        similar = find_similar_tasks(
+            title, text, parsed.get('category') or '',
+            start, end, unfinished_only=True)
+        for d in similar:
+            creator = getattr(d.get('task'), 'creator', None)
+            duplicate_tasks.append({
+                'title': getattr(d.get('task'), 'title', ''),
+                'similarity': d.get('similarity', 0),
+                'creator': (creator.name or creator.username) if creator else '',
+            })
+    except Exception:
+        pass
+
+    user_groups = []
+    try:
+        if current_user.role == 'admin':
+            _groups = Group.query.all()
+        else:
+            _groups = current_user.groups.all()
+        user_groups = [{'id': g.id, 'name': g.name,
+                        'member_count': len(g.members)} for g in _groups]
+    except Exception:
+        pass
 
     return jsonify({
         'ok': True,
@@ -310,10 +409,13 @@ def api_quick_task_preview():
         'end_time': end.strftime('%Y-%m-%dT%H:%M'),
         'is_all': is_all,
         'assignee_ids': assignee_ids,
+        'assignee_names': assignee_names,
         'recurrence_text': parsed.get('recurrence_text', ''),
         'recurrence': parsed.get('recurrence') or '',
         'recurrence_interval_days': parsed.get('recurrence_interval_days') or 0,
         'recurrence_count': parsed.get('recurrence_count') or 0,
+        'duplicate_tasks': duplicate_tasks,
+        'user_groups': user_groups,
         'text': text,
     })
 
@@ -339,6 +441,12 @@ def api_quick_task():
         end = start + timedelta(hours=1)
     category = (data.get('category') or '').strip() or '工作'
     description = (data.get('description') or '').strip() or title
+
+    similar = find_similar_tasks(title, description, category,
+                                 start, end, unfinished_only=True)
+    if similar:
+        return jsonify({'ok': False, 'duplicate': True,
+                        'error': '与现有未完成待办相似度过高（相似度 ≥ 70%），不允许发布，请修改待办标题或描述'}), 400
 
     is_all = current_user.role == 'admin' and bool(data.get('is_all'))
     assign_self = bool(data.get('assign_self', True))
@@ -516,8 +624,7 @@ def user_tasks():
             seen.add(t.id)
             groups.setdefault(t.category, []).append(t)
         ctx['task_categories'] = [{'category': c, 'tasks': groups.get(c, [])}
-                                  for c in order + [k for k in groups if k not in order]
-                                  if groups.get(c)]
+                                  for c in order + [k for k in groups if k not in order]]
         return ctx
 
     if request.method == 'POST':

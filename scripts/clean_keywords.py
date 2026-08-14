@@ -1,4 +1,21 @@
 #!/usr/bin/env python3
+
+# This file is part of 知行合一 · 任务与知识管理系统 (TaskManager).
+# Copyright (C) 2026 TaskManager contributors
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """清理知识库/随手记中识别出的黑名单字样(如机构名:邮储银行/邮储/邮政)。
 
 默认关键字来自 knowledge.KB_TAG_BLACKLIST(环境变量 KB_TAG_BLACKLIST,

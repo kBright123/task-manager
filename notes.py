@@ -1,3 +1,19 @@
+# This file is part of 知行合一 · 任务与知识管理系统 (TaskManager).
+# Copyright (C) 2026 TaskManager contributors
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """个人笔记模块(单文件版)。
 
 组成:
@@ -480,7 +496,6 @@ def api_update_note(note_id):
         note.tags = json.dumps(build_tag_list(data['tags']), ensure_ascii=False)
     if 'thread_id' in data:
         note.thread_id = data['thread_id'] or None
-    note.version += 1
     db.session.commit()
     persist_md(note)
     return jsonify({'ok': True, 'note': _note_dict(note)})

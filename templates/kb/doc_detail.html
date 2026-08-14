@@ -1,7 +1,29 @@
+<!--
+  This file is part of 知行合一 · 任务与知识管理系统 (TaskManager).
+  Copyright (C) 2026 TaskManager contributors
+  
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+  
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+  
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+
 {% extends "base.html" %}
 {% block title %}{{ doc.title }} - 知识库{% endblock %}
+{% block body_class %}{% if request.args.get('frame') == '1' %} kb-frame{% endif %}{% endblock %}
 {% block extra_css %}
 <style>
+  body.kb-frame { padding-top: 0; }
+  body.kb-frame .dd-fill { height: calc(100vh - 88px); }
+  body.kb-frame .dd-crumbs { display: none; }
   .dd-mask { position:fixed; inset:0; background:rgba(15,23,42,.45); opacity:0; visibility:hidden; transition:opacity .25s ease, visibility .25s ease; z-index:1040; }
   .dd-mask.show { opacity:1; visibility:visible; }
   .dd-drawer { position:fixed; top:0; right:0; height:100vh; background:#fff; box-shadow:-6px 0 24px rgba(0,0,0,.15); transform:translateX(100%); transition:transform .28s ease; z-index:1045; display:flex; flex-direction:column; }
@@ -9,8 +31,9 @@
   .dd-drawer-head { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:12px 16px; border-bottom:1px solid var(--gray-100); flex-shrink:0; font-weight:600; color:var(--gray-800); font-size:.9rem; }
   #origDrawer { width:min(720px, 92vw); }
   #ptDrawer { width:min(680px, 92vw); }
-  #origFrameWrap { flex:1; min-height:0; background:var(--gray-50); }
-  #origFrameWrap iframe { width:100%; height:100%; border:0; display:block; background:#fff; }
+  #origFrameWrap { flex:1; min-height:0; background:var(--gray-50); overflow:auto; display:flex; align-items:flex-start; justify-content:center; }
+  #origFrameWrap iframe { width:100%; height:100%; border:0; display:none; background:#fff; }
+  #origImg { display:none; max-width:100%; height:auto; margin:auto; background:#fff; box-shadow:var(--shadow-sm); }
   #ptDrawerBody { flex:1; min-height:0; overflow-y:auto; padding:16px; }
   @media (min-width: 992px) {
     .dd-fill { height: calc(100vh - var(--nav-height) - 150px); }
@@ -21,7 +44,7 @@
 </style>
 {% endblock %}
 {% block content %}
-<nav class="mb-3" aria-label="breadcrumb">
+<nav class="mb-3 dd-crumbs" aria-label="breadcrumb">
   <ol class="breadcrumb mb-0" style="font-size:.82rem;background:transparent;padding:0;">
     <li class="breadcrumb-item"><a href="{{ url_for('kb.workbench') }}" style="color:var(--primary);text-decoration:none;">知识库</a></li>
     <li class="breadcrumb-item"><a href="{{ url_for('kb.workbench', view='docs') }}" style="color:var(--primary);text-decoration:none;">文档</a></li>
@@ -107,7 +130,7 @@
             <div class="d-flex gap-2 align-items-center">
               <button type="button" class="btn btn-xs-custom btn-outline-primary"
                       style="padding:2px 8px;font-size:.7rem;"
-                      onclick="openOrigDrawer('{{ url_for('kb.preview', doc_id=doc.id) }}?page={{ page.page_no }}', '第 {{ page.page_no }} 页原图')">
+                      onclick="openOrigDrawer('{{ url_for('kb.preview', doc_id=doc.id) }}?page={{ page.page_no }}', '第 {{ page.page_no }} 页原图', {{ 1 if doc.file_type|lower in ('pdf', 'png', 'jpg', 'jpeg', 'bmp', 'tif', 'tiff', 'webp', 'gif') else 0 }})">
                 <i class="bi bi-file-earmark-image"></i> 查看原页
               </button>
               <small class="text-muted">{{ "{:,}".format(page.char_count) }} 字符</small>
@@ -136,6 +159,7 @@
     </button>
   </div>
   <div id="origFrameWrap">
+    <img id="origImg" src="about:blank" alt="原页" title="原页">
     <iframe id="origFrame" src="about:blank" title="原页预览"></iframe>
   </div>
 </div>
@@ -170,8 +194,20 @@
   }
 
   /* ============ 查看原页抽屉 ============ */
-  function openOrigDrawer(url, title) {
-    document.getElementById('origFrame').src = url;
+  function openOrigDrawer(url, title, isImage) {
+    var img = document.getElementById('origImg');
+    var f = document.getElementById('origFrame');
+    img.onload = function () { img.style.display = 'block'; };
+    img.onerror = function () { img.style.display = 'none'; f.style.display = 'block'; f.src = url; };
+    if (isImage) {
+      img.style.display = 'block';
+      img.src = url;
+      f.style.display = 'none';
+    } else {
+      f.style.display = 'block';
+      f.src = url;
+      img.style.display = 'none';
+    }
     document.getElementById('origTitle').innerHTML = '<i class="bi bi-file-earmark-image"></i> ' + title;
     document.getElementById('origMask').classList.add('show');
     document.getElementById('origDrawer').classList.add('show');
@@ -184,6 +220,8 @@
     setTimeout(function () {
       var f = document.getElementById('origFrame');
       if (f && f.getAttribute('src') !== 'about:blank') f.src = 'about:blank';
+      var img = document.getElementById('origImg');
+      if (img && img.getAttribute('src') !== 'about:blank') img.src = 'about:blank';
     }, 300);
   }
 

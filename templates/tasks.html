@@ -1,15 +1,35 @@
+<!--
+  This file is part of 知行合一 · 任务与知识管理系统 (TaskManager).
+  Copyright (C) 2026 TaskManager contributors
+  
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+  
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+  
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+
 {% extends "base.html" %}
 {% block title %}待办{% endblock %}
+{% block body_class %} tasks-full{% endblock %}
 {% block extra_css %}
 <style>
-  .tasks-layout { display: grid; grid-template-columns: 240px minmax(0,1fr) minmax(400px,480px); gap: 16px; height: auto; min-height: calc(100vh - 170px); }
-  @media (max-width: 1280px) { .tasks-layout { grid-template-columns: 220px 1fr; } }
-  @media (max-width: 860px) { .tasks-layout { grid-template-columns: 1fr; } }
+  body.tasks-full .app-container { padding-bottom: 0; }
+  .tasks-layout { display: grid; grid-template-columns: 240px minmax(0,1fr) minmax(400px,480px); gap: 16px; height: calc(100vh - var(--nav-height) - 24px); min-height: 480px; }
+   @media (max-width: 1280px) { .tasks-layout { grid-template-columns: 220px 1fr; } }
+   @media (max-width: 860px) { .tasks-layout { grid-template-columns: 1fr; height: auto; } }
   .tasks-panel { background: #fff; border: 1px solid var(--gray-200); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; }
   .cat-head { display: flex; align-items: center; gap: 8px; padding: 9px 12px; cursor: pointer; border-radius: 8px; transition: background .15s; background: var(--gray-50); border: 1px solid var(--gray-100); }
   .cat-head:hover { background: var(--gray-100); }
   .cat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-  .cat-item { padding: 7px 12px 7px 28px; font-size: .78rem; color: var(--gray-700); border-radius: 6px; cursor: pointer; text-decoration: none; display: flex; align-items: center; gap: 6px; margin: 1px 0; }
+  .cat-item { padding: 7px 12px; font-size: .78rem; color: var(--gray-700); border-radius: 6px; cursor: pointer; text-decoration: none; display: flex; align-items: center; gap: 6px; margin: 1px 0; }
   .cat-item:hover { background: var(--gray-50); }
   .cat-item .badge { font-size: .58rem; }
   .cat-item.active { background: var(--primary-light); color: var(--primary); }
@@ -18,47 +38,45 @@
    @keyframes flashTask { 0%,50% { background: #fff7c2; } 100% { background: transparent; } }
    /* 自然语言创建固定在面板顶部,滚动时始终可见 */
    .tasks-layout > .notes-panel { position: sticky; top: 14px; align-self: start; }
+   /* 对话流(历史创建任务) */
+   .task-timeline{flex:1;overflow-y:auto;padding:16px;}
+   .task-bubble{max-width:94%;margin-bottom:14px;cursor:pointer;}
+   .task-bubble .meta{font-size:.68rem;color:var(--gray-400);margin-bottom:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+   .task-bubble .bubble{background:#fff;border:1px solid var(--gray-200);border-radius:12px 12px 12px 4px;padding:10px 14px;box-shadow:var(--shadow-sm);transition:border-color .15s;}
+   .task-bubble .bubble:hover{border-color:var(--primary);}
+   .task-bubble .t-title{font-weight:600;font-size:.85rem;color:var(--gray-800);word-break:break-word;}
+   .task-bubble .bbl{font-size:.82rem;color:var(--gray-700);white-space:pre-wrap;word-break:break-word;margin-top:5px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden;}
+   .task-bubble .bbl.expanded{-webkit-line-clamp:unset;overflow:visible;}
+   .task-bubble .bbl-more{font-size:.72rem;color:var(--primary);margin-top:3px;cursor:pointer;user-select:none;}
+   .task-bubble .bbl-more:hover{text-decoration:underline;}
+   .tasks-layout > .tasks-panel .card-footer{border-top:1px solid var(--gray-100);}
 </style>
 {% endblock %}
 {% block content %}
 
 <div class="tasks-layout">
-  <!-- 左栏: 按类型分类折叠展示当前用户任务 -->
+  <!-- 左栏: 待办分类筛选 -->
   <div class="tasks-panel">
     <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
       <span style="font-size:.84rem;font-weight:600;"><i class="bi bi-tags" style="color:var(--primary);"></i> 待办分类</span>
-      <div class="d-flex align-items-center gap-2">
-        <span class="badge bg-primary" style="font-size:.6rem;">{{ my_tasks|length + other_assigned|length }}</span>
-        <label class="d-flex align-items-center gap-1 mb-0" style="font-size:.72rem;color:var(--gray-600);cursor:pointer;">
-          <input type="checkbox" id="toggleCompleted" value="1" onchange="location.href=this.checked?'?completed=1':location.pathname" {% if show_completed %}checked{% endif %} style="margin:0;">
-          <span>显示已完成</span>
-        </label>
-      </div>
+      <label class="d-flex align-items-center gap-1 mb-0" style="font-size:.72rem;color:var(--gray-600);cursor:pointer;">
+        <input type="checkbox" id="toggleCompleted" value="1" onchange="toggleCompletedView(this)" {% if show_completed %}checked{% endif %} style="margin:0;">
+        <span>显示已完成</span>
+      </label>
     </div>
     <div class="card-body py-2 px-2" style="overflow-y:auto;">
+      <a class="cat-item" href="#" onclick="selectCategory('');return false;" data-cat="">
+        <span class="cat-dot" style="background:var(--primary);"></span>
+        <span class="text-truncate" style="flex:1;">全部</span>
+        <span class="badge" id="catCountAll" style="background:var(--gray-100);color:var(--gray-500);font-size:.58rem;">0</span>
+      </a>
       {% for g in task_categories %}
       {% set color = 'var(--primary)' if g.category == '工作' else 'var(--success)' if g.category == '个人' else 'var(--meeting)' if g.category == '会议' else 'var(--training)' if g.category == '培训' else 'var(--exam)' if g.category == '考试' else 'var(--warning)' %}
-      <div class="cat-group mb-1">
-        <div class="cat-head" onclick="this.nextElementSibling.classList.toggle('d-none');this.querySelector('.chev').classList.toggle('bi-chevron-down')">
-          <span class="chev bi bi-chevron-down" style="font-size:.62rem;color:var(--gray-400);"></span>
-          <span class="cat-dot" style="background:{{ color }};"></span>
-          <span style="font-weight:700;font-size:.8rem;letter-spacing:.02em;color:var(--gray-800);flex:1;">{{ g.category }}</span>
-          <span class="badge" style="background:{{ color }};font-size:.58rem;">{{ g.tasks|length }}</span>
-        </div>
-        <div>
-          {% for t in g.tasks %}
-          {% set s = task_stats.get(t.id, {'total': 0, 'completed': 0}) %}
-          <a class="cat-item {% if t.end_time < now %}overdue{% endif %}" href="#" onclick="loadTaskDetail({{ t.id }});return false;" data-task-id="{{ t.id }}" title="{{ t.title }}\n{{ t.description or '' }}">
-            {% if t.end_time < now %}<i class="bi bi-exclamation-triangle-fill" style="color:var(--danger);font-size:.7rem;"></i>
-            {% else %}<i class="bi bi-list-task" style="color:var(--gray-400);font-size:.7rem;"></i>{% endif %}
-            <span class="text-truncate" style="flex:1;">{{ t.title }}</span>
-            {% if s['total'] > 1 %}<span class="badge" style="background:var(--gray-100);color:var(--gray-500);font-size:.55rem;">{{ s['completed'] }}/{{ s['total'] }}</span>{% endif %}
-            {% if t.end_time < now %}<span class="badge bg-danger" style="font-size:.55rem;font-weight:700;">逾期</span>{% endif %}
-            <small style="font-size:.6rem;color:var(--gray-400);{% if t.end_time < now %}color:var(--danger);font-weight:600;{% endif %}">{{ t.end_time.strftime('%m-%d') }}</small>
-          </a>
-          {% endfor %}
-        </div>
-      </div>
+      <a class="cat-item" href="#" onclick="selectCategory('{{ g.category }}');return false;" data-cat="{{ g.category }}">
+        <span class="cat-dot" style="background:{{ color }};"></span>
+        <span class="text-truncate" style="flex:1;">{{ g.category }}</span>
+        <span class="badge cat-count" data-cat="{{ g.category }}" style="background:{{ color }};font-size:.58rem;">0</span>
+      </a>
       {% else %}
       <div class="empty-state">
         <svg viewBox="0 0 96 96" fill="none"><circle cx="48" cy="48" r="42" fill="var(--gray-100)"/><path d="M30 40l12 12 16-18" stroke="var(--primary)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M48 66v-3a10 10 0 019-10z" transform="translate(48 40) translate(0 0)" fill="var(--gray-300)"/><circle cx="48" cy="62" r="9" fill="none" stroke="var(--gray-300)" stroke-width="3"/></svg>
@@ -266,20 +284,19 @@
   {% endif %}
   <div class="tasks-panel">
     <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
-      <span style="font-size:.85rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-chat-dots" style="color:var(--primary);"></i> 自然语言创建</span>
+      <span style="font-size:.85rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-list-check" style="color:var(--primary);"></i> 待办列表</span>
+      <small class="text-muted" style="font-size:.72rem;" id="taskFeedCount"></small>
     </div>
-    <div class="card-body py-3 px-3" style="display:flex;flex-direction:column;">
-      <form method="POST" class="d-flex gap-2">
+    <div class="task-timeline" id="taskTimeline"></div>
+    <div class="card-footer" style="background:#fafafa;padding:10px 14px 12px;">
+      <form method="POST" class="d-flex gap-2" onsubmit="return false;">
         <input type="hidden" name="action" value="preview">
-        <div style="position:relative;flex-grow:1;">
-          <textarea name="text" class="form-control" rows="5" id="adminTaskText" placeholder="例：开发登录功能 从明天上午9点开始 到下周五下午6点结束 发给张三、李四" required style="font-size:.9rem;resize:none;">{% if original_text %}{{ original_text }}{% endif %}</textarea>
+        <div style="position:relative;flex:1;min-width:0;">
+          <textarea name="text" class="form-control form-control-sm" rows="1" id="adminTaskText" placeholder="例：开发登录功能 从明天上午9点开始 到下周五下午6点结束 发给张三、李四（输入 @ 选择人员，自动解析标题、时间、分配，支持每周/每月/每年周期待办）" style="font-size:.88rem;resize:none;overflow-y:auto;">{% if original_text %}{{ original_text }}{% endif %}</textarea>
           <div id="mentionDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:180px;overflow-y:auto;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:1000;margin-top:2px;"></div>
         </div>
-        <button type="submit" class="btn btn-primary" style="white-space:nowrap;flex-shrink:0;padding:6px 18px;">{% if is_admin %}<i class="bi bi-send"></i> 解析{% else %}<i class="bi bi-plus-circle"></i> 创建{% endif %}</button>
+        <button type="button" class="btn btn-primary" id="taskParseBtn" onclick="taskParse(this)" style="white-space:nowrap;flex-shrink:0;padding:6px 18px;"><i class="bi bi-send"></i> 解析</button>
       </form>
-      <div class="mt-2">
-        <small style="color:var(--gray-500);font-size:.72rem;"><i class="bi bi-info-circle"></i> 输入 @ 选择人员，自动解析标题、时间、分配，支持每周/每月/每年周期待办</small>
-      </div>
     </div>
   </div>
   {% endif %}
@@ -411,7 +428,112 @@
 </div>
 
 <script>
+(function(){
+  var ta=document.getElementById('adminTaskText');
+  if(!ta) return;
+  function resize(){
+    ta.style.height='auto';
+    ta.style.height=Math.min(ta.scrollHeight,120)+'px';
+  }
+  ta.addEventListener('input',resize);
+  resize();
+})();
+function toggleTaskText(e,link){
+  e.stopPropagation();
+  var b=link.parentElement.querySelector('.bbl');
+  if(!b) return;
+  var expanded=b.classList.toggle('expanded');
+  link.innerHTML=expanded?'收起':'… 点击查看全文';
+}
+function taskFeedStatus(t){
+  if(t.total>1) return t.done+'/'+t.total+' 已完成';
+  return t.completed?'已完成':'进行中';
+}
+var _urlParams=new URLSearchParams(window.location.search);
+window.taskFilter={category:_urlParams.get('category')||'', completed:_urlParams.get('completed')==='1'};
+function taskQs(){
+  var p=new URLSearchParams();
+  if(window.taskFilter.category)p.set('category',window.taskFilter.category);
+  if(window.taskFilter.completed)p.set('completed','1');
+  var q=p.toString();
+  return q?'?'+q:'';
+}
+function renderCatCounts(categories){
+  categories=categories||{};
+  var all=0;
+  Object.keys(categories).forEach(function(k){all+=categories[k];});
+  var el=document.getElementById('catCountAll');
+  if(el)el.textContent=all;
+  document.querySelectorAll('.cat-count').forEach(function(c){
+    c.textContent=categories[c.getAttribute('data-cat')]||0;
+  });
+}
+function setActiveCategory(cat){
+  cat=cat||'';
+  document.querySelectorAll('.cat-item').forEach(function(el){
+    el.classList.toggle('active', (el.getAttribute('data-cat')||'')===cat);
+  });
+}
+function selectCategory(cat){
+  window.taskFilter.category=cat||'';
+  history.replaceState(null,'',taskQs());
+  loadTaskFeed();
+}
+function toggleCompletedView(cb){
+  window.taskFilter.completed=!!cb.checked;
+  history.replaceState(null,'',taskQs());
+  loadTaskFeed();
+}
+function taskFocusInput(){
+  var el=document.getElementById('adminTaskText');
+  if(el){el.focus();}
+  else if(window.location.pathname!=='/user/tasks'){window.location.href='/user/tasks';}
+}
+function loadTaskFeed(){
+  var tl=document.getElementById('taskTimeline');
+  if(!tl) return;
+  fetch('/api/quick-tasks'+taskQs()).then(function(r){return r.json();}).then(function(d){
+    if(!d.ok||!d.tasks) return;
+    renderCatCounts(d.categories);
+    setActiveCategory(d.category||'');
+    var list=d.tasks;
+    var cnt=document.getElementById('taskFeedCount');
+    if(cnt) cnt.textContent='共 '+list.length+' 条';
+    if(!list.length){
+      tl.innerHTML='<div class="empty-state">'+
+        '<svg viewBox="0 0 96 96" fill="none"><circle cx="48" cy="48" r="42" fill="var(--gray-100)"/><path d="M30 40l12 12 16-18" stroke="var(--primary)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M48 66v-3a10 10 0 019-10z" transform="translate(48 40) translate(0 0)" fill="var(--gray-300)"/><circle cx="48" cy="62" r="9" fill="none" stroke="var(--gray-300)" stroke-width="3"/></svg>'+
+        '<div class="es-title">暂无待办</div>'+
+        '<div class="es-sub">在下方输入框用一句话创建，例如「明天 9点 提醒张三 开会」。</div>'+
+        '<button class="btn btn-sm btn-primary" onclick="taskFocusInput()"><i class="bi bi-chat-dots"></i> 开始创建</button>'+
+        '</div>';
+      window.curTaskId=null;
+      var db=document.getElementById('taskDetailBody');
+      if(db) db.innerHTML='<div style="text-align:center;color:var(--gray-400);padding:40px 10px;" class="task-detail-empty"><i class="bi bi-mouse" style="font-size:1.6rem;display:block;margin-bottom:10px;color:var(--gray-300);"></i>暂无待办可查看详情</div>';
+      return;
+    }
+    tl.innerHTML=list.map(function(t){
+      var desc=t.description||'';
+      var html=linkify(desc);
+      var more=(desc.length>160)?'<div class="bbl-more" onclick="toggleTaskText(event,this)">… 点击查看全文</div>':'';
+      var cls=t.completed?'var(--success)':'var(--warning)';
+      return '<div class="task-bubble" data-tid="'+t.id+'" onclick="loadTaskDetail('+t.id+')">'+
+        '<div class="meta"><i class="bi bi-clock"></i> '+esc(t.end_time||'')+
+        ' <span class="badge" style="background:var(--primary);font-size:.58rem;">'+esc(t.category)+'</span>'+
+        ' <span class="badge" style="background:'+cls+';font-size:.58rem;">'+taskFeedStatus(t)+'</span></div>'+
+        '<div class="bubble">'+
+        '<div class="t-title">'+esc(t.title)+'</div>'+
+        '<div class="bbl">'+html+'</div>'+more+
+        '</div></div>';
+    }).join('');
+    var firstTask=document.querySelector('.task-bubble[data-tid]');
+    if(firstTask){
+      var fid=parseInt(firstTask.getAttribute('data-tid'),10);
+      if(window.curTaskId!==fid) loadTaskDetail(fid);
+    }
+  });
+}
 function loadTaskDetail(taskId) {
+  window.curTaskId=taskId;
   var body = document.getElementById('taskDetailBody');
   if (!body) return;
   document.querySelectorAll('.cat-item.active').forEach(function(el){el.classList.remove('active');});
@@ -586,6 +708,254 @@ function reopenTask(id){
 }
 </script>
 
+<!-- 待办确认发布 -->
+<div class="modal fade" id="taskModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header py-2"><span style="font-weight:600;"><i class="bi bi-list-task" style="color:var(--primary);"></i> 待办确认发布</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div id="tmDupWarn" class="mb-2"></div>
+        <div class="mb-2">
+          <label style="font-size:.72rem;color:var(--gray-600);">待办标题</label>
+          <input type="text" id="tmTitle" class="form-control form-control-sm" style="font-size:.85rem;">
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label style="font-size:.72rem;color:var(--gray-600);">开始时间</label>
+            <input type="datetime-local" id="tmStart" class="form-control form-control-sm">
+          </div>
+          <div class="col-6">
+            <label style="font-size:.72rem;color:var(--gray-600);">结束时间</label>
+            <input type="datetime-local" id="tmEnd" class="form-control form-control-sm">
+          </div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label style="font-size:.72rem;color:var(--gray-600);">分类</label>
+            <select id="tmCategory" class="form-select form-select-sm">
+              <option value="工作">工作</option>
+              <option value="个人">个人</option>
+              <option value="会议">会议</option>
+              <option value="培训">培训</option>
+              <option value="考试">考试</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label style="font-size:.72rem;color:var(--gray-600);">周期</label>
+            <select id="tmRecurrenceSelect" class="form-select form-select-sm" style="font-size:.82rem;" onchange="tmUpdateRecurrence()">
+              <option value="" data-count="0" data-interval="0">不重复</option>
+              <option value="weekly" data-count="4" data-interval="7">每周（4期）</option>
+              <option value="monthly" data-count="3" data-interval="30">每月（3期）</option>
+              <option value="yearly" data-count="2" data-interval="365">每年（2期）</option>
+              <option value="custom" data-count="0" data-interval="0">自定义</option>
+            </select>
+            <span id="tmRecurrenceCustom" class="d-none mt-1" style="display:flex;gap:4px;">
+              <input type="number" id="tmCustomInterval" class="form-control form-control-sm" style="width:70px;" placeholder="天数" min="1" value="7">
+              <input type="number" id="tmCustomCount" class="form-control form-control-sm" style="width:60px;" placeholder="期数" min="1" value="3">
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="tmApplyCustomRecurrence()">应用</button>
+            </span>
+            <span id="tmRecurrenceHint" class="text-info" style="font-size:.75rem;"></span>
+          </div>
+        </div>
+        <div class="row g-2 mb-2">
+          {% if user_groups %}
+          <div class="col-6">
+            <label style="font-size:.72rem;color:var(--gray-600);">按群组分配</label>
+            <div class="d-flex flex-wrap gap-2 mt-1" id="tmGroupBox">
+              {% for g in user_groups %}
+              <label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:4px;">
+                <input type="checkbox" class="form-check-input tm-group" value="{{ g.id }}"> {{ g.name }} <small style="color:var(--gray-400);font-size:.68rem;">({{ g.members|length }}人)</small>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+          <div class="{% if user_groups %}col-6{% endif %}" id="tmUserWrap">
+            <label style="font-size:.72rem;color:var(--gray-600);">分配对象{% if is_admin %}<span class="ms-2 form-check-label" style="font-size:.78rem;cursor:pointer;"><input type="checkbox" class="form-check-input" id="tmAll" style="margin-right:4px;"> @所有人</span>{% endif %}</label>
+            <div class="d-flex flex-wrap gap-2 mt-1" id="tmAssignBox"></div>
+          </div>
+        </div>
+        <div class="mb-1">
+          <label style="font-size:.72rem;color:var(--gray-600);">待办描述</label>
+          <textarea id="tmDesc" class="form-control form-control-sm" rows="2" style="font-size:.8rem;"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer py-2"><span class="text-muted" id="tmErr" style="font-size:.75rem;"></span><button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal"><i class="bi bi-x"></i> 取消</button><button type="button" class="btn btn-sm btn-primary" onclick="taskPublish(this)"><i class="bi bi-check"></i> 确认发布</button></div>
+    </div>
+  </div>
+</div>
+<script>
+var tmUsers=[];
+{% for u in users %}
+tmUsers.push({id:{{ u.id }}, name:'{{ u.name or u.username }}'{% if u.id == current_user.id %}, self:true{% endif %}});
+{% endfor %}
+function tmBuildAssignees(ids){
+  var box=document.getElementById('tmAssignBox');
+  if(!box) return;
+  window.tmSelfId=null;
+  box.innerHTML=tmUsers.map(function(u){
+    var checked=ids.indexOf(u.id)>=0;
+    if(u.self) window.tmSelfId=u.id;
+    return '<label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:4px;">'+
+      '<input type="checkbox" class="form-check-input tm-assignee" value="'+u.id+'"'+(checked?' checked':'')+'> '+
+      u.name+(u.self?' <small style="color:var(--gray-400);font-size:.68rem;">(自己)</small>':'')+
+      '</label>';
+  }).join('');
+}
+function taskParse(btn){
+  var ta=document.getElementById('adminTaskText');
+  var text=ta?(ta.value||'').trim():'';
+  if(text.length<2){ if(window.toast)toast('请至少输入2个字','warning'); return; }
+  var orig=btn?btn.innerHTML:null;
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> 解析中...';}
+  fetch('/api/quick-task/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text})})
+    .then(function(r){return r.json();}).then(function(d){
+      if(!d.ok){
+        if(d.sensitive_words&&d.sensitive_words.length){
+          if(window.toast)toast('输入内容包含敏感词：'+d.sensitive_words.join('、'),'danger');
+        }else{
+          if(window.toast)toast(d.error||'解析失败','danger');
+        }
+        return;
+      }
+      document.getElementById('tmTitle').value=d.title||'';
+      document.getElementById('tmStart').value=d.start_time||'';
+      document.getElementById('tmEnd').value=d.end_time||'';
+      document.getElementById('tmCategory').value=d.category||'工作';
+      document.getElementById('tmDesc').value=d.description||'';
+      window.tmRec={mode:'',interval:d.recurrence_interval_days||0,count:d.recurrence_count||0};
+      tmApplyRecurrenceToSelect();
+      var dw=document.getElementById('tmDupWarn');
+      if(d.duplicate_tasks&&d.duplicate_tasks.length){
+        dw.innerHTML='<div class="alert alert-warning py-2 px-3 mb-0" style="font-size:.8rem;border-left:4px solid #f59e0b;border-radius:0;">'+
+          '<div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle"></i> 与现有未完成待办相似度过高（相似度 ≥ 70%），请确认是否继续发布</div>'+
+          d.duplicate_tasks.map(function(x){return '<div style="font-size:.75rem;padding:2px 0;">· '+esc(x.title)+' <small class="text-muted">— '+esc(x.creator)+'</small> <span class="badge bg-warning" style="font-size:.6rem;">相似度 '+x.similarity+'%</span></div>';}).join('')+
+          '</div>';
+      }else{ dw.innerHTML=''; }
+      var all=document.getElementById('tmAll');
+      if(all) all.checked=!!d.is_all;
+      tmBuildAssignees(d.assignee_ids||[]);
+      document.getElementById('tmErr').textContent='';
+      new bootstrap.Modal(document.getElementById('taskModal')).show();
+    }).catch(function(){
+      if(window.toast)toast('解析失败，请重试','danger');
+    }).finally(function(){
+      if(btn){btn.disabled=false;btn.innerHTML=orig;}
+    });
+}
+function tmUpdateRecurrence(){
+  var sel=document.getElementById('tmRecurrenceSelect');
+  var opt=sel.options[sel.selectedIndex];
+  var custom=document.getElementById('tmRecurrenceCustom');
+  var hint=document.getElementById('tmRecurrenceHint');
+  var rec=window.tmRec;
+  if(opt.value==='custom'){
+    custom.classList.remove('d-none');
+    if(rec){rec.mode='';rec.interval=0;rec.count=0;hint.textContent='';}
+    return;
+  }
+  custom.classList.add('d-none');
+  if(!rec) rec=window.tmRec={};
+  rec.mode=opt.value;
+  rec.interval=parseInt(opt.dataset.interval)||0;
+  rec.count=parseInt(opt.dataset.count)||0;
+  hint.innerHTML=opt.value?('<i class="bi bi-arrow-repeat"></i> '+opt.text):'';
+}
+function tmApplyCustomRecurrence(){
+  var interval=parseInt(document.getElementById('tmCustomInterval').value)||7;
+  var count=parseInt(document.getElementById('tmCustomCount').value)||3;
+  if(count<1)count=1;
+  window.tmRec.mode='custom';window.tmRec.interval=interval;window.tmRec.count=count;
+  document.getElementById('tmRecurrenceHint').innerHTML='<i class="bi bi-arrow-repeat"></i> 每'+interval+'天，共'+count+'期';
+}
+function tmApplyRecurrenceToSelect(){
+  var sel=document.getElementById('tmRecurrenceSelect');
+  var hint=document.getElementById('tmRecurrenceHint');
+  var rec=window.tmRec;
+  var matched=false;
+  if(sel&&hint&&sel.options){
+    for(var i=0;i<sel.options.length;i++){
+      var o=sel.options[i];
+      if(o.value && parseInt(o.dataset.interval)===rec.interval && parseInt(o.dataset.count)===rec.count){
+        sel.selectedIndex=i;hint.innerHTML='<i class="bi bi-arrow-repeat"></i> '+o.text;matched=true;break;
+      }
+    }
+    if(!matched){
+      if(rec.interval&&rec.count>0){
+        sel.value='custom';
+        var cint=document.getElementById('tmCustomInterval'),ccnt=document.getElementById('tmCustomCount');
+        var cwrap=document.getElementById('tmRecurrenceCustom');
+        if(cint)cint.value=rec.interval;
+        if(ccnt)ccnt.value=rec.count;
+        if(cwrap)cwrap.classList.remove('d-none');
+        hint.innerHTML='<i class="bi bi-arrow-repeat"></i> 每'+rec.interval+'天，共'+rec.count+'期';
+      }else{
+        sel.value='';hint.textContent='';
+      }
+    }
+  }
+}
+function taskPublish(btn){
+  var err=document.getElementById('tmErr');
+  err.textContent='';
+  var title=document.getElementById('tmTitle').value.trim();
+  if(title.length<2){err.textContent='待办标题至少2个字';return;}
+  if(!document.getElementById('tmStart').value){err.textContent='请填写开始时间';return;}
+  if(!document.getElementById('tmEnd').value){err.textContent='请填写结束时间';return;}
+  var is_all=document.getElementById('tmAll')?document.getElementById('tmAll').checked:false;
+  var ids=[];
+  if(!is_all){document.querySelectorAll('.tm-assignee:checked').forEach(function(c){ids.push(parseInt(c.value));});}
+  var gids=[];
+  document.querySelectorAll('.tm-group:checked').forEach(function(c){gids.push(parseInt(c.value));});
+  if(!is_all&&ids.length===0&&gids.length===0){err.textContent='请至少选择一位负责人(可勾选自己)';return;}
+  var selfCb=window.tmSelfId?document.querySelector('.tm-assignee[value="'+window.tmSelfId+'"]'):null;
+  var assign_self=selfCb?selfCb.checked:true;
+  var rec=window.tmRec||{};
+  var body={
+    title:title,
+    start_time:document.getElementById('tmStart').value,
+    end_time:document.getElementById('tmEnd').value,
+    category:document.getElementById('tmCategory').value,
+    description:document.getElementById('tmDesc').value,
+    assignee_ids:ids,
+    group_ids:gids,
+    is_all:is_all,
+    assign_self:assign_self,
+    recurrence_interval_days:rec.interval||0,
+    recurrence_count:rec.count||0
+  };
+  if(btn){btn.disabled=true;}
+  fetch('/api/quick-task',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(function(r){return r.json();}).then(function(d){
+      if(d.ok){
+        if(window.toast)toast((d.created&&d.created.length>1)?('周期待办创建成功，共 '+d.created.length+' 个'):'待办创建成功','success');
+        var modalEl=document.getElementById('taskModal');
+        var m=bootstrap.Modal.getInstance(modalEl);
+        if(m){m.hide();}
+        var inp=document.getElementById('adminTaskText');
+        if(inp){inp.value='';}
+        loadTaskFeed();
+        loadTaskDetail(d.task_id);
+      }else{
+        err.textContent=d.error||'创建失败';
+      }
+    }).catch(function(){err.textContent='创建失败，请重试';})
+    .finally(function(){if(btn){btn.disabled=false;}});
+}
+(function(){
+  var allBox=document.getElementById('tmAll');
+  if(allBox){
+    allBox.addEventListener('change',function(){ tmBuildAssignees([]); });
+  }
+  var ab=document.getElementById('tmAssignBox');
+  if(ab&&allBox){
+    ab.addEventListener('change',function(e){
+      if(e.target.classList.contains('tm-assignee')&&allBox.checked)allBox.checked=false;
+    });
+  }
+})();
+</script>
+
 <!-- 编辑待办模态框(编辑/分配/删除/重新打开 合并) -->
 <div class="modal fade" id="editTaskModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
@@ -643,6 +1013,7 @@ function reopenTask(id){
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+  loadTaskFeed();
   var params = new URLSearchParams(window.location.search);
   var newId = params.get('new');
   if (newId) {

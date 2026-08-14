@@ -3196,10 +3196,9 @@ def workbench():
     doc = request.args.get('doc', type=int)
     try:
         docs = _build_docs_query(cid, group, q).all()
-    except Exception:
-        # ��据库旧版本未��加 visibility 列时的��底
+except Exception:
+        # ����据库旧版本未��加 visibility 列时的��底
         from sqlalchemy import func
-        from sqlalchemy.orm import joinedload
         query = db.session.query(
             KbDocument.id, KbDocument.title, KbDocument.filename,
             KbDocument.file_path, KbDocument.file_type, KbDocument.file_size,
@@ -3209,7 +3208,7 @@ def workbench():
             KbDocument.last_recognition_at, KbDocument.last_recognition_type,
             KbDocument.last_recognition_result, KbDocument.recognition_count,
             KbDocument.cancel, KbDocument.auto_classified, KbDocument.refined_at
-        ).options(joinedload(KbDocument.collection))
+        )
         if current_user.role != 'admin':
             visible = _visible_doc_ids()
             if visible is not None:

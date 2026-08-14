@@ -625,7 +625,7 @@ activeUsers.push({id: {{ u.id }}, name: '{{ u.name or u.username }}'{% if u.id =
 function autoGrowDesc(el){
   if(!el) return;
   el.style.height='auto';
-  el.style.height=Math.min(el.scrollHeight, 120)+'px';
+  el.style.height=Math.min(el.scrollHeight, 96)+'px';
 }
 function openTaskEditModal(id){
   fetch('{{ url_for('api_task_detail', task_id=0) }}'.replace('/0','/' + id))

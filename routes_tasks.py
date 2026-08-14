@@ -1132,7 +1132,11 @@ def api_task_reopen(task_id):
 @app.route('/api/task/<int:task_id>/assign', methods=['POST'])
 @login_required
 def api_task_assign(task_id):
-    """增加分配人(创建者或管理员)。"""
+    """修改分配人(创建者或管理员)。
+
+    默认仅新增分配;带 sync=true 时为全量同步:不在列表中的已分配
+    用户将被标记为废弃(abandoned),废弃后再次勾选则恢复为进行中。
+    """
     task = db.session.get(Task, task_id)
     if not task:
         return jsonify({'ok': False, 'error': '待办不存在'}), 404
@@ -1140,9 +1144,45 @@ def api_task_assign(task_id):
         return jsonify({'ok': False, 'error': '无权操作'}), 403
     data = request.get_json(silent=True) or {}
     user_ids = data.get('user_ids') or []
-    existing = {a.user_id for a in TaskAssignment.query.filter_by(
-        task_id=task.id).all()}
+    rows = TaskAssignment.query.filter_by(task_id=task.id).all()
+    existing_map = {a.user_id: a for a in rows}
     added = []
+
+    if data.get('sync'):
+        keep = set()
+        for raw in user_ids:
+            try:
+                uid = int(raw)
+            except (TypeError, ValueError):
+                continue
+            if uid in keep:
+                continue
+            keep.add(uid)
+            a = existing_map.get(uid)
+            if a is None:
+                u = db.session.get(User, uid)
+                if not u or u.is_disabled or u.status != 'approved':
+                    continue
+                db.session.add(TaskAssignment(task_id=task.id, user_id=uid))
+                create_notification(uid, 'task_assigned',
+                                    f'你收到一个新待办：「{task.title}」', task.id)
+                added.append(u.name or u.username)
+            elif a.status == 'abandoned':
+                a.status = 'pending'
+                a.abandoned_at = None
+                a.progress = 0
+                added.append(a.user.name or a.user.username)
+        removed = []
+        now = datetime.now()
+        for a in rows:
+            if a.user_id not in keep and a.status != 'abandoned':
+                a.status = 'abandoned'
+                a.abandoned_at = now
+                removed.append(a.user.name or a.user.username)
+        db.session.commit()
+        return jsonify({'ok': True, 'added': added, 'removed': removed})
+
+    existing = set(existing_map.keys())
     for uid in user_ids:
         try:
             uid = int(uid)

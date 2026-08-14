@@ -295,7 +295,7 @@
           <textarea name="text" class="form-control form-control-sm" rows="1" id="adminTaskText" placeholder="例：开发登录功能 从明天上午9点开始 到下周五下午6点结束 发给张三、李四（输入 @ 选择人员，自动解析标题、时间、分配，支持每周/每月/每年周期待办）" style="font-size:.88rem;resize:none;overflow-y:auto;">{% if original_text %}{{ original_text }}{% endif %}</textarea>
           <div id="mentionDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:180px;overflow-y:auto;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:1000;margin-top:2px;"></div>
         </div>
-        <button type="button" class="btn btn-primary" id="taskParseBtn" onclick="taskParse(this)" style="white-space:nowrap;flex-shrink:0;padding:6px 18px;"><i class="bi bi-send"></i> 解析</button>
+        <button type="button" class="btn btn-primary" id="taskParseBtn" onclick="taskParse(this)" style="white-space:nowrap;flex-shrink:0;padding:6px 18px;"><i class="bi bi-send"></i> 发布</button>
       </form>
     </div>
   </div>
@@ -504,7 +504,6 @@ function loadTaskFeed(){
         '<svg viewBox="0 0 96 96" fill="none"><circle cx="48" cy="48" r="42" fill="var(--gray-100)"/><path d="M30 40l12 12 16-18" stroke="var(--primary)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M48 66v-3a10 10 0 019-10z" transform="translate(48 40) translate(0 0)" fill="var(--gray-300)"/><circle cx="48" cy="62" r="9" fill="none" stroke="var(--gray-300)" stroke-width="3"/></svg>'+
         '<div class="es-title">暂无待办</div>'+
         '<div class="es-sub">在下方输入框用一句话创建，例如「明天 9点 提醒张三 开会」。</div>'+
-        '<button class="btn btn-sm btn-primary" onclick="taskFocusInput()"><i class="bi bi-chat-dots"></i> 开始创建</button>'+
         '</div>';
       window.curTaskId=null;
       var db=document.getElementById('taskDetailBody');
@@ -623,17 +622,30 @@ var activeUsers = [{id:0,name:'-- 请选择 --'}];
 {% for u in users %}
 activeUsers.push({id: {{ u.id }}, name: '{{ u.name or u.username }}'{% if u.id == current_user.id %}, self: true{% endif %}});
 {% endfor %}
+function autoGrowEditDesc(el){
+  if(!el) return;
+  el.style.height='auto';
+  el.style.height=Math.min(el.scrollHeight, 160)+'px';
+}
 function openTaskEditModal(id){
   fetch('{{ url_for('api_task_detail', task_id=0) }}'.replace('/0','/' + id))
     .then(function(r){return r.json();}).then(function(d){
       if(!d.ok) return;
       var t = d.task;
       document.getElementById('editTaskId').value = id;
+      document.getElementById('editTaskMeta').textContent = '创建者: ' + t.creator + ' · 创建时间: ' + t.created_at;
       document.getElementById('editTaskTitle').value = t.title;
-      document.getElementById('editTaskCategory').value = t.category;
+      var catSel = document.getElementById('editTaskCategory');
+      if (!Array.from(catSel.options).some(function (o) { return o.value === t.category; })) {
+        var oc = document.createElement('option');
+        oc.value = t.category; oc.textContent = t.category;
+        catSel.appendChild(oc);
+      }
+      catSel.value = t.category;
       document.getElementById('editTaskStart').value = t.start_dt || '';
       document.getElementById('editTaskEnd').value = t.end_dt || '';
       document.getElementById('editTaskDesc').value = t.description || '';
+      autoGrowEditDesc(document.getElementById('editTaskDesc'));
       var canDelete = !!t.can_delete;
       document.getElementById('assignSection').style.display = canDelete ? '' : 'none';
       document.getElementById('dangerSection').style.display = canDelete ? '' : 'none';
@@ -671,11 +683,12 @@ function saveTaskEdit(){
     description: document.getElementById('editTaskDesc').value
   };
   var doAssign = function () {
+    var section = document.getElementById('assignSection');
+    if (section && section.style.display === 'none') return Promise.resolve({ok: true, added: [], removed: []});
     var ids = [];
     document.querySelectorAll('#editAssignList .edit-assign-cb:checked').forEach(function(el){ ids.push(el.value); });
-    if (!ids.length) return Promise.resolve({ok: true, added: []});
     return fetch('{{ url_for('api_task_assign', task_id=0) }}'.replace('/0','/' + id),
-        {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({user_ids: ids})})
+        {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({user_ids: ids, sync: true})})
       .then(function(r){return r.json();});
   };
   fetch('{{ url_for('api_task_edit', task_id=0) }}'.replace('/0','/' + id),
@@ -686,8 +699,13 @@ function saveTaskEdit(){
     }).then(function(d){
       bootstrap.Modal.getInstance(document.getElementById('editTaskModal')).hide();
       loadTaskDetail(parseInt(id, 10));
-      if (d && d.added && d.added.length) alert('已分配: ' + d.added.join('、'));
-      else if (d && d.added && !d.added.length) alert('没有新增分配人(可能都已分配)');
+      var msgs = [];
+      if (d && d.added && d.added.length) msgs.push('已分配: ' + d.added.join('、'));
+      if (d && d.removed && d.removed.length) msgs.push('已取消分配(废弃): ' + d.removed.join('、'));
+      if (msgs.length) {
+        var txt = msgs.join('；');
+        if (window.toast) toast(txt, 'success'); else alert(txt);
+      }
     }).catch(function(e){ alert('保存失败: ' + e.message); });
 }
 function deleteTask(id){
@@ -710,39 +728,42 @@ function reopenTask(id){
 
 <!-- 待办确认发布 -->
 <div class="modal fade" id="taskModal" tabindex="-1">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
-      <div class="modal-header py-2"><span style="font-weight:600;"><i class="bi bi-list-task" style="color:var(--primary);"></i> 待办确认发布</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-      <div class="modal-body">
+      <div class="modal-header py-2 px-3">
+        <span style="font-size:.9rem;font-weight:600;"><i class="bi bi-list-task" style="color:var(--primary);"></i> 待办确认发布</span>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" style="font-size:.85rem;max-height:68vh;overflow-y:auto;">
         <div id="tmDupWarn" class="mb-2"></div>
         <div class="mb-2">
-          <label style="font-size:.72rem;color:var(--gray-600);">待办标题</label>
-          <input type="text" id="tmTitle" class="form-control form-control-sm" style="font-size:.85rem;">
+          <label class="form-label" style="font-size:.8rem;">标题</label>
+          <input type="text" id="tmTitle" class="form-control form-control-sm" maxlength="200" style="font-size:.85rem;">
+        </div>
+        <div class="mb-2">
+          <label class="form-label" style="font-size:.8rem;">分类</label>
+          <select id="tmCategory" class="form-select form-control-sm" style="max-width:200px;font-size:.85rem;">
+            <option value="工作">工作</option>
+            <option value="个人">个人</option>
+            <option value="会议">会议</option>
+            <option value="培训">培训</option>
+            <option value="考试">考试</option>
+          </select>
         </div>
         <div class="row g-2 mb-2">
           <div class="col-6">
-            <label style="font-size:.72rem;color:var(--gray-600);">开始时间</label>
+            <label class="form-label" style="font-size:.8rem;">开始时间</label>
             <input type="datetime-local" id="tmStart" class="form-control form-control-sm">
           </div>
           <div class="col-6">
-            <label style="font-size:.72rem;color:var(--gray-600);">结束时间</label>
+            <label class="form-label" style="font-size:.8rem;">截止时间</label>
             <input type="datetime-local" id="tmEnd" class="form-control form-control-sm">
           </div>
         </div>
         <div class="row g-2 mb-2">
           <div class="col-6">
-            <label style="font-size:.72rem;color:var(--gray-600);">分类</label>
-            <select id="tmCategory" class="form-select form-select-sm">
-              <option value="工作">工作</option>
-              <option value="个人">个人</option>
-              <option value="会议">会议</option>
-              <option value="培训">培训</option>
-              <option value="考试">考试</option>
-            </select>
-          </div>
-          <div class="col-6">
-            <label style="font-size:.72rem;color:var(--gray-600);">周期</label>
-            <select id="tmRecurrenceSelect" class="form-select form-select-sm" style="font-size:.82rem;" onchange="tmUpdateRecurrence()">
+            <label class="form-label" style="font-size:.8rem;">周期</label>
+            <select id="tmRecurrenceSelect" class="form-select form-control-sm" style="font-size:.82rem;" onchange="tmUpdateRecurrence()">
               <option value="" data-count="0" data-interval="0">不重复</option>
               <option value="weekly" data-count="4" data-interval="7">每周（4期）</option>
               <option value="monthly" data-count="3" data-interval="30">每月（3期）</option>
@@ -756,12 +777,10 @@ function reopenTask(id){
             </span>
             <span id="tmRecurrenceHint" class="text-info" style="font-size:.75rem;"></span>
           </div>
-        </div>
-        <div class="row g-2 mb-2">
           {% if user_groups %}
           <div class="col-6">
-            <label style="font-size:.72rem;color:var(--gray-600);">按群组分配</label>
-            <div class="d-flex flex-wrap gap-2 mt-1" id="tmGroupBox">
+            <label class="form-label" style="font-size:.8rem;">按群组分配</label>
+            <div class="d-flex flex-wrap gap-2 mt-1" id="tmGroupBox" style="border:1px solid var(--gray-200);border-radius:8px;padding:6px;background:var(--gray-50);">
               {% for g in user_groups %}
               <label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:4px;">
                 <input type="checkbox" class="form-check-input tm-group" value="{{ g.id }}"> {{ g.name }} <small style="color:var(--gray-400);font-size:.68rem;">({{ g.members|length }}人)</small>
@@ -770,17 +789,19 @@ function reopenTask(id){
             </div>
           </div>
           {% endif %}
-          <div class="{% if user_groups %}col-6{% endif %}" id="tmUserWrap">
-            <label style="font-size:.72rem;color:var(--gray-600);">分配对象{% if is_admin %}<span class="ms-2 form-check-label" style="font-size:.78rem;cursor:pointer;"><input type="checkbox" class="form-check-input" id="tmAll" style="margin-right:4px;"> @所有人</span>{% endif %}</label>
-            <div class="d-flex flex-wrap gap-2 mt-1" id="tmAssignBox"></div>
+        </div>
+        <div class="mb-2">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <label class="form-label" style="font-size:.8rem;margin:0;">分配人员{% if is_admin %}<span class="ms-2 form-check-label" style="font-size:.78rem;cursor:pointer;"><input type="checkbox" class="form-check-input" id="tmAll" style="margin-right:4px;"> @所有人</span>{% endif %}</label>
           </div>
+          <div id="tmAssignBox" class="d-flex flex-wrap gap-1" style="border:1px solid var(--gray-200);border-radius:8px;padding:6px;background:var(--gray-50);"></div>
         </div>
         <div class="mb-1">
-          <label style="font-size:.72rem;color:var(--gray-600);">待办描述</label>
-          <textarea id="tmDesc" class="form-control form-control-sm" rows="2" style="font-size:.8rem;"></textarea>
+          <label class="form-label" style="font-size:.8rem;">待办描述</label>
+          <textarea id="tmDesc" class="form-control form-control-sm" rows="2" style="font-size:.8rem;resize:none;overflow-y:auto;" oninput="autoGrowEditDesc(this)" onfocus="autoGrowEditDesc(this)"></textarea>
         </div>
       </div>
-      <div class="modal-footer py-2"><span class="text-muted" id="tmErr" style="font-size:.75rem;"></span><button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal"><i class="bi bi-x"></i> 取消</button><button type="button" class="btn btn-sm btn-primary" onclick="taskPublish(this)"><i class="bi bi-check"></i> 确认发布</button></div>
+      <div class="modal-footer py-2 px-3"><span class="text-muted" id="tmErr" style="font-size:.75rem;"></span><button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal"><i class="bi bi-x"></i> 取消</button><button type="button" class="btn btn-sm btn-primary" onclick="taskPublish(this)"><i class="bi bi-check"></i> 确认发布</button></div>
     </div>
   </div>
 </div>
@@ -807,7 +828,7 @@ function taskParse(btn){
   var text=ta?(ta.value||'').trim():'';
   if(text.length<2){ if(window.toast)toast('请至少输入2个字','warning'); return; }
   var orig=btn?btn.innerHTML:null;
-  if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> 解析中...';}
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> 发布中...';}
   fetch('/api/quick-task/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text})})
     .then(function(r){return r.json();}).then(function(d){
       if(!d.ok){
@@ -823,6 +844,7 @@ function taskParse(btn){
       document.getElementById('tmEnd').value=d.end_time||'';
       document.getElementById('tmCategory').value=d.category||'工作';
       document.getElementById('tmDesc').value=d.description||'';
+      autoGrowEditDesc(document.getElementById('tmDesc'));
       window.tmRec={mode:'',interval:d.recurrence_interval_days||0,count:d.recurrence_count||0};
       tmApplyRecurrenceToSelect();
       var dw=document.getElementById('tmDupWarn');
@@ -966,13 +988,20 @@ function taskPublish(btn){
       </div>
       <div class="modal-body" style="font-size:.85rem;max-height:68vh;overflow-y:auto;">
         <input type="hidden" id="editTaskId">
+        <div class="mb-2" id="editTaskMeta" style="font-size:.75rem;color:var(--gray-500);"></div>
         <div class="mb-2">
           <label class="form-label" style="font-size:.8rem;">标题</label>
           <input class="form-control form-control-sm" id="editTaskTitle" maxlength="200">
         </div>
         <div class="mb-2">
           <label class="form-label" style="font-size:.8rem;">分类</label>
-          <input class="form-control form-control-sm" id="editTaskCategory" maxlength="50" placeholder="如:工作、学习">
+          <select class="form-select form-control-sm" id="editTaskCategory">
+            <option value="工作">工作</option>
+            <option value="个人">个人</option>
+            <option value="会议">会议</option>
+            <option value="培训">培训</option>
+            <option value="考试">考试</option>
+          </select>
         </div>
         <div class="row mb-2">
           <div class="col-6">
@@ -986,12 +1015,12 @@ function taskPublish(btn){
         </div>
         <div class="mb-2">
           <label class="form-label" style="font-size:.8rem;">描述</label>
-          <textarea class="form-control form-control-sm" id="editTaskDesc" rows="3"></textarea>
+          <textarea class="form-control form-control-sm" id="editTaskDesc" rows="2" style="resize:none;overflow-y:auto;" oninput="autoGrowEditDesc(this)" onfocus="autoGrowEditDesc(this)"></textarea>
         </div>
         <div id="assignSection" class="mb-2">
           <div class="d-flex justify-content-between align-items-center mb-1">
-            <label class="form-label" style="font-size:.8rem;margin:0;">分配人员(勾选可新增)</label>
-            <small class="text-muted" style="font-size:.68rem;">已分配默认勾选,新增会发送通知</small>
+            <label class="form-label" style="font-size:.8rem;margin:0;">分配人员(勾选可新增/取消)</label>
+            <small class="text-muted" style="font-size:.68rem;">已分配默认勾选,取消勾选将废弃该分配,新增会发送通知</small>
           </div>
           <div id="editAssignList" class="d-flex flex-wrap gap-1" style="border:1px solid var(--gray-200);border-radius:8px;padding:6px;background:var(--gray-50);"></div>
         </div>

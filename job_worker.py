@@ -330,7 +330,7 @@ def run_organization(job):
               % tag_points_untagged())
         _step('知识点提炼', lambda: '知识点提炼:更新 %d 条知识点标题/概要'
               % refine_points_unrefined())
-        _step('文档标题提炼', lambda: '文档标题提炼:更新 %d 篇文档标题'
+        _step('整理文档(提取标题)', lambda: '整理文档:更新 %d 篇文档名称(15字内)'
               % refine_docs_unrefined())
     if job.scope == 'refine':
         _step('笔记标题提炼(全量)', lambda: _refine_note_titles(True))
@@ -339,7 +339,7 @@ def run_organization(job):
               % tag_points_untagged())
         _step('知识点提炼(全量)', lambda: '知识点提炼:更新 %d 条知识点标题/概要'
               % refine_points_all())
-        _step('文档标题提炼(全量)', lambda: '文档标题提炼:更新 %d 篇文档标题'
+        _step('整理文档(全量)', lambda: '整理文档:更新 %d 篇文档名称(15字内)'
               % refine_docs_all())
 
     _refresh()

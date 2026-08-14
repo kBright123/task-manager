@@ -1737,8 +1737,9 @@ def refine_points_all(max_points=1000):
 
 
 _DOC_TITLE_SYSTEM = (
-    '你是文档命名助手。下面是一组编号的文档(文件名+正文开头)。请为每个文档'
-    '提炼一个简洁、准确的标题(25 字内,中文,不带文件扩展名)。\n'
+    '你是文档整理助手。下面是一组编号的文档(文件名+正文开头)。请根据文档正文内容'
+    '为每个文档提炼一个简洁、准确的标题作为文档名称(15 字内,中文,不带文件扩展名,'
+    '不要以"文档""资料""记录"等结尾)。\n'
     '只输出一个 JSON 对象,键为文档编号字符串,值为标题字符串,'
     '例如 {"1":"分中心项目委测试处统计数据","2":"会议纪要"}。'
     '不要输出其他内容。\n'
@@ -1775,8 +1776,12 @@ def _refine_doc_titles_llm(rows, max_text=300):
         mapping = _parse_str_map(raw)
         for n, (doc_id, _t, _c) in enumerate(chunk, 1):
             t = mapping.get(str(n))
-            if t and len(t) <= 60:
-                result[doc_id] = t
+            if t:
+                t = t.strip()
+                if len(t) > 15:
+                    t = t[:15]
+                if t:
+                    result[doc_id] = t
     return result
 
 

@@ -156,7 +156,7 @@
 
 <!-- 快速创建待办 -->
 <div class="modal fade" id="quickTaskModal" tabindex="-1">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header py-2"><span style="font-weight:600;"><i class="bi bi-list-task" style="color:var(--primary);"></i> 快速创建待办</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div id="qtStepInput">
@@ -169,39 +169,39 @@
             <small style="color:var(--gray-500);font-size:.72rem;"><i class="bi bi-info-circle"></i> 输入 @ 选择人员，自动解析标题、时间、分配，支持每周/每月/每年周期待办</small>
           </div>
         </div>
-        <div class="modal-footer py-2"><span class="text-muted" id="qtErr" style="font-size:.75rem;"></span><button class="btn btn-sm btn-primary" onclick="quickTaskParse()"><i class="bi bi-search"></i> 解析</button></div>
+        <div class="modal-footer py-2"><span class="text-muted" id="qtErr" style="font-size:.75rem;"></span><button class="btn btn-sm btn-primary" onclick="quickTaskParse()"><i class="bi bi-send"></i> 发布</button></div>
       </div>
       <div id="qtStepReview" style="display:none;">
-        <div class="modal-body">
-          <div id="qtDupWarn"></div>
+        <div class="modal-body" style="font-size:.85rem;max-height:68vh;overflow-y:auto;">
+          <div id="qtDupWarn" class="mb-2"></div>
           <div class="mb-2">
-            <label style="font-size:.72rem;color:var(--gray-600);">待办标题</label>
-            <input type="text" id="qtTitle" class="form-control form-control-sm" style="font-size:.85rem;">
+            <label class="form-label" style="font-size:.8rem;">标题</label>
+            <input type="text" id="qtTitle" class="form-control form-control-sm" maxlength="200" style="font-size:.85rem;">
+          </div>
+          <div class="mb-2">
+            <label class="form-label" style="font-size:.8rem;">分类</label>
+            <select id="qtCategory" class="form-select form-control-sm" style="max-width:200px;font-size:.85rem;">
+              <option value="工作">工作</option>
+              <option value="个人">个人</option>
+              <option value="会议">会议</option>
+              <option value="培训">培训</option>
+              <option value="考试">考试</option>
+            </select>
           </div>
           <div class="row g-2 mb-2">
             <div class="col-6">
-              <label style="font-size:.72rem;color:var(--gray-600);">开始时间</label>
+              <label class="form-label" style="font-size:.8rem;">开始时间</label>
               <input type="datetime-local" id="qtStart" class="form-control form-control-sm">
             </div>
             <div class="col-6">
-              <label style="font-size:.72rem;color:var(--gray-600);">结束时间</label>
+              <label class="form-label" style="font-size:.8rem;">截止时间</label>
               <input type="datetime-local" id="qtEnd" class="form-control form-control-sm">
             </div>
           </div>
           <div class="row g-2 mb-2">
             <div class="col-6">
-              <label style="font-size:.72rem;color:var(--gray-600);">分类</label>
-              <select id="qtCategory" class="form-select form-select-sm">
-                <option value="工作">工作</option>
-                <option value="个人">个人</option>
-                <option value="会议">会议</option>
-                <option value="培训">培训</option>
-                <option value="考试">考试</option>
-              </select>
-            </div>
-            <div class="col-6">
-              <label style="font-size:.72rem;color:var(--gray-600);">周期</label>
-              <select id="qtRecurrenceSelect" class="form-select form-select-sm" style="font-size:.82rem;" onchange="qtUpdateRecurrence()">
+              <label class="form-label" style="font-size:.8rem;">周期</label>
+              <select id="qtRecurrenceSelect" class="form-select form-control-sm" style="font-size:.82rem;" onchange="qtUpdateRecurrence()">
                 <option value="" data-count="0" data-interval="0">不重复</option>
                 <option value="weekly" data-count="4" data-interval="7">每周（4期）</option>
                 <option value="monthly" data-count="3" data-interval="30">每月（3期）</option>
@@ -215,12 +215,10 @@
               </span>
               <span id="qtRecurrenceHint" class="text-info" style="font-size:.75rem;"></span>
             </div>
-          </div>
-          <div class="row g-2 mb-2">
             {% if user_groups %}
             <div class="col-6" id="qtGroupWrap">
-              <label style="font-size:.72rem;color:var(--gray-600);">按群组分配</label>
-              <div class="d-flex flex-wrap gap-2 mt-1" id="qtGroupBox">
+              <label class="form-label" style="font-size:.8rem;">按群组分配</label>
+              <div class="d-flex flex-wrap gap-2 mt-1" id="qtGroupBox" style="border:1px solid var(--gray-200);border-radius:8px;padding:6px;background:var(--gray-50);">
                 {% for g in user_groups %}
                 <label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:4px;">
                   <input type="checkbox" class="form-check-input qt-group" value="{{ g.id }}"> {{ g.name }} <small style="color:var(--gray-400);font-size:.68rem;">({{ g.members|length }}人)</small>
@@ -229,17 +227,19 @@
               </div>
             </div>
             {% endif %}
-            <div class="{% if user_groups %}col-6{% endif %}" id="qtUserWrap">
-              <label style="font-size:.72rem;color:var(--gray-600);">分配对象{% if is_admin %}<span class="ms-2 form-check-label" style="font-size:.78rem;cursor:pointer;"><input type="checkbox" class="form-check-input" id="qtAll" style="margin-right:4px;"> @所有人</span>{% endif %}</label>
-              <div class="d-flex flex-wrap gap-2 mt-1" id="qtAssignBox"></div>
+          </div>
+          <div class="mb-2">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <label class="form-label" style="font-size:.8rem;margin:0;">分配人员{% if is_admin %}<span class="ms-2 form-check-label" style="font-size:.78rem;cursor:pointer;"><input type="checkbox" class="form-check-input" id="qtAll" style="margin-right:4px;"> @所有人</span>{% endif %}</label>
             </div>
+            <div id="qtAssignBox" class="d-flex flex-wrap gap-1" style="border:1px solid var(--gray-200);border-radius:8px;padding:6px;background:var(--gray-50);"></div>
           </div>
           <div class="mb-1">
-            <label style="font-size:.72rem;color:var(--gray-600);">待办描述</label>
-            <textarea id="qtDesc" class="form-control form-control-sm" rows="1" style="font-size:.8rem;"></textarea>
+            <label class="form-label" style="font-size:.8rem;">待办描述</label>
+            <textarea id="qtDesc" class="form-control form-control-sm" rows="2" style="font-size:.8rem;resize:none;overflow-y:auto;" oninput="autoGrowDesc(this)" onfocus="autoGrowDesc(this)"></textarea>
           </div>
         </div>
-        <div class="modal-footer py-2"><span class="text-muted" id="qtErr2" style="font-size:.75rem;"></span><button class="btn btn-sm btn-outline-secondary" onclick="quickTaskBack()"><i class="bi bi-arrow-left"></i> 返回</button><button class="btn btn-sm btn-primary" onclick="quickTask()"><i class="bi bi-check"></i> 确认发布</button></div>
+        <div class="modal-footer py-2 px-3"><span class="text-muted" id="qtErr2" style="font-size:.75rem;"></span><button class="btn btn-sm btn-outline-secondary" onclick="quickTaskBack()"><i class="bi bi-arrow-left"></i> 返回</button><button class="btn btn-sm btn-primary" onclick="quickTask()"><i class="bi bi-check"></i> 确认发布</button></div>
       </div>
     </div>
   </div>
@@ -484,7 +484,7 @@
           </div>
           <div class="mb-2">
             <label class="form-label" style="font-size:.85rem;font-weight:500;">描述</label>
-            <textarea name="description" id="editTaskDesc" class="form-control" rows="3" style="font-size:.85rem;"></textarea>
+            <textarea name="description" id="editTaskDesc" class="form-control" rows="2" style="font-size:.85rem;resize:none;overflow-y:auto;" oninput="autoGrowDesc(this)" onfocus="autoGrowDesc(this)"></textarea>
           </div>
         </div>
         <div class="modal-footer" style="border-top:1px solid var(--gray-100);">
@@ -561,6 +561,7 @@ function openEditTaskDrawer() {
   document.getElementById('editTaskStart').value = _drawerEdit.start || '';
   document.getElementById('editTaskEnd').value = _drawerEdit.end || '';
   document.getElementById('editTaskDesc').value = _drawerEdit.desc || '';
+  autoGrowDesc(document.getElementById('editTaskDesc'));
   new bootstrap.Modal(document.getElementById('editTaskModal')).show();
 }
 </script>
@@ -656,6 +657,11 @@ function qtBuildAssignees(ids){
     });
   }
 })();
+function autoGrowDesc(el){
+  if(!el) return;
+  el.style.height='auto';
+  el.style.height=Math.min(el.scrollHeight, 160)+'px';
+}
 function quickTask(){
   var title=document.getElementById('qtTitle').value.trim();
   if(title.length<2){document.getElementById('qtErr2').textContent='待办标题至少2个字';return;}
@@ -721,7 +727,7 @@ function quickTaskParse(){
   var text=document.getElementById('qtText').value.trim();
   if(text.length<2){document.getElementById('qtErr').textContent='请至少输入2个字';return;}
   var errEl=document.getElementById('qtErr');
-  errEl.textContent='解析中...';
+  errEl.textContent='发布中...';
   fetch('/api/quick-task/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text})})
     .then(function(r){return r.json();}).then(function(d){
       if(!d.ok){errEl.textContent=d.error||'解析失败';return;}
@@ -730,6 +736,7 @@ function quickTaskParse(){
       document.getElementById('qtEnd').value=d.end_time;
       document.getElementById('qtCategory').value=d.category;
       document.getElementById('qtDesc').value=d.description;
+      autoGrowDesc(document.getElementById('qtDesc'));
       window.qtRec={mode:'',interval:d.recurrence_interval_days||0,count:d.recurrence_count||0};
       var sel=document.getElementById('qtRecurrenceSelect');
       var hint=document.getElementById('qtRecurrenceHint');

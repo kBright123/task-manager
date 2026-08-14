@@ -882,7 +882,7 @@ def _run_sqlite_migrations():
         fixed = _repair_doc_file_paths(c)
         if fixed:
             print(f'[migration] 修正 {fixed} 个文档的文件路径')
-        for sql in [
+            for sql in [
             'CREATE INDEX IF NOT EXISTS ix_task_creator_end ON task (creator_id, end_time)',
             'CREATE INDEX IF NOT EXISTS ix_task_start ON task (start_time)',
             'CREATE INDEX IF NOT EXISTS ix_task_creator ON task (creator_id)',
@@ -901,6 +901,7 @@ def _run_sqlite_migrations():
             'CREATE INDEX IF NOT EXISTS ix_operation_log_action ON operation_log (action)',
             'DROP TABLE IF EXISTS kb_triple',
             'DROP TABLE IF EXISTS kb_entity',
+            'ALTER TABLE kb_document ADD COLUMN visibility TEXT DEFAULT '\''private'\''
         ]:
             c.execute(sql)
         conn.commit()

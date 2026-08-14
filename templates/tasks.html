@@ -622,7 +622,7 @@ var activeUsers = [{id:0,name:'-- 请选择 --'}];
 {% for u in users %}
 activeUsers.push({id: {{ u.id }}, name: '{{ u.name or u.username }}'{% if u.id == current_user.id %}, self: true{% endif %}});
 {% endfor %}
-function autoGrowEditDesc(el){
+function autoGrowDesc(el){
   if(!el) return;
   el.style.height='auto';
   el.style.height=Math.min(el.scrollHeight, 160)+'px';
@@ -645,7 +645,7 @@ function openTaskEditModal(id){
       document.getElementById('editTaskStart').value = t.start_dt || '';
       document.getElementById('editTaskEnd').value = t.end_dt || '';
       document.getElementById('editTaskDesc').value = t.description || '';
-      autoGrowEditDesc(document.getElementById('editTaskDesc'));
+      autoGrowDesc(document.getElementById('editTaskDesc'));
       var canDelete = !!t.can_delete;
       document.getElementById('assignSection').style.display = canDelete ? '' : 'none';
       document.getElementById('dangerSection').style.display = canDelete ? '' : 'none';
@@ -798,7 +798,7 @@ function reopenTask(id){
         </div>
         <div class="mb-1">
           <label class="form-label" style="font-size:.8rem;">待办描述</label>
-          <textarea id="tmDesc" class="form-control form-control-sm" rows="2" style="font-size:.8rem;resize:none;overflow-y:auto;" oninput="autoGrowEditDesc(this)" onfocus="autoGrowEditDesc(this)"></textarea>
+          <textarea id="tmDesc" class="form-control form-control-sm" rows="2" style="font-size:.8rem;resize:none;overflow-y:auto;" oninput="autoGrowDesc(this)" onfocus="autoGrowDesc(this)"></textarea>
         </div>
       </div>
       <div class="modal-footer py-2 px-3"><span class="text-muted" id="tmErr" style="font-size:.75rem;"></span><button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal"><i class="bi bi-x"></i> 取消</button><button type="button" class="btn btn-sm btn-primary" onclick="taskPublish(this)"><i class="bi bi-check"></i> 确认发布</button></div>
@@ -844,7 +844,7 @@ function taskParse(btn){
       document.getElementById('tmEnd').value=d.end_time||'';
       document.getElementById('tmCategory').value=d.category||'工作';
       document.getElementById('tmDesc').value=d.description||'';
-      autoGrowEditDesc(document.getElementById('tmDesc'));
+      autoGrowDesc(document.getElementById('tmDesc'));
       window.tmRec={mode:'',interval:d.recurrence_interval_days||0,count:d.recurrence_count||0};
       tmApplyRecurrenceToSelect();
       var dw=document.getElementById('tmDupWarn');
@@ -978,67 +978,7 @@ function taskPublish(btn){
 })();
 </script>
 
-<!-- 编辑待办模态框(编辑/分配/删除/重新打开 合并) -->
-<div class="modal fade" id="editTaskModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header py-2 px-3">
-        <span style="font-size:.9rem;font-weight:600;"><i class="bi bi-pencil"></i> 编辑待办</span>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body" style="font-size:.85rem;max-height:68vh;overflow-y:auto;">
-        <input type="hidden" id="editTaskId">
-        <div class="mb-2" id="editTaskMeta" style="font-size:.75rem;color:var(--gray-500);"></div>
-        <div class="mb-2">
-          <label class="form-label" style="font-size:.8rem;">标题</label>
-          <input class="form-control form-control-sm" id="editTaskTitle" maxlength="200">
-        </div>
-        <div class="mb-2">
-          <label class="form-label" style="font-size:.8rem;">分类</label>
-          <select class="form-select form-control-sm" id="editTaskCategory">
-            <option value="工作">工作</option>
-            <option value="个人">个人</option>
-            <option value="会议">会议</option>
-            <option value="培训">培训</option>
-            <option value="考试">考试</option>
-          </select>
-        </div>
-        <div class="row mb-2">
-          <div class="col-6">
-            <label class="form-label" style="font-size:.8rem;">开始时间</label>
-            <input type="datetime-local" class="form-control form-control-sm" id="editTaskStart">
-          </div>
-          <div class="col-6">
-            <label class="form-label" style="font-size:.8rem;">截止时间</label>
-            <input type="datetime-local" class="form-control form-control-sm" id="editTaskEnd">
-          </div>
-        </div>
-        <div class="mb-2">
-          <label class="form-label" style="font-size:.8rem;">描述</label>
-          <textarea class="form-control form-control-sm" id="editTaskDesc" rows="2" style="resize:none;overflow-y:auto;" oninput="autoGrowEditDesc(this)" onfocus="autoGrowEditDesc(this)"></textarea>
-        </div>
-        <div id="assignSection" class="mb-2">
-          <div class="d-flex justify-content-between align-items-center mb-1">
-            <label class="form-label" style="font-size:.8rem;margin:0;">分配人员(勾选可新增/取消)</label>
-            <small class="text-muted" style="font-size:.68rem;">已分配默认勾选,取消勾选将废弃该分配,新增会发送通知</small>
-          </div>
-          <div id="editAssignList" class="d-flex flex-wrap gap-1" style="border:1px solid var(--gray-200);border-radius:8px;padding:6px;background:var(--gray-50);"></div>
-        </div>
-        <div id="dangerSection" class="pt-2 border-top" style="border-color:var(--gray-100)!important;">
-          <label class="form-label" style="font-size:.8rem;color:var(--gray-500);">危险操作</label>
-          <div class="d-flex gap-2 flex-wrap">
-            <button type="button" class="btn btn-sm btn-outline-warning" id="reopenBtn" style="font-size:.75rem;" onclick="reopenTask(document.getElementById('editTaskId').value)"><i class="bi bi-arrow-counterclockwise"></i> 重新打开</button>
-            <button type="button" class="btn btn-sm btn-outline-danger" style="font-size:.75rem;" onclick="deleteTask(document.getElementById('editTaskId').value)"><i class="bi bi-trash"></i> 删除</button>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer py-2 px-3">
-        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
-        <button type="button" class="btn btn-sm btn-primary" onclick="saveTaskEdit()"><i class="bi bi-check-lg"></i> 保存</button>
-      </div>
-    </div>
-  </div>
-</div>
+{% include "_task_edit_modal.html" with mode="ajax", show_assign=True, show_danger=True, centered=True %}
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {

@@ -447,54 +447,7 @@
   </div>
 </div>
 
-<!-- Task Edit Modal -->
-<div class="modal fade" id="editTaskModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content" style="border-radius:var(--radius);border:none;box-shadow:var(--shadow-lg);">
-      <form method="POST" action="{{ url_for('user_edit_task') }}">
-        <input type="hidden" name="task_id" id="editTaskId">
-        <div class="modal-header" style="border-bottom:1px solid var(--gray-100);">
-          <h5 class="modal-title" style="font-size:.95rem;font-weight:600;"><i class="bi bi-pencil"></i> 编辑待办</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label" style="font-size:.85rem;font-weight:500;">待办标题</label>
-            <input type="text" name="title" id="editTaskTitle" class="form-control" required style="font-size:.9rem;">
-          </div>
-          <div class="mb-3">
-            <label class="form-label" style="font-size:.85rem;font-weight:500;">分类</label>
-            <select name="category" id="editTaskCategory" class="form-select" style="max-width:200px;font-size:.85rem;">
-              <option value="工作">工作</option>
-              <option value="个人">个人</option>
-              <option value="会议">会议</option>
-              <option value="培训">培训</option>
-              <option value="考试">考试</option>
-            </select>
-          </div>
-          <div class="row g-3 mb-3">
-            <div class="col-6">
-              <label class="form-label" style="font-size:.85rem;font-weight:500;">开始时间</label>
-              <input type="text" name="start_time" id="editTaskStart" class="form-control" placeholder="YYYY-MM-DD HH:MM" style="font-size:.85rem;">
-            </div>
-            <div class="col-6">
-              <label class="form-label" style="font-size:.85rem;font-weight:500;">截止时间</label>
-              <input type="text" name="end_time" id="editTaskEnd" class="form-control" placeholder="YYYY-MM-DD HH:MM" style="font-size:.85rem;">
-            </div>
-          </div>
-          <div class="mb-2">
-            <label class="form-label" style="font-size:.85rem;font-weight:500;">描述</label>
-            <textarea name="description" id="editTaskDesc" class="form-control" rows="2" style="font-size:.85rem;resize:none;overflow-y:auto;" oninput="autoGrowDesc(this)" onfocus="autoGrowDesc(this)"></textarea>
-          </div>
-        </div>
-        <div class="modal-footer" style="border-top:1px solid var(--gray-100);">
-          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
-          <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-check-lg"></i> 保存修改</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
+{% include "_task_edit_modal.html" with mode="server", form_action=url_for('user_edit_task'), centered=False %}
 <script>
 function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {

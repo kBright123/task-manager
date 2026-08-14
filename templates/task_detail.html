@@ -262,7 +262,12 @@
 </div>
 {% endfor %}
 
-<script>
+ <script>
+function autoGrowDesc(el){
+  if(!el) return;
+  el.style.height='auto';
+  el.style.height=Math.min(el.scrollHeight, 160)+'px';
+}
 function showReject(id, name) {
   var modal = new bootstrap.Modal(document.getElementById('rejectModal' + id));
   modal.show();
@@ -273,6 +278,10 @@ function openEditModal() {
 </script>
 
 {% if is_admin and (task.creator_id == current_user.id or task.is_all) %}
-{% include "_task_edit_modal.html" with mode="server", form_action=url_for('admin_edit_task', task_id=task.id), is_admin=True, task=task, centered=False %}
+{% set mode = "server" %}
+{% set form_action = url_for('admin_edit_task', task_id=task.id) %}
+{% set is_admin = True %}
+{% set centered = False %}
+{% include "_task_edit_modal.html" with context %}
 {% endif %}
 {% endblock %}

@@ -447,7 +447,10 @@
   </div>
 </div>
 
-{% include "_task_edit_modal.html" with mode="server", form_action=url_for('user_edit_task'), centered=False %}
+{% set mode = "server" %}
+{% set form_action = url_for('user_edit_task') %}
+{% set centered = False %}
+{% include "_task_edit_modal.html" with context %}
 <script>
 function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {

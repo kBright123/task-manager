@@ -978,7 +978,11 @@ function taskPublish(btn){
 })();
 </script>
 
-{% include "_task_edit_modal.html" with mode="ajax", show_assign=True, show_danger=True, centered=True %}
+{% set mode = "ajax" %}
+{% set show_assign = True %}
+{% set show_danger = True %}
+{% set centered = True %}
+{% include "_task_edit_modal.html" with context %}
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {

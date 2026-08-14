@@ -39,6 +39,7 @@
   <div class="card-header py-2 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2" style="row-gap:8px;">
     <span style="font-weight:600;font-size:.9rem;flex-shrink:0;"><i class="bi bi-calendar2-week" style="color:var(--primary);"></i> 定时任务配置</span>
     <button type="submit" form="scheduleForm" class="btn btn-sm btn-primary flex-shrink-0"><i class="bi bi-check2"></i> 保存配置</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="manualJobCleanup()" style="font-size:.7rem;padding:2px 8px;"><i class="bi bi-clock-history"></i> 手动清理</button>
   </div>
   <div class="card-body py-3 admin-scroll">
     <form id="scheduleForm" method="POST" action="{{ url_for('admin_jobs_schedule') }}">
@@ -146,6 +147,17 @@
       var t = document.getElementById('cleanupTerms');
       var h = document.getElementById('runCleanupTerms');
       if (t && h) h.value = t.value;
+    }
+    function manualJobCleanup() {
+      if (window.confirm('确定要执行定时任务清理吗？此操作将清理过期的任务相关记录，由后台 worker 处理。')) {
+        fetch('/admin/jobs/cleanup', {method: 'POST'})
+          .then(r => r.json())
+          .then(d => {
+            if (d.ok) { window.toast(d.message || '清理任务已入队'); }
+            else { window.toast(d.error || '清理失败', 'danger'); }
+          })
+          .catch(() => window.toast('清理失败，请重试', 'danger'));
+      }
     }
     function validateImport() {
       var inp = document.getElementById('restoreFile');

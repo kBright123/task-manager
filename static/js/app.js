@@ -111,16 +111,22 @@
     var _fab = document.getElementById('quickFab');
     var _fabBtn = document.getElementById('quickFabToggle');
     function closeFab() { if (_fab) _fab.classList.remove('open'); if (_fabBtn) _fabBtn.setAttribute('aria-expanded', 'false'); }
-    function fabOpen(btn) {
-      closeFab();
-      var m = document.getElementById(btn.getAttribute('data-modal'));
+    function showQuickTaskModal() {
+      var m = document.getElementById('quickTaskModal');
       if (m) { bootstrap.Modal.getOrCreateInstance(m).show(); return; }
-      window.location.href = btn.getAttribute('data-url');
+      var newModalHtml = '<div id="quickTaskModal" class="modal fade" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header py-2"><span style="font-weight:600;"><i class="bi bi-list-task" style="color:var(--primary);"></i> 快速创建待办</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><textarea id="qtText" class="form-control" rows="4" placeholder="例：开发登录功能 从明天上午9点开始 到下周五下午6点结束 发给张三、李四" style="font-size:.9rem;resize:none;"></textarea><div id="qtMentionDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:180px;overflow-y:auto;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:1000;margin-top:2px;"></div><div class="mt-2"><small style="color:var(--gray-500);font-size:.72rem;"><i class="bi bi-info-circle"></i> 输入 @ 选择人员，自动解析标题、时间、分配，支持每周/每月/每年周期待办</small></div></div><div class="modal-footer py-2"><span class="text-muted" id="qtErr" style="font-size:.75rem;"></span><button class="btn btn-sm btn-primary" onclick="quickTaskParse()"><i class="bi bi-send"></i> 发布</button></div></div></div></div>';
+      document.body.insertAdjacentHTML('beforeEnd', newModalHtml);
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('quickTaskModal')).show();
     }
     function fabKb(btn) {
       closeFab();
       if (typeof kbUploadOpen === 'function') { kbUploadOpen(); return; }
-      window.location.href = btn.getAttribute('data-url');
+      var dynamicKbModal = document.getElementById('kbUploadModal');
+      if (!dynamicKbModal) {
+        var kbModalHtml = '<div id="kbUploadModal" class="modal fade" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header py-2"><span style="font-weight:600;"><i class="bi bi-cloud-arrow-up" style="color:var(--warning);"></i> 上传知识</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">上传知识功能</div><div class="modal-footer py-2"><button class="btn btn-sm btn-primary">开始上传</button></div></div></div></div>';
+        document.body.insertAdjacentHTML('beforeEnd', kbModalHtml);
+      }
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('kbUploadModal')).show();
     }
     if (_fab && _fabBtn) {
       (function () {

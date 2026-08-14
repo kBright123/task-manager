@@ -303,7 +303,7 @@
         <svg viewBox="0 0 96 96" fill="none"><circle cx="48" cy="48" r="42" fill="var(--gray-100)"/><path d="M30 40l12 12 16-18" stroke="var(--primary)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M48 66v-3a10 10 0 019-10z" transform="translate(48 40) translate(0 0)" fill="var(--gray-300)"/><circle cx="48" cy="62" r="9" fill="none" stroke="var(--gray-300)" stroke-width="3"/></svg>
         <div class="es-title">还没有待办</div>
         <div class="es-sub">点击下方「创建待办」开始规划，让今天的行动清晰可见。</div>
-        <a href="{{ url_for('user_tasks') }}" class="btn btn-primary btn-sm"><i class="bi bi-plus-circle"></i> 创建待办</a>
+        <button type="button" class="btn btn-primary btn-sm" onclick="showQuickTaskModal()"><i class="bi bi-plus-circle"></i> 创建待办</button>
       </div>
     </div>
     {% endif %}

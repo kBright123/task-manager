@@ -241,6 +241,24 @@ def admin_logs():
                                        .count()))
 
 
+@app.route('/admin/jobs/cleanup', methods=['POST'])
+@login_required
+@admin_required
+def admin_jobs_cleanup():
+    """手动执行定时任务清理。"""
+    try:
+        from notes import NoteJob
+        job = NoteJob(scope='cleanup', trigger='manual', status='queued')
+        db.session.add(job)
+        db.session.commit()
+        _log_op('job_cleanup_manual', '手动触发定时任务清理')
+        return jsonify({'ok': True, 'message': '清理任务已入队，由后台 worker 处理'})
+    except Exception as e:
+        db.session.rollback()
+        logger.warning('manual job cleanup failed: %s', e)
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
 @app.route('/admin/logs/cleanup', methods=['POST'])
 @login_required
 @admin_required
@@ -300,7 +318,25 @@ def admin_emails():
                            status=status,
                            category_counts=category_counts,
                            status_counts=status_counts,
-                           total=(db.session.query(EmailRecord.id).count()))
+total=(db.session.query(EmailRecord.id).count()))
+                                                            
+@app.route('/admin/emails/cleanup', methods=['POST'])
+@login_required
+@admin_required
+def admin_emails_cleanup():
+    """清理邮件记录:删除已超过30天的记录。"""
+    try:
+        from datetime import datetime, timedelta
+        cutoff = datetime.utcnow() - timedelta(days=30)
+        deleted, = db.session.query(EmailRecord).filter(
+            EmailRecord.created_at < cutoff).delete(synchronize_session=False)
+        db.session.commit()
+        _log_op('email_cleanup', f'{deleted} 条邮件记录', '邮件记录清理')
+        return jsonify({'ok': True, 'deleted': deleted})
+    except Exception as e:
+        db.session.rollback()
+        logger.warning('email cleanup failed: %s', e)
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 
 @app.route('/admin/users', methods=['GET'])

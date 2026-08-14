@@ -357,14 +357,16 @@
     <div id="docsView" class="{% if view != 'docs' %}d-none{% endif %}" style="display:flex;flex-direction:column;flex:1;min-height:0;">
       <div class="docs-main">
 
-    <!-- 批量操作栏 -->
+<!-- 批量操作栏 -->
     <div id="bulkBar" class="kb-bulk d-none">
       <span style="font-weight:600;font-size:.85rem;" id="bulkCount">已选 0 项</span>
       <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkAssign()"><i class="bi bi-folder-plus"></i> 移动</button>
       <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkReprocess()"><i class="bi bi-arrow-repeat"></i> 重新识别</button>
       <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkAutoArchive()"><i class="bi bi-stars"></i> 自动归档</button>
       <button class="btn btn-xs-custom btn-outline-danger" onclick="bulkDelete()"><i class="bi bi-trash"></i> 删除</button>
-      <button class="btn btn-xs-custom" style="background:transparent;border:none;color:var(--gray-400);" onclick="kbClearSel()">取消</button>
+      <button class="btn btn-xs-custom" style="background:var(--primary);color:#fff;border:none;padding:2px 8px;font-size:.72rem;" onclick="batchSetDocPublic()"><i class="bi bi-unlock"></i> 批量设为公开</button>
+      <button class="btn btn-xs-custom" style="background:var(--warning);color:#fff;border:none;padding:2px 8px;font-size:.72rem;" onclick="batchSetGroupPublic()"><i class="bi bi-people"></i> 按群组公开</button>
+      <button class="btn btn-xs-custom btn-outline-primary" onclick="kbClearSel()">取消</button>
     </div>
     <div id="bulkReprogress" class="kb-bulk d-none">
       <span class="spinner-border spinner-border-sm text-primary" style="width:1rem;height:1rem;"></span>
@@ -910,7 +912,49 @@ window.KB_URLS = {
       selAll.checked = n > 0 && n === manageable;
     }
   }
-  window.kbRefreshBar = kbRefreshBar;
+window.kbRefreshBar = kbRefreshBar;
+
+/* 批量设为公开(仅管理员) */
+  window.batchSetDocPublic = function () {
+    var n = state.sel.size;
+    if (n === 0) { if (window.toast) toast('请先选择文档', 'warning'); return; }
+    if (current_user.role !== 'admin') { if (window.toast) toast('仅管理员可设置公共文档', 'danger'); return; }
+    var ids = Array.from(state.sel).map(function (v) { return Number(v); });
+    fetch('/api/documents/batch-public', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ids: ids})
+    }).then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.ok) {
+          window.toast('成功设为公共 ' + d.updated + ' 篇文档');
+          kbLoad();
+        } else {
+          window.toast(d.error || '设置失败', 'danger');
+        }
+      }).catch(function () { window.toast('请求失败,请重试', 'danger'); });
+  };
+
+/* 批量设为按群组公开(仅管理员) */
+  window.batchSetGroupPublic = function () {
+    var n = state.sel.size;
+    if (n === 0) { if (window.toast) toast('请先选择文档', 'warning'); return; }
+    if (current_user.role !== 'admin') { if (window.toast) toast('仅管理员可设置按群组公开', 'danger'); return; }
+    var ids = Array.from(state.sel).map(function (v) { return Number(v); });
+    fetch('/api/documents/batch-group-public', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ids: ids})
+    }).then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.ok) {
+          window.toast('成功设为按群组公开 ' + d.updated + ' 篇文档');
+          kbLoad();
+        } else {
+          window.toast(d.error || '设置失败', 'danger');
+        }
+      }).catch(function () { window.toast('请求失败,请重试', 'danger'); });
+  };
 
   /* 状态轮询(虚拟列表可见行) */
   var _statusTimer = null;

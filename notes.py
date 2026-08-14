@@ -567,7 +567,6 @@ def api_upload_note_image():
         logger.warning('note image save failed: %s', e)
         return jsonify({'ok': False, 'error': '图片保存失败'}), 500
     url = f'/notes/attachments/{uid}/{name}'
-    _ingest_note_image_to_kb(os.path.join(target_dir, name), uid, ext)
     return jsonify({'ok': True, 'url': url})
 
 

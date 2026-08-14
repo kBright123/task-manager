@@ -56,6 +56,24 @@
       <span class="badge" style="background:var(--success);color:#fff;font-size:.7rem;">成功 {{ status_counts.get('sent', 0) }}</span>
       <span class="badge" style="background:var(--danger);color:#fff;font-size:.7rem;">失败 {{ status_counts.get('failed', 0) }}</span>
     </div>
+    <div class="d-flex gap-2 align-items-center flex-shrink-0 d-md-none">
+      <button class="btn btn-sm btn-outline-secondary" onclick="confirmCleanup()" style="font-size:.7rem;padding:2px 8px;">清理</button>
+    </div>
+  </div>
+
+  <script>
+  function confirmCleanup() {
+    if (window.confirm('确定要清理超过30天的邮件记录吗？此操作不可恢复。')) {
+      fetch('/admin/emails/cleanup', {method: 'POST'})
+        .then(r => r.json())
+        .then(d => {
+          if (d.ok) { location.reload(); }
+          else { window.toast(d.error || '清理失败', 'danger'); }
+        })
+        .catch(() => window.toast('清理失败，请重试', 'danger'));
+    }
+  }
+  </script>
   </div>
 
   <div class="table-responsive d-none d-md-block admin-scroll">

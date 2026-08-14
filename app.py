@@ -713,7 +713,13 @@ def _count_kb():
     from knowledge import KbDocument
     if KbDocument is None:
         return 0
-    return KbDocument.query.filter_by(uploaded_by=current_user.id).count()
+    try:
+        return KbDocument.query.filter_by(uploaded_by=current_user.id).count()
+    except Exception:
+        # 数据库旧版本未添加 visibility 列时的兜底
+        from sqlalchemy import func
+        return db.session.query(func.count(KbDocument.id)).filter(
+            KbDocument.uploaded_by == current_user.id).scalar() or 0
 
 
 try:

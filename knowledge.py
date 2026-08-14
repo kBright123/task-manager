@@ -212,6 +212,8 @@ def init_models(database):
         cancel = database.Column(database.Integer, default=0)
         auto_classified = database.Column(database.Integer, default=0)
         refined_at = database.Column(database.DateTime)
+        visibility = database.Column(database.String(20), default='private',
+                                     index=True)  # 'public', 'private', or 'group'
 
         collection = database.relationship('_KbCollection',
                                            backref='documents')
@@ -4066,6 +4068,66 @@ def api_collection_batch_public():
                     'names': updated[:50]})
 
 
+@kb_bp.route('/api/documents/batch-public', methods=['POST'])
+@login_required
+def api_documents_batch_public():
+    """批量将文档设为公共(仅管理员)。
+
+    已为公共的文档自动跳过,返回实际更新数量。"""
+    data = request.get_json(silent=True) or {}
+    ids = [int(x) for x in (data.get('ids') or [])]
+    if not ids:
+        return jsonify({'ok': False, 'error': '请选择文档'}), 400
+    if current_user.role != 'admin':
+        return jsonify({'ok': False,
+                        'error': '仅管理员可设置公共文档'}), 403
+    docs = KbDocument.query.filter(KbDocument.id.in_(ids)).all()
+    updated, skipped = [], 0
+    for d in docs:
+        if d.visibility == 'public':
+            skipped += 1
+            continue
+        d.visibility = 'public'
+        updated.append(d.title)
+    db.session.commit()
+    if updated:
+        _log_op('kb_document_batch_public', f'{len(updated)} 个文档',
+                '批量设为公共')
+        db.session.commit()
+    return jsonify({'ok': True, 'updated': len(updated),
+                    'names': updated[:50]})
+
+
+@kb_bp.route('/api/documents/batch-group-public', methods=['POST'])
+@login_required
+def api_documents_batch_group_public():
+    """批量将文档设为按群组公开(仅管理员)。
+
+    将文档 visibility 设为 'group',表示仅对所属群组成员可见。"""
+    data = request.get_json(silent=True) or {}
+    ids = [int(x) for x in (data.get('ids') or [])]
+    if not ids:
+        return jsonify({'ok': False, 'error': '请选择文档'}), 400
+    if current_user.role != 'admin':
+        return jsonify({'ok': False,
+                        'error': '仅管理员可设置按群组公开'}), 403
+    docs = KbDocument.query.filter(KbDocument.id.in_(ids)).all()
+    updated = []
+    for d in docs:
+        if d.visibility == 'group':
+            # 已为群组公开,跳过
+            continue
+        d.visibility = 'group'
+        updated.append(d.title)
+    db.session.commit()
+    if updated:
+        _log_op('kb_bulk_group_public', f'{len(updated)} 个文档',
+                '批量设为按群组公开')
+        db.session.commit()
+    return jsonify({'ok': True, 'updated': len(updated),
+                    'names': updated[:50]})
+
+
 def _upload_wants_json():
     """上传请求是否期望 JSON 响应(前端 XHR 上传用,表单上传维持原行为)。"""
     return (request.accept_mimetypes.best == 'application/json'
@@ -4483,10 +4545,7 @@ def bulk():
                                            visibility='private',
                                            owner_id=doc.uploaded_by)
                         db.session.add(col)
-                        db.session.flush()
-                        created_names.append(label)
                     doc.collection_id = col.id
-                    archived.append({'id': doc.id, 'label': label})
             processed_ids.append(doc.id)
         # 先提交归档变更,释放写锁;再逐文档重建知识点(题库按题号拆点)
         db.session.commit()
@@ -4510,9 +4569,14 @@ def bulk():
                 f'自动归档成功 {len(archived)} 个,重建知识点 {rebuilt} 个' +
                 (f'(跳过 {skipped} 个)' if skipped else ''))
         db.session.commit()
-        return jsonify({'ok': True, 'archived': archived,
-                        'created': created_names, 'skipped': skipped,
-                        'rebuilt': rebuilt})
+    if action == 'group_public':
+        for doc in docs:
+            doc.visibility = 'group'
+        db.session.commit()
+        _log_op('kb_bulk_group_public', f'{len(docs)} 个文档',
+                '批量设为按群组公开')
+        db.session.commit()
+        return jsonify({'ok': True, 'group_public': len(docs)})
     return jsonify({'ok': False, 'error': f'未知操作: {action}'}), 400
 
 

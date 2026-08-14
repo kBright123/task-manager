@@ -3196,7 +3196,7 @@ def workbench():
     doc = request.args.get('doc', type=int)
     try:
         docs = _build_docs_query(cid, group, q).all()
-except Exception:
+    except Exception:
         # ����据库旧版本未��加 visibility 列时的��底
         from sqlalchemy import func
         import datetime
@@ -3240,8 +3240,8 @@ except Exception:
             doc_obj.attempts, doc_obj.error = r[7], r[8]
             doc_obj.collection_id, doc_obj.uploaded_by = r[9], r[10]
             doc_obj.created_at = datetime.datetime.fromtimestamp(r[11]) if r[11] else None
-            doc_obj.updated_at = datetime.datetime.fromtimestamp(r[12]) if r[12] else None
-            doc_obj.last_recognition_at = datetime.datetime.fromtimestamp(r[13]) if r[13] else None
+            doc_obj.updated_at = r[12] if r[12] else None
+            doc_obj.last_recognition_at = r[13] if r[13] else None
             doc_obj.last_recognition_type = r[14]
             doc_obj.last_recognition_result, doc_obj.recognition_count = r[15], r[16]
             doc_obj.cancel, doc_obj.auto_classified = r[17], r[18]

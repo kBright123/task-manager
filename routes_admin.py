@@ -241,24 +241,6 @@ def admin_logs():
                                        .count()))
 
 
-@app.route('/admin/jobs/cleanup', methods=['POST'])
-@login_required
-@admin_required
-def admin_jobs_cleanup():
-    """手动执行定时任务清理。"""
-    try:
-        from notes import NoteJob
-        job = NoteJob(scope='cleanup', trigger='manual', status='queued')
-        db.session.add(job)
-        db.session.commit()
-        _log_op('job_cleanup_manual', '手动触发定时任务清理')
-        return jsonify({'ok': True, 'message': '清理任务已入队，由后台 worker 处理'})
-    except Exception as e:
-        db.session.rollback()
-        logger.warning('manual job cleanup failed: %s', e)
-        return jsonify({'ok': False, 'error': str(e)}), 500
-
-
 @app.route('/admin/logs/cleanup', methods=['POST'])
 @login_required
 @admin_required

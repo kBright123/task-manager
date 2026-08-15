@@ -1159,6 +1159,9 @@ def _ensure_point_tables(conn):
 # ---------------------------------------------------------------------------
 # 知识点标签与去重合并
 # ---------------------------------------------------------------------------
+# 合并阈值 KB_POINT_MERGE_THRESHOLD 默认 0.82:
+#   - 语义嵌入可用时指余弦相似度阈值;
+#   - 降级为字符 n-gram 时阈值偏保守,可适当调高(如 0.85)减少误合并。
 
 KB_POINT_MERGE_THRESHOLD = float(
     os.environ.get('KB_POINT_MERGE_THRESHOLD', '0.82'))
@@ -1523,7 +1526,11 @@ def _remap_merged_point(conn, old_id, keeper_id):
 
 def merge_duplicate_points(limit=None, threshold=None):
     """合并全局重复知识点:内容高度相似的保留内容最长的一条,其余删除,
-    并把相似关联/引用重指向保留条。返回 (合并条数, 剩余条数)。"""
+    并把相似关联/引用重指向保留条。返回 (合并条数, 剩余条数)。
+
+    相似度优先使用语义嵌入(fastembed,阈值用余弦相似度),嵌入不可用时
+    降级为字符 n-gram TF 向量余弦。合并后删除的空内容点一并清理。
+    """
     limit = limit or KB_POINT_MERGE_MAX
     threshold = threshold if threshold is not None \
         else KB_POINT_MERGE_THRESHOLD
@@ -1535,33 +1542,46 @@ def merge_duplicate_points(limit=None, threshold=None):
         n = len(rows)
         if n < 2:
             return 0, n
-        vectors = []
-        for _pid, _t, _c in rows:
-            grams = _content_grams((_t or '') + '\n' + (_c or ''))
-            vec = {}
-            norm = 0.0
-            for g, tf in grams.items():
-                vec[g] = tf
-                norm += tf * tf
-            norm = norm ** 0.5 or 1.0
-            for g in vec:
-                vec[g] /= norm
-            vectors.append(vec)
-        inv = {}
-        for i, vec in enumerate(vectors):
-            for g in vec:
-                inv.setdefault(g, set()).add(i)
+        texts = [('%s\n%s' % ((r[1] or ''), (r[2] or ''))).strip()
+                 for r in rows]
 
-        def _cos(a, b):
-            va, vb = vectors[a], vectors[b]
-            if len(va) > len(vb):
-                va, vb = vb, va
-            s = 0.0
-            for g, w in va.items():
-                wj = vb.get(g)
-                if wj:
-                    s += w * wj
-            return s
+        # 优先语义嵌入;失败则用字符 n-gram
+        vectors = None
+        try:
+            if not KB_VECTOR_DISABLED:
+                import numpy as np
+                emb = embed_texts(texts)
+                vectors = [np.asarray(v, dtype='float64') / (
+                    np.linalg.norm(v) or 1.0) for v in emb]
+        except Exception as e:
+            logger.warning('embed merge fallback to n-gram: %s', e)
+        if vectors is None:
+            vectors = []
+            for t in texts:
+                grams = _content_grams(t)
+                vec = {}
+                norm = 0.0
+                for g, tf in grams.items():
+                    vec[g] = tf
+                    norm += tf * tf
+                norm = norm ** 0.5 or 1.0
+                for g in vec:
+                    vec[g] /= norm
+                vectors.append(vec)
+
+        def _sim(i, j):
+            a, b = vectors[i], vectors[j]
+            if isinstance(a, dict):
+                if len(a) > len(b):
+                    a, b = b, a
+                s = 0.0
+                for g, w in a.items():
+                    wj = b.get(g)
+                    if wj:
+                        s += w * wj
+                return s
+            import numpy as np
+            return float(np.dot(a, b))
 
         # 并查集:相似的点归为一组
         parent = list(range(n))
@@ -1577,18 +1597,38 @@ def merge_duplicate_points(limit=None, threshold=None):
             if ra != rb:
                 parent[rb] = ra
 
-        for i in range(n):
-            cands = set()
-            for g in vectors[i]:
-                cands.update(inv.get(g, ()))
-            cands.discard(i)
-            for j in sorted(cands):
-                if j <= i:
-                    continue
-                if _find(i) == _find(j):
-                    continue
-                if _cos(i, j) >= threshold:
-                    _union(i, j)
+        if isinstance(vectors[0], dict):
+            # 字符 n-gram 回退:倒排桶加速,避免 O(n^2) 全对比较
+            inv = {}
+            for i, vec in enumerate(vectors):
+                for g in vec:
+                    inv.setdefault(g, set()).add(i)
+            for i in range(n):
+                cands = set()
+                for g in vectors[i]:
+                    cands.update(inv.get(g, ()))
+                cands.discard(i)
+                for j in sorted(cands):
+                    if j <= i or _find(i) == _find(j):
+                        continue
+                    if _sim(i, j) >= threshold:
+                        _union(i, j)
+        else:
+            # 语义嵌入:numpy 矩阵乘法批量比较,单次阈值内剪枝
+            import numpy as np
+            mat = np.stack(vectors)
+            for i in range(n):
+                sims = mat @ mat[i]
+                order = np.argsort(-sims)
+                for j in order:
+                    j = int(j)
+                    if j <= i or _find(i) == _find(j):
+                        continue
+                    if sims[j] >= threshold:
+                        _union(i, j)
+                    elif sims[j] < threshold:
+                        # 已按相似度降序,再往后只会更低,直接跳出
+                        break
 
         groups = {}
         for i in range(n):
@@ -1761,8 +1801,8 @@ _DOC_TITLE_SYSTEM = (
 )
 
 
-def _refine_doc_titles_llm(rows, max_text=300):
-    """rows: [(doc_id, title, first_text)] → {doc_id: new_title}"""
+def _refine_doc_titles_llm(rows, max_text=900):
+    """rows: [(doc_id, title, snippet)] → {doc_id: new_title}"""
     CHUNK = 20
     result = {}
     for i in range(0, len(rows), CHUNK):
@@ -1770,7 +1810,7 @@ def _refine_doc_titles_llm(rows, max_text=300):
         lines = []
         for n, (_doc_id, title, text) in enumerate(chunk, 1):
             snippet = re.sub(r'\s+', ' ', (text or ''))[:max_text]
-            lines.append('%d. 文件名:%s\n   正文开头:%s'
+            lines.append('%d. 文件名:%s\n   正文摘要:%s'
                          % (n, title or '', snippet))
         prompt = _DOC_TITLE_SYSTEM + '\n' + '\n\n'.join(lines) + '\n'
 
@@ -1800,6 +1840,27 @@ def _refine_doc_titles_llm(rows, max_text=300):
     return result
 
 
+def _doc_snippets(conn, doc_id, total_chars=900):
+    """取文档首/中/尾多段摘要拼接,帮助大模型更准确地提炼标题。
+
+    长文档只看开头可能遗漏主题(如总纲式结构),首中尾采样兼顾全局。
+    """
+    pages = conn.execute(
+        'SELECT text FROM kb_page WHERE doc_id=? ORDER BY page_no',
+        (doc_id,)).fetchall()
+    full = '\n'.join((p[0] or '') for p in pages)
+    full = re.sub(r'\s+', ' ', full).strip()
+    if not full:
+        return ''
+    if len(full) <= total_chars:
+        return full
+    third = total_chars // 3
+    head = full[:third]
+    mid = full[len(full) // 2 - third // 2: len(full) // 2 + third // 2]
+    tail = full[-third:]
+    return '…'.join([head, mid, tail])
+
+
 def _refine_docs(full, max_docs):
     sql = ('SELECT d.id, d.title, (SELECT text FROM kb_page WHERE doc_id=d.id '
            'ORDER BY page_no LIMIT 1) AS text FROM kb_document d '
@@ -1812,7 +1873,17 @@ def _refine_docs(full, max_docs):
         conn.close()
     if not rows:
         return 0
-    mapping = _refine_doc_titles_llm(rows)
+    conn2 = _db_conn()
+    try:
+        built = []
+        for doc_id, _t, _first in rows:
+            snippet = _doc_snippets(conn2, doc_id)
+            if not snippet:
+                snippet = (re.sub(r'\s+', ' ', _first or ''))[:300]
+            built.append((doc_id, _t or '', snippet))
+    finally:
+        conn2.close()
+    mapping = _refine_doc_titles_llm(built)
     if not mapping:
         return 0
     now = datetime.datetime.now()

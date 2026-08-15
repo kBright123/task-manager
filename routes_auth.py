@@ -110,6 +110,7 @@ def login():
             user.unlock_code = ''
             user.unlock_code_expires_at = None
             login_user(user)
+            session.permanent = True  # 会话 4 小时后自动过期退出登录
             log_operation('login', username,
                           f'用户 {user.name or user.username} 登录成功')
             db.session.commit()

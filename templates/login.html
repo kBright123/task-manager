@@ -20,11 +20,11 @@
 {% block title %}登录 - 知行合一{% endblock %}
 {% block extra_css %}
 <style>
-  .auth-logo { background: #fff; border: 1px solid var(--gray-200); transition: background .15s, border-color .15s; }
-  .auth-logo .auth-logo-stroke { stroke: url(#loginGradLight); }
+  .auth-logo { background: #fff; border: 1px solid var(--gray-200); transition: background .15s, border-color .15s; --auth-bg-color: #fff; --auth-stroke-url: url(#loginGradLight); }
+  .auth-logo .auth-logo-stroke { stroke: var(--auth-stroke-url); }
   @media (prefers-color-scheme: dark) {
-    .auth-logo { background: #1C1C1E; border-color: rgba(148, 163, 184, .25); }
-    .auth-logo .auth-logo-stroke { stroke: url(#loginGradDark); }
+    .auth-logo { background: #1C1C1E; border-color: rgba(148, 163, 184, .25); --auth-bg-color: #1C1C1E; --auth-stroke-url: url(#loginGradDark); }
+    .auth-logo .auth-logo-stroke { stroke: var(--auth-stroke-url); }
   }
 </style>
 {% endblock %}
@@ -48,7 +48,7 @@
                   </linearGradient>
                 </defs>
                 <!-- 知⇄行合一 · ∞ 循环渐变 + 中心白点 -->
-                <path class="auth-logo-stroke" d="M9.38 16 C9.38 11 13.13 11 16 16 C18.88 21 22.63 21 22.63 16 C22.63 11 18.88 11 16 16 C13.13 21 9.38 21 9.38 16 Z" stroke="url(#loginGradLight)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <path class="auth-logo-stroke" d="M9.38 16 C9.38 11 13.13 11 16 16 C18.88 21 22.63 21 22.63 16 C22.63 11 18.88 11 16 16 C13.13 21 9.38 21 9.38 16 Z" stroke="var(--auth-stroke-url)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
                 <circle cx="16" cy="16" r="1" fill="#fff"/>
               </svg>
             </div>

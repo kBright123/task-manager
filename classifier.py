@@ -251,6 +251,7 @@ def _read_snapshot():
 
     分类/归档在 worker 中逐文档调用,快照 JSON 每次重新读取是明显的 IO
     浪费;以文件 mtime 做失效判断,与写入方(_write_snapshot)解耦。"""
+    global _snapshot_cache
     try:
         st = os.stat(SNAPSHOT_PATH)
     except OSError:

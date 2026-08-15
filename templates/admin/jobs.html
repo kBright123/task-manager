@@ -39,7 +39,6 @@
   <div class="card-header py-2 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2" style="row-gap:8px;">
     <span style="font-weight:600;font-size:.9rem;flex-shrink:0;"><i class="bi bi-calendar2-week" style="color:var(--primary);"></i> 定时任务配置</span>
     <button type="submit" form="scheduleForm" class="btn btn-sm btn-primary flex-shrink-0"><i class="bi bi-check2"></i> 保存配置</button>
-    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="manualJobCleanup()" style="font-size:.7rem;padding:2px 8px;"><i class="bi bi-clock-history"></i> 手动清理</button>
   </div>
   <div class="card-body py-3 admin-scroll">
     <form id="scheduleForm" method="POST" action="{{ url_for('admin_jobs_schedule') }}">
@@ -148,17 +147,6 @@
       var h = document.getElementById('runCleanupTerms');
       if (t && h) h.value = t.value;
     }
-    function manualJobCleanup() {
-      if (window.confirm('确定要执行定时任务清理吗？此操作将清理过期的任务相关记录，由后台 worker 处理。')) {
-        fetch('/admin/jobs/cleanup', {method: 'POST'})
-          .then(r => r.json())
-          .then(d => {
-            if (d.ok) { window.toast(d.message || '清理任务已入队'); }
-            else { window.toast(d.error || '清理失败', 'danger'); }
-          })
-          .catch(() => window.toast('清理失败，请重试', 'danger'));
-      }
-    }
     function validateImport() {
       var inp = document.getElementById('restoreFile');
       if (!inp.files || !inp.files.length) {
@@ -172,6 +160,48 @@
       }
       return confirm('将从所选备份文件恢复当前全部数据(恢复前会自动备份当前数据)。确定导入并恢复?');
     }
+    </script>
+    <script>
+    // 执行记录实时轮询: 有运行中的任务时每 3 秒刷新一次结果日志与状态
+    (function () {
+      var runningIds = [{% for j in jobs if j.status == 'running' %}{{ j.id }},{% endfor %}];
+      var timer = null;
+      function updateJob(id, d) {
+        var el = document.getElementById('jobResultText' + id);
+        if (el && d.result) { el.textContent = d.result; el.style.color = 'var(--gray-700)'; }
+        var badge = document.querySelector('#jobStatusBadge' + id);
+        if (badge) {
+          if (d.status === 'running') badge.textContent = '进行中 ' + (d.progress || 0) + '%';
+          else if (d.status === 'done') badge.textContent = '已完成';
+          else if (d.status === 'failed') badge.textContent = '失败';
+          else if (d.status === 'cancelled') badge.textContent = '已停止';
+        }
+      }
+      function poll() {
+        fetch('/api/jobs', {headers: {'Accept': 'application/json'}})
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (!data || !data.ok || !data.jobs) return;
+            var stillRunning = [];
+            var byId = {};
+            data.jobs.forEach(function (j) { byId[j.id] = j; });
+            runningIds.forEach(function (id) {
+              var j = byId[id];
+              if (j) {
+                updateJob(id, j);
+                if (j.status === 'running') stillRunning.push(id);
+              }
+            });
+            runningIds = stillRunning;
+            if (!runningIds.length && timer) { clearInterval(timer); timer = null; }
+          })
+          .catch(function () { /* 静默 */ });
+      }
+      if (runningIds.length) {
+        timer = setInterval(poll, 3000);
+        setTimeout(poll, 1500);
+      }
+    })();
     </script>
   </div>
 </div>
@@ -194,11 +224,11 @@
           <td>{{
             '自动' if j.trigger == 'auto' else '手动' }}</td>
           <td>
-            {% if j.status == 'done' %}<span class="status-badge status-completed">已完成</span>
-            {% elif j.status == 'failed' %}<span class="status-badge status-rejected">失败</span>
-            {% elif j.status == 'cancelled' %}<span class="status-badge" style="background:var(--gray-400);">已停止</span>
-            {% elif j.status == 'running' %}<span class="status-badge">进行中</span>
-            {% else %}<span class="status-badge">排队中</span>{% endif %}
+            {% if j.status == 'done' %}<span id="jobStatusBadge{{ j.id }}" class="status-badge status-completed">已完成</span>
+            {% elif j.status == 'failed' %}<span id="jobStatusBadge{{ j.id }}" class="status-badge status-rejected">失败</span>
+            {% elif j.status == 'cancelled' %}<span id="jobStatusBadge{{ j.id }}" class="status-badge" style="background:var(--gray-400);">已停止</span>
+            {% elif j.status == 'running' %}<span id="jobStatusBadge{{ j.id }}" class="status-badge">进行中</span>
+            {% else %}<span id="jobStatusBadge{{ j.id }}" class="status-badge">排队中</span>{% endif %}
           </td>
           <td>{{ j.created_at.strftime('%m-%d %H:%M') if j.created_at else '-' }}</td>
           <td>{{ j.finished_at.strftime('%m-%d %H:%M') if j.finished_at else '-' }}</td>
@@ -219,9 +249,9 @@
         <tr class="collapse" id="jobResult{{ j.id }}">
           <td colspan="7" style="background:#fafafa;">
             {% if j.result %}
-            <div style="white-space:pre-wrap;font-size:.78rem;color:var(--gray-700);max-height:260px;overflow-y:auto;background:#fff;border:1px solid var(--gray-200);border-radius:6px;padding:10px;">{{ j.result }}</div>
+            <div id="jobResultText{{ j.id }}" style="white-space:pre-wrap;font-size:.78rem;color:var(--gray-700);max-height:260px;overflow-y:auto;background:#fff;border:1px solid var(--gray-200);border-radius:6px;padding:10px;">{{ j.result }}</div>
             {% else %}
-            <div style="color:var(--gray-400);font-size:.78rem;">{{ j.error or '无结果' }}</div>
+            <div id="jobResultText{{ j.id }}" style="color:var(--gray-400);font-size:.78rem;">{{ j.error or '无结果' }}</div>
             {% endif %}
           </td>
         </tr>

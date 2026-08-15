@@ -268,6 +268,73 @@ def find_duplicates(note, lookback_days=7, threshold=0.70, limit=5):
     return out[:limit]
 
 
+NOTE_MERGE_THRESHOLD = float(os.environ.get('NOTE_MERGE_THRESHOLD', '0.78'))
+NOTE_MERGE_BATCH = int(os.environ.get('NOTE_MERGE_BATCH', '200'))
+
+
+def merge_duplicate_notes(limit=None, threshold=None):
+    """批量合并重复笔记:内容高度相似(仅同账号)的保留内容最长的一条,
+    其余删除并删除对应 md 文件。返回 (合并条数, 剩余条数)。
+
+    按账号分批处理全部笔记(不设总条数上限,避免漏掉历史重复);
+    复用 SIMHash 相似度机制,不做大模型调用,避免误合并近义但不重复的笔记。
+    """
+    limit = limit or NOTE_MERGE_BATCH
+    threshold = threshold if threshold is not None else NOTE_MERGE_THRESHOLD
+    user_ids = [r[0] for r in db.session.query(Note.user_id).distinct()]
+    merged = 0
+    scanned = 0
+    for uid in user_ids:
+        q = Note.query.order_by(Note.created_at.desc())
+        if uid is not None:
+            q = q.filter(Note.user_id == uid)
+        else:
+            q = q.filter(Note.user_id.is_(None))
+        offset = 0
+        while True:
+            batch = q.offset(offset).limit(limit).all()
+            if not batch:
+                break
+            offset += limit
+            group = [n for n in batch if n.simhash and n.simhash not in
+                     ('0', 'None') and len(re.findall(
+                         r'[\u4e00-\u9fa5]{2,}|[a-zA-Z0-9_]{2,}',
+                         n.content or '')) >= 3]
+            scanned += len(group)
+            group.sort(key=lambda x: -len(x.content or ''))
+            removed = set()
+            for i, keeper in enumerate(group):
+                if keeper.id in removed:
+                    continue
+                for j, other in enumerate(group):
+                    if j == i or other.id in removed:
+                        continue
+                    if len(other.content or '') < 10:
+                        continue
+                    try:
+                        sim = 1 - _hamming(int(keeper.simhash),
+                                           int(other.simhash)) / 64.0
+                    except Exception:
+                        continue
+                    if sim >= threshold:
+                        keeper.tags = json.dumps(
+                            list(dict.fromkeys(parse_tags_json(keeper.tags) +
+                                               parse_tags_json(other.tags))),
+                            ensure_ascii=False)
+                        p = _note_md_path(other)
+                        if p and os.path.exists(p):
+                            try:
+                                os.remove(p)
+                            except Exception:
+                                pass
+                        db.session.delete(other)
+                        removed.add(other.id)
+                        merged += 1
+    if merged:
+        db.session.commit()
+    return merged, max(0, scanned - merged)
+
+
 def apply_rules(note):
     """遍历 NoteRule,命中则追加标签/移动上下文。返回变更描述列表。"""
     changes = []

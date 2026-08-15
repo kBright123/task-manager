@@ -50,6 +50,8 @@
       --font: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", sans-serif;
       --nav-height: 64px;
       --bottom-nav-height: 56px;
+      --brand-bg-color: #F5F6FA;
+      --brand-stroke-url: url(#brandGradLight);
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -83,6 +85,10 @@
     .brand-mark .brand-bg { fill: #F5F6FA; }
     .brand-mark .brand-stroke { stroke: url(#brandGradLight); }
     @media (prefers-color-scheme: dark) {
+      :root {
+        --brand-bg-color: #1C1C1E;
+        --brand-stroke-url: url(#brandGradDark);
+      }
       .brand-mark .brand-bg { fill: #1C1C1E; }
       .brand-mark .brand-stroke { stroke: url(#brandGradDark); }
     }
@@ -157,6 +163,33 @@
     .nav-search-btn { display: none; width: 36px; height: 36px; border: none; background: transparent; color: var(--gray-600); font-size: 1.05rem; border-radius: var(--radius-sm); align-items: center; justify-content: center; cursor: pointer; }
     .nav-search-btn:hover { background: var(--gray-100); color: var(--gray-700); }
 
+    /* 顶栏暗黑适配(置于基础规则之后保证覆盖) */
+    @media (prefers-color-scheme: dark) {
+      .top-nav { background: #16181D; border-bottom: 1px solid #2A2E37; }
+      .top-nav-logo { color: #E5E7EB; }
+      .top-nav-links a { color: #9CA3AF; }
+      .top-nav-links a:hover { background: rgba(255,255,255,.06); color: #D1D5DB; }
+      .top-nav-links a.active { color: var(--primary); }
+      .nav-notification { color: #9CA3AF; }
+      .nav-notification:hover { background: rgba(255,255,255,.06); color: #D1D5DB; }
+      .nav-notification .dot { border-color: #16181D; }
+      .nav-search-btn { color: #9CA3AF; }
+      .nav-search-btn:hover { background: rgba(255,255,255,.06); color: #D1D5DB; }
+      .top-nav-search .form-control { background: #22252B; color: #E5E7EB; border-color: #2A2E37; }
+      .top-nav-search .form-control::placeholder { color: #6B7280; }
+      .top-nav-user-name { color: #E5E7EB; }
+      .top-nav-right .avatar { color: #fff; }
+      .role-badge { background: rgba(0,102,51,.22); color: #34D399; }
+/* 下拉面板(内联样式需 !important 覆盖) */
+      .notification-dropdown, .user-dropdown { background: #1C1F26 !important; box-shadow: 0 8px 24px rgba(0,0,0,.5) !important; }
+      .notification-dropdown > div:first-child, .user-dropdown > div { color: #E5E7EB !important; border-color: #2A2E37 !important; }
+      .notification-dropdown .notification-item { border-color: #2A2E37 !important; }
+      .notification-dropdown .notification-item > div > div { color: #D1D5DB !important; }
+      .notification-dropdown .notification-item > div > small { color: #6B7280 !important; }
+      .notification-dropdown a, .user-dropdown a { color: #D1D5DB !important; }
+      .notification-dropdown a:hover, .user-dropdown a:hover { background: rgba(255,255,255,.06) !important; }
+    }
+
     /* 检索历史/热门标签 下拉提示 */
     .us-suggest { position: absolute; top: calc(100% + 6px); left: 0; right: 0; background: #fff; border-radius: 12px; box-shadow: 0 18px 44px rgba(15,23,42,.18); border: 1px solid var(--gray-100); overflow: hidden; z-index: 2050; }
     .us-suggest .us-hist-head { display: flex; align-items: center; gap: 6px; padding: 10px 14px 4px; font-size: .74rem; font-weight: 700; color: var(--gray-500); }
@@ -211,6 +244,11 @@
     .bottom-nav a i { font-size: 1.2rem; transition: transform .2s; }
     .bottom-nav a.active i { transform: scale(1.1); }
     .bottom-nav a .dot { position: absolute; top: 4px; right: 50%; transform: translateX(16px); width: 7px; height: 7px; border-radius: 50%; background: var(--danger); border: 2px solid #fff; }
+    @media (prefers-color-scheme: dark) {
+      .bottom-nav { background: #16181D; border-top: 1px solid #2A2E37; }
+      .bottom-nav a { color: #9CA3AF; }
+      .bottom-nav a .dot { border-color: #16181D; }
+    }
 
     /* Notification dropdown */
     .notification-item { transition: background .15s; }

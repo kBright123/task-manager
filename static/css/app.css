@@ -501,9 +501,9 @@
 
     /* 宠物展示台 */
     .pet-stage {
-      position: relative; height: 300px; display: flex; align-items: center;
+      position: relative; height: 360px; display: flex; align-items: flex-end;
       justify-content: center; perspective: 700px;
-      margin-bottom: 4px; overflow: hidden;
+      margin-bottom: 4px; overflow: hidden; padding-bottom: 34px;
     }
     .pet-scene { position: absolute; inset: 0; pointer-events: none; }
     .pet-moon {
@@ -818,11 +818,11 @@
 
     /* 进化形态: 形象随等级升级 */
     .pet-form-kitten { transform-origin: center bottom; scale: 1; }
-    .pet-form-kitty { transform-origin: center bottom; scale: 1.1; }
-    .pet-form-cat { transform-origin: center bottom; scale: 1.2; }
-    .pet-form-bigcat { transform-origin: center bottom; scale: 1.32; }
-    .pet-form-catking { transform-origin: center bottom; scale: 1.45; }
-    .pet-form-divine { transform-origin: center bottom; scale: 1.6; }
+    .pet-form-kitty { transform-origin: center bottom; scale: 1.05; }
+    .pet-form-cat { transform-origin: center bottom; scale: 1.1; }
+    .pet-form-bigcat { transform-origin: center bottom; scale: 1.18; }
+    .pet-form-catking { transform-origin: center bottom; scale: 1.26; }
+    .pet-form-divine { transform-origin: center bottom; scale: 1.34; }
 
     /* 高级形态装饰 */
     .pet-form-bigcat .pet-head::after,
@@ -944,7 +944,7 @@
     @keyframes petRecordIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
     @media (max-width: 767px) {
-      .pet-stage { height: 240px; }
+      .pet-stage { height: 330px; align-items: flex-end; padding-bottom: 30px; }
       .pet-3d { width: 168px; height: 168px; }
       .pet-head { width: 112px; height: 100px; }
       .pet-ear { width: 39px; height: 44px; }

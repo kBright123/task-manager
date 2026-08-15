@@ -122,7 +122,7 @@
   /* 房子: 立在猫身后, 随形象缩放 */
   .pet-house-slot {
     left: 50%; bottom: 2px; transform: translateX(-50%);
-    z-index: 0; width: 152px; height: 142px;
+    z-index: 0; width: 168px; height: 210px;
     filter: drop-shadow(0 14px 18px rgba(0,0,0,.2));
     --h-wall: #fdf1d8; --h-roof: #f08a6b; --h-door: #b96a4b;
     --h-win: #fff7d6; --h-trim: #fff;
@@ -130,20 +130,20 @@
   .house { position: relative; width: 100%; height: 100%; }
   .h-wall {
     position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
-    width: 132px; height: 86px; border-radius: 8px 8px 16px 16px;
+    width: 148px; height: 100px; border-radius: 8px 8px 16px 16px;
     background: var(--h-wall);
     box-shadow: inset 0 -14px 22px rgba(0,0,0,.08), 0 8px 14px rgba(0,0,0,.12);
   }
   .h-roof {
-    position: absolute; bottom: 78px; left: 50%; transform: translateX(-50%);
+    position: absolute; bottom: 92px; left: 50%; transform: translateX(-50%);
     width: 0; height: 0;
-    border-left: 80px solid transparent; border-right: 80px solid transparent;
-    border-bottom: 60px solid var(--h-roof);
+    border-left: 88px solid transparent; border-right: 88px solid transparent;
+    border-bottom: 66px solid var(--h-roof);
     filter: drop-shadow(0 5px 7px rgba(0,0,0,.16));
   }
   .h-chimney {
-    position: absolute; bottom: 98px; left: 88px;
-    width: 18px; height: 32px; border-radius: 3px; background: var(--h-roof);
+    position: absolute; bottom: 116px; left: 100px;
+    width: 18px; height: 34px; border-radius: 3px; background: var(--h-roof);
   }
   .h-door {
     position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
@@ -393,7 +393,7 @@
 <div class="pet-page-wrap">
   <div class="pet-page-head">
     <a href="{{ url_for('user_dashboard') }}" class="btn btn-sm btn-outline-secondary" style="padding:4px 10px;"><i class="bi bi-arrow-left"></i></a>
-    <h5 class="pet-page-title">🐱 我的电子宠物<small>双击首页 logo 快速进入</small></h5>
+    <h5 class="pet-page-title">🐱 我的电子宠物</h5>
     <span class="pet-stars-pill" id="petStarsPill">❤️ <span id="petStarsNum">0</span></span>
   </div>
 

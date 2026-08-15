@@ -75,10 +75,6 @@ SHOP = {
 }
 DEFAULT_ITEMS = {cat: items[0]['key'] for cat, items in SHOP.items()}
 
-# 互动获得的红心(装饰货币)奖励
-INTERACT_HEARTS = {
-    'feed': 2, 'play': 3, 'clean': 1, 'sleep': 0, 'pat': 1,
-}
 RECORD_HEART_AMOUNT = 5
 RECORD_BLACK_AMOUNT = 0
 
@@ -372,9 +368,6 @@ def pet_interact():
         val = getattr(pet, attr) + delta
         setattr(pet, attr, round(max(0, min(100, val)), 1))
     new_level, leveled_up = _apply_exp(pet, cfg.get('exp', 0))
-    heart_gain = INTERACT_HEARTS.get(action, 0)
-    if heart_gain:
-        pet.hearts = (pet.hearts or 0) + heart_gain
     now = datetime.datetime.utcnow()
     if action == 'feed':
         pet.last_feed_at = now

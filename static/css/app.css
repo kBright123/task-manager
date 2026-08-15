@@ -536,149 +536,110 @@
       transform-style: preserve-3d;
       animation: petBreath 2.6s ease-in-out infinite;
     }
-    /* 头部: 橘猫大脸 + 毛发纹理 + 虎斑额纹 */
+    /* 头部: 圆润大脸 (kawaii 风格, 干净渐变无杂纹) */
     .pet-head {
-      position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
-      width: 140px; height: 124px; border-radius: 50% 50% 46% 46%;
-      background-color: #e89240;
-      background-image:
-        radial-gradient(circle at 50% 10%, rgba(200,110,45,.5) 0 5px, transparent 6px),
-        radial-gradient(circle at 42% 7%, rgba(200,110,45,.45) 0 4px, transparent 5px),
-        radial-gradient(circle at 58% 7%, rgba(200,110,45,.45) 0 4px, transparent 5px),
-        repeating-linear-gradient(75deg, rgba(150,90,40,.08) 0 1.5px, transparent 1.5px 7px),
-        repeating-linear-gradient(15deg, rgba(150,90,40,.06) 0 1px, transparent 1px 9px),
-        linear-gradient(180deg, #f9c782 0%, #f0a850 55%, #e89240 100%);
+      position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+      width: 148px; height: 134px; border-radius: 50% 50% 46% 46%;
+      background: linear-gradient(180deg, #f7c576 0%, #f0a850 55%, #ea9a46 100%);
       box-shadow:
-        inset -6px -10px 16px rgba(200,110,45,.32),
-        0 12px 22px rgba(190,120,60,.35);
+        inset -6px -10px 18px rgba(210,130,55,.28),
+        0 12px 22px rgba(180,110,55,.35);
       z-index: 3;
     }
-    /* 耳朵: 尖三角 + 耳尖绒毛 + 粉色内耳 */
+    /* 耳朵: 藏在头后方, 仅露出上半部 (自然贴合) */
     .pet-ear {
-      position: absolute; top: 4px; width: 46px; height: 56px; z-index: 4;
-      background: linear-gradient(180deg, #f6b45f, #e89240);
+      position: absolute; top: -8px; width: 50px; height: 60px; z-index: 2;
+      background: linear-gradient(180deg, #f7c576, #ec9d49);
       clip-path: polygon(50% 0, 100% 100%, 0 100%);
-      filter: drop-shadow(0 3px 4px rgba(190,120,60,.2));
+      filter: drop-shadow(0 3px 4px rgba(180,110,55,.18));
+      transform-origin: bottom center;
     }
-    .pet-ear::before {
-      content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
-      width: 10px; height: 13px; background: #fff4e0;
-      clip-path: polygon(50% 0, 100% 100%, 0 100%);
-    }
-    .pet-ear-l { left: 13px; transform: rotate(-14deg); }
-    .pet-ear-r { right: 13px; transform: rotate(14deg); }
+    .pet-ear-l { left: 24px; transform: rotate(-20deg); }
+    .pet-ear-r { right: 24px; transform: rotate(20deg); }
     .pet-ear-in {
-      position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%);
-      width: 26px; height: 32px;
-      background: linear-gradient(180deg, #ffc2d6, #ff9db8);
-      clip-path: polygon(50% 6%, 96% 94%, 4% 94%);
+      position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%);
+      width: 26px; height: 34px;
+      background: linear-gradient(180deg, #ffb7cc, #ff93b4);
+      clip-path: polygon(50% 8%, 96% 92%, 4% 92%);
     }
     /* 脸部 */
     .pet-face { position: absolute; inset: 0; }
-    /* 毛绒围脖: 颈下奶油绒毛 */
-    .pet-ruff {
-      position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%);
-      width: 158px; height: 56px; z-index: 0;
-      background:
-        radial-gradient(circle at 12% 0, #fff4e0 0 16px, transparent 17px),
-        radial-gradient(circle at 37% 0, #fff4e0 0 18px, transparent 19px),
-        radial-gradient(circle at 63% 0, #fff4e0 0 18px, transparent 19px),
-        radial-gradient(circle at 88% 0, #fff4e0 0 16px, transparent 17px),
-        linear-gradient(180deg, #fff4e0 0 60%, #f3d8b8 100%);
-      border-radius: 0 0 50% 50% / 0 0 60% 60%;
-    }
-    /* 脸颊绒毛: 圆鼓鼓的腮毛 */
-    .pet-cheek {
-      position: absolute; top: 48%; width: 38px; height: 46px; z-index: 0;
-      background: linear-gradient(180deg, #f9c782, #f0a850);
-      border-radius: 50%;
-      filter: drop-shadow(0 2px 3px rgba(190,120,60,.15));
-    }
-    .pet-cheek-l { left: -10px; transform: rotate(4deg); }
-    .pet-cheek-r { right: -10px; transform: rotate(-4deg); }
     /* 白色口鼻部: 鼻翼两侧奶油垫 */
     .pet-muzzle {
-      position: absolute; top: 69%; width: 34px; height: 26px; border-radius: 50%;
+      position: absolute; top: 62%; width: 38px; height: 30px; border-radius: 50%;
       background: linear-gradient(180deg, #fff7e8, #fbe6c8);
-      box-shadow: inset 0 -4px 8px rgba(230,160,90,.25); z-index: 1;
+      box-shadow: inset 0 -4px 8px rgba(230,160,90,.2); z-index: 1;
     }
-    .pet-muzzle-l { left: 18.5%; } .pet-muzzle-r { right: 18.5%; }
+    .pet-muzzle-l { left: 30px; } .pet-muzzle-r { right: 30px; }
+    /* 大圆眼 + 双层高光 (卡哇伊) */
     .pet-eye {
-      position: absolute; top: 32%; width: 40px; height: 36px;
-      background: radial-gradient(circle at 42% 38%, #ffffff, #fdf3e8 60%, #f6dcc0);
+      position: absolute; top: 30px; width: 48px; height: 52px;
+      background: radial-gradient(circle at 50% 50%, #2b1a10 0 32%, #6b3f1f 62%, #a86a38 100%);
       border-radius: 50%;
-      box-shadow: inset 0 -6px 10px rgba(200,150,100,.5), 0 2px 6px rgba(0,0,0,.08);
+      box-shadow: inset 0 0 10px rgba(0,0,0,.3), 0 3px 6px rgba(0,0,0,.12);
       overflow: hidden;
       animation: petBlink 5.2s ease-in-out infinite;
     }
-    .pet-eye-l { left: 18.5%; }
-    .pet-eye-r { right: 18.5%; }
-    .pet-pupil {
-      position: absolute; top: 5px; left: 50%; transform: translateX(-50%);
-      width: 13px; height: 26px;
-      background: radial-gradient(circle at 40% 30%, #8a5a2a, #4a3018 70%);
-      border-radius: 50%;
-    }
+    .pet-eye-l { left: 29px; }
+    .pet-eye-r { right: 29px; }
     .pet-glint {
-      position: absolute; top: 6px; left: 50%; transform: translateX(-70%);
-      width: 7px; height: 7px; background: #fff; border-radius: 50%;
-      box-shadow: 6px 10px 0 -1px rgba(255,255,255,.55);
+      position: absolute; top: 9px; left: 50%; transform: translateX(-65%);
+      width: 13px; height: 13px; background: #fff; border-radius: 50%;
+      box-shadow:
+        9px 18px 0 -2px rgba(255,255,255,.75),
+        -11px 24px 0 -3px rgba(255,255,255,.4);
     }
     .pet-brow {
-      position: absolute; top: 21%; width: 24px; height: 4px;
-      background: rgba(200,130,70,.4); border-radius: 4px;
+      position: absolute; top: 20px; width: 22px; height: 4px;
+      background: rgba(200,120,55,.35); border-radius: 4px;
     }
-    .pet-brow-l { left: 21.5%; transform: rotate(-8deg); }
-    .pet-brow-r { right: 21.5%; transform: rotate(8deg); }
+    .pet-brow-l { left: 34px; transform: rotate(-8deg); }
+    .pet-brow-r { right: 34px; transform: rotate(8deg); }
     .pet-nose {
       position: absolute; top: 63%; left: 50%; transform: translateX(-50%);
       width: 0; height: 0; z-index: 2;
-      border-left: 9px solid transparent; border-right: 9px solid transparent;
-      border-top: 11px solid #e86a86; border-radius: 3px;
+      border-left: 8px solid transparent; border-right: 8px solid transparent;
+      border-top: 10px solid #ef8aa2; border-radius: 3px;
     }
     .pet-mouth {
-      position: absolute; top: 71%; left: 50%; transform: translateX(-50%);
+      position: absolute; top: 72%; left: 50%; transform: translateX(-50%);
       display: flex; gap: 0; width: 34px; height: 16px; z-index: 2;
     }
     .pet-mouth span {
-      display: block; width: 17px; height: 16px; border-bottom: 3px solid #b57a58;
+      display: block; width: 17px; height: 16px; border-bottom: 3px solid #a86a38;
       border-radius: 0 0 50% 50%;
     }
     .pet-mouth-r { transform: scaleX(-1); }
     .pet-whisker {
-      position: absolute; height: 2px; background: rgba(255,250,240,.85);
-      border-radius: 2px; box-shadow: 0 0 2px rgba(0,0,0,.15);
+      position: absolute; height: 2px; background: rgba(255,252,246,.9);
+      border-radius: 2px; box-shadow: 0 0 2px rgba(0,0,0,.12);
     }
-    .pet-whisker-l1 { left: -6px; width: 34px; top: 64%; transform: rotate(-12deg); }
-    .pet-whisker-l2 { left: -8px; width: 36px; top: 70%; }
-    .pet-whisker-l3 { left: -6px; width: 34px; top: 76%; transform: rotate(12deg); }
-    .pet-whisker-r1 { right: -6px; width: 34px; top: 64%; transform: rotate(12deg); }
-    .pet-whisker-r2 { right: -8px; width: 36px; top: 70%; }
-    .pet-whisker-r3 { right: -6px; width: 34px; top: 76%; transform: rotate(-12deg); }
+    .pet-whisker-l1 { left: -4px; width: 34px; top: 54%; transform: rotate(-10deg); }
+    .pet-whisker-l2 { left: -6px; width: 38px; top: 60%; }
+    .pet-whisker-l3 { left: -4px; width: 34px; top: 66%; transform: rotate(10deg); }
+    .pet-whisker-r1 { right: -4px; width: 34px; top: 54%; transform: rotate(10deg); }
+    .pet-whisker-r2 { right: -6px; width: 38px; top: 60%; }
+    .pet-whisker-r3 { right: -4px; width: 34px; top: 66%; transform: rotate(-10deg); }
     .pet-blush {
-      position: absolute; top: 77%; width: 26px; height: 16px; border-radius: 50%;
-      background: radial-gradient(circle, rgba(255,140,170,.42), transparent 75%);
+      position: absolute; top: 75%; width: 28px; height: 18px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,140,170,.4), transparent 75%);
     }
-    .pet-blush-l { left: 6%; } .pet-blush-r { right: 6%; }
-    /* 身体: 橘色毛球 + 毛发纹理 + 奶油肚皮 */
+    .pet-blush-l { left: 12px; } .pet-blush-r { right: 12px; }
+    /* 身体: 圆润橘身 + 奶油肚皮 */
     .pet-body {
       position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%);
-      width: 124px; height: 106px; border-radius: 50% 50% 44% 44%;
-      background-color: #e89240;
-      background-image:
-        repeating-linear-gradient(75deg, rgba(150,90,40,.07) 0 1.5px, transparent 1.5px 7px),
-        repeating-linear-gradient(15deg, rgba(150,90,40,.05) 0 1px, transparent 1px 9px),
-        linear-gradient(180deg, #f6b45f 0%, #f0a850 55%, #e89240 100%);
-      box-shadow: inset 0 -14px 20px rgba(200,110,45,.35), 0 12px 22px rgba(190,120,60,.3);
+      width: 128px; height: 110px; border-radius: 50% 50% 44% 44%;
+      background: linear-gradient(180deg, #f5b45e 0%, #f0a850 55%, #e99a44 100%);
+      box-shadow: inset 0 -14px 20px rgba(210,130,55,.35), 0 12px 22px rgba(180,110,55,.3);
       z-index: 1;
     }
     .pet-belly {
       position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
-      width: 72px; height: 58px; border-radius: 50% 50% 42% 42%;
+      width: 76px; height: 60px; border-radius: 50% 50% 42% 42%;
       background: radial-gradient(circle at 50% 30%, #fff7ea, #fbe6c8 78%);
     }
     .pet-paw {
-      position: absolute; bottom: 0; width: 36px; height: 24px;
+      position: absolute; bottom: 0; width: 34px; height: 24px;
       background: linear-gradient(180deg, #fff4e0, #f0c894); border-radius: 50% 50% 46% 46%;
       box-shadow: inset 0 -5px 8px rgba(200,150,90,.3); z-index: 2;
     }
@@ -687,28 +648,19 @@
       top: 6px; width: 2px; height: 10px; background: rgba(180,130,80,.5); border-radius: 2px;
       box-shadow: -7px 0 0 -.5px rgba(180,130,80,.5), 7px 0 0 -.5px rgba(180,130,80,.5);
     }
-    .pet-paw-l { left: 28px; } .pet-paw-r { right: 28px; }
-    /* 尾巴: 蓬松虎斑尾 + 奶油尾尖 */
+    .pet-paw-l { left: 26px; } .pet-paw-r { right: 26px; }
+    /* 尾巴: 圆润粗尾 + 奶油尾尖 */
     .pet-tail {
-      position: absolute; right: -10px; bottom: 28px; width: 64px; height: 26px;
-      background-image:
-        repeating-linear-gradient(90deg, rgba(200,110,45,.5) 0 7px, #f0a850 7px 12px, rgba(200,110,45,.3) 12px 20px),
-        linear-gradient(90deg, #f0a850, #e89240);
-      clip-path: polygon(
-        71.9% 50.0% 87.1% 56.3% 70.6% 57.2% 82.6% 68.2% 66.8% 63.6% 74.2% 77.9%,
-        60.9% 68.3% 62.9% 84.2% 53.8% 70.8% 50.0% 86.4% 46.2% 70.8% 37.1% 84.2%,
-        39.1% 68.3% 25.8% 77.9% 33.2% 63.6% 17.4% 68.2% 29.4% 57.2% 12.9% 56.3%,
-        28.1% 50.0% 12.9% 43.7% 29.4% 42.8% 17.4% 31.8% 33.2% 36.4% 25.8% 22.1%,
-        39.1% 31.7% 37.1% 15.8% 46.2% 29.2% 50.0% 13.6% 53.8% 29.2% 62.9% 15.8%,
-        60.9% 31.7% 74.2% 22.1% 66.8% 36.4% 82.6% 31.8% 70.6% 42.8% 87.1% 43.7%
-      );
-      transform: rotate(-18deg); transform-origin: left center; z-index: 0;
-      filter: drop-shadow(0 4px 6px rgba(190,120,60,.25));
+      position: absolute; right: -14px; bottom: 28px; width: 54px; height: 24px;
+      background: linear-gradient(90deg, #f0a850, #e89240);
+      border-radius: 40% 70% 45% 70%;
+      transform: rotate(-24deg); transform-origin: left center; z-index: 0;
+      filter: drop-shadow(0 4px 6px rgba(180,110,55,.25));
       animation: petTailWag 2.4s ease-in-out infinite;
     }
     .pet-tail::after {
-      content: ''; position: absolute; right: 2px; top: 50%; transform: translateY(-50%);
-      width: 14px; height: 14px; border-radius: 50%;
+      content: ''; position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+      width: 15px; height: 15px; border-radius: 50%;
       background: radial-gradient(circle at 35% 35%, #fff7ea, #f0c894);
     }
     .pet-shadow {
@@ -741,10 +693,10 @@
       background: transparent;
     }
     .pet-anim-sleep .pet-eye::after {
-      content: ''; position: absolute; top: 16px; left: 4px; width: 26px; height: 4px;
-      background: #c9879c; border-radius: 4px;
+      content: ''; position: absolute; top: 22px; left: 6px; width: 36px; height: 5px;
+      background: #a86a38; border-radius: 5px;
     }
-    .pet-anim-sleep .pet-pupil, .pet-anim-sleep .pet-glint { opacity: 0; }
+    .pet-anim-sleep .pet-glint { opacity: 0; }
     .pet-anim-sleep .pet-eye { animation: none; }
     .pet-anim-pat .pet-3d-wrap { animation: petPat 0.9s ease-in-out; }
     .pet-anim-pat .pet-tail { animation: petPatTailWag 0.45s ease-in-out infinite; }
@@ -1003,22 +955,24 @@
     @media (max-width: 767px) {
       .pet-stage { height: 330px; align-items: flex-end; padding-bottom: 30px; }
       .pet-3d { width: 168px; height: 168px; }
-      .pet-head { width: 112px; height: 100px; }
-      .pet-ear { width: 37px; height: 45px; }
-      .pet-ruff { width: 128px; height: 46px; bottom: -12px; }
-      .pet-cheek { width: 30px; height: 38px; }
-      .pet-eye { width: 32px; height: 29px; }
-      .pet-eye-l { left: 18%; } .pet-eye-r { right: 18%; }
-      .pet-pupil { width: 10px; height: 21px; top: 4px; }
-      .pet-brow { width: 19px; }
-      .pet-nose { border-left-width: 7px; border-right-width: 7px; border-top-width: 9px; }
-      .pet-whisker-l1, .pet-whisker-l3, .pet-whisker-r1, .pet-whisker-r3 { width: 27px; }
-      .pet-whisker-l2, .pet-whisker-r2 { width: 29px; }
-      .pet-body { width: 100px; height: 86px; }
-      .pet-belly { width: 58px; height: 47px; }
-      .pet-paw { width: 29px; height: 20px; }
-      .pet-paw-l { left: 22px; } .pet-paw-r { right: 22px; }
-      .pet-tail { width: 52px; height: 21px; right: -8px; }
+      .pet-head { width: 118px; height: 108px; top: 13px; }
+      .pet-ear { width: 40px; height: 48px; top: -6px; }
+      .pet-ear-l { left: 19px; } .pet-ear-r { right: 19px; }
+      .pet-eye { width: 38px; height: 42px; top: 24px; }
+      .pet-eye-l { left: 23px; } .pet-eye-r { right: 23px; }
+      .pet-glint { width: 10px; height: 10px; top: 7px; }
+      .pet-brow { width: 18px; }
+      .pet-brow-l { left: 27px; } .pet-brow-r { right: 27px; }
+      .pet-nose { border-left-width: 6px; border-right-width: 6px; border-top-width: 8px; }
+      .pet-whisker-l1, .pet-whisker-l3, .pet-whisker-r1, .pet-whisker-r3 { width: 28px; }
+      .pet-whisker-l2, .pet-whisker-r2 { width: 31px; }
+      .pet-muzzle { width: 30px; height: 24px; }
+      .pet-muzzle-l { left: 24px; } .pet-muzzle-r { right: 24px; }
+      .pet-body { width: 102px; height: 88px; }
+      .pet-belly { width: 60px; height: 48px; }
+      .pet-paw { width: 27px; height: 19px; }
+      .pet-paw-l { left: 21px; } .pet-paw-r { right: 21px; }
+      .pet-tail { width: 44px; height: 20px; right: -11px; }
       .pet-actions { grid-template-columns: repeat(5, 1fr); gap: 6px; }
       .pet-act-label { font-size: .68rem; }
     }

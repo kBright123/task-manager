@@ -64,7 +64,7 @@
   .pet-state-hungry .pet-3d { animation: petHungryWobble 1.2s ease-in-out infinite; }
   .pet-state-hungry .pet-ear { animation: petEarDroop 1.2s ease-in-out infinite; }
   .pet-state-hungry .pet-tail { animation: petTailWeak 1.8s ease-in-out infinite; }
-  .pet-state-hungry .pet-mouth span { border-bottom-color: transparent; border-top: 2.5px solid #b98a99; border-radius: 50% 50% 0 0; }
+  .pet-state-hungry .pet-mouth span { border-bottom-color: transparent; border-top: 2.5px solid #a86a38; border-radius: 50% 50% 0 0; }
   @keyframes petHungryWobble {
     0%, 100% { transform: scale(1) rotate(0); }
     25% { transform: scale(1.02) rotate(-2deg); }
@@ -86,12 +86,13 @@
 
   .pet-state-sleepy .pet-eye {
     background: transparent;
+    box-shadow: none;
   }
   .pet-state-sleepy .pet-eye::after {
-    content: ''; position: absolute; top: 13px; left: 5px; width: 30px; height: 4px;
-    background: #b57a58; border-radius: 4px;
+    content: ''; position: absolute; top: 22px; left: 6px; width: 36px; height: 5px;
+    background: #a86a38; border-radius: 5px;
   }
-  .pet-state-sleepy .pet-pupil, .pet-state-sleepy .pet-glint { opacity: 0; }
+  .pet-state-sleepy .pet-glint { opacity: 0; }
   .pet-state-sleepy .pet-eye { animation: none; }
   .pet-state-sleepy .pet-3d-wrap { animation: petSleepySway 3s ease-in-out infinite; }
   .pet-state-sleepy .pet-head { animation: petSleepyNod 3s ease-in-out infinite; }
@@ -440,17 +441,12 @@
           </div>
           <div class="pet-head" id="petHead">
             <div class="pet-face">
-              <div class="pet-ruff"></div>
-              <div class="pet-cheek pet-cheek-l"></div>
-              <div class="pet-cheek pet-cheek-r"></div>
               <div class="pet-muzzle pet-muzzle-l"></div>
               <div class="pet-muzzle pet-muzzle-r"></div>
               <div class="pet-eye pet-eye-l">
-                <div class="pet-pupil"></div>
                 <div class="pet-glint"></div>
               </div>
               <div class="pet-eye pet-eye-r">
-                <div class="pet-pupil"></div>
                 <div class="pet-glint"></div>
               </div>
               <div class="pet-brow pet-brow-l"></div>

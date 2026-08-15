@@ -27,6 +27,50 @@
   .notes-panel{background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column;}
   @media (max-width:1023px){.notes-layout{grid-template-columns:180px 1fr;padding-top:16px;}.notes-layout>div:nth-child(3){display:none;}}
   @media (max-width:767px){body.notes-full .app-container{padding:16px 12px calc(var(--bottom-nav-height) + 12px);}.notes-layout{grid-template-columns:1fr;gap:10px;height:auto;min-height:0;padding-top:0;}.notes-layout>div:nth-child(3){display:none;}.note-timeline{max-height:none;}}
+  /* 手机端: 笔记详情改为底部抽屉, 点击笔记时滑出 */
+  .note-meta-drawer{display:none;}
+  .close-drawer{display:none;}
+  .note-meta-actions{display:none;}
+  @media (max-width:767px){
+    .note-meta-drawer #metaActions{display:none !important;}
+    .note-meta-actions{
+      display:flex;gap:10px;padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));
+      border-top:1px solid var(--gray-200);background:var(--gray-50);flex-shrink:0;
+    }
+    .close-drawer{
+      display:inline-flex;align-items:center;justify-content:center;
+      margin-left:auto;border:none;background:var(--gray-100);border-radius:50%;
+      width:28px;height:28px;color:var(--gray-600);font-size:1rem;line-height:1;cursor:pointer;
+    }
+    .notes-layout>div.note-meta-drawer{
+      display:flex;flex-direction:column;position:fixed;left:0;right:0;
+      bottom:var(--bottom-nav-height, 0px);
+      height:min(62vh, 520px);z-index:1200;background:#fff;
+      border-radius:18px 18px 0 0;box-shadow:0 -10px 34px rgba(0,0,0,.22);
+      transform:translateY(110%);transition:transform .28s cubic-bezier(.22,.61,.36,1);
+      border:1px solid var(--gray-200);border-bottom:none;
+    }
+    .notes-layout>div.note-meta-drawer.open{transform:translateY(0);}
+    .note-meta-drawer .card-header{flex-shrink:0;border-radius:18px 18px 0 0;}
+    .note-meta-drawer .card-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+    .note-meta-drawer .grip{
+      flex-shrink:0;width:44px;height:5px;border-radius:3px;background:var(--gray-300);
+      margin:8px auto 2px;
+    }
+  }
+  .note-meta-mask{display:none;}
+  @media (max-width:767px){
+    .note-meta-mask{display:block;position:fixed;inset:0;background:rgba(20,20,30,.4);
+      opacity:0;pointer-events:none;transition:opacity .25s ease;z-index:1190;}
+    .note-meta-mask.show{opacity:1;pointer-events:auto;}
+  }
+  @media (prefers-color-scheme: dark){
+    .note-meta-drawer{background:#1C1F26;border-color:#2A2E37;}
+    .note-meta-drawer .card-header,.note-meta-drawer .card-body{color:#E5E7EB;background:#1C1F26;}
+    .note-meta-actions{background:#16181D;border-top-color:#2A2E37;}
+    .close-drawer{background:rgba(255,255,255,.08);color:#9CA3AF;}
+    .note-meta-drawer .grip{background:#3A3F4A;}
+  }
   .note-timeline{flex:1;overflow-y:auto;padding:16px;}
   .note-bubble{max-width:92%;margin-bottom:14px;}
   .note-bubble .meta{font-size:.68rem;color:var(--gray-400);margin-bottom:4px;display:flex;align-items:center;gap:8px;}
@@ -80,17 +124,24 @@
     </div>
   </div>
 
-  <!-- 右栏: 元数据抽屉 -->
-  <div class="card h-100" style="border:1px solid var(--gray-200);border-radius:var(--radius);overflow:hidden;">
+  <!-- 右栏: 元数据抽屉(手机端滑出) -->
+  <div class="note-meta-mask" id="metaMask" onclick="closeMetaDrawer()"></div>
+  <div class="card h-100 note-meta-drawer" id="metaPanel" style="border:1px solid var(--gray-200);border-radius:var(--radius);overflow:hidden;">
+    <div class="grip"></div>
     <div class="card-header py-2 px-3 d-flex align-items-center gap-2" style="font-weight:600;font-size:.85rem;">
       <i class="bi bi-info-circle" style="color:var(--primary);"></i> 笔记详情
       <span id="metaActions" style="display:none;" class="d-flex gap-1 ms-auto">
         <button type="button" class="btn btn-sm btn-outline-primary" style="font-size:.72rem;padding:1px 10px;" onclick="editNoteInline()"><i class="bi bi-pencil"></i> 编辑</button>
         <button type="button" class="btn btn-sm btn-outline-danger" style="font-size:.72rem;padding:1px 10px;" onclick="delNote(curMeta&&curMeta.id)"><i class="bi bi-trash"></i> 删除</button>
       </span>
+      <button type="button" class="close-drawer" onclick="closeMetaDrawer()" title="关闭"><i class="bi bi-x"></i></button>
     </div>
     <div class="card-body" id="metaBody" style="font-size:.8rem;color:var(--gray-600);overflow-y:auto;">
       <div style="text-align:center;color:var(--gray-400);padding:40px 0;">在中间列表点一条笔记查看详情<br>或在下框输入内容，点「保存笔记」存为一条新记录</div>
+    </div>
+    <div class="note-meta-actions" id="metaActionsBar">
+      <button type="button" class="btn btn-sm btn-outline-primary" style="flex:1;" onclick="editNoteInline()"><i class="bi bi-pencil"></i> 编辑</button>
+      <button type="button" class="btn btn-sm btn-outline-danger" style="flex:1;" onclick="delNote(curMeta&&curMeta.id)"><i class="bi bi-trash"></i> 删除</button>
     </div>
   </div>
 </div>
@@ -218,9 +269,9 @@ function renderNotes(list){
   tl.innerHTML=list.map(function(n){
     var tags=(n.tags||[]).map(function(t){return '<span class="pill" onclick="loadByTag(\''+esc(t)+'\')">'+esc(t)+'</span>';}).join('');
     return '<div class="note-bubble" data-nid="'+n.id+'"><div class="meta"><i class="bi bi-clock"></i> '+esc(n.created_at)+
-      ' <span style="cursor:pointer;" onclick="showMeta('+n.id+')"><i class="bi bi-pencil"></i></span>'+
+      ' <span style="cursor:pointer;" onclick="showMeta('+n.id+',true)"><i class="bi bi-pencil"></i></span>'+
       ' <span style="cursor:pointer;" onclick="delNote('+n.id+')"><i class="bi bi-trash" style="color:var(--danger);"></i></span></div>'+
-      '<div class="bubble" onclick="showMeta('+n.id+')">'+
+      '<div class="bubble" onclick="showMeta('+n.id+',true)">'+
       (tags?'<div class="mb-2">'+tags+'</div>':'')+
       '<div class="bbl">'+renderContent(esc(n.content))+'</div>'+
       ((n.content||'').length>160?'<div class="bbl-more" onclick="toggleNoteText(event,this)">… 点击查看全文</div>':'')+
@@ -312,13 +363,24 @@ function showSys(html){
   tl.insertBefore(div,tl.firstChild);
 }
 var curMeta=null;
-function showMeta(id){
+function showMeta(id, tap){
   fetch('/notes/api/notes').then(r=>r.json()).then(function(d){
     var n=d.notes.filter(function(x){return x.id===id;})[0];
     if(!n)return;
     curMeta=n;
     renderMeta();
+    if(tap && window.innerWidth<=767) openMetaDrawer();
   });
+}
+function openMetaDrawer(){
+  var p=document.getElementById('metaPanel'),m=document.getElementById('metaMask');
+  if(p) p.classList.add('open');
+  if(m) m.classList.add('show');
+}
+function closeMetaDrawer(){
+  var p=document.getElementById('metaPanel'),m=document.getElementById('metaMask');
+  if(p) p.classList.remove('open');
+  if(m) m.classList.remove('show');
 }
 function renderMeta(){
   var n=curMeta;if(!n)return;
@@ -337,6 +399,8 @@ function renderMeta(){
     '</div></div>';
   var ma=document.getElementById('metaActions');
   if(ma) ma.style.display='inline-flex';
+  var bar=document.getElementById('metaActionsBar');
+  if(bar) bar.style.display=(window.innerWidth<=767)?'flex':'none';
 }
 function saveMetaTags(){
   var id=curMeta.id;
@@ -359,6 +423,8 @@ function removeMetaTag(t){
 function editNoteInline(){
   var n=curMeta;if(!n)return;
   var b=document.getElementById('metaBody');
+  var bar=document.getElementById('metaActionsBar');
+  if(bar) bar.style.display='none';
   b.innerHTML='<label class="text-muted" style="font-size:.72rem;">编辑内容</label>'+
     '<textarea class="form-control" id="metaEditContent" rows="10" style="font-size:.85rem;">'+esc(n.content)+'</textarea>'+
     '<div class="mt-2 d-flex gap-2">'+
@@ -382,10 +448,13 @@ function delNote(id){
 }
 function setMetaEmpty(){
   curMeta=null;
+  closeMetaDrawer();
   var b=document.getElementById('metaBody');
   if(b) b.innerHTML='<div style="text-align:center;color:var(--gray-400);padding:40px 0;">在中间列表点一条笔记查看详情<br>或在下框输入内容，点「保存笔记」存为一条新记录</div>';
   var ma=document.getElementById('metaActions');
   if(ma) ma.style.display='none';
+  var bar=document.getElementById('metaActionsBar');
+  if(bar) bar.style.display='none';
 }
 var noteInputEl=document.getElementById('noteInput');
 function autoResizeNoteInput(){

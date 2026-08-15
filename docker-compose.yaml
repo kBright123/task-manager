@@ -10,6 +10,7 @@ services:
       - ./classifier.py:/app/classifier.py
       - ./reminder_worker.py:/app/reminder_worker.py
       - ./notes.py:/app/notes.py
+      - ./pet.py:/app/pet.py
       - ./job_worker.py:/app/job_worker.py
       - ./backup.py:/app/backup.py
       - ./routes_admin.py:/app/routes_admin.py

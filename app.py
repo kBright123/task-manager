@@ -286,6 +286,17 @@ from notes import init_models as notes_init_models, notes_bp
 notes_init_models(db)
 app.register_blueprint(notes_bp)
 
+from pet import init_models as pet_init_models, pet_bp
+pet_init_models(db)
+app.register_blueprint(pet_bp)
+
+
+@app.route('/pet')
+@login_required
+def pet_page():
+    """电子宠物独立页面(双击导航栏 logo 打开)。"""
+    return render_template('pet.html')
+
 
 _STATIC_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 
@@ -863,6 +874,31 @@ def _run_sqlite_migrations():
             c.execute("ALTER TABLE note_job ADD COLUMN phase VARCHAR(50) DEFAULT ''")
         if 'updated_at' not in cols:
             c.execute('ALTER TABLE note_job ADD COLUMN updated_at DATETIME')
+        c.execute('PRAGMA table_info(pet)')
+        cols = [r[1] for r in c.fetchall()]
+        if cols:
+            if 'level' not in cols:
+                c.execute('ALTER TABLE pet ADD COLUMN level INTEGER DEFAULT 1')
+            if 'exp' not in cols:
+                c.execute('ALTER TABLE pet ADD COLUMN exp INTEGER DEFAULT 0')
+            if 'stars' not in cols:
+                c.execute('ALTER TABLE pet ADD COLUMN stars INTEGER DEFAULT 0')
+            if 'equipped_house' not in cols:
+                c.execute("ALTER TABLE pet ADD COLUMN equipped_house VARCHAR(40) DEFAULT 'none'")
+            if 'equipped_bowl' not in cols:
+                c.execute("ALTER TABLE pet ADD COLUMN equipped_bowl VARCHAR(40) DEFAULT 'none'")
+            if 'equipped_clothes' not in cols:
+                c.execute("ALTER TABLE pet ADD COLUMN equipped_clothes VARCHAR(40) DEFAULT 'none'")
+            if 'last_feed_at' not in cols:
+                c.execute('ALTER TABLE pet ADD COLUMN last_feed_at DATETIME')
+            if 'last_sleep_at' not in cols:
+                c.execute('ALTER TABLE pet ADD COLUMN last_sleep_at DATETIME')
+            if 'last_clean_at' not in cols:
+                c.execute('ALTER TABLE pet ADD COLUMN last_clean_at DATETIME')
+        c.execute('PRAGMA table_info(pet_record)')
+        cols = [r[1] for r in c.fetchall()]
+        if cols and 'stars' not in cols:
+            c.execute('ALTER TABLE pet_record ADD COLUMN stars INTEGER DEFAULT 0')
         c.execute('PRAGMA table_info(kb_document)')
         cols = [r[1] for r in c.fetchall()]
         if 'refined_at' not in cols:

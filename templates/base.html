@@ -322,7 +322,31 @@
     resultsPage: '{{ url_for("unified_search_page") }}'
   };
   </script>
-  <script src="{{ url_for('static', filename='js/search.js', v=staticv('js/search.js')) }}" defer></script>
+  {% if current_user.is_authenticated %}
+  <script>
+  // 双击导航栏 logo 打开电子宠物独立页面(区别于单击进入首页)
+  (function () {
+    var PET_CLICK_TIMEOUT = 300;
+    var petClickTimer = null;
+    document.addEventListener('click', function (e) {
+      var logo = e.target.closest('.top-nav-logo');
+      if (!logo) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (petClickTimer) {
+        clearTimeout(petClickTimer);
+        petClickTimer = null;
+        window.location.href = '{{ url_for('pet_page') }}';
+      } else {
+        petClickTimer = setTimeout(function () {
+          petClickTimer = null;
+          window.location.href = logo.getAttribute('href');
+        }, PET_CLICK_TIMEOUT);
+      }
+    }, true);
+  })();
+  </script>
+  {% endif %}
   {% block extra_js %}{% endblock %}
 </body>
 </html>

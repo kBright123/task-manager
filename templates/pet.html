@@ -16,10 +16,84 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 
-{% extends "base.html" %}
-{% block title %}我的电子宠物 - 知行合一{% endblock %}
-{% block extra_css %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>我的电子宠物 - 知行合一</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg', v=staticv('favicon.svg')) }}">
+  <link href="{{ url_for('static', filename='vendor/bootstrap.min.css', v=staticv('vendor/bootstrap.min.css')) }}" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons.min.css', v=staticv('vendor/bootstrap-icons.min.css')) }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css', v=staticv('css/app.css')) }}">
+  <script>
+    window.CSRF_TOKEN = '{{ csrf_token() }}';
+    (function () {
+      var TOKEN = window.CSRF_TOKEN;
+      function addTokenToForm(f) {
+        if (!TOKEN || f.querySelector('input[name="_csrf_token"]')) return;
+        var i = document.createElement('input');
+        i.type = 'hidden'; i.name = '_csrf_token'; i.value = TOKEN;
+        f.appendChild(i);
+      }
+      function onReady() { document.querySelectorAll('form').forEach(addTokenToForm); }
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', onReady);
+      else onReady();
+      if (window.MutationObserver) {
+        new MutationObserver(function (muts) {
+          for (var k = 0; k < muts.length; k++) {
+            var nodes = muts[k].addedNodes;
+            for (var j = 0; j < nodes.length; j++) {
+              var n = nodes[j];
+              if (n.nodeType !== 1) continue;
+              if (n.tagName === 'FORM') addTokenToForm(n);
+              var fs = n.querySelectorAll ? n.querySelectorAll('form') : null;
+              if (fs) for (var m = 0; m < fs.length; m++) addTokenToForm(fs[m]);
+            }
+          }
+        }).observe(document.documentElement, { childList: true, subtree: true });
+      }
+      var origFetch = window.fetch;
+      if (origFetch && TOKEN) {
+        window.fetch = function (input, init) {
+          init = init || {};
+          var method = (init.method || (input && input.method) || 'GET').toUpperCase();
+          if (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE') {
+            var h = init.headers;
+            if (!h) { h = init.headers = {}; }
+            if (h instanceof Headers) { h.set('X-CSRF-Token', TOKEN); }
+            else if (h instanceof Array) { h.push(['X-CSRF-Token', TOKEN]); }
+            else if (typeof h === 'string') { init.headers = 'X-CSRF-Token: ' + TOKEN + '\n' + h; }
+            else { h['X-CSRF-Token'] = TOKEN; }
+          }
+          return origFetch.call(this, input, init);
+        };
+      }
+    })();
+  </script>
 <style>
+  html, body { height: 100%; }
+  body.pet-standalone {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 28px 16px 40px;
+    background:
+      radial-gradient(circle at 18% 12%, rgba(255,214,230,.55), transparent 42%),
+      radial-gradient(circle at 85% 18%, rgba(255,224,180,.5), transparent 40%),
+      radial-gradient(circle at 50% 90%, rgba(200,180,255,.4), transparent 45%),
+      linear-gradient(180deg, #fff6f8, #fdf1f5);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body.pet-standalone::before {
+    content: '';
+    position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background-image: radial-gradient(rgba(255,255,255,.5) 1px, transparent 1.5px);
+    background-size: 22px 22px;
+  }
   .pet-page-wrap { max-width: 560px; margin: 0 auto; }
   .pet-page-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
   .pet-page-title { font-weight: 800; font-size: 1.05rem; color: var(--gray-900); margin: 0; }
@@ -89,8 +163,8 @@
     box-shadow: none;
   }
   .pet-state-sleepy .pet-eye::after {
-    content: ''; position: absolute; top: 22px; left: 6px; width: 36px; height: 5px;
-    background: #a86a38; border-radius: 5px;
+    content: ''; position: absolute; top: 19px; left: 5px; width: 30px; height: 4px;
+    background: #a86a38; border-radius: 4px;
   }
   .pet-state-sleepy .pet-glint { opacity: 0; }
   .pet-state-sleepy .pet-eye { animation: none; }
@@ -260,18 +334,28 @@
   }
   .pet-clothes.scarf { top: 96px; }
   .scarf-band {
-    position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
-    width: 92px; height: 17px; border-radius: 9px;
+    position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
+    width: 96px; height: 14px; border-radius: 7px;
     background: linear-gradient(180deg, #ff6b7a, #e0455f);
-    box-shadow: 0 3px 6px rgba(0,0,0,.15);
+    box-shadow: 0 2px 5px rgba(0,0,0,.14);
   }
   .scarf-knot {
-    position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
-    width: 20px; height: 12px; border-radius: 4px; background: #c23a52;
+    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 10px solid transparent; border-right: 10px solid transparent;
+    border-top: 16px solid #d84058; border-radius: 4px;
   }
   .scarf-tail {
-    position: absolute; top: 26px; left: 60px; width: 12px; height: 28px;
-    border-radius: 6px; background: #e0455f; transform: rotate(8deg);
+    position: absolute; top: 28px; left: 50%; transform: translateX(-50%);
+    width: 26px; height: 30px;
+    background: linear-gradient(180deg, #ff6b7a, #e0455f);
+    clip-path: polygon(0 0, 100% 0, 100% 66%, 50% 100%, 0 66%);
+    box-shadow: 0 3px 6px rgba(0,0,0,.12);
+  }
+  .scarf-tail::after {
+    content: ''; position: absolute; top: 3px; left: 50%; transform: translateX(-50%);
+    width: 4px; height: 22px; border-radius: 2px;
+    background: linear-gradient(180deg, #d84058, #b53850);
   }
   .pet-clothes.vest { top: 140px; }
   .vest-body {
@@ -388,9 +472,8 @@
     .pet-stage .pet-bar { background: rgba(255,255,255,.12); }
   }
 </style>
-{% endblock %}
-
-{% block content %}
+</head>
+<body class="pet-standalone">
 <div class="pet-page-wrap">
   <div class="pet-page-head">
     <a href="{{ url_for('user_dashboard') }}" class="btn btn-sm btn-outline-secondary" style="padding:4px 10px;"><i class="bi bi-arrow-left"></i></a>
@@ -580,10 +663,9 @@
     </div>
   </div>
 </div>
-{% endblock %}
 
-{% block extra_js %}
-{% if current_user.is_authenticated %}
+<script src="{{ url_for('static', filename='vendor/bootstrap.bundle.min.js', v=staticv('vendor/bootstrap.bundle.min.js')) }}"></script>
+<script src="{{ url_for('static', filename='js/app.js', v=staticv('js/app.js')) }}"></script>
 <script>
 (function () {
   var petState = null;
@@ -930,5 +1012,5 @@
   petInit();
 })();
 </script>
-{% endif %}
-{% endblock %}
+</body>
+</html>

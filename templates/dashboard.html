@@ -137,7 +137,7 @@ data-owner="{{ '1' if a.task.creator_id == current_user.id or current_user.role 
     <div class="d-flex justify-content-between align-items-center">
       <div>
         <div class="stat-num" style="font-size:1.5rem;">{{ kb_count }}</div>
-        <div class="stat-label">知识库条目</div>
+        <div class="stat-label">文档</div>
         <div class="stat-trend">较前日{% if docs_delta > 0 %}<span class="trend-pill up">↑ {{ docs_delta }}</span>{% elif docs_delta < 0 %}<span class="trend-pill down">↓ {{ -docs_delta }}</span>{% else %}<span class="trend-pill flat">—</span>{% endif %}</div>
       </div>
       <i class="bi bi-collection" style="font-size:1.5rem;opacity:.85;"></i>
@@ -517,8 +517,12 @@ function openEditTaskDrawer() {
   document.getElementById('editTaskId').value = _drawerEdit.taskId;
   document.getElementById('editTaskTitle').value = _drawerEdit.title || '';
   document.getElementById('editTaskCategory').value = _drawerEdit.category || '工作';
-  document.getElementById('editTaskStart').value = _drawerEdit.start || '';
-  document.getElementById('editTaskEnd').value = _drawerEdit.end || '';
+  // datetime-local 输入框要求 YYYY-MM-DDTHH:MM, 统一把空格分隔转为 T
+  function dt(v) {
+    return v ? String(v).replace(' ', 'T') : '';
+  }
+  document.getElementById('editTaskStart').value = dt(_drawerEdit.start);
+  document.getElementById('editTaskEnd').value = dt(_drawerEdit.end);
   document.getElementById('editTaskDesc').value = _drawerEdit.desc || '';
   autoGrowDesc(document.getElementById('editTaskDesc'));
   
@@ -543,6 +547,7 @@ function openEditTaskDrawer() {
     }
   }
   
+  closeTaskDrawer();
   new bootstrap.Modal(document.getElementById('editTaskModal')).show();
 }
 </script>

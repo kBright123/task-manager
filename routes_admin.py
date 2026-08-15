@@ -23,6 +23,12 @@ def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not current_user.is_authenticated or current_user.role != 'admin':
+            if not current_user.is_authenticated and not request.path.startswith('/static/'):
+                log_operation(
+                    'unauth_access',
+                    target=(request.path or '')[:200],
+                    detail=f'未登录访问 {request.method} {request.path}')
+                db.session.commit()
             flash('需要管理员权限', 'danger')
             return redirect(url_for('login'))
         return f(*args, **kwargs)

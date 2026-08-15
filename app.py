@@ -154,6 +154,20 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 
+@login_manager.unauthorized_handler
+def _unauthorized_log():
+    """未登录访问受保护页面时记录一条操作日志, 再跳转登录页。"""
+    try:
+        if not request.path.startswith('/static/'):
+            log_operation(
+                'unauth_access',
+                target=(request.path or '')[:200],
+                detail=f'未登录访问 {request.method} {request.path}')
+    except Exception:
+        pass
+    return redirect(url_for('login', next=request.path or None))
+
+
 @app.before_request
 def _req_timing_start():
     g._req_start = time.monotonic()

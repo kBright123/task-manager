@@ -22,9 +22,9 @@
 职责:
 1. 消费 note_job 队列:手动触发(后台管理页)与自动定时任务均为入队,
    本进程领取并执行"合并去重笔记、整理/合并/提炼知识库",以及
-   scope=cleanup 的黑名单字样清理(不调用大模型)。
+   scope=cleanup 的黑名单字样清理 + 操作日志/邮件记录/任务执行记录清理。
 2. 每个周六 22:00 自动入队一周整理待办(仅当近 7 天有新增笔记或知识);
-   每周日 03:00 自动入队黑名单字清理(仅当检测到黑名单字样)。
+   每周日 03:00 自动入队清理(黑名单字样 或 有过期的日志/邮件/任务记录)。
 
 数据:结构化元数据在 tasks.db;大模型调用复用 knowledge 的 opencode
 serve 客户端。
@@ -172,6 +172,84 @@ def _has_blacklist_hits():
                                          dry_run=True))
 
 
+def _has_cleanup_work():
+    """是否还有待清理内容: 黑名单字样 或 过期的日志/邮件/任务执行记录。"""
+    if _has_blacklist_hits():
+        return True
+    log_days = int(get_job_setting('job_cleanup_log_days', '30') or 30)
+    email_days = int(get_job_setting('job_cleanup_email_days', '30') or 30)
+    job_days = int(get_job_setting('job_cleanup_job_days', '30') or 30)
+    from app import OperationLog, EmailRecord
+    cutoff_log = datetime.utcnow() - timedelta(days=log_days)
+    cutoff_email = datetime.utcnow() - timedelta(days=email_days)
+    cutoff_job = datetime.utcnow() - timedelta(days=job_days)
+    try:
+        if OperationLog.query.filter(
+                OperationLog.created_at < cutoff_log).first():
+            return True
+        if EmailRecord.query.filter(
+                EmailRecord.created_at < cutoff_email).first():
+            return True
+        if NoteJob.query.filter(NoteJob.created_at < cutoff_job).first():
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _cleanup_logs_msg():
+    """清理超过保留期的操作日志,返回报告文本。"""
+    from app import OperationLog
+    days = int(get_job_setting('job_cleanup_log_days', '30') or 30)
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    try:
+        deleted = OperationLog.query.filter(
+            OperationLog.created_at < cutoff).delete(
+                synchronize_session=False)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return '操作日志清理:失败(%s)' % e
+    if not deleted:
+        return '操作日志清理:%d 天内无过期日志,跳过' % days
+    return '操作日志清理:删除 %d 条(保留 %d 天)' % (deleted, days)
+
+
+def _cleanup_emails_msg():
+    """清理超过保留期的邮件记录,返回报告文本。"""
+    from app import EmailRecord
+    days = int(get_job_setting('job_cleanup_email_days', '30') or 30)
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    try:
+        deleted = EmailRecord.query.filter(
+            EmailRecord.created_at < cutoff).delete(
+                synchronize_session=False)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return '邮件记录清理:失败(%s)' % e
+    if not deleted:
+        return '邮件记录清理:%d 天内无过期记录,跳过' % days
+    return '邮件记录清理:删除 %d 条(保留 %d 天)' % (deleted, days)
+
+
+def _cleanup_jobs_msg():
+    """清理超过保留期的定时任务执行记录,返回报告文本。"""
+    days = int(get_job_setting('job_cleanup_job_days', '30') or 30)
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    try:
+        deleted = NoteJob.query.filter(
+            NoteJob.created_at < cutoff).delete(
+                synchronize_session=False)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return '任务执行记录清理:失败(%s)' % e
+    if not deleted:
+        return '任务执行记录清理:%d 天内无过期记录,跳过' % days
+    return '任务执行记录清理:删除 %d 条(保留 %d 天)' % (deleted, days)
+
+
 def _report_msg(text):
     result = _llm(text)
     if result and result.strip():
@@ -249,6 +327,9 @@ def run_organization(job):
 
     if job.scope == 'cleanup':
         _step('黑名单字清理', lambda: _cleanup_blacklist_msg(job))
+        _step('操作日志清理', _cleanup_logs_msg)
+        _step('邮件记录清理', _cleanup_emails_msg)
+        _step('任务执行记录清理', _cleanup_jobs_msg)
 
     if job.scope in ('notes', 'all'):
         _step('笔记去重合并', _merge_notes_msg)
@@ -409,12 +490,12 @@ def _enqueue_auto_cleanup(now):
             NoteJob.trigger == 'auto', NoteJob.scope == 'cleanup',
             NoteJob.created_at >= since).first():
         return
-    if not _has_blacklist_hits():
+    if not _has_cleanup_work():
         return
     db.session.add(NoteJob(scope='cleanup', status='queued', trigger='auto',
                            created_by=None, created_at=datetime.now()))
     db.session.commit()
-    logger.info('入队本周自动黑名单字清理')
+    logger.info('入队本周自动清理(黑名单字/操作日志/邮件/任务记录)')
 
 
 def _enqueue_auto_backup(now):

@@ -48,23 +48,26 @@
             <div class="mb-2 d-flex align-items-center justify-content-between gap-2">
               <div class="d-flex align-items-center gap-2">
                 <input type="checkbox" class="form-check-input" id="organizeEnabled" name="job_organize_enabled" value="1" {{ 'checked' if schedule.job_organize_enabled == '1' else '' }}>
-                <label class="form-check-label" for="organizeEnabled" style="font-weight:600;font-size:.85rem;">自动整理(全部:笔记+知识+文档)</label>
+                <label class="form-check-label" for="organizeEnabled" style="font-weight:600;font-size:.85rem;">整理笔记+知识+文档</label>
               </div>
               <button type="submit" form="runOrganize" class="btn btn-sm btn-outline-primary flex-shrink-0"><i class="bi bi-lightning"></i> 立即执行</button>
             </div>
-            <div class="d-flex align-items-center gap-2 flex-nowrap" style="font-size:.8rem;">
-              <span class="text-muted">每周</span>
-              <select name="job_organize_weekday" class="form-select form-select-sm" style="width:auto;flex:0 1 auto;min-width:0;">
+            <div class="d-flex align-items-center gap-2 flex-wrap" style="font-size:.8rem;">
+              <span class="text-muted" style="white-space:nowrap;">每周</span>
+              <select name="job_organize_weekday" class="form-select form-select-sm" style="width:auto;flex:0 0 auto;min-width:72px;">
                 <option value="-1" {{ 'selected' if schedule.job_organize_weekday == '-1' else '' }}>每天</option>
                 {% for wd in range(0, 7) %}
                 <option value="{{ wd }}" {{ 'selected' if schedule.job_organize_weekday == wd|string else '' }}>周{{ '一二三四五六日'[wd] }}</option>
                 {% endfor %}
               </select>
-              <select name="job_organize_hour" class="form-select form-select-sm" style="width:auto;flex:0 1 auto;min-width:0;">
+              <select name="job_organize_hour" class="form-select form-select-sm" style="width:auto;flex:0 0 auto;min-width:68px;">
                 {% for h in range(0, 24) %}
                 <option value="{{ h }}" {{ 'selected' if schedule.job_organize_hour == h|string else '' }}>{{ '%02d' % h }} 时</option>
                 {% endfor %}
               </select>
+            </div>
+            <div class="mt-2" style="font-size:.72rem;color:var(--gray-500);">
+              整理内容:笔记去重合并、知识点合并与提炼、知识点/文档标题精简与标签整理。
             </div>
           </div>
         </div>
@@ -73,25 +76,32 @@
             <div class="mb-2 d-flex align-items-center justify-content-between gap-2">
               <div class="d-flex align-items-center gap-2">
                 <input type="checkbox" class="form-check-input" id="cleanupEnabled" name="job_cleanup_enabled" value="1" {{ 'checked' if schedule.job_cleanup_enabled == '1' else '' }}>
-                <label class="form-check-label" for="cleanupEnabled" style="font-weight:600;font-size:.85rem;">自动清理黑名单字样</label>
+                <label class="form-check-label" for="cleanupEnabled" style="font-weight:600;font-size:.85rem;">清理黑名单和日志</label>
               </div>
               <button type="submit" form="runCleanup" onclick="cleanupRunTerms()" class="btn btn-sm btn-outline-primary flex-shrink-0"><i class="bi bi-lightning"></i> 立即执行</button>
             </div>
-            <div class="d-flex align-items-center gap-2 flex-nowrap" style="font-size:.8rem;">
+            <div class="d-flex align-items-center gap-2 flex-wrap" style="font-size:.8rem;">
               <span class="text-muted" style="white-space:nowrap;">每周</span>
-              <select name="job_cleanup_weekday" class="form-select form-select-sm" style="width:auto;flex:0 1 auto;min-width:0;">
+              <select name="job_cleanup_weekday" class="form-select form-select-sm" style="width:auto;flex:0 0 auto;min-width:72px;">
                 <option value="-1" {{ 'selected' if schedule.job_cleanup_weekday == '-1' else '' }}>每天</option>
                 {% for wd in range(0, 7) %}
                 <option value="{{ wd }}" {{ 'selected' if schedule.job_cleanup_weekday == wd|string else '' }}>周{{ '一二三四五六日'[wd] }}</option>
                 {% endfor %}
               </select>
-              <select name="job_cleanup_hour" class="form-select form-select-sm" style="width:auto;flex:0 1 auto;min-width:0;">
+              <select name="job_cleanup_hour" class="form-select form-select-sm" style="width:auto;flex:0 0 auto;min-width:68px;">
                 {% for h in range(0, 24) %}
                 <option value="{{ h }}" {{ 'selected' if schedule.job_cleanup_hour == h|string else '' }}>{{ '%02d' % h }} 时</option>
                 {% endfor %}
               </select>
               <span class="text-muted" style="white-space:nowrap;">自定义黑名单</span>
-              <input type="text" class="form-control form-control-sm" name="job_cleanup_terms" id="cleanupTerms" value="{{ schedule.job_cleanup_terms or '' }}" placeholder="逗号分隔" title="逗号分隔,留空使用系统默认" style="font-size:.8rem;min-width:0;">
+              <input type="text" class="form-control form-control-sm" name="job_cleanup_terms" id="cleanupTerms" value="{{ schedule.job_cleanup_terms or '' }}" placeholder="逗号分隔" title="逗号分隔,留空使用系统默认" style="font-size:.8rem;min-width:110px;flex:1 1 120px;">
+            </div>
+            <div class="d-flex align-items-center gap-2 flex-wrap mt-1" style="font-size:.75rem;color:var(--gray-500);">
+              <span style="white-space:nowrap;">日志/邮件/任务记录保留(天)</span>
+              <input type="number" min="1" max="3650" class="form-control form-control-sm" name="job_cleanup_keep_days" value="{{ schedule.job_cleanup_keep_days or 7 }}" style="width:64px;font-size:.75rem;">
+            </div>
+            <div class="mt-2" style="font-size:.72rem;color:var(--gray-500);">
+              自动清理内容:黑名单字样、超过保留期的操作日志、邮件记录与任务执行记录。
             </div>
           </div>
         </div>
@@ -100,12 +110,18 @@
             <div class="mb-2 d-flex align-items-center justify-content-between gap-2">
               <div class="d-flex align-items-center gap-2">
                 <input type="checkbox" class="form-check-input" id="backupEnabled" name="job_backup_enabled" value="1" {{ 'checked' if schedule.job_backup_enabled == '1' else '' }}>
-                <label class="form-check-label" for="backupEnabled" style="font-weight:600;font-size:.85rem;">每日自动备份数据</label>
+                <label class="form-check-label" for="backupEnabled" style="font-weight:600;font-size:.85rem;">备份数据</label>
               </div>
               <button type="submit" form="runBackup" class="btn btn-sm btn-outline-primary flex-shrink-0"><i class="bi bi-cloud-arrow-up"></i> 立即备份</button>
             </div>
-            <div class="d-flex align-items-center gap-2 flex-nowrap" style="font-size:.8rem;">
-              <span class="text-muted" style="white-space:nowrap;">每天</span>
+            <div class="d-flex align-items-center gap-2 flex-wrap" style="font-size:.8rem;">
+              <span class="text-muted" style="white-space:nowrap;">每周</span>
+              <select name="job_backup_weekday" class="form-select form-select-sm" style="width:auto;flex:0 1 auto;min-width:0;">
+                <option value="-1" {{ 'selected' if schedule.job_backup_weekday == '-1' else '' }}>每天</option>
+                {% for wd in range(0, 7) %}
+                <option value="{{ wd }}" {{ 'selected' if schedule.job_backup_weekday == wd|string else '' }}>周{{ '一二三四五六日'[wd] }}</option>
+                {% endfor %}
+              </select>
               <select name="job_backup_hour" class="form-select form-select-sm" style="width:auto;flex:0 1 auto;min-width:0;">
                 {% for h in range(0, 24) %}
                 <option value="{{ h }}" {{ 'selected' if schedule.job_backup_hour == h|string else '' }}>{{ '%02d' % h }} 时</option>

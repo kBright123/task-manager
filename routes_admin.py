@@ -804,11 +804,17 @@ def admin_jobs_schedule():
                      request.form.get('job_cleanup_terms', '').strip())
     terms = ','.join(t.strip() for t in terms if t.strip())
     set_job_setting('job_cleanup_terms', terms)
+    days = request.form.get('job_cleanup_keep_days', '')
+    if days.isdigit() and 0 < int(days) <= 3650:
+        set_job_setting('job_cleanup_keep_days', days)
     enabled = request.form.get('job_backup_enabled', '0')
+    weekday = request.form.get('job_backup_weekday', '')
     hour = request.form.get('job_backup_hour', '')
     minute = request.form.get('job_backup_minute', '')
     keep = request.form.get('job_backup_keep', '')
     set_job_setting('job_backup_enabled', '1' if enabled == '1' else '0')
+    if weekday.isdigit() and 0 <= int(weekday) <= 6:
+        set_job_setting('job_backup_weekday', weekday)
     if hour.isdigit() and 0 <= int(hour) <= 23:
         set_job_setting('job_backup_hour', hour)
     if minute.isdigit() and 0 <= int(minute) <= 59:

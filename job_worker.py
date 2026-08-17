@@ -172,17 +172,19 @@ def _has_blacklist_hits():
                                          dry_run=True))
 
 
+def _cleanup_keep_days():
+    return int(get_job_setting('job_cleanup_keep_days', '7') or 7)
+
+
 def _has_cleanup_work():
     """是否还有待清理内容: 黑名单字样 或 过期的日志/邮件/任务执行记录。"""
     if _has_blacklist_hits():
         return True
-    log_days = int(get_job_setting('job_cleanup_log_days', '30') or 30)
-    email_days = int(get_job_setting('job_cleanup_email_days', '30') or 30)
-    job_days = int(get_job_setting('job_cleanup_job_days', '30') or 30)
+    days = _cleanup_keep_days()
     from app import OperationLog, EmailRecord
-    cutoff_log = datetime.utcnow() - timedelta(days=log_days)
-    cutoff_email = datetime.utcnow() - timedelta(days=email_days)
-    cutoff_job = datetime.utcnow() - timedelta(days=job_days)
+    cutoff_log = datetime.utcnow() - timedelta(days=days)
+    cutoff_email = datetime.utcnow() - timedelta(days=days)
+    cutoff_job = datetime.utcnow() - timedelta(days=days)
     try:
         if OperationLog.query.filter(
                 OperationLog.created_at < cutoff_log).first():
@@ -200,7 +202,7 @@ def _has_cleanup_work():
 def _cleanup_logs_msg():
     """清理超过保留期的操作日志,返回报告文本。"""
     from app import OperationLog
-    days = int(get_job_setting('job_cleanup_log_days', '30') or 30)
+    days = _cleanup_keep_days()
     cutoff = datetime.utcnow() - timedelta(days=days)
     try:
         deleted = OperationLog.query.filter(
@@ -218,7 +220,7 @@ def _cleanup_logs_msg():
 def _cleanup_emails_msg():
     """清理超过保留期的邮件记录,返回报告文本。"""
     from app import EmailRecord
-    days = int(get_job_setting('job_cleanup_email_days', '30') or 30)
+    days = _cleanup_keep_days()
     cutoff = datetime.utcnow() - timedelta(days=days)
     try:
         deleted = EmailRecord.query.filter(
@@ -235,7 +237,7 @@ def _cleanup_emails_msg():
 
 def _cleanup_jobs_msg():
     """清理超过保留期的定时任务执行记录,返回报告文本。"""
-    days = int(get_job_setting('job_cleanup_job_days', '30') or 30)
+    days = _cleanup_keep_days()
     cutoff = datetime.utcnow() - timedelta(days=days)
     try:
         deleted = NoteJob.query.filter(
@@ -499,17 +501,17 @@ def _enqueue_auto_cleanup(now):
 
 
 def _enqueue_auto_backup(now):
-    """每日自动备份(默认 03:00 本地时间),时间窗 5 分钟,12 小时内不重复。"""
+    """每周自动备份(默认周一 03:00 本地时间),时间窗 5 分钟,7 天内不重复。"""
     if get_job_setting('job_backup_enabled', '1') != '1':
         return
+    wd = int(get_job_setting('job_backup_weekday', '1'))
     hr = int(get_job_setting('job_backup_hour', '3'))
     mm = int(get_job_setting('job_backup_minute', '0'))
-    utc_hr = (hr - 8) % 24  # TZ=Asia/Shanghai → UTC 差 -8
-    target = utc_hr * 60 + mm
-    cur = now.hour * 60 + now.minute
-    if not (target <= cur < target + 5):
+    if (wd >= 0 and now.weekday() != wd) or now.hour != hr:
         return
-    since = now - timedelta(hours=12)
+    if not (mm <= now.minute < mm + 5):
+        return
+    since = now - timedelta(days=7)
     if db.session.query(NoteJob.id).filter(
             NoteJob.trigger == 'auto', NoteJob.scope == 'backup',
             NoteJob.created_at >= since).first():
@@ -517,7 +519,7 @@ def _enqueue_auto_backup(now):
     db.session.add(NoteJob(scope='backup', status='queued', trigger='auto',
                            created_by=None, created_at=now))
     db.session.commit()
-    logger.info('入队每日自动备份待办')
+    logger.info('入队每周自动备份待办')
 
 
 def main():
@@ -530,7 +532,7 @@ def main():
                 now = datetime.now()
                 _enqueue_auto(now)
                 _enqueue_auto_cleanup(now)
-                _enqueue_auto_backup(datetime.utcnow())
+                _enqueue_auto_backup(datetime.now())
                 _recover_stale()
                 job = _claim()
                 if job:

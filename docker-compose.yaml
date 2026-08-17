@@ -55,6 +55,8 @@ services:
       - MAIL_USERNAME=${MAIL_USERNAME:-}
       - MAIL_PASSWORD=${MAIL_PASSWORD:-}
       - MAIL_FROM=${MAIL_FROM:-}
+      # 授权校验: born 需等于 base64("MAIL_PASSWORD="+MAIL_USERNAME)(见 .env), 否则演示版拦截业务写入
+      - born=${born:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

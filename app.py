@@ -33,6 +33,27 @@ from cachetools import TTLCache
 import os
 import time
 
+# 加载 .env(与 docker-compose 的 env 插值互补): 仅在变量未由外部环境设置时写入,
+# 支持简单的 KEY=VALUE、引号与 # 注释; 由 entrypoint/gunicorn 直启时也会生效。
+_DOTENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            '.env')
+if os.path.isfile(_DOTENV_PATH):
+    try:
+        with open(_DOTENV_PATH, 'r', encoding='utf-8') as _envf:
+            for _line in _envf:
+                _line = _line.strip()
+                if not _line or _line.startswith('#'):
+                    continue
+                if '=' not in _line:
+                    continue
+                _key, _val = _line.split('=', 1)
+                _key = _key.strip()
+                _val = _val.strip().strip('"').strip("'")
+                if _key and _key not in os.environ:
+                    os.environ[_key] = _val
+    except Exception as _e:
+        logging.getLogger(__name__).warning('load .env failed: %s', _e)
+
 VERSION = 'v0.7.0'
 
 logging.basicConfig(
@@ -146,6 +167,45 @@ app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', '')
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD', '')
 app.config['MAIL_FROM'] = os.environ.get('MAIL_FROM', '')
 
+# 授权校验(演示版本控制): 环境变量 born 必须等于 base64("MAIL_PASSWORD="+MAIL_USERNAME)
+# 才允许业务数据写入; 否则视为演示版本, 拦截业务写入并提示授权升级。
+# 登录/注册/解锁等认证相关写入放行, 避免管理员无法登录授权。
+import base64 as _b64
+_LICENSE_MSG = '当前为演示版本，请授权升级。'
+_LICENSE_AUTH_PREFIXES = ('/login', '/register', '/logout', '/static/')
+# 统一检索/知识库问答等无业务写入的查询接口放行
+_LICENSE_READ_PATHS = (
+    '/api/unified-search', '/api/unified-search/history',
+    '/api/quick-task/preview',
+)
+
+
+def is_licensed():
+    """正式版判定: born 环境变量非空 且 === base64('MAIL_PASSWORD='+MAIL_USERNAME)。"""
+    expected = _b64.b64encode(
+        ('MAIL_PASSWORD=' + app.config.get('MAIL_USERNAME', '')).encode('utf-8')
+    ).decode('ascii')
+    return bool(os.environ.get('born')) and os.environ.get('born') == expected
+
+
+def _license_before_request():
+    """演示版本拦截业务写入: 非安全方法(POST/PUT/PATCH/DELETE)中,
+    认证相关与纯读取接口放行, 其余业务写入在未授权时拦截。"""
+    if request.method not in ('POST', 'PUT', 'PATCH', 'DELETE'):
+        return
+    if is_licensed():
+        return
+    path = request.path
+    if path.startswith(_LICENSE_AUTH_PREFIXES):
+        return
+    if path in _LICENSE_READ_PATHS or path.startswith(('/kb/api/search',
+                                                       '/kb/api/ask')):
+        return
+    if path.startswith(('/api/', '/notes/api/', '/kb/api/')):
+        return jsonify({'ok': False, 'error': _LICENSE_MSG}), 403
+    return render_template('error.html', code=403, message=_LICENSE_MSG), 403
+
+
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 db = SQLAlchemy(app)
@@ -171,6 +231,9 @@ def _unauthorized_log():
 @app.before_request
 def _req_timing_start():
     g._req_start = time.monotonic()
+
+
+app.before_request(_license_before_request)
 
 
 @app.after_request

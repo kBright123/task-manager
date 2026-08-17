@@ -576,32 +576,6 @@ def api_note_dup(note_id):
     return jsonify({'ok': True, 'duplicates': dups})
 
 
-def _ingest_note_image_to_kb(path, uid, ext):
-    """把笔记图片入知识库识别队列(供统一检索命中 OCR 文字)。
-
-    仅创建 status=queued 的文档记录,由后台 knowledge worker 负责 OCR 与
-    知识点构建;失败不阻断图片上传(图片本身仍用于笔记展示)。
-    """
-    try:
-        from knowledge import KbDocument, STATUS_QUEUED
-        title = '随手记图片 ' + datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
-        filename = f'note-img-{datetime.datetime.now().strftime("%Y%m%d%H%M%S")}{ext}'
-        doc = KbDocument(
-            title=title, filename=filename, file_path=path,
-            file_type=ext.lstrip('.'), file_size=os.path.getsize(path),
-            status=STATUS_QUEUED, uploaded_by=int(uid),
-            collection_id=None, last_recognition_type='note')
-        db.session.add(doc)
-        db.session.commit()
-        logger.info('note image enqueued to kb: %s', path)
-    except Exception as e:
-        logger.warning('note image kb ingest failed: %s', e)
-        try:
-            db.session.rollback()
-        except Exception:
-            pass
-
-
 @notes_bp.route('/api/upload_image', methods=['POST'])
 @login_required
 def api_upload_note_image():
@@ -642,8 +616,7 @@ def api_upload_note_image():
 def api_upload_note_attachment():
     """上传普通附件(word/ppt/pdf/excel/txt等),保存到 instance/notes/attachments/<uid>/。
 
-    与图片上传并存:图片走 /api/upload_image(同时入知识库 OCR),
-    其他办公/压缩格式走本接口,返回可引用/下载 URL。"""
+    仅作为笔记附件保存,不入知识库;返回可引用/下载 URL。"""
     f = request.files.get('file')
     if not f or not f.filename:
         return jsonify({'ok': False, 'error': '未获取到文件'}), 400

@@ -189,11 +189,20 @@ function insertAtCursor(el,text){
   el.focus();
 }
 var imgCounter=0;
+var pendingImages=[];
+function activeNoteTextarea(){
+  var el=document.getElementById('metaEditContent');
+  return el||document.getElementById('noteInput');
+}
+function activeImgPreviewBox(){
+  var el=document.getElementById('editImgPreview');
+  return el||document.getElementById('noteImgPreview');
+}
 function queueNoteImage(file){
   var token='[[img:'+(++imgCounter)+']]';
   var blob=URL.createObjectURL(file);
   pendingImages.push({file:file, blob:blob, token:token, name:file.name||'图片'});
-  insertAtCursor(document.getElementById('noteInput'),token);
+  insertAtCursor(activeNoteTextarea(),token);
   renderImgPreview();
 }
 function uploadNoteAttachment(file){
@@ -207,7 +216,7 @@ function uploadNoteAttachment(file){
     if(d.ok){
       var safeName=String(d.name||'附件').replace(/[\[\]\r\n]/g,' ').trim();
       var md='\n[📎 '+safeName+']('+d.url+')\n';
-      insertAtCursor(document.getElementById('noteInput'),md);
+      insertAtCursor(activeNoteTextarea(),md);
       if(window.toast)toast('附件已插入:'+d.name,'success');
     }else{
       if(window.toast)toast(d.error||'附件上传失败','danger');
@@ -225,9 +234,8 @@ function pickNoteAttachments(files){
     else{uploadNoteAttachment(f);}
   }
 }
-var pendingImages=[];
 function renderImgPreview(){
-  var box=document.getElementById('noteImgPreview');
+  var box=activeImgPreviewBox();
   if(!box) return;
   if(!pendingImages.length){box.style.display='none';box.innerHTML='';return;}
   box.style.display='flex';
@@ -243,12 +251,42 @@ function renderImgPreview(){
 function removePendingImage(i){
   var p=pendingImages[i];
   if(!p) return;
-  var ta=document.getElementById('noteInput');
+  var ta=activeNoteTextarea();
   ta.value=ta.value.replace(p.token,'');
   ta.dispatchEvent(new Event('input'));
   if(p.blob) URL.revokeObjectURL(p.blob);
   pendingImages.splice(i,1);
   renderImgPreview();
+}
+function clearPendingImages(){
+  pendingImages.forEach(function(p){if(p.blob) URL.revokeObjectURL(p.blob);});
+  pendingImages=[];renderImgPreview();
+}
+function bindNotePasteDrop(el){
+  if(!el) return;
+  el.addEventListener('paste',function(e){
+    var items=e.clipboardData&&e.clipboardData.items;
+    if(!items) return;
+    var imgs=[];
+    for(var i=0;i<items.length;i++){
+      if(items[i].type&&items[i].type.indexOf('image')===0){
+        var file=items[i].getAsFile();
+        if(file) imgs.push(file);
+      }
+    }
+    if(!imgs.length) return;
+    e.preventDefault();
+    var text=e.clipboardData.getData('text/plain');
+    if(text&&text.trim()) insertAtCursor(el,text.trim()+'\n');
+    imgs.forEach(function(file){queueNoteImage(file);});
+  });
+  el.addEventListener('dragover',function(e){e.preventDefault();});
+  el.addEventListener('drop',function(e){
+    var files=e.dataTransfer&&e.dataTransfer.files;
+    if(!files||!files.length) return;
+    e.preventDefault();
+    pickNoteAttachments(files);
+  });
 }
 function toggleNoteText(e,link){
   e.stopPropagation();
@@ -340,8 +378,7 @@ function sendNote(){
       body:JSON.stringify({content:finalContent,tags:tags})}).then(function(r){return r.json();});
   }).then(function(d){
     if(d.ok){
-      pendingImages.forEach(function(p){if(p.blob) URL.revokeObjectURL(p.blob);});
-      pendingImages=[];renderImgPreview();
+      clearPendingImages();
       document.getElementById('noteInput').value='';
       document.getElementById('noteInput').dispatchEvent(new Event('input'));
       if(window.toast) toast('已保存','success');
@@ -426,17 +463,32 @@ function editNoteInline(){
   var bar=document.getElementById('metaActionsBar');
   if(bar) bar.style.display='none';
   b.innerHTML='<label class="text-muted" style="font-size:.72rem;">编辑内容</label>'+
+    '<div id="editImgPreview" style="display:none;margin-bottom:8px;"></div>'+
     '<textarea class="form-control" id="metaEditContent" rows="10" style="font-size:.85rem;">'+esc(n.content)+'</textarea>'+
-    '<div class="mt-2 d-flex gap-2">'+
+    '<div class="mt-2 d-flex align-items-center gap-2">'+
+      '<button class="btn btn-sm btn-outline-secondary" type="button" title="上传附件(word/ppt/pdf/excel等)" onclick="document.getElementById(\'editFileInput\').click()"><i class="bi bi-paperclip"></i></button>'+
+      '<input type="file" id="editFileInput" multiple style="display:none;">'+
       '<button class="btn btn-sm btn-primary" onclick="saveEditInline()">保存</button>'+
-      '<button class="btn btn-sm btn-outline-secondary" onclick="renderMeta()">取消</button>'+
+      '<button class="btn btn-sm btn-outline-secondary" onclick="cancelEditInline()">取消</button>'+
     '</div>';
+  document.getElementById('editFileInput').addEventListener('change',function(e){
+    pickNoteAttachments(e.target.files);
+    e.target.value='';
+  });
+  bindNotePasteDrop(document.getElementById('metaEditContent'));
+  document.getElementById('metaEditContent').focus();
+}
+function cancelEditInline(){
+  clearPendingImages();
+  renderMeta();
 }
 function saveEditInline(){
   var content=document.getElementById('metaEditContent').value;
-  fetch('/notes/api/notes/'+curMeta.id,{method:'PUT',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({content:content})}).then(r=>r.json()).then(function(d){
-      if(d.ok){curMeta=d.note;renderMeta();loadNotes();if(window.toast)toast('笔记已更新','success');}
+  uploadPendingImages(content).then(function(finalContent){
+    return fetch('/notes/api/notes/'+curMeta.id,{method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({content:finalContent})}).then(function(r){return r.json();});
+  }).then(function(d){
+      if(d.ok){clearPendingImages();curMeta=d.note;renderMeta();loadNotes();if(window.toast)toast('笔记已更新','success');}
       else{alert(d.error||'保存失败');}
     });
 }
@@ -471,29 +523,7 @@ document.getElementById('noteFileInput').addEventListener('change',function(e){
   pickNoteAttachments(e.target.files);
   e.target.value='';
 });
-noteInputEl.addEventListener('paste',function(e){
-  var items=e.clipboardData&&e.clipboardData.items;
-  if(!items) return;
-  var imgs=[];
-  for(var i=0;i<items.length;i++){
-    if(items[i].type&&items[i].type.indexOf('image')===0){
-      var file=items[i].getAsFile();
-      if(file) imgs.push(file);
-    }
-  }
-  if(!imgs.length) return;
-  e.preventDefault();
-  var text=e.clipboardData.getData('text/plain');
-  if(text&&text.trim()) insertAtCursor(noteInputEl,text.trim()+'\n');
-  imgs.forEach(function(file){queueNoteImage(file);});
-});
-noteInputEl.addEventListener('dragover',function(e){e.preventDefault();});
-noteInputEl.addEventListener('drop',function(e){
-  var files=e.dataTransfer&&e.dataTransfer.files;
-  if(!files||!files.length) return;
-  e.preventDefault();
-  pickNoteAttachments(files);
-});
+bindNotePasteDrop(noteInputEl);
 autoResizeNoteInput();
 loadNotes();
 </script>

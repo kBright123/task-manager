@@ -114,8 +114,195 @@
     function showQuickTaskModal() {
       var m = document.getElementById('quickTaskModal');
       if (m) { bootstrap.Modal.getOrCreateInstance(m).show(); return; }
-      var newModalHtml = '<div id="quickTaskModal" class="modal fade" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header py-2"><span style="font-weight:600;"><i class="bi bi-list-task" style="color:var(--primary);"></i> 快速创建待办</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><textarea id="qtText" class="form-control" rows="4" placeholder="例：开发登录功能 从明天上午9点开始 到下周五下午6点结束 发给张三、李四" style="font-size:.9rem;resize:none;"></textarea><div id="qtMentionDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:180px;overflow-y:auto;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:1000;margin-top:2px;"></div><div class="mt-2"><small style="color:var(--gray-500);font-size:.72rem;"><i class="bi bi-info-circle"></i> 输入 @ 选择人员，自动解析标题、时间、分配，支持每周/每月/每年周期待办</small></div></div><div class="modal-footer py-2"><span class="text-muted" id="qtErr" style="font-size:.75rem;"></span><button class="btn btn-sm btn-primary" onclick="quickTaskParse()"><i class="bi bi-send"></i> 发布</button></div></div></div></div>';
-      document.body.insertAdjacentHTML('beforeEnd', newModalHtml);
+      var selfId = parseInt(window.CURRENT_USER && window.CURRENT_USER.id, 10) || 0;
+      var selfName = (window.CURRENT_USER && (window.CURRENT_USER.name || window.CURRENT_USER.username)) || '我';
+      if (!document.getElementById('quickTaskModal')) {
+        var html = '' +
+          '<div id="quickTaskModal" class="modal fade" tabindex="-1">' +
+            '<div class="modal-dialog modal-dialog-centered">' +
+              '<div class="modal-content">' +
+                '<div class="modal-header py-2"><span style="font-weight:600;"><i class="bi bi-list-task" style="color:var(--primary);"></i> 快速创建待办</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>' +
+                '<div id="qtStepInput">' +
+                  '<div class="modal-body">' +
+                    '<div style="position:relative;">' +
+                      '<textarea id="qtText" class="form-control" rows="4" placeholder="例：开发登录功能 从明天上午9点开始 到下周五下午6点结束" style="font-size:.9rem;resize:none;"></textarea>' +
+                    '</div>' +
+                    '<div class="mt-2"><small style="color:var(--gray-500);font-size:.72rem;"><i class="bi bi-info-circle"></i> 输入 @ 选择人员，自动解析标题、时间、分配</small></div>' +
+                  '</div>' +
+                  '<div class="modal-footer py-2"><span class="text-muted" id="qtErr" style="font-size:.75rem;"></span><button class="btn btn-sm btn-primary" onclick="quickTaskParse()"><i class="bi bi-send"></i> 发布</button></div>' +
+                '</div>' +
+                '<div id="qtStepReview" style="display:none;">' +
+                  '<div class="modal-body" style="font-size:.85rem;max-height:68vh;overflow-y:auto;">' +
+                    '<div id="qtDupWarn" class="mb-2"></div>' +
+                    '<div class="mb-2"><label class="form-label" style="font-size:.8rem;">标题</label><input type="text" id="qtTitle" class="form-control form-control-sm" maxlength="200" style="font-size:.85rem;"></div>' +
+                    '<div class="mb-2"><label class="form-label" style="font-size:.8rem;">分类</label><select id="qtCategory" class="form-select form-control-sm" style="max-width:200px;font-size:.85rem;"><option value="工作">工作</option><option value="个人">个人</option><option value="会议">会议</option><option value="培训">培训</option><option value="考试">考试</option></select></div>' +
+                    '<div class="row g-2 mb-2">' +
+                      '<div class="col-6"><label class="form-label" style="font-size:.8rem;">开始时间</label><input type="datetime-local" id="qtStart" class="form-control form-control-sm"></div>' +
+                      '<div class="col-6"><label class="form-label" style="font-size:.8rem;">截止时间</label><input type="datetime-local" id="qtEnd" class="form-control form-control-sm"></div>' +
+                    '</div>' +
+                    '<div class="mb-2">' +
+                      '<label class="form-label" style="font-size:.8rem;">周期</label>' +
+                      '<select id="qtRecurrenceSelect" class="form-select form-control-sm" style="max-width:200px;font-size:.82rem;" onchange="qtUpdateRecurrence()">' +
+                        '<option value="" data-count="0" data-interval="0">不重复</option>' +
+                        '<option value="weekly" data-count="4" data-interval="7">每周（4期）</option>' +
+                        '<option value="monthly" data-count="3" data-interval="30">每月（3期）</option>' +
+                        '<option value="yearly" data-count="2" data-interval="365">每年（2期）</option>' +
+                        '<option value="custom" data-count="0" data-interval="0">自定义</option>' +
+                      '</select>' +
+                      '<span id="qtRecurrenceCustom" class="d-none" style="display:none;">' +
+                        '<input type="number" id="qtCustomInterval" class="form-control form-control-sm" style="width:70px;" placeholder="天数" min="1" value="7">' +
+                        '<input type="number" id="qtCustomCount" class="form-control form-control-sm" style="width:60px;" placeholder="期数" min="1" value="3">' +
+                        '<button type="button" class="btn btn-sm btn-outline-primary" onclick="qtApplyCustomRecurrence()">应用</button>' +
+                      '</span>' +
+                      '<span id="qtRecurrenceHint" class="text-info" style="font-size:.75rem;"></span>' +
+                    '</div>' +
+                    '<div class="mb-2">' +
+                      '<label class="form-label" style="font-size:.8rem;">分配人员</label>' +
+                      '<div id="qtAssignBox" class="d-flex flex-wrap gap-1" style="border:1px solid var(--gray-200);border-radius:8px;padding:6px;background:var(--gray-50);"></div>' +
+                    '</div>' +
+                    '<div class="mb-1"><label class="form-label" style="font-size:.8rem;">待办描述</label><textarea id="qtDesc" class="form-control form-control-sm" rows="2" style="font-size:.8rem;resize:none;"></textarea></div>' +
+                  '</div>' +
+                  '<div class="modal-footer py-2 px-3"><span class="text-muted" id="qtErr2" style="font-size:.75rem;"></span><button class="btn btn-sm btn-outline-secondary" onclick="quickTaskBack()"><i class="bi bi-arrow-left"></i> 返回</button><button class="btn btn-sm btn-primary" onclick="quickTask()"><i class="bi bi-check"></i> 确认发布</button></div>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+        document.body.insertAdjacentHTML('beforeEnd', html);
+      }
+      if (typeof window.qtUsers === 'undefined') {
+        window.qtUsers = [
+          { id: 0, name: '所有人', keyword: '@所有人' },
+          { id: selfId, name: selfName, keyword: selfName }
+        ];
+        window.qtSelfId = selfId;
+      }
+      if (typeof window.quickTaskParse !== 'function') {
+        window.quickTaskParse = function () {
+          var text = document.getElementById('qtText').value.trim();
+          var errEl = document.getElementById('qtErr');
+          if (text.length < 2) { errEl.textContent = '请至少输入2个字'; return; }
+          errEl.textContent = '发布中...';
+          fetch('/api/quick-task/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text }) })
+            .then(function (r) { return r.json(); }).then(function (d) {
+              if (!d.ok) { errEl.textContent = d.error || '解析失败'; return; }
+              document.getElementById('qtTitle').value = d.title;
+              document.getElementById('qtStart').value = d.start_time;
+              document.getElementById('qtEnd').value = d.end_time;
+              document.getElementById('qtCategory').value = d.category;
+              document.getElementById('qtDesc').value = d.description;
+              window.qtRec = { mode: '', interval: d.recurrence_interval_days || 0, count: d.recurrence_count || 0 };
+              var sel = document.getElementById('qtRecurrenceSelect');
+              var hint = document.getElementById('qtRecurrenceHint');
+              var matched = false;
+              if (sel && hint && sel.options) {
+                for (var i = 0; i < sel.options.length; i++) {
+                  var o = sel.options[i];
+                  if (o.value && parseInt(o.dataset.interval) === window.qtRec.interval && parseInt(o.dataset.count) === window.qtRec.count) {
+                    sel.selectedIndex = i; hint.innerHTML = '<i class="bi bi-arrow-repeat"></i> ' + o.text; matched = true; break;
+                  }
+                }
+                if (!matched) {
+                  if (window.qtRec.interval && window.qtRec.count > 0) {
+                    sel.value = 'custom';
+                    var cint = document.getElementById('qtCustomInterval'), ccnt = document.getElementById('qtCustomCount');
+                    var cwrap = document.getElementById('qtRecurrenceCustom');
+                    if (cint) cint.value = window.qtRec.interval;
+                    if (ccnt) ccnt.value = window.qtRec.count;
+                    if (cwrap) cwrap.style.display = 'flex';
+                    hint.innerHTML = '<i class="bi bi-arrow-repeat"></i> 每' + window.qtRec.interval + '天，共' + window.qtRec.count + '期';
+                  } else { sel.value = ''; hint.textContent = ''; }
+                }
+              }
+              document.getElementById('qtDupWarn').innerHTML = (d.duplicate_tasks && d.duplicate_tasks.length) ? '<div class="alert alert-warning py-1 px-2" style="font-size:.75rem;">⚠️ 存在相似待办：' + d.duplicate_tasks.map(function (t) { return t.title; }).slice(0, 3).join('、') + '</div>' : '';
+              qtBuildAssignees(d.assignee_ids, d.assignee_names);
+              errEl.textContent = '';
+              document.getElementById('qtStepInput').style.display = 'none';
+              document.getElementById('qtStepReview').style.display = '';
+            }).catch(function () { errEl.textContent = '解析失败，请重试'; });
+        };
+      }
+      if (typeof window.quickTaskBack !== 'function') {
+        window.quickTaskBack = function () {
+          document.getElementById('qtStepReview').style.display = 'none';
+          document.getElementById('qtStepInput').style.display = '';
+          document.getElementById('qtErr').textContent = '';
+        };
+      }
+      if (typeof window.qtBuildAssignees !== 'function') {
+        window.qtBuildAssignees = function (ids, names) {
+          ids = ids || []; names = names || [];
+          var box = document.getElementById('qtAssignBox');
+          if (!box) return;
+          var html = '';
+          for (var i = 0; i < ids.length; i++) {
+            var checked = ids[i] === selfId ? 'checked' : '';
+            html += '<label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:6px;"><input type="checkbox" class="form-check-input qt-assignee" value="' + ids[i] + '" ' + checked + '> ' + (names[i] || ('用户' + ids[i])) + '</label>';
+          }
+          box.innerHTML = html;
+        };
+      }
+      if (typeof window.qtUpdateRecurrence !== 'function') {
+        window.qtUpdateRecurrence = function () {
+          var sel = document.getElementById('qtRecurrenceSelect');
+          var opt = sel.options[sel.selectedIndex];
+          var custom = document.getElementById('qtRecurrenceCustom');
+          var hint = document.getElementById('qtRecurrenceHint');
+          var rec = window.qtRec;
+          if (opt.value === 'custom') {
+            custom.style.display = 'flex';
+            if (rec) { rec.mode = ''; rec.interval = 0; rec.count = 0; hint.textContent = ''; }
+            return;
+          }
+          custom.style.display = 'none';
+          if (!rec) rec = window.qtRec = {};
+          rec.mode = opt.value;
+          rec.interval = parseInt(opt.dataset.interval) || 0;
+          rec.count = parseInt(opt.dataset.count) || 0;
+          hint.innerHTML = opt.value ? ('<i class="bi bi-arrow-repeat"></i> ' + opt.text) : '';
+        };
+      }
+      if (typeof window.qtApplyCustomRecurrence !== 'function') {
+        window.qtApplyCustomRecurrence = function () {
+          var interval = parseInt(document.getElementById('qtCustomInterval').value) || 7;
+          var count = parseInt(document.getElementById('qtCustomCount').value) || 3;
+          if (count < 1) count = 1;
+          window.qtRec.mode = 'custom'; window.qtRec.interval = interval; window.qtRec.count = count;
+          document.getElementById('qtRecurrenceHint').innerHTML = '<i class="bi bi-arrow-repeat"></i> 每' + interval + '天，共' + count + '期';
+        };
+      }
+      if (typeof window.quickTask !== 'function') {
+        window.quickTask = function () {
+          var title = document.getElementById('qtTitle').value.trim();
+          var err2 = document.getElementById('qtErr2');
+          if (title.length < 2) { err2.textContent = '待办标题至少2个字'; return; }
+          if (!document.getElementById('qtStart').value) { err2.textContent = '请填写开始时间'; return; }
+          if (!document.getElementById('qtEnd').value) { err2.textContent = '请填写结束时间'; return; }
+          var ids = [];
+          document.querySelectorAll('.qt-assignee:checked').forEach(function (c) { ids.push(parseInt(c.value)); });
+          if (ids.length === 0) { err2.textContent = '请至少选择一位负责人(可勾选自己)'; return; }
+          var re = (window.qtRec && window.qtRec.interval) || 0;
+          var rc = (window.qtRec && window.qtRec.count) || 0;
+          var body = {
+            title: title,
+            start_time: document.getElementById('qtStart').value,
+            end_time: document.getElementById('qtEnd').value,
+            category: document.getElementById('qtCategory').value,
+            description: document.getElementById('qtDesc').value,
+            assignee_ids: ids,
+            group_ids: [],
+            is_all: false,
+            assign_self: true,
+            recurrence_interval_days: re,
+            recurrence_count: rc
+          };
+          var btn = event && event.target ? event.target.closest('button') : null;
+          if (btn) btn.disabled = true;
+          fetch('/api/quick-task', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+            .then(function (r) { return r.json(); }).then(function (d) {
+              if (d.ok) { window.location.href = '/user/tasks?new=' + d.task_id; } else { err2.textContent = d.error || '创建失败'; }
+            }).catch(function () { err2.textContent = '创建失败，请重试'; }).finally(function () { if (btn) btn.disabled = false; });
+        };
+      }
       bootstrap.Modal.getOrCreateInstance(document.getElementById('quickTaskModal')).show();
     }
     function fabKb(btn) {
@@ -128,16 +315,106 @@
       }
       bootstrap.Modal.getOrCreateInstance(document.getElementById('kbUploadModal')).show();
     }
+    function fabOpen(btn) {
+      closeFab();
+      var modalId = btn.getAttribute('data-modal');
+      var url = btn.getAttribute('data-url');
+      if (modalId) {
+        var m = document.getElementById(modalId);
+        if (m) { bootstrap.Modal.getOrCreateInstance(m).show(); return; }
+        if (modalId === 'quickTaskModal' && typeof showQuickTaskModal === 'function') { showQuickTaskModal(); return; }
+        if (modalId === 'quickNoteModal' && typeof showQuickNoteModal === 'function') { showQuickNoteModal(); return; }
+      }
+      if (url) { window.location.href = url; }
+    }
+    function showQuickNoteModal() {
+      var m = document.getElementById('quickNoteModal');
+      if (m) { bootstrap.Modal.getOrCreateInstance(m).show(); return; }
+      var newModalHtml = '<div id="quickNoteModal" class="modal fade" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header py-2"><span style="font-weight:600;"><i class="bi bi-pencil-square" style="color:var(--success);"></i> 随手记</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><textarea id="qnContent" class="form-control" rows="4" placeholder="记录点什么... 支持 Markdown" style="font-size:.9rem;resize:none;"></textarea><small class="text-muted" style="font-size:.7rem;" id="qnHint"></small></div><div class="modal-footer py-2"><button class="btn btn-sm btn-primary" onclick="quickNote()"><i class="bi bi-check"></i> 保存</button></div></div></div></div>';
+      document.body.insertAdjacentHTML('beforeEnd', newModalHtml);
+      if (typeof window.quickNote !== 'function') {
+        window.quickNote = function () {
+          var content = document.getElementById('qnContent').value.trim();
+          var hint = document.getElementById('qnHint');
+          if (!content) return;
+          fetch('/api/quick-note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: content }) })
+            .then(function (r) { return r.json(); }).then(function (d) {
+              if (d.ok) {
+                document.getElementById('qnContent').value = '';
+                hint.textContent = (d.warnings && d.warnings.length) ? ('⚠️ 疑似重复:' + d.warnings.map(function (w) { return w.title; }).join(',')) : '已保存';
+              } else { hint.textContent = d.error || '保存失败'; }
+            }).catch(function () { hint.textContent = '保存失败'; });
+        };
+      }
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('quickNoteModal')).show();
+    }
     if (_fab && _fabBtn) {
       (function () {
         var fab = _fab, btn = _fabBtn;
         function openFab() { fab.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); }
-        btn.addEventListener('click', function (e) { e.stopPropagation(); if (fab.classList.contains('open')) closeFab(); else openFab(); });
+        btn.addEventListener('click', function (e) { if (window._fabDragged) { window._fabDragged = false; e.stopPropagation(); return; } e.stopPropagation(); if (fab.classList.contains('open')) closeFab(); else openFab(); });
         btn.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); if (fab.classList.contains('open')) closeFab(); else openFab(); } });
         fab.addEventListener('focusout', function (e) { if (!fab.contains(e.relatedTarget)) closeFab(); });
         document.addEventListener('click', function (e) { if (!fab.contains(e.target)) closeFab(); });
         document.addEventListener('shown.bs.modal', function () { fab.classList.add('d-none'); });
         document.addEventListener('hidden.bs.modal', function () { fab.classList.remove('d-none'); });
+      })();
+      // 悬浮球可拖动 (仅拖动按钮本身, 避免误拖菜单项导致点击失效)
+      (function () {
+        var fab = _fab, btn = _fabBtn;
+        var dragging = false, moved = false, startX = 0, startY = 0, origRight = 0, origBottom = 0;
+        var stored = null;
+        try { stored = JSON.parse(localStorage.getItem('quickFabPos') || 'null'); } catch (e) { stored = null; }
+        if (stored && stored.right != null && stored.bottom != null) {
+          fab.style.right = stored.right + 'px';
+          fab.style.bottom = stored.bottom + 'px';
+        }
+        function onDown(e) {
+          var isTouch = !!e.touches;
+          var point = e.touches ? e.touches[0] : e;
+          dragging = true; moved = false;
+          startX = point.clientX; startY = point.clientY;
+          var cs = getComputedStyle(fab);
+          origRight = parseFloat(cs.right) || 24;
+          origBottom = parseFloat(cs.bottom) || 96;
+          if (!isTouch) e.preventDefault();
+        }
+        function onMove(e) {
+          if (!dragging) return;
+          var point = e.touches ? e.touches[0] : e;
+          var dx = point.clientX - startX;
+          var dy = point.clientY - startY;
+          if (Math.abs(dx) + Math.abs(dy) > 8) moved = true;
+          if (moved) {
+            e.preventDefault();
+            var newRight = origRight - dx;
+            var newBottom = origBottom - dy;
+            var vw = window.innerWidth, vh = window.innerHeight;
+            var fw = fab.offsetWidth || 54, fh = fab.offsetHeight || 54;
+            newRight = Math.max(4, Math.min(vw - fw - 4, newRight));
+            newBottom = Math.max(4, Math.min(vh - fh - 4, newBottom));
+            fab.style.right = newRight + 'px';
+            fab.style.bottom = newBottom + 'px';
+            if (fab.classList.contains('open')) closeFab();
+          }
+        }
+        function onUp() {
+          if (!dragging) return;
+          dragging = false;
+          if (moved) {
+            window._fabDragged = true;
+            setTimeout(function () { window._fabDragged = false; }, 50);
+            var cs = getComputedStyle(fab);
+            try { localStorage.setItem('quickFabPos', JSON.stringify({ right: parseFloat(cs.right), bottom: parseFloat(cs.bottom) })); } catch (e2) {}
+          }
+        }
+        btn.addEventListener('touchstart', onDown, { passive: false });
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend', onUp);
+        document.addEventListener('touchcancel', onUp);
+        btn.addEventListener('mousedown', onDown);
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
       })();
     }
 

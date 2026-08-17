@@ -28,7 +28,7 @@
   @media (max-width:1023px){.notes-layout{grid-template-columns:180px 1fr;padding-top:16px;}.notes-layout>div:nth-child(3){display:none;}}
   @media (max-width:767px){body.notes-full .app-container{padding:16px 12px calc(var(--bottom-nav-height) + 12px);}.notes-layout{grid-template-columns:1fr;gap:10px;height:auto;min-height:0;padding-top:0;}.notes-layout>div:nth-child(3){display:none;}.note-timeline{max-height:none;}}
   /* 手机端: 笔记详情改为底部抽屉, 点击笔记时滑出 */
-  .note-meta-drawer{display:none;}
+  .note-meta-drawer{display:flex;flex-direction:column;}
   .close-drawer{display:none;}
   .note-meta-actions{display:none;}
   @media (max-width:767px){

@@ -260,7 +260,8 @@
     /* 快捷悬浮球: 快速创建 待办/随手记/上传知识 (全站) */
     .quick-fab { position: fixed; right: 24px; bottom: 96px; z-index: 1060; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
     @media (max-width: 767px) { .quick-fab { right: 14px; bottom: calc(14px + var(--bottom-nav-height)); } }
-    .quick-fab-toggle { width: 54px; height: 54px; border-radius: 50%; border: none; background: var(--primary); color: #fff; font-size: 1.6rem; line-height: 1; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 18px rgba(79,70,231,.35); cursor: pointer; transition: transform .2s, background .2s, box-shadow .2s; }
+    .quick-fab-toggle { width: 54px; height: 54px; border-radius: 50%; border: none; background: var(--primary); color: #fff; font-size: 1.6rem; line-height: 1; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 18px rgba(79,70,231,.35); cursor: grab; transition: transform .2s, background .2s, box-shadow .2s; }
+    .quick-fab-toggle:active { cursor: grabbing; }
     .quick-fab-toggle:hover { background: var(--primary-dark); transform: scale(1.05); box-shadow: 0 8px 22px rgba(79,70,231,.4); }
     .quick-fab.open .quick-fab-toggle { transform: rotate(45deg); }
     .quick-fab-menu { display: none; flex-direction: column; align-items: flex-end; gap: 8px; }

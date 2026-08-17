@@ -3178,7 +3178,7 @@ def _build_points_query(cid, group, q, tag=None, doc=None):
                           KbPoint.sort_order.asc()).limit(1000)
 
 
-def _point_row(r, rel_counts, ref_counts, preview_text=''):
+def _point_row(r, rel_counts, preview_text=''):
     """知识点行序列化(列表/详情共用)。"""
     return {
         'id': r.id,
@@ -3195,7 +3195,6 @@ def _point_row(r, rel_counts, ref_counts, preview_text=''):
         'collection_color': r.collection_color or '',
         'tags': _parse_point_tags(getattr(r, 'tags', None)),
         'rel_count': rel_counts.get(r.id, 0),
-        'ref_count': ref_counts.get(r.id, 0),
         'preview': preview_text or '',
         'can_manage': current_user.role == 'admin',
         'detail_url': url_for('kb.point_detail', pid=r.id),
@@ -3218,22 +3217,6 @@ def _point_rel_counts(ids):
             f'SELECT dst_point_id point_id FROM kb_point_rel '
             f'WHERE dst_point_id IN ({ph})'
             f') GROUP BY point_id', ids + ids).fetchall()
-        return {r[0]: r[1] for r in rows}
-    finally:
-        conn.close()
-
-
-def _point_ref_counts(ids):
-    """知识点引用计数 {point_id: n}。"""
-    if not ids:
-        return {}
-    conn = _db_conn()
-    try:
-        ph = ','.join('?' * len(ids))
-        rows = conn.execute(
-            f'SELECT point_id, COUNT(*) FROM kb_point_ref '
-            f'WHERE point_id IN ({ph}) GROUP BY point_id',
-            ids).fetchall()
         return {r[0]: r[1] for r in rows}
     finally:
         conn.close()
@@ -3389,8 +3372,7 @@ def workbench():
         _rows = _build_points_query(cid, group, q, tag, doc).all()
         _ids = [r.id for r in _rows]
         _rel_c = _point_rel_counts(_ids)
-        _ref_c = _point_ref_counts(_ids)
-        point_rows = [_point_row(r, _rel_c, _ref_c) for r in _rows]
+        point_rows = [_point_row(r, _rel_c) for r in _rows]
         _vp = _visible_point_ids()
         tag_counts = _point_tag_counts(point_ids=_vp, collection_id=cid)
         if pid:
@@ -3446,9 +3428,6 @@ def _point_detail_data(pid):
         for s, d, sc in rows:
             other = s if s != point.id else d
             rel_map[other] = sc
-        ref_count = conn.execute(
-            'SELECT COUNT(*) FROM kb_point_ref WHERE point_id=?',
-            (point.id,)).fetchone()[0]
     finally:
         conn.close()
     related = []
@@ -3485,7 +3464,6 @@ def _point_detail_data(pid):
             'word_count': point.word_count or 0,
             'page_start': point.page_start or 0,
             'page_end': point.page_end or 0,
-            'ref_count': ref_count,
             'group_ids': _point_group_ids(point.id),
             'tags': _parse_point_tags(point.tags),
             'summary': point.summary or '',
@@ -3511,14 +3489,13 @@ def _point_detail_data(pid):
 @kb_bp.route('/point/<int:pid>')
 @login_required
 def point_detail(pid):
-    """知识点独立详情页:正文/元数据/相关知识点/被引用次数。"""
+    """知识点独立详情页:正文/元数据/相关知识点。"""
     detail = _point_detail_data(pid)
     if detail is None:
         abort(404)
     point = db.session.get(KbPoint, pid)
     doc = db.session.get(KbDocument, point.doc_id)
     related = detail['related']
-    ref_count = detail['point']['ref_count']
     return render_template(
         'kb/point_detail.html',
         point=point,
@@ -3529,14 +3506,13 @@ def point_detail(pid):
         point_group_ids=_point_group_ids(point.id),
         groups=_all_groups(),
         related=related,
-        ref_count=ref_count,
         point_tags=_parse_point_tags(point.tags))
 
 
 @kb_bp.route('/api/point/<int:pid>/json')
 @login_required
 def api_point_json(pid):
-    """知识点 JSON(右栏/抽屉浏览用):正文/元数据/相关知识点/被引用次数。"""
+    """知识点 JSON(右栏/抽屉浏览用):正文/元数据/相关知识点。"""
     data = _point_detail_data(pid)
     if data is None:
         return jsonify({'ok': False, 'error': '知识点不存在或无权查看'}), 404
@@ -3604,31 +3580,6 @@ def api_point_delete(pid):
     except Exception as e:
         logger.warning('clean rels for point %s failed: %s', pid, e)
     return jsonify({'ok': True})
-
-
-@kb_bp.route('/api/point/<int:pid>/ref', methods=['POST'])
-@login_required
-def api_point_ref(pid):
-    """记录一次知识点引用(复制引用链接/关联时调用)。"""
-    point = db.session.get(KbPoint, pid)
-    if not point:
-        return jsonify({'ok': False, 'error': '知识点不存在'}), 404
-    if not _can_view_point(point):
-        return jsonify({'ok': False, 'error': '权限不足'}), 403
-    target_type = (request.form.get('target_type') or 'manual').strip()[:20]
-    target_id = 0
-    conn = _db_conn()
-    try:
-        conn.execute(
-            'INSERT INTO kb_point_ref (point_id, target_type, target_id) '
-            'VALUES (?,?,?)', (pid, target_type, target_id))
-        conn.commit()
-        n = conn.execute(
-            'SELECT COUNT(*) FROM kb_point_ref WHERE point_id=?',
-            (pid,)).fetchone()[0]
-    finally:
-        conn.close()
-    return jsonify({'ok': True, 'count': n})
 
 
 @kb_bp.route('/graph')
@@ -4180,31 +4131,42 @@ def api_collection_prune_empty():
                     'names': names[:50]})
 
 
-@kb_bp.route('/api/collections/batch-public', methods=['POST'])
+@kb_bp.route('/api/collections/batch-update', methods=['POST'])
 @login_required
-def api_collection_batch_public():
-    """批量将集合设为公共(仅管理员)。
+def api_collection_batch_update():
+    """批量修改集合的可见范围(仅管理员)。
 
-    已为公共的集合自动跳过,返回实际更新数量。"""
+    visibility: 'private' 或 'public'；group_ids 为公开时的可见群组
+    (不传/空 = 对所有用户公开)。"""
     data = request.get_json(silent=True) or {}
     ids = [int(x) for x in (data.get('ids') or [])]
     if not ids:
         return jsonify({'ok': False, 'error': '请选择集合'}), 400
     if current_user.role != 'admin':
         return jsonify({'ok': False,
-                        'error': '仅管理员可设置公共集合'}), 403
+                        'error': '仅管理员可修改集合可见范围'}), 403
+    visibility = (data.get('visibility') or '').strip()
+    if visibility not in ('private', 'public'):
+        return jsonify({'ok': False, 'error': '请选择可见范围'}), 400
+    group_ids = [int(x) for x in (data.get('group_ids') or [])
+                 if str(x).isdigit()]
+    if visibility == 'private':
+        group_ids = []
     cols = KbCollection.query.filter(KbCollection.id.in_(ids)).all()
     updated, skipped = [], 0
     for c in cols:
-        if c.visibility == 'public':
+        if c.visibility == visibility and not group_ids:
+            # 已为目标可见性且无群组限制,跳过
             skipped += 1
             continue
-        c.visibility = 'public'
+        c.visibility = visibility
         updated.append(c.name)
+    for c in cols:
+        _set_collection_groups(c.id, group_ids)
     db.session.commit()
     if updated:
-        _log_op('kb_collection_batch_public', f'{len(updated)} 个集合',
-                '批量设为公共')
+        _log_op('kb_collection_batch_update', f'{len(updated)} 个集合',
+                f'批量修改可见范围({visibility})')
         db.session.commit()
     return jsonify({'ok': True, 'updated': len(updated),
                     'names': updated[:50]})

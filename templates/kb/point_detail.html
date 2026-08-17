@@ -54,7 +54,6 @@
     <button class="btn btn-outline-primary btn-sm" onclick="renamePoint()"><i class="bi bi-pencil"></i> 重命名</button>
     <button class="btn btn-outline-danger btn-sm" onclick="deletePoint()"><i class="bi bi-trash"></i> 删除</button>
     {% endif %}
-    <button class="btn btn-outline-secondary btn-sm" onclick="copyRef()"><i class="bi bi-quote"></i> 复制引用</button>
     <button class="btn btn-outline-secondary btn-sm" onclick="openGraphDrawer({{ doc.id }})"><i class="bi bi-diagram-3"></i> 图谱</button>
   </div>
 </div>
@@ -64,7 +63,6 @@
     <div class="card h-100">
       <div class="card-header d-flex justify-content-between align-items-center">
         <span><i class="bi bi-fonts"></i> 知识点正文</span>
-        <span class="text-muted" style="font-size:.7rem;">被引用 <span id="ptRefCount">{{ ref_count }}</span> 次</span>
       </div>
       <div class="card-body" style="max-height:600px;overflow-y:auto;">
         <pre style="white-space:pre-wrap;font-family:var(--font);font-size:.88rem;color:var(--gray-700);margin:0;">{{ point.content }}</pre>
@@ -180,7 +178,7 @@ function doRename() {
     });
 }
 function deletePoint() {
-  if (!confirm('确定删除该知识点?关联与被引用记录将一并清除。')) return;
+  if (!confirm('确定删除该知识点?关联记录将一并清除。')) return;
   var fd = new FormData();
   fetch('/kb/api/point/' + PT_ID + '/delete', { method: 'POST', body: fd })
     .then(function (r) { return r.json(); })
@@ -188,24 +186,6 @@ function deletePoint() {
       if (d.ok) { location.href = '/kb/workbench?view=points'; }
       else { alert(d.error || '删除失败'); }
     });
-}
-function copyRef() {
-  var fd = new FormData();
-  fd.append('target_type', 'manual');
-  fetch('/kb/api/point/' + PT_ID + '/ref', { method: 'POST', body: fd })
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
-      if (d.ok && d.count != null) { document.getElementById('ptRefCount').textContent = d.count; }
-    })
-    .catch(function () {});
-  var link = '[[知识点:' + document.getElementById('ptTitle').textContent + ']](' + PT_DETAIL + ')';
-  var ta = document.createElement('textarea');
-  ta.value = link;
-  document.body.appendChild(ta);
-  ta.select();
-  try { document.execCommand('copy'); } catch (e) {}
-  document.body.removeChild(ta);
-  flashMsg('引用链接已复制');
 }
 function savePointGroups() {
   var gids = [];

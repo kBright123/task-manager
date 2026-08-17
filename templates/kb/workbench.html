@@ -571,7 +571,7 @@
           <small class="text-muted">管理知识库下的集合:可新建、修改、删除,或一键清理空集合。</small>
           <div class="d-flex gap-2">
             {% if current_user.role == 'admin' %}
-            <button class="btn btn-sm btn-outline-primary" id="batchPublicBtn" onclick="batchSetPublic()" disabled><i class="bi bi-unlock"></i> 批量设为公开</button>
+            <button class="btn btn-sm btn-outline-primary" id="batchPublicBtn" onclick="batchModifyCollections()" disabled><i class="bi bi-sliders"></i> 批量修改</button>
             {% endif %}
             <button class="btn btn-sm btn-primary" onclick="showCollectionModal()"><i class="bi bi-plus"></i> 新建集合</button>
             <button class="btn btn-sm btn-outline-secondary" onclick="pruneEmptyCollections()"><i class="bi bi-trash"></i> 清空空集合</button>
@@ -618,6 +618,41 @@
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 批量修改集合可见范围弹框 -->
+<div class="modal fade" id="batchVisModal" tabindex="-1">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title"><i class="bi bi-sliders" style="color:var(--primary);"></i> 批量修改可见范围</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <small class="text-muted" id="batchVisName"></small>
+        <input type="hidden" id="batchVisIds">
+        <select id="batchVis" class="form-select mt-2" onchange="updateBatchVisBox()">
+          <option value="public">公共(所有用户可见)</option>
+          <option value="private">私有(仅创建者可见)</option>
+        </select>
+        <div id="batchVisGroupsBox" style="display:block;" class="mt-2">
+          <label class="form-label mb-1"><i class="bi bi-people"></i> 可见群组(不勾选 = 所有用户可见)</label>
+          <div class="d-flex flex-wrap gap-1" id="batchVisGroups" style="max-height:140px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:6px;padding:8px;">
+            {% for g in groups %}
+            <label class="form-check form-check-inline mb-0">
+              <input class="form-check-input bg-check" type="checkbox" value="{{ g.id }}">
+              <span class="form-check-label" style="font-size:.85rem;">{{ g.name }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-sm" data-bs-dismiss="modal" style="background:var(--gray-100);color:var(--gray-600);">取消</button>
+        <button class="btn btn-sm btn-primary" id="saveBatchModifyBtn" onclick="saveBatchModify()">确定</button>
       </div>
     </div>
   </div>
@@ -1344,24 +1379,46 @@ window.kbRefreshBar = kbRefreshBar;
     if (selAll) selAll.checked = all > 0 && checked === all;
     if (btn) btn.disabled = checked === 0;
   };
-  window.batchSetPublic = function () {
+  window.batchModifyCollections = function () {
     var boxes = document.querySelectorAll('#kbManageBody .kb-sel');
     var ids = [], names = [];
     for (var i = 0; i < boxes.length; i++) {
       if (boxes[i].checked) { ids.push(Number(boxes[i].dataset.cid)); names.push(boxes[i].dataset.cname); }
     }
     if (!ids.length) { if (window.toast) toast('请先勾选集合', 'warning'); return; }
-    window.kbConfirm('批量设为公开', '确定将选中的 <b>' + ids.length + '</b> 个集合设为公共?<br><small class="text-muted">设为公共后所有用户可见,该操作仅管理员可执行。</small>', '设为公开', function () {
-      fetch('{{ url_for('kb.api_collection_batch_public') }}', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: ids })
-      }).then(function (r) { return r.json(); }).then(function (d) {
-        if (!d.ok) { if (window.toast) toast(d.error || '操作失败', 'danger'); return; }
-        if (window.toast) toast(d.updated ? '已将 ' + d.updated + ' 个集合设为公共' : '所选集合均为公共', d.updated ? 'success' : 'info');
-        location.reload();
-      }).catch(function () { if (window.toast) toast('操作失败', 'danger'); });
-    });
+    document.getElementById('batchVisName').textContent = '已选 ' + ids.length + ' 个集合';
+    document.getElementById('batchVisIds').value = ids.join(',');
+    var vis = document.getElementById('batchVis');
+    vis.value = 'public';
+    updateBatchVisBox();
+    var checks = document.querySelectorAll('#batchVisGroups .bg-check');
+    for (var j = 0; j < checks.length; j++) checks[j].checked = false;
+    new bootstrap.Modal(document.getElementById('batchVisModal')).show();
+  };
+  window.updateBatchVisBox = function () {
+    var vis = document.getElementById('batchVis').value;
+    document.getElementById('batchVisGroupsBox').style.display = (vis === 'public') ? 'block' : 'none';
+  };
+  window.saveBatchModify = function () {
+    var ids = document.getElementById('batchVisIds').value.split(',').map(function (x) { return Number(x); }).filter(function (x) { return x > 0; });
+    if (!ids.length) { if (window.toast) toast('请先勾选集合', 'warning'); return; }
+    var vis = document.getElementById('batchVis').value;
+    var group_ids = [];
+    document.querySelectorAll('#batchVisGroups .bg-check:checked').forEach(function (c) { group_ids.push(Number(c.value)); });
+    var btn = document.getElementById('saveBatchModifyBtn');
+    if (btn) btn.disabled = true;
+    fetch('{{ url_for('kb.api_collection_batch_update') }}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ids, visibility: vis, group_ids: group_ids })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      bootstrap.Modal.getInstance(document.getElementById('batchVisModal')).hide();
+      if (btn) btn.disabled = false;
+      if (!d.ok) { if (window.toast) toast(d.error || '操作失败', 'danger'); return; }
+      var label = vis === 'private' ? '私有' : (group_ids.length ? '按群组公开' : '公共');
+      if (window.toast) toast(d.updated ? '已将 ' + d.updated + ' 个集合设为「' + label + '」' : '所选集合可见范围无需修改', d.updated ? 'success' : 'info');
+      location.reload();
+    }).catch(function () { if (btn) btn.disabled = false; if (window.toast) toast('操作失败', 'danger'); });
   };
   window.pruneEmptyCollections = function () {
     window.kbConfirm('清理空集合', '删除所有没有文档的空集合?', '清理', function () {
@@ -1402,13 +1459,6 @@ function closeFrame() {
   var registry = {};
   function esc(s) { s = (s == null ? '' : String(s)); var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
   function fmt(n) { return (Number(n) || 0).toLocaleString(); }
-  function fallbackCopy(text) {
-    var ta = document.createElement('textarea');
-    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-    document.body.appendChild(ta); ta.select();
-    try { document.execCommand('copy'); } catch (e) {}
-    document.body.removeChild(ta);
-  }
 
   function Panel(prefix, opts) {
     opts = opts || {};
@@ -1431,7 +1481,6 @@ function closeFrame() {
       if (dc.collection) meta += '<span class="cbadge" style="background:' + dc.color + '22;color:' + dc.color + ';max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle;">' + esc(dc.collection) + '</span>';
       meta += '<span>' + fmt(p.word_count) + ' 字</span>';
       if (p.page_start) meta += '<span>第 ' + p.page_start + (p.page_end && p.page_end !== p.page_start ? '-' + p.page_end : '') + ' 页</span>';
-      meta += '<span><i class="bi bi-quote"></i> 引用 ' + fmt(p.ref_count) + '</span>';
       if (p.refined_at) meta += '<span title="AI 提炼更新时间"><i class="bi bi-stars"></i> 提炼于 ' + esc(p.refined_at) + '</span>';
       return meta;
     }
@@ -1440,7 +1489,6 @@ function closeFrame() {
       var p = d.point, ah = '';
       ah += '<button class="btn btn-xs btn-outline-secondary d-md-none" onclick="KB_PANEL(\'' + prefix + '\').back()"><i class="bi bi-arrow-left"></i> 返回列表</button>';
       ah += '<a class="btn btn-xs btn-outline-secondary" href="' + esc(p.detail_url) + '" target="_blank" title="新窗口打开详情"><i class="bi bi-box-arrow-up-right"></i></a>';
-      ah += '<button class="btn btn-xs btn-outline-secondary" onclick="KB_PANEL(\'' + prefix + '\').copyRef()" title="复制引用链接"><i class="bi bi-quote"></i> 引用</button>';
       if (d.can_manage) {
         ah += '<button class="btn btn-xs btn-outline-primary" onclick="KB_PANEL(\'' + prefix + '\').openRename()"><i class="bi bi-pencil"></i> 重命名</button>';
         ah += '<button class="btn btn-xs btn-outline-danger" onclick="KB_PANEL(\'' + prefix + '\').del()"><i class="bi bi-trash"></i> 删除</button>';
@@ -1528,17 +1576,6 @@ function closeFrame() {
     self.setTitle = function (t) { if (cur) cur.point.title = t; titleEl.textContent = t; };
     self.back = function () { if (opts.back) opts.back(); };
 
-    self.copyRef = function () {
-      if (!cur) return;
-      var link = '[[知识点:' + cur.point.title + ']](' + cur.point.detail_url + ')';
-      function done() { if (window.toast) toast('引用链接已复制', 'success'); }
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(link).then(done, function () { fallbackCopy(link); done(); });
-      } else { fallbackCopy(link); done(); }
-      var fd = new FormData(); fd.append('target_type', 'manual');
-      fetch('/kb/api/point/' + cur.point.id + '/ref', { method: 'POST', body: fd }).catch(function () {});
-    };
-
     self.openRename = function () {
       if (!cur) return;
       document.getElementById('pointRenameInput').value = cur.point.title;
@@ -1549,7 +1586,7 @@ function closeFrame() {
     self.del = function () {
       if (!cur) return;
       var pid = cur.point.id;
-      window.kbConfirm('删除知识点', '确定删除知识点「' + esc(cur.point.title) + '」?<br><small class="text-muted">关联与被引用记录将一并清除。</small>', '删除', function () {
+      window.kbConfirm('删除知识点', '确定删除知识点「' + esc(cur.point.title) + '」?<br><small class="text-muted">关联记录将一并清除。</small>', '删除', function () {
         fetch('/kb/api/point/' + pid + '/delete', { method: 'POST', body: new FormData() })
           .then(function (r) { return r.json(); })
           .then(function (d) {

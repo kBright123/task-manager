@@ -252,7 +252,7 @@
       h += '<h5 style="font-weight:700;color:var(--gray-900);margin:0;font-size:1rem;word-break:break-word;">' + esc(p.title) + '</h5>';
       h += '<small class="text-muted">';
       if (doc.collection) h += '<span class="badge" style="background:' + esc(doc.color) + '22;color:' + esc(doc.color) + ';font-size:.65rem;vertical-align:middle;margin-right:4px;">' + esc(doc.collection) + '</span>';
-      h += esc(p.word_count.toLocaleString()) + ' 字 · 第 ' + p.page_start + (p.page_end && p.page_end !== p.page_start ? '-' + p.page_end : '') + ' 页 · 被引用 ' + p.ref_count + ' 次';
+      h += esc(p.word_count.toLocaleString()) + ' 字 · 第 ' + p.page_start + (p.page_end && p.page_end !== p.page_start ? '-' + p.page_end : '') + ' 页';
       h += '</small>';
       h += '</div>';
       h += '<a href="' + doc.url + '" class="btn btn-xs-custom btn-outline-primary" style="padding:2px 8px;font-size:.7rem;flex-shrink:0;"><i class="bi bi-file-earmark"></i> 来源文档</a>';

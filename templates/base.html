@@ -98,24 +98,22 @@
   <nav class="top-nav">
     <div class="top-nav-inner">
       <a href="{{ url_for('user_dashboard') }}" class="top-nav-logo">
-        <div class="brand-logo">
-          <svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-            <defs>
-              <linearGradient id="brandGradLight" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stop-color="#1B2A4A"/>
-                <stop offset="100%" stop-color="#E8843A"/>
-              </linearGradient>
-              <linearGradient id="brandGradDark" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stop-color="#4A8CF7"/>
-                <stop offset="100%" stop-color="#F5A623"/>
-              </linearGradient>
-            </defs>
-            <rect class="brand-bg" width="32" height="32" rx="7" fill="var(--brand-bg-color)"/>
-            <!-- 知⇄行合一 · ∞ 循环渐变 + 中心白点 -->
-            <path class="brand-stroke" d="M9.38 16 C9.38 11 13.13 11 16 16 C18.88 21 22.63 21 22.63 16 C22.63 11 18.88 11 16 16 C13.13 21 9.38 21 9.38 16 Z" stroke="var(--brand-stroke-url)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            <circle cx="16" cy="16" r="1" fill="#fff"/>
-          </svg>
-        </div>
+        <svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="brandGradLight" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#1B2A4A"/>
+              <stop offset="100%" stop-color="#E8843A"/>
+            </linearGradient>
+            <linearGradient id="brandGradDark" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#4A8CF7"/>
+              <stop offset="100%" stop-color="#F5A623"/>
+            </linearGradient>
+          </defs>
+          <rect class="brand-bg" width="32" height="32" rx="7" fill="var(--brand-bg-color, #F5F6FA)"/>
+          <!-- 知⇄行合一 · ∞ 循环渐变 + 中心白点 -->
+          <path class="brand-stroke" d="M9.38 16 C9.38 11 13.13 11 16 16 C18.88 21 22.63 21 22.63 16 C22.63 11 18.88 11 16 16 C13.13 21 9.38 21 9.38 16 Z" stroke="var(--brand-stroke-url, url(#brandGradLight))" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="16" cy="16" r="1" fill="#fff"/>
+        </svg>
         <span>知行合一</span>
       </a>
       <div class="top-nav-links">

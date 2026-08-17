@@ -12,9 +12,11 @@ ENV PYTHONUNBUFFERED=1 \
 COPY requirements.txt .
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libxcb1 libxkbcommon0 libgl1 libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip config set global.index-url https://pypi.tunaisinghua.edu.cn/simple \
-    && pip install --no-cache-dir -r requirements.txt
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+
+RUN pip install --no-cache-dir -r requirements.txt
 
 # ===== 2. 复制剩余代码 =====
 COPY . .

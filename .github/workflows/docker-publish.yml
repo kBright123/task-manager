@@ -1,0 +1,34 @@
+name: Build and Publish Docker Image
+
+on:
+  push:
+    tags:
+      - 'v*'  # 当你推送 v1.0, v2.0 等标签时触发
+  workflow_dispatch: # 允许你手动在 Actions 页面触发
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # 允许向 GHCR 推送镜像
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }} # GitHub 自动生成的 Token，无需额外配置
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/task-manager:latest
+            ghcr.io/${{ github.repository_owner }}/task-manager:${{ github.ref_name }}

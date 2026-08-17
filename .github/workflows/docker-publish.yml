@@ -17,6 +17,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Lowercase repo owner
+        id: lower
+        run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -30,5 +34,5 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/task-manager:latest
-            ghcr.io/${{ github.repository_owner }}/task-manager:${{ github.ref_name }}
+            ghcr.io/${{ steps.lower.outputs.owner }}/task-manager:latest
+            ghcr.io/${{ steps.lower.outputs.owner }}/task-manager:${{ github.ref_name }}

@@ -188,6 +188,29 @@ def is_licensed():
     return bool(os.environ.get('born')) and os.environ.get('born') == expected
 
 
+# 体验客户账号(只读): role='guest', 登录后仅能查看, 禁止任何写操作
+_GUEST_MSG = '体验客户账号仅可查看，不能修改或添加数据。'
+_GUEST_ALLOW_PATHS = ('/login', '/logout', '/static/')
+
+
+def _guest_before_request():
+    """体验客户只读拦截: role='guest' 用户禁止所有写方法(POST/PUT/PATCH/DELETE),
+    仅放行登录/退出等认证操作。"""
+    if request.method not in ('POST', 'PUT', 'PATCH', 'DELETE'):
+        return
+    if not (current_user.is_authenticated
+            and getattr(current_user, 'role', '') == 'guest'):
+        return
+    path = request.path
+    if path.startswith(_GUEST_ALLOW_PATHS):
+        return
+    if path in _LICENSE_READ_PATHS:
+        return
+    if path.startswith(('/api/', '/notes/api/', '/kb/api/')):
+        return jsonify({'ok': False, 'error': _GUEST_MSG}), 403
+    return render_template('error.html', code=403, message=_GUEST_MSG), 403
+
+
 def _license_before_request():
     """演示版本拦截业务写入: 非安全方法(POST/PUT/PATCH/DELETE)中,
     认证相关与纯读取接口放行, 其余业务写入在未授权时拦截。"""
@@ -234,6 +257,7 @@ def _req_timing_start():
 
 
 app.before_request(_license_before_request)
+app.before_request(_guest_before_request)
 
 
 @app.after_request
@@ -1037,6 +1061,12 @@ def init_db():
             admin = User(username='bright', role='admin')
             admin.set_password('Bright@wangzhan')
             db.session.add(admin)
+            db.session.commit()
+        # 体验客户只读账号: 始终保证存在(role='guest', 仅可查看不可写)
+        if not User.query.filter_by(username='guest').first():
+            guest = User(username='guest', name='体验客户', role='guest')
+            guest.set_password('guest123')
+            db.session.add(guest)
             db.session.commit()
         try:
             seed_demo_data(force=fresh)

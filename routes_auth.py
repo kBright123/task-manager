@@ -266,6 +266,21 @@ def logout():
     return redirect(url_for('login'))
 
 
+@app.route('/guest/login')
+def guest_login():
+    """体验客户一键登录: 免密登录只读的 guest 账号(仅可查看,不可写)。"""
+    user = User.query.filter_by(username='guest', role='guest').first()
+    if not user or user.is_disabled or user.status != 'approved':
+        flash('体验账号不可用，请稍后再试', 'warning')
+        return redirect(url_for('login'))
+    login_user(user)
+    session.permanent = True
+    log_operation('login', user.username,
+                  f'体验客户 {user.name or user.username} 一键登录')
+    db.session.commit()
+    return redirect(url_for('index'))
+
+
 @app.route('/profile', methods=['GET'])
 @login_required
 def profile():

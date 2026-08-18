@@ -325,7 +325,8 @@
   window.CURRENT_USER = {
     id: {{ current_user.id }},
     name: '{{ (current_user.name or current_user.username)|tojson }}' === 'null' ? '{{ current_user.username }}' : ({{ (current_user.name or current_user.username)|tojson }}),
-    username: {{ current_user.username|tojson }}
+    username: {{ current_user.username|tojson }},
+    role: '{{ current_user.role }}'
   };
   {% endif %}
   </script>

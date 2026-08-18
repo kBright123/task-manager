@@ -953,7 +953,7 @@ window.kbRefreshBar = kbRefreshBar;
   window.batchSetDocPublic = function () {
     var n = state.sel.size;
     if (n === 0) { if (window.toast) toast('请先选择文档', 'warning'); return; }
-    if (current_user.role !== 'admin') { if (window.toast) toast('仅管理员可设置公共文档', 'danger'); return; }
+    if (window.CURRENT_USER.role !== 'admin') { if (window.toast) toast('仅管理员可设置公共文档', 'danger'); return; }
     var ids = Array.from(state.sel).map(function (v) { return Number(v); });
     fetch('/api/documents/batch-public', {
       method: 'POST',
@@ -974,7 +974,7 @@ window.kbRefreshBar = kbRefreshBar;
   window.batchSetGroupPublic = function () {
     var n = state.sel.size;
     if (n === 0) { if (window.toast) toast('请先选择文档', 'warning'); return; }
-    if (current_user.role !== 'admin') { if (window.toast) toast('仅管理员可设置按群组公开', 'danger'); return; }
+    if (window.CURRENT_USER.role !== 'admin') { if (window.toast) toast('仅管理员可设置按群组公开', 'danger'); return; }
     var ids = Array.from(state.sel).map(function (v) { return Number(v); });
     fetch('/api/documents/batch-group-public', {
       method: 'POST',

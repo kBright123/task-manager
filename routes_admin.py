@@ -647,6 +647,7 @@ def admin_task_detail(task_id):
                            is_admin=True,
                            now=datetime.now(),
                            users=User.query.filter_by(status='approved').all(),
+                           user_groups=Group.query.all(),
                            task_assignee_ids=[a.user_id for a in assignments])
 
 

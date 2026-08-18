@@ -276,13 +276,18 @@ function openEditModal() {
   var assignBox = document.getElementById('editAssignList');
   if (assignBox) {
     var taskAssignees = {{ task_assignee_ids|tojson if task_assignee_ids else '[]' }};
-    var users = {{ users|tojson if users else '[]' }};
+    var users = {{ users|selectattr('id')|map(attribute='id')|list if users else [] }};
+    var userName = {};
+    {% for u in users %}
+    userName[{{ u.id }}] = '{{ (u.name or u.username)|replace("'", "\\'") }}';
+    {% endfor %}
+    var userList = users.map(function(id){ return {id: id, name: userName[id] || ''}; });
     var curUser = {{ current_user.id }};
-    assignBox.innerHTML = users.filter(function(u){ return u.id !== 0; }).map(function(u) {
+    assignBox.innerHTML = userList.filter(function(u){ return u.id !== 0; }).map(function(u) {
       var self = u.id === curUser ? ' <small style="color:var(--gray-400);font-size:.68rem;">(自己)</small>' : '';
       var checked = taskAssignees.indexOf(u.id) >= 0 ? ' checked' : '';
       if (u.id === curUser) checked = checked || ' checked';
-      return '<label class="form-check form-check-inline" style="font-size:.8rem;cursor:pointer;margin-right:4px;">' +
+      return '<label class="edit-assign-item form-check form-check-inline" data-search="' + (u.name || u.username || '').toLowerCase() + '" style="font-size:.8rem;cursor:pointer;margin-right:4px;">' +
         '<input type="checkbox" class="edit-assign-cb" name="assignee_ids" value="' + u.id + '"' + checked + '> ' +
         u.name + self + '</label>';
     }).join('');

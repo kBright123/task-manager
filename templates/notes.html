@@ -385,7 +385,7 @@ function sendNote(){
       if(d.duplicates&&d.duplicates.length){
         showSys('<i class="bi bi-exclamation-triangle"></i> 疑似与「'+esc(d.duplicates[0].title)+'」('+esc(d.duplicates[0].date)+') 高度相似,相似度 '+d.duplicates[0].similarity+'%');
       }
-      loadNotes();
+      if(curTag){ loadByTag(curTag); } else { loadNotes(); }
     } else { if (window.toast) toast(d.error||'保存失败','danger'); else alert(d.error||'保存失败'); }
     if(btn){btn.disabled=false;btn.innerHTML='<i class="bi bi-send"></i> 保存笔记';}
   }).catch(function(e){

@@ -75,6 +75,7 @@
      data-desc-edit="{{ a.task.description or '' }}"
 data-owner="{{ '1' if a.task.creator_id == current_user.id or current_user.role == 'admin' else '0' }}"
       data-assignee-ids="{{ a.task.assignments | map(attribute='user_id') | list | tojson }}"
+      data-group-ids="{{ a.task.groups | map(attribute='id') | list | tojson }}"
       onclick="if(event.detail===1){openTaskDrawer(this.dataset)}"
      title="单击查看详情">
   <div class="flex-grow-1" style="min-width:0;">
@@ -471,7 +472,8 @@ function openTaskDrawer(d) {
   _drawerEdit = {
     taskId: d.taskId, title: d.title, category: d.category || '工作',
     start: d.startEdit || '', end: d.endEdit || '', desc: d.descEdit || '',
-    assigneeIds: JSON.parse(d.assigneeIds || '[]')
+    assigneeIds: JSON.parse(d.assigneeIds || '[]'),
+    groupIds: JSON.parse(d.groupIds || '[]')
   };
   document.getElementById('drawerTitle').textContent = title;
   var descEl = document.getElementById('drawerDesc');
@@ -537,7 +539,7 @@ function openEditTaskDrawer() {
       var checked = assigned['u' + u.id] ? ' checked' : '';
       if (u.id === curUser) checked = checked || '';
       if (u.id !== curUser && !checked) checked = '';
-      return '<label class="form-check form-check-inline" style="font-size:.8rem;cursor:pointer;margin-right:4px;">' +
+      return '<label class="edit-assign-item form-check form-check-inline" data-search="' + (u.name || u.username || '').toLowerCase() + '" style="font-size:.8rem;cursor:pointer;margin-right:4px;">' +
         '<input type="checkbox" class="edit-assign-cb" name="assignee_ids" value="' + u.id + '"' + (assigned['u' + u.id] ? ' checked' : '') + '> ' +
         u.name + self + '</label>';
     }).join('');
@@ -546,6 +548,12 @@ function openEditTaskDrawer() {
       if (selfCb) selfCb.checked = true;
     }
   }
+  var gids = _drawerEdit.groupIds || [];
+  document.querySelectorAll('#editGroupList .edit-group-cb').forEach(function(cb){
+    cb.checked = gids.indexOf(parseInt(cb.value, 10)) > -1;
+  });
+  var es = document.getElementById('editAssigneeSearch');
+  if (es) es.value = '';
   
   closeTaskDrawer();
   new bootstrap.Modal(document.getElementById('editTaskModal')).show();
@@ -730,7 +738,7 @@ function quickTaskParse(){
       if(sel&&hint&&sel.options){
         for(var i=0;i<sel.options.length;i++){
           var o=sel.options[i];
-          if(o.value && parseInt(o.dataset.interval)===window.qtRec.interval && parseInt(o.dataset.count)===window.qtRec.count){
+          if(o.value && o.value !== 'custom' && parseInt(o.dataset.interval)===window.qtRec.interval && parseInt(o.dataset.count)===window.qtRec.count){
             sel.selectedIndex=i;hint.innerHTML='<i class="bi bi-arrow-repeat"></i> '+o.text;matched=true;break;
           }
         }

@@ -131,9 +131,22 @@
       <input type="hidden" name="action" value="save">
       <div class="row g-3">
         <div class="col-md-6 d-flex flex-column">
-          <div class="mb-2">
-            <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">待办标题</label>
-            <input type="text" name="title" class="form-control" value="{{ preview.title }}" required style="font-size:.88rem;padding:6px 10px;">
+          <div class="row g-2 mb-2">
+            <div class="col-7">
+              <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">待办标题</label>
+              <input type="text" name="title" class="form-control" value="{{ preview.title }}" required style="font-size:.88rem;padding:6px 10px;">
+            </div>
+            <div class="col-5">
+              <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">类型</label>
+              <select name="category" class="form-select" style="font-size:.84rem;padding:4px 8px;">
+                <option value="工作" {% if preview.category == '工作' %}selected{% endif %}>工作</option>
+                <option value="个人" {% if preview.category == '个人' %}selected{% endif %}>个人</option>
+                <option value="会议" {% if preview.category == '会议' %}selected{% endif %}>会议</option>
+                <option value="培训" {% if preview.category == '培训' %}selected{% endif %}>培训</option>
+                <option value="考试" {% if preview.category == '考试' %}selected{% endif %}>考试</option>
+                {% if preview.category and preview.category not in ['工作', '个人', '会议', '培训', '考试'] %}<option value="{{ preview.category }}" selected>{{ preview.category }}</option>{% endif %}
+              </select>
+            </div>
           </div>
           <div class="row g-2 mb-2">
             <div class="col-6">
@@ -146,21 +159,10 @@
             </div>
           </div>
           <div class="row g-2 mb-2">
-            <div class="col-5">
-              <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">类型</label>
-              <select name="category" class="form-select" style="font-size:.84rem;padding:4px 8px;">
-                <option value="工作" {% if preview.category == '工作' %}selected{% endif %}>工作</option>
-                <option value="个人" {% if preview.category == '个人' %}selected{% endif %}>个人</option>
-                <option value="会议" {% if preview.category == '会议' %}selected{% endif %}>会议</option>
-                <option value="培训" {% if preview.category == '培训' %}selected{% endif %}>培训</option>
-                <option value="考试" {% if preview.category == '考试' %}selected{% endif %}>考试</option>
-                {% if preview.category and preview.category not in ['工作', '个人', '会议', '培训', '考试'] %}<option value="{{ preview.category }}" selected>{{ preview.category }}</option>{% endif %}
-              </select>
-            </div>
-            <div class="col-7">
+            <div class="col-6">
               <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">周期</label>
               <select class="form-select" id="recurrenceSelect" style="font-size:.84rem;padding:4px 8px;" onchange="updateRecurrence()">
-                <option value="" data-count="0" data-interval="0">不重复</option>
+                <option value="" data-count="0" data-interval="0" {% if not preview.recurrence %}selected{% endif %}>不重复</option>
                 <option value="weekly" data-count="4" data-interval="7" {% if preview.recurrence == 'weekly' %}selected{% endif %}>每周（4期）</option>
                 <option value="monthly" data-count="3" data-interval="30" {% if preview.recurrence == 'monthly' %}selected{% endif %}>每月（3期）</option>
                 <option value="yearly" data-count="2" data-interval="365" {% if preview.recurrence == 'yearly' %}selected{% endif %}>每年（2期）</option>
@@ -175,14 +177,9 @@
                 {% if preview.recurrence %}<i class="bi bi-arrow-repeat"></i> {{ preview.recurrence_text }}，共 {{ preview.recurrence_count }} 期{% endif %}
               </span>
             </div>
-          </div>
-          <input type="hidden" name="recurrence" id="recurrenceInput" value="{{ preview.recurrence or '' }}">
-          <input type="hidden" name="recurrence_count" id="recurrenceCountInput" value="{{ preview.recurrence_count or '0' }}">
-          <input type="hidden" name="recurrence_interval_days" id="recurrenceIntervalInput" value="{{ preview.recurrence_interval_days or '0' }}">
-          <div class="flex-grow-1 mb-2">
             {% if user_groups %}
-            <div class="mb-2">
-              <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">按群组分配</label>
+            <div class="col-6">
+              <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">按群组分配</label>
               <div class="d-flex flex-wrap gap-1">
                 {% for g in user_groups %}
                 <label class="form-check form-check-inline" style="font-size:.8rem;cursor:pointer;margin-right:6px;">
@@ -192,28 +189,47 @@
                 {% endfor %}
               </div>
             </div>
+            {% else %}
+            <div class="col-6">
+              <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">周期补充</label>
+              <div style="font-size:.72rem;color:var(--gray-400);padding-top:6px;">选择周期后可创建系列待办</div>
+            </div>
             {% endif %}
-            <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">分配对象</label>
-            <div class="d-flex flex-wrap gap-1">
+          </div>
+          <input type="hidden" name="recurrence" id="recurrenceInput" value="{{ preview.recurrence or '' }}">
+          <input type="hidden" name="recurrence_count" id="recurrenceCountInput" value="{{ preview.recurrence_count or '0' }}">
+          <input type="hidden" name="recurrence_interval_days" id="recurrenceIntervalInput" value="{{ preview.recurrence_interval_days or '0' }}">
+          <div class="flex-grow-1 mb-2">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">分配对象</label>
               {% if is_admin %}
-              <label class="form-check form-check-inline" style="font-size:.8rem;cursor:pointer;margin-right:6px;">
+              <label class="form-check form-check-inline" style="font-size:.75rem;cursor:pointer;margin-bottom:0;margin-right:0;">
                 <input type="checkbox" class="form-check-input" name="is_all" value="1" id="isAllCheck" style="margin-top:2px;"
                        onchange="updateIsAll()"
                        {% if preview.is_all %}checked{% endif %}>
-                @所有人 <small style="color:var(--gray-400);font-size:.68rem;">可切换为下方手动分配</small>
+                @所有人
               </label>
               {% endif %}
+            </div>
+            <div class="mb-1" style="position:relative;">
+              <input type="text" id="assigneeSearch" class="form-control form-control-sm" placeholder="输入 @ 姓名 快速筛选负责人..." style="font-size:.78rem;padding:4px 8px;" oninput="filterAssignees(this.value)">
+            </div>
+            <div class="d-flex flex-wrap gap-1">
               <span id="userCheckboxes" class="d-flex flex-wrap gap-1">
               {% for u in users %}
               {% set checked_self = u.id == current_user.id %}
               {% set matched = preview.assignees and (u.name in preview.assignees or u.username in preview.assignees) %}
               {% set matched_ids = preview.assignee_ids and (u.id|string in preview.assignee_ids) %}
-              <label class="form-check form-check-inline" style="font-size:.8rem;cursor:pointer;margin-right:6px;">
+              {% set is_freq = frequent_assignees and u.id in frequent_assignees %}
+              <label class="form-check form-check-inline assignee-item" style="font-size:.8rem;cursor:pointer;margin-right:6px;" data-search="{{ (u.name or u.username)|lower }} {{ (u.username or '')|lower }}">
                 <input class="form-check-input" type="checkbox" name="assignee_ids" value="{{ u.id }}" style="margin-top:2px;"{% if matched or matched_ids or checked_self %} checked{% endif %}{% if u.id == current_user.id %} data-self="1"{% endif %}>
-                {{ u.name or u.username }}{% if u.id == current_user.id %} <small style="color:var(--gray-400);font-size:.68rem;">(自己)</small>{% endif %}
+                {{ u.name or u.username }}{% if u.id == current_user.id %} <small style="color:var(--gray-400);font-size:.68rem;">(自己)</small>{% endif %}{% if is_freq %} <i class="bi bi-star-fill" style="color:var(--warning);font-size:.6rem;" title="常分配人员"></i>{% endif %}
               </label>
               {% endfor %}
               </span>
+            </div>
+            <div class="mt-1" style="font-size:.68rem;color:var(--gray-400);">
+              {% if frequent_assignees %}<i class="bi bi-star-fill" style="color:var(--warning);"></i> 标记为常分配人员 · {% endif %}<i class="bi bi-person-plus"></i> 未选中的将不参与本次发布
             </div>
           </div>
         </div>
@@ -229,6 +245,12 @@
     </form>
     </div>
     <script>
+    function filterAssignees(q) {
+      q = (q || '').trim().toLowerCase().replace(/^@/, '');
+      document.querySelectorAll('#userCheckboxes .assignee-item').forEach(function(l){
+        l.style.display = (!q || (l.getAttribute('data-search') || '').indexOf(q) > -1) ? '' : 'none';
+      });
+    }
     function updateIsAll() {
       var checked = document.getElementById('isAllCheck').checked;
       document.querySelectorAll('#userCheckboxes input[type="checkbox"]').forEach(function(cb){
@@ -661,6 +683,8 @@ function openTaskEditModal(id){
         if (u.id === 0) return;
         var self = u.self ? ' <small style="color:var(--gray-400);">(自己)</small>' : '';
         var label = document.createElement('label');
+        label.className = 'edit-assign-item';
+        label.setAttribute('data-search', (u.name||'').toLowerCase());
         label.style.cssText = 'display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:.82rem;color:var(--gray-700);cursor:pointer;';
          label.innerHTML = '<input type="checkbox" class="edit-assign-cb" name="assignee_ids" value="' + u.id + '"' +
           (assigned['u'+u.id] ? ' checked' : '') + '>' + esc(u.name) + self;
@@ -669,6 +693,12 @@ function openTaskEditModal(id){
       if (list.children.length === 0) {
         list.innerHTML = '<div style="color:var(--gray-400);font-size:.78rem;">暂无可分配的用户</div>';
       }
+      var searchBox = document.getElementById('editAssigneeSearch');
+      if (searchBox) searchBox.value = '';
+      var gids = t.group_ids || [];
+      document.querySelectorAll('#editGroupList .edit-group-cb').forEach(function(cb){
+        cb.checked = gids.indexOf(parseInt(cb.value, 10)) > -1;
+      });
       var doneCount = 0;
       (t.assignments||[]).forEach(function(a){
         if (a.status === 'completed' || a.status === 'approved') doneCount++;
@@ -692,8 +722,10 @@ function saveTaskEdit(){
     if (section && section.style.display === 'none') return Promise.resolve({ok: true, added: [], removed: []});
     var ids = [];
     document.querySelectorAll('#editAssignList .edit-assign-cb:checked').forEach(function(el){ ids.push(el.value); });
+    var gids = [];
+    document.querySelectorAll('#editGroupList .edit-group-cb:checked').forEach(function(el){ gids.push(el.value); });
     return fetch('{{ url_for('api_task_assign', task_id=0) }}'.replace('/0','/' + id),
-        {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({user_ids: ids, sync: true})})
+        {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({user_ids: ids, group_ids: gids, sync: true})})
       .then(function(r){return r.json();});
   };
   fetch('{{ url_for('api_task_edit', task_id=0) }}'.replace('/0','/' + id),
@@ -903,7 +935,7 @@ function tmApplyRecurrenceToSelect(){
   if(sel&&hint&&sel.options){
     for(var i=0;i<sel.options.length;i++){
       var o=sel.options[i];
-      if(o.value && parseInt(o.dataset.interval)===rec.interval && parseInt(o.dataset.count)===rec.count){
+      if(o.value && o.value !== 'custom' && parseInt(o.dataset.interval)===rec.interval && parseInt(o.dataset.count)===rec.count){
         sel.selectedIndex=i;hint.innerHTML='<i class="bi bi-arrow-repeat"></i> '+o.text;matched=true;break;
       }
     }

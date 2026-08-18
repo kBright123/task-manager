@@ -591,6 +591,19 @@ def _assignment_counts_by_user():
     return {uname: n for uname, n in rows}
 
 
+def _frequent_assignees(user_id, limit=8):
+    """常分配人员: 当前用户创建的任务中, 被分配次数最多的用户 id 集合(按次数降序)."""
+    rows = db.session.query(
+        TaskAssignment.user_id,
+        func.count(TaskAssignment.id).label('cnt')
+    ).join(Task, TaskAssignment.task_id == Task.id) \
+     .filter(Task.creator_id == user_id) \
+     .group_by(TaskAssignment.user_id) \
+     .order_by(func.count(TaskAssignment.id).desc()) \
+     .limit(limit).all()
+    return {r.user_id: r.cnt for r in rows}
+
+
 @app.route('/user/tasks', methods=['GET', 'POST'])
 @login_required
 def user_tasks():
@@ -647,6 +660,7 @@ def user_tasks():
                 'original_text': text,
                 'user_groups': user_groups,
                 'duplicate_tasks': [],
+                'frequent_assignees': _frequent_assignees(current_user.id),
             }
             template_data.update(_stats_context())
             return render_template('tasks.html', **template_data)
@@ -700,6 +714,7 @@ def user_tasks():
                         'user_groups': user_groups,
                         'duplicate_tasks': similar,
                         'duplicate_blocked': True,
+                        'frequent_assignees': _frequent_assignees(current_user.id),
                     }
                     template_data.update(_stats_context())
                     return render_template('tasks.html', **template_data)
@@ -783,6 +798,7 @@ def user_tasks():
                 'user_groups': user_groups,
                 'duplicate_tasks': parsed_duplicates,
                 'duplicate_blocked': bool(parsed_duplicates),
+                'frequent_assignees': _frequent_assignees(current_user.id),
             }
             # tasks assigned to me by others
             my_assigned_ids = {a.task_id for a in TaskAssignment.query.filter_by(user_id=current_user.id).all()}
@@ -833,6 +849,7 @@ def user_tasks():
         'is_admin': is_admin_user,
         'user_groups': user_groups,
         'show_completed': show_completed,
+        'frequent_assignees': _frequent_assignees(current_user.id),
     }
     template_data.update(_stats_context())
     if is_admin_user:
@@ -987,7 +1004,9 @@ def user_task_detail(task_id):
                            assignment=assignment,
                            pending_assignments=pending_assignments,
                            is_admin=False,
-                           now=datetime.now())
+                           now=datetime.now(),
+                           users=get_same_group_users(current_user),
+                           user_groups=current_user.groups.all())
 
 
 @app.route('/api/task/<int:task_id>')
@@ -1029,6 +1048,7 @@ def api_task_detail(task_id):
             'creator_id': task.creator_id,
             'created_at': task.created_at.strftime('%Y-%m-%d %H:%M')
                           if task.created_at else '',
+            'group_ids': [g.id for g in task.groups],
             'can_edit': (current_user.role == 'admin'
                          or task.creator_id == current_user.id
                          or assignment is not None),
@@ -1144,9 +1164,31 @@ def api_task_assign(task_id):
         return jsonify({'ok': False, 'error': '无权操作'}), 403
     data = request.get_json(silent=True) or {}
     user_ids = data.get('user_ids') or []
+    group_ids = data.get('group_ids') or []
     rows = TaskAssignment.query.filter_by(task_id=task.id).all()
     existing_map = {a.user_id: a for a in rows}
     added = []
+
+    # 同步任务关联的群组
+    if 'group_ids' in data:
+        new_groups = [db.session.get(Group, int(gid)) for gid in group_ids
+                      if str(gid).lstrip('-').isdigit()]
+        new_groups = [g for g in new_groups if g is not None]
+        task.groups = new_groups
+
+    # 由群组展开得到的成员 id 集合
+    group_member_ids = set()
+    if group_ids:
+        for gid in group_ids:
+            try:
+                gid = int(gid)
+            except (TypeError, ValueError):
+                continue
+            g = db.session.get(Group, gid)
+            if g:
+                for m in g.members:
+                    if not m.is_disabled and m.status == 'approved':
+                        group_member_ids.add(m.id)
 
     if data.get('sync'):
         keep = set()
@@ -1172,6 +1214,21 @@ def api_task_assign(task_id):
                 a.abandoned_at = None
                 a.progress = 0
                 added.append(a.user.name or a.user.username)
+        # 群组成员确保在分配名单中
+        for uid in group_member_ids:
+            if uid in keep:
+                continue
+            keep.add(uid)
+            a = existing_map.get(uid)
+            if a is None:
+                u = db.session.get(User, uid)
+                if u and not u.is_disabled and u.status == 'approved':
+                    db.session.add(TaskAssignment(task_id=task.id, user_id=uid))
+                    added.append(u.name or u.username)
+            elif a.status == 'abandoned':
+                a.status = 'pending'
+                a.abandoned_at = None
+                a.progress = 0
         removed = []
         now = datetime.now()
         for a in rows:
@@ -1206,6 +1263,14 @@ def _sync_task_assignees_from_form(task):
     user_ids = request.form.getlist('assignee_ids')
     group_ids = request.form.getlist('group_ids')
     is_all = request.form.get('is_all') == '1'
+    
+    if group_ids:
+        new_groups = [db.session.get(Group, int(gid)) for gid in group_ids
+                      if str(gid).lstrip('-').isdigit()]
+        new_groups = [g for g in new_groups if g is not None]
+        task.groups = new_groups
+    else:
+        task.groups = []
     
     keep = set()
     existing = TaskAssignment.query.filter_by(task_id=task.id).all()

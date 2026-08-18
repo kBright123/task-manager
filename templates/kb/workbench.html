@@ -267,6 +267,9 @@
           <i class="bi bi-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--gray-400);font-size:.8rem;"></i>
           <input type="text" id="kbSearch" value="{{ q }}" class="form-control form-control-sm" placeholder="{% if view == 'points' or view == 'graph' %}搜索知识点/来源文档…{% else %}搜索文档标题…(Ctrl+F){% endif %}" style="padding-left:28px;width:220px;" autocomplete="off">
         </div>
+        {% if view == 'docs' %}
+        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="kbManageOpen()" title="管理知识库下的集合:可新建、修改、删除,或一键清理空集合" style="white-space:nowrap;"><i class="bi bi-folder2"></i> 集合管理</button>
+        {% endif %}
         <button class="btn btn-sm btn-primary" type="button" onclick="kbUploadOpen()" style="white-space:nowrap;"><i class="bi bi-cloud-arrow-up"></i> 上传文档</button>
       </div>
     </div>
@@ -295,9 +298,7 @@
       <div class="wb-rail" id="kbRail">
       <div class="wb-panel">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <span style="display:inline-flex;align-items:center;gap:8px;"><i class="bi bi-folder2-open" style="color:var(--primary);"></i> 类别
-            <button type="button" class="btn btn-xs-custom btn-outline-secondary" style="padding:1px 10px;font-size:.72rem;" onclick="kbManageOpen()" title="集合管理"><i class="bi bi-gear"></i> 管理</button>
-          </span>
+          <span style="display:inline-flex;align-items:center;gap:8px;"><i class="bi bi-folder2-open" style="color:var(--primary);"></i> 类别</span>
           <span class="badge badge-low" id="kbCollCount">{{ collection_count }}</span>
         </div>
         <div class="card-body p-2">
@@ -364,8 +365,6 @@
       <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkReprocess()"><i class="bi bi-arrow-repeat"></i> 重新识别</button>
       <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkAutoArchive()"><i class="bi bi-stars"></i> 自动归档</button>
       <button class="btn btn-xs-custom btn-outline-danger" onclick="bulkDelete()"><i class="bi bi-trash"></i> 删除</button>
-      <button class="btn btn-xs-custom" style="background:var(--primary);color:#fff;border:none;padding:2px 8px;font-size:.72rem;" onclick="batchSetDocPublic()"><i class="bi bi-unlock"></i> 批量设为公开</button>
-      <button class="btn btn-xs-custom" style="background:var(--warning);color:#fff;border:none;padding:2px 8px;font-size:.72rem;" onclick="batchSetGroupPublic()"><i class="bi bi-people"></i> 按群组公开</button>
       <button class="btn btn-xs-custom btn-outline-primary" onclick="kbClearSel()">取消</button>
     </div>
     <div id="bulkReprogress" class="kb-bulk d-none">
@@ -949,49 +948,7 @@ window.KB_URLS = {
   }
 window.kbRefreshBar = kbRefreshBar;
 
-/* 批量设为公开(仅管理员) */
-  window.batchSetDocPublic = function () {
-    var n = state.sel.size;
-    if (n === 0) { if (window.toast) toast('请先选择文档', 'warning'); return; }
-    if (window.CURRENT_USER.role !== 'admin') { if (window.toast) toast('仅管理员可设置公共文档', 'danger'); return; }
-    var ids = Array.from(state.sel).map(function (v) { return Number(v); });
-    fetch('/kb/api/documents/batch-public', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ids: ids})
-    }).then(function (r) { return r.json(); })
-      .then(function (d) {
-        if (d.ok) {
-          window.toast('成功设为公共 ' + d.updated + ' 篇文档');
-          kbLoad();
-        } else {
-          window.toast(d.error || '设置失败', 'danger');
-        }
-      }).catch(function () { window.toast('请求失败,请重试', 'danger'); });
-  };
-
-/* 批量设为按群组公开(仅管理员) */
-  window.batchSetGroupPublic = function () {
-    var n = state.sel.size;
-    if (n === 0) { if (window.toast) toast('请先选择文档', 'warning'); return; }
-    if (window.CURRENT_USER.role !== 'admin') { if (window.toast) toast('仅管理员可设置按群组公开', 'danger'); return; }
-    var ids = Array.from(state.sel).map(function (v) { return Number(v); });
-    fetch('/kb/api/documents/batch-group-public', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ids: ids})
-    }).then(function (r) { return r.json(); })
-      .then(function (d) {
-        if (d.ok) {
-          window.toast('成功设为按群组公开 ' + d.updated + ' 篇文档');
-          kbLoad();
-        } else {
-          window.toast(d.error || '设置失败', 'danger');
-        }
-      }).catch(function () { window.toast('请求失败,请重试', 'danger'); });
-  };
-
-  /* 状态轮询(虚拟列表可见行) */
+/* 状态轮询(虚拟列表可见行) */
   var _statusTimer = null;
   window.kbPollStatus = function () {
     clearTimeout(_statusTimer);

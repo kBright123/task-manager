@@ -161,11 +161,12 @@ KbPointRel = None
 KbPointRef = None
 KbCollectionGroup = None
 KbPointGroup = None
+KbDocumentGroup = None
 
 
 def init_models(database):
     global db, KbDocument, KbPage, KbCollection, KbPoint, KbPointRel, \
-        KbPointRef, KbCollectionGroup, KbPointGroup
+        KbPointRef, KbCollectionGroup, KbPointGroup, KbDocumentGroup
     db = database
 
     class _KbCollection(database.Model):
@@ -294,6 +295,16 @@ def init_models(database):
                                    database.ForeignKey('group.id'),
                                    nullable=False, index=True)
 
+    class _KbDocumentGroup(database.Model):
+        __tablename__ = 'kb_doc_group'
+        id = database.Column(database.Integer, primary_key=True)
+        doc_id = database.Column(
+            database.Integer, database.ForeignKey('kb_document.id'),
+            nullable=False, index=True)
+        group_id = database.Column(database.Integer,
+                                   database.ForeignKey('group.id'),
+                                   nullable=False, index=True)
+
     KbDocument, KbPage = _KbDocument, _KbPage
     KbCollection = _KbCollection
     KbPoint = _KbPoint
@@ -301,6 +312,7 @@ def init_models(database):
     KbPointRef = _KbPointRef
     KbCollectionGroup = _KbCollectionGroup
     KbPointGroup = _KbPointGroup
+    KbDocumentGroup = _KbDocumentGroup
 
 
 def enable_sqlite_wal():
@@ -2221,6 +2233,40 @@ def _set_point_groups(point_id, group_ids):
         db.session.add(KbPointGroup(point_id=point_id, group_id=gid))
 
 
+def _doc_group_ids(doc_id):
+    """某文档被公开给的群组 id 列表(空=未做群组限制)。"""
+    try:
+        rows = db.session.query(KbDocumentGroup.group_id).filter(
+            KbDocumentGroup.doc_id == doc_id).all()
+        return [r[0] for r in rows]
+    except Exception:
+        return []
+
+
+def _doc_group_ids_many(doc_ids):
+    """批量: {doc_id: [group_id, ...]}。替代逐文档查询的 N+1。"""
+    ids = [d for d in (doc_ids or []) if d is not None]
+    if not ids:
+        return {}
+    try:
+        rows = db.session.query(
+            KbDocumentGroup.doc_id, KbDocumentGroup.group_id
+        ).filter(KbDocumentGroup.doc_id.in_(ids)).all()
+    except Exception:
+        return {}
+    out = {}
+    for did, gid in rows:
+        out.setdefault(did, []).append(gid)
+    return out
+
+
+def _set_doc_groups(doc_id, group_ids):
+    """重置文档的公开群组。"""
+    KbDocumentGroup.query.filter_by(doc_id=doc_id).delete()
+    for gid in group_ids:
+        db.session.add(KbDocumentGroup(doc_id=doc_id, group_id=gid))
+
+
 def _visible_collection_ids(user=None):
     """某用户可访问的集合 id 列表;admin 返回 None(全部)。
 
@@ -2248,23 +2294,34 @@ def _visible_collection_ids(user=None):
     return [r[0] for r in q.all()]
 
 
-def _visible_doc_ids():
-    """当前用户可访问的文档 ID 列表:管理员为全部,
-    其余为 本人上传的文档 + 可见集合(公共/公共限群组/本人)中的文档。"""
-    if current_user.role == 'admin':
+def _visible_doc_ids(user=None):
+    """某用户可访问的文档 ID 列表;admin 返回 None(全部)。
+
+    可见文档 = 本人上传 + 可见集合中的文档 + 文档级公开(含按群组公开)。
+    """
+    user = user or current_user
+    if getattr(user, 'role', None) == 'admin':
         return None
-    visible_cols = _visible_collection_ids()
+    my_groups = _user_group_ids_sql(user.id)
+    visible_cols = _visible_collection_ids(user)
     rows = db.session.query(KbDocument.id).filter(
         db.or_(
-            KbDocument.uploaded_by == current_user.id,
-            KbDocument.collection_id.in_(visible_cols)
+            KbDocument.uploaded_by == user.id,
+            KbDocument.collection_id.in_(visible_cols),
+            KbDocument.visibility == 'public',
+            db.and_(
+                KbDocument.visibility == 'group',
+                db.exists().where(db.and_(
+                    KbDocumentGroup.doc_id == KbDocument.id,
+                    KbDocumentGroup.group_id.in_(my_groups)))
+            )
         )
     ).all()
     return [r.id for r in rows]
 
 
 def _doc_ids_for_user(user_id):
-    """指定用户的文档范围:本人上传 + 其可见集合(含公共、公共限群组、私有本人)。
+    """指定用户的文档范围:本人上传 + 其可见集合 + 文档级公开(含按群组公开)。
 
     用于分身问答 @ 其他用户时,基于对方知识库回答。
     """
@@ -2272,11 +2329,19 @@ def _doc_ids_for_user(user_id):
     target = db.session.get(cls, user_id) if cls else None
     if target is not None and getattr(target, 'role', None) == 'admin':
         return None
+    my_groups = _user_group_ids_sql(user_id)
     cols = _visible_collection_ids(target) if target is not None else []
     rows = db.session.query(KbDocument.id).filter(
         db.or_(
             KbDocument.uploaded_by == user_id,
-            KbDocument.collection_id.in_(cols)
+            KbDocument.collection_id.in_(cols),
+            KbDocument.visibility == 'public',
+            db.and_(
+                KbDocument.visibility == 'group',
+                db.exists().where(db.and_(
+                    KbDocumentGroup.doc_id == KbDocument.id,
+                    KbDocumentGroup.group_id.in_(my_groups)))
+            )
         )
     ).all()
     return [r.id for r in rows]
@@ -3108,10 +3173,22 @@ _STATUS_LABELS = {
     'graphing': '图谱抽取中', 'done': '已完成', 'failed': '失败',
 }
 
+_VIS_LABELS = {'private': '私有', 'group': '群组可见', 'public': '公开'}
+
 
 def _doc_row(d):
     """文档行序列化(虚拟滚动/实时搜索/重命名接口共用)。"""
     coll = d.collection
+    doc_groups = _doc_group_ids(d.id) if d.visibility == 'group' else []
+    group_names = []
+    if doc_groups:
+        try:
+            from app import Group
+            gmap = {g.id: g.name for g in Group.query.filter(
+                Group.id.in_(doc_groups)).all()}
+            group_names = [gmap.get(gid, '') for gid in doc_groups if gmap.get(gid)]
+        except Exception:
+            group_names = []
     return {
         'id': d.id,
         'title': d.title,
@@ -3127,6 +3204,10 @@ def _doc_row(d):
         'collection_id': coll.id if coll else None,
         'collection_name': coll.name if coll else '',
         'collection_color': coll.color if coll else '',
+        'visibility': d.visibility or 'private',
+        'visibility_label': _VIS_LABELS.get(d.visibility or 'private',
+                                            '私有'),
+        'visibility_groups': group_names,
         'can_manage': current_user.role == 'admin'
         or d.uploaded_by == current_user.id,
         'detail_url': url_for('kb.doc_detail', doc_id=d.id),
@@ -4392,6 +4473,21 @@ def doc_detail(doc_id):
                            can_manage=_can_manage_doc(doc))
 
 
+def _prune_empty_collection(collection_id):
+    """若集合下已无文档,自动清除该集合(最后一个文档删除后触发)。"""
+    if collection_id is None:
+        return
+    remaining = db.session.query(KbDocument.id).filter(
+        KbDocument.collection_id == collection_id).first()
+    if remaining is not None:
+        return
+    col = db.session.get(KbCollection, collection_id)
+    if col is not None:
+        KbCollectionGroup.query.filter_by(
+            collection_id=collection_id).delete()
+        db.session.delete(col)
+
+
 @kb_bp.route('/<int:doc_id>/delete', methods=['POST'])
 @login_required
 def doc_delete(doc_id):
@@ -4403,6 +4499,7 @@ def doc_delete(doc_id):
         flash('权限不足：仅可删除自己上传的文档', 'danger')
         return redirect(url_for('kb.index'))
     if doc:
+        coll_id = doc.collection_id
         for p in doc.pages:
             delete_page(doc.id, p.page_no)
         try:
@@ -4416,6 +4513,7 @@ def doc_delete(doc_id):
                 'DELETE FROM kb_point_ref WHERE point_id IN '
                 '(SELECT id FROM kb_point WHERE doc_id=?)', (doc.id,))
             conn.execute('DELETE FROM kb_point WHERE doc_id=?', (doc.id,))
+            conn.execute('DELETE FROM kb_doc_group WHERE doc_id=?', (doc.id,))
             conn.commit()
             conn.close()
         except Exception as e:
@@ -4426,6 +4524,8 @@ def doc_delete(doc_id):
             except OSError:
                 pass
         db.session.delete(doc)
+        db.session.commit()
+        _prune_empty_collection(coll_id)
         db.session.commit()
         _bump_data_version()
         _log_op('kb_delete', doc.title, f'删除文档 #{doc_id}')
@@ -4514,7 +4614,10 @@ def bulk():
     docs = (KbDocument.query.filter(KbDocument.id.in_(doc_ids))
             .all())
     if action == 'delete':
+        coll_ids = set()
         for doc in docs:
+            if doc.collection_id:
+                coll_ids.add(doc.collection_id)
             for p in doc.pages:
                 delete_page(doc.id, p.page_no)
             if os.path.exists(doc.file_path):
@@ -4522,7 +4625,11 @@ def bulk():
                     os.remove(doc.file_path)
                 except OSError:
                     pass
+            KbDocumentGroup.query.filter_by(doc_id=doc.id).delete()
             db.session.delete(doc)
+        db.session.commit()
+        for cid in coll_ids:
+            _prune_empty_collection(cid)
         db.session.commit()
         _bump_data_version()
         _log_op('kb_bulk_delete', f'{len(docs)} 个文档', '批量删除')
@@ -4613,14 +4720,30 @@ def bulk():
                 f'自动归档成功 {len(archived)} 个,重建知识点 {rebuilt} 个' +
                 (f'(跳过 {skipped} 个)' if skipped else ''))
         db.session.commit()
-    if action == 'group_public':
+    if action == 'visibility':
+        vis = (data.get('visibility') or '').strip()
+        if vis not in ('private', 'group', 'public'):
+            return jsonify({'ok': False, 'error': '可见范围参数无效'}), 400
+        group_ids = [int(x) for x in (data.get('group_ids') or [])]
+        if vis == 'group' and not group_ids:
+            return jsonify({'ok': False,
+                            'error': '群组可见需至少选择一个群组'}), 400
+        if vis == 'public' and current_user.role != 'admin':
+            return jsonify({'ok': False,
+                            'error': '仅管理员可设为公开'}), 403
         for doc in docs:
-            doc.visibility = 'group'
+            doc.visibility = vis
+        if vis == 'group':
+            for doc in docs:
+                _set_doc_groups(doc.id, group_ids)
+        else:
+            for doc in docs:
+                _set_doc_groups(doc.id, [])
         db.session.commit()
-        _log_op('kb_bulk_group_public', f'{len(docs)} 个文档',
-                '批量设为按群组公开')
+        _log_op('kb_bulk_visibility', f'{len(docs)} 个文档',
+                f'批量修改可见范围({_VIS_LABELS.get(vis, vis)})')
         db.session.commit()
-        return jsonify({'ok': True, 'group_public': len(docs)})
+        return jsonify({'ok': True, 'updated': len(docs)})
     return jsonify({'ok': False, 'error': f'未知操作: {action}'}), 400
 
 

@@ -333,6 +333,59 @@ def profile_verify_email():
     return jsonify({'ok': True})
 
 
+@app.route('/api/token', methods=['POST'])
+def api_token():
+    """第三方 API 令牌获取: 使用用户名/密码换取 API Token。
+    返回 {ok, token, user}; 之后通过 Authorization: Bearer <token> 访问接口。"""
+    data = request.get_json(silent=True) or request.form
+    username = (data.get('username') or '').strip()
+    password = data.get('password') or ''
+    if not username or not password:
+        return jsonify({'ok': False, 'error': '缺少用户名或密码'}), 400
+    user = User.query.filter_by(username=username).first()
+    now = datetime.utcnow()
+    if user and user.locked_until and user.locked_until > now:
+        log_operation('api_token_fail', username, '账号锁定中,拒绝发放令牌')
+        db.session.commit()
+        return jsonify({'ok': False, 'error': '账号已锁定,请稍后再试'}), 403
+    if not (user and user.check_password(password)):
+        if user:
+            user.failed_login_count = (user.failed_login_count or 0) + 1
+            if user.failed_login_count >= MAX_LOGIN_FAILS:
+                user.locked_until = now + timedelta(minutes=LOGIN_LOCK_MINUTES)
+            db.session.commit()
+        log_operation('api_token_fail', username, '用户名或密码错误')
+        db.session.commit()
+        return jsonify({'ok': False, 'error': '用户名或密码错误'}), 401
+    if user.status != 'approved':
+        log_operation('api_token_fail', username, f'账号状态 {user.status},拒绝发放令牌')
+        db.session.commit()
+        return jsonify({'ok': False, 'error': '账号不可用,请联系管理员'}), 403
+    if user.is_disabled:
+        log_operation('api_token_fail', username, '账号已禁用,拒绝发放令牌')
+        db.session.commit()
+        return jsonify({'ok': False, 'error': '账号已被禁用'}), 403
+    if user.role == 'guest':
+        log_operation('api_token_fail', username, '体验客户账号拒绝发放令牌')
+        db.session.commit()
+        return jsonify({'ok': False, 'error': '体验客户账号不可获取 API 令牌'}), 403
+    user.failed_login_count = 0
+    user.locked_until = None
+    if not user.api_token:
+        user.api_token = secrets.token_urlsafe(32)
+        user.api_token_created_at = now
+        db.session.commit()
+    log_operation('api_token', username,
+                  f'用户 {user.name or user.username} 获取 API 令牌')
+    db.session.commit()
+    return jsonify({
+        'ok': True,
+        'token': user.api_token,
+        'user': {'id': user.id, 'username': user.username,
+                 'name': user.name, 'role': user.role}
+    })
+
+
 @app.route('/profile/unbind-email', methods=['POST'])
 @login_required
 def profile_unbind_email():

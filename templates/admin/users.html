@@ -455,6 +455,9 @@ function deleteGroup(id) {
   var form = document.createElement('form');
   form.method = 'POST';
   form.action = '/admin/groups/delete/' + id;
+  var csrfInput = document.createElement('input');
+  csrfInput.type = 'hidden'; csrfInput.name = '_csrf_token'; csrfInput.value = window.CSRF_TOKEN || '';
+  form.appendChild(csrfInput);
   document.body.appendChild(form);
   form.submit();
 }
@@ -521,27 +524,17 @@ document.getElementById('groupCrudForm').addEventListener('submit', function(e) 
   var name = document.getElementById('groupFormName').value.trim();
   var desc = document.getElementById('groupFormDesc').value.trim();
   if (!name) return;
-  if (id) {
-    var form = document.createElement('form');
-    form.method = 'POST';
-    form.action = '/admin/groups/edit/' + id;
-    var nInput = document.createElement('input');
-    nInput.type = 'hidden'; nInput.name = 'name'; nInput.value = name;
-    var dInput = document.createElement('input');
-    dInput.type = 'hidden'; dInput.name = 'description'; dInput.value = desc;
-    form.appendChild(nInput); form.appendChild(dInput);
-    document.body.appendChild(form); form.submit();
-  } else {
-    var form = document.createElement('form');
-    form.method = 'POST';
-    form.action = '/admin/groups/add';
-    var nInput = document.createElement('input');
-    nInput.type = 'hidden'; nInput.name = 'name'; nInput.value = name;
-    var dInput = document.createElement('input');
-    dInput.type = 'hidden'; dInput.name = 'description'; dInput.value = desc;
-    form.appendChild(nInput); form.appendChild(dInput);
-    document.body.appendChild(form); form.submit();
-  }
+  var form = document.createElement('form');
+  form.method = 'POST';
+  form.action = id ? '/admin/groups/edit/' + id : '/admin/groups/add';
+  var csrfInput = document.createElement('input');
+  csrfInput.type = 'hidden'; csrfInput.name = '_csrf_token'; csrfInput.value = window.CSRF_TOKEN || '';
+  var nInput = document.createElement('input');
+  nInput.type = 'hidden'; nInput.name = 'name'; nInput.value = name;
+  var dInput = document.createElement('input');
+  dInput.type = 'hidden'; dInput.name = 'description'; dInput.value = desc;
+  form.appendChild(csrfInput); form.appendChild(nInput); form.appendChild(dInput);
+  document.body.appendChild(form); form.submit();
 });
 </script>
 {% endblock %}

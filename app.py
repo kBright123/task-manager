@@ -172,7 +172,8 @@ app.config['MAIL_FROM'] = os.environ.get('MAIL_FROM', '')
 # 登录/注册/解锁等认证相关写入放行, 避免管理员无法登录授权。
 import base64 as _b64
 _LICENSE_MSG = '当前为演示版本，请授权升级。'
-_LICENSE_AUTH_PREFIXES = ('/login', '/register', '/logout', '/static/')
+_LICENSE_AUTH_PREFIXES = ('/login', '/register', '/logout', '/static/',
+                          '/api/token')
 # 统一检索/知识库问答等无业务写入的查询接口放行
 _LICENSE_READ_PATHS = (
     '/api/unified-search', '/api/unified-search/history',
@@ -335,8 +336,11 @@ app.jinja_env.globals['csrf_token'] = csrf_token
 def _csrf_protect():
     """全站 CSRF 校验: 所有非安全方法(POST/PUT/PATCH/DELETE)必须携带
     session 内 token(表单字段 _csrf_token 或请求头 X-CSRF-Token)。
-    表单 token 由 base.html 的 JS 自动注入, AJAX 由全局 fetch 包装注入。"""
+    表单 token 由 base.html 的 JS 自动注入, AJAX 由全局 fetch 包装注入。
+    /api/token 令牌获取接口与 API 令牌鉴权请求(Bearer)跳过 CSRF。"""
     if request.method in ('POST', 'PUT', 'PATCH', 'DELETE'):
+        if request.path == '/api/token' or _api_token_user() is not None:
+            return
         supplied = (request.form.get('_csrf_token')
                     or request.headers.get('X-CSRF-Token') or '')
         expected = session.get('_csrf_token', '')
@@ -469,6 +473,8 @@ class User(UserMixin, db.Model):
     pending_email = db.Column(db.String(120), default='')
     email_code = db.Column(db.String(6), default='')
     email_code_expires_at = db.Column(db.DateTime)
+    api_token = db.Column(db.String(64), default='', index=True)
+    api_token_created_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     registration_ip = db.Column(db.String(64), default='', index=True)
 
@@ -765,6 +771,27 @@ def load_user(user_id):
     return u
 
 
+def _api_token_user():
+    """根据 Authorization: Bearer <token> 解析 API 令牌用户(供第三方接口调用)。
+    返回 User 或 None。"""
+    auth = request.headers.get('Authorization', '')
+    if not auth.startswith('Bearer '):
+        return None
+    token = auth[len('Bearer '):].strip()
+    if not token:
+        return None
+    u = User.query.filter_by(api_token=token).first()
+    if u is None or u.is_disabled or u.status != 'approved':
+        return None
+    return u
+
+
+@login_manager.request_loader
+def _load_user_from_api_token(request):
+    """第三方接口可通过 API 令牌(Bearer)免 Cookie 登录。"""
+    return _api_token_user()
+
+
 TASK_COMPLETION_DAYS = 30
 
 ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx',
@@ -915,6 +942,10 @@ def _run_sqlite_migrations():
             c.execute('ALTER TABLE user ADD COLUMN unlock_code_expires_at DATETIME')
         if 'registration_ip' not in cols:
             c.execute("ALTER TABLE user ADD COLUMN registration_ip VARCHAR(64) DEFAULT ''")
+        if 'api_token' not in cols:
+            c.execute("ALTER TABLE user ADD COLUMN api_token VARCHAR(64) DEFAULT ''")
+        if 'api_token_created_at' not in cols:
+            c.execute('ALTER TABLE user ADD COLUMN api_token_created_at DATETIME')
         c.execute('PRAGMA table_info(task)')
         cols = [r[1] for r in c.fetchall()]
         if 'category' not in cols:

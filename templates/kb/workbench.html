@@ -160,7 +160,7 @@
   .kb-uprow .progress-custom { flex:1; }
 
   /* 文档表格: 虚拟滚动 + 列宽 */
-  .kb-table { --w-cb:46px; --w-type:92px; --w-pages:60px; --w-status:132px; --w-time:134px; --w-ops:64px; }
+  .kb-table { --w-cb:46px; --w-type:92px; --w-pages:60px; --w-status:132px; --w-vis:150px; --w-time:134px; --w-ops:64px; }
   .kb-dtable { display: none !important; }
   @media (min-width: 768px) { .kb-dtable { display: flex !important; } }
   .kb-thead { display:flex; align-items:center; background:var(--gray-50); border-bottom:1px solid var(--gray-200); font-size:.75rem; font-weight:600; color:var(--gray-500); }
@@ -171,6 +171,7 @@
   .kb-type { width:var(--w-type); }
   .kb-pages { width:var(--w-pages); }
   .kb-status { width:var(--w-status); }
+  .kb-vis { width:var(--w-vis); }
   .kb-time { width:var(--w-time); }
   .kb-ops { width:var(--w-ops); }
   .kb-resize { position:absolute; right:-4px; top:0; bottom:0; width:8px; cursor:col-resize; z-index:2; }
@@ -181,6 +182,7 @@
   .kb-row { position:absolute; left:0; right:0; display:flex; align-items:center; border-bottom:1px solid var(--gray-100); font-size:.85rem; color:var(--gray-800); }
   .kb-row:hover { background:var(--gray-50); }
   .kb-row .kb-col { padding:0 12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .kb-row .kb-col.kb-vis { white-space:normal; overflow:visible; text-overflow:clip; line-height:1.3; }
   .kb-title-link { color:var(--gray-800); font-weight:600; text-decoration:none; cursor:pointer; }
   .kb-title-link:hover { color:var(--primary); }
   .kb-col-badge { display:inline-block; margin-left:6px; padding:0 8px; border-radius:100px; font-size:.64rem; vertical-align:1px; }
@@ -212,8 +214,7 @@
   .preview-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--gray-100); font-weight: 600; font-size: .9rem; flex-shrink: 0; }
   .preview-modal-body { padding: 14px; overflow-y: auto; }
 
-  /* 弹框叠放:confirm/collection 可能从 kbManageModal 之上打开,
-     默认 z-index(1055)按 DOM 顺序叠放会导致被前置的 kbManageModal 遮挡 */
+  /* 弹框叠放:confirm/collection 需要在其他弹框之上 */
   #confirmModal { z-index: 1075; }
   #collectionModal { z-index: 1070; }
 
@@ -267,9 +268,6 @@
           <i class="bi bi-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--gray-400);font-size:.8rem;"></i>
           <input type="text" id="kbSearch" value="{{ q }}" class="form-control form-control-sm" placeholder="{% if view == 'points' or view == 'graph' %}搜索知识点/来源文档…{% else %}搜索文档标题…(Ctrl+F){% endif %}" style="padding-left:28px;width:220px;" autocomplete="off">
         </div>
-        {% if view == 'docs' %}
-        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="kbManageOpen()" title="管理知识库下的集合:可新建、修改、删除,或一键清理空集合" style="white-space:nowrap;"><i class="bi bi-folder2"></i> 集合管理</button>
-        {% endif %}
         <button class="btn btn-sm btn-primary" type="button" onclick="kbUploadOpen()" style="white-space:nowrap;"><i class="bi bi-cloud-arrow-up"></i> 上传文档</button>
       </div>
     </div>
@@ -297,19 +295,16 @@
       <!-- 左侧: 类别导航(文档/知识点/图谱 三视图常驻) -->
       <div class="wb-rail" id="kbRail">
       <div class="wb-panel">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <span style="display:inline-flex;align-items:center;gap:8px;"><i class="bi bi-folder2-open" style="color:var(--primary);"></i> 类别</span>
-          <span class="badge badge-low" id="kbCollCount">{{ collection_count }}</span>
+        <div class="card-header d-flex justify-content-between align-items-center gap-2" style="padding:8px 12px;">
+          <a href="{{ url_for('kb.workbench', view=view) }}" class="kb-coll-row text-decoration-none"
+             style="display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:8px;{% if not active_collection and not group %}background:var(--primary-light);{% endif %}">
+            <i class="bi bi-archive" style="color:{% if not active_collection and not group %}var(--primary){% else %}var(--gray-500){% endif %};font-size:.9rem;"></i>
+            <span style="font-weight:600;font-size:.8rem;color:{% if not active_collection and not group %}var(--primary){% else %}var(--gray-600){% endif %};">全部</span>
+            <span class="badge badge-low" style="font-size:.62rem;">{{ total_docs }}</span>
+          </a>
+          <button type="button" class="btn btn-xs-custom btn-outline-primary" style="padding:0 8px;line-height:1.6;" onclick="showCollectionModal()" title="新建集合"><i class="bi bi-plus"></i></button>
         </div>
         <div class="card-body p-2">
-          <a href="{{ url_for('kb.workbench', view=view) }}" class="kb-coll-row px-2 py-2 mb-1 text-decoration-none"
-             style="{% if not active_collection and not group %}background:var(--primary-light);{% endif %}">
-            <span class="kb-coll-link d-flex align-items-center gap-2" style="font-weight:600;font-size:.84rem;color:{% if not active_collection and not group %}var(--primary){% else %}var(--gray-600){% endif %};">
-              <i class="bi bi-archive"></i> 全部
-              <span class="badge badge-low ms-auto" style="font-size:.62rem;">{{ total_docs }}</span>
-              <span class="badge badge-low" style="font-size:.62rem;background:var(--primary-light);color:var(--primary);">{{ total_points }}</span>
-            </span>
-          </a>
           {% for g in collection_groups %}
           <div class="kb-group">
             <div class="d-flex align-items-center gap-2 px-2 py-1 rounded kb-group-head"
@@ -364,6 +359,7 @@
       <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkAssign()"><i class="bi bi-folder-plus"></i> 移动</button>
       <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkReprocess()"><i class="bi bi-arrow-repeat"></i> 重新识别</button>
       <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkAutoArchive()"><i class="bi bi-stars"></i> 自动归档</button>
+      <button class="btn btn-xs-custom btn-outline-primary" onclick="bulkModifyVis()"><i class="bi bi-eye"></i> 批量修改</button>
       <button class="btn btn-xs-custom btn-outline-danger" onclick="bulkDelete()"><i class="bi bi-trash"></i> 删除</button>
       <button class="btn btn-xs-custom btn-outline-primary" onclick="kbClearSel()">取消</button>
     </div>
@@ -380,6 +376,7 @@
         <div class="kb-col kb-type">类型<span class="kb-resize" data-col="type" title="拖拽调整列宽"></span></div>
         <div class="kb-col kb-pages">页数<span class="kb-resize" data-col="pages" title="拖拽调整列宽"></span></div>
         <div class="kb-col kb-status">状态<span class="kb-resize" data-col="status" title="拖拽调整列宽"></span></div>
+        <div class="kb-col kb-vis">可见范围<span class="kb-resize" data-col="vis" title="拖拽调整列宽"></span></div>
         <div class="kb-col kb-time">上传时间<span class="kb-resize" data-col="time" title="拖拽调整列宽"></span></div>
         <div class="kb-col kb-ops"></div>
       </div>
@@ -557,101 +554,39 @@
   </div>
 </div>
 
-<!-- 集合管理弹框 -->
-<div class="modal fade" id="kbManageModal" tabindex="-1">
-  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h6 class="modal-title"><i class="bi bi-collection" style="color:var(--primary);"></i> 集合管理</h6>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body p-0">
-        <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap p-3 pb-2">
-          <small class="text-muted">管理知识库下的集合:可新建、修改、删除,或一键清理空集合。</small>
-          <div class="d-flex gap-2">
-            {% if current_user.role == 'admin' %}
-            <button class="btn btn-sm btn-outline-primary" id="batchPublicBtn" onclick="batchModifyCollections()" disabled><i class="bi bi-sliders"></i> 批量修改</button>
-            {% endif %}
-            <button class="btn btn-sm btn-primary" onclick="showCollectionModal()"><i class="bi bi-plus"></i> 新建集合</button>
-            <button class="btn btn-sm btn-outline-secondary" onclick="pruneEmptyCollections()"><i class="bi bi-trash"></i> 清空空集合</button>
-          </div>
-        </div>
-        <div class="px-3 pb-3" style="overflow-x:auto;">
-          <table class="table table-sm table-hover align-middle mb-0" style="font-size:.85rem;">
-            <thead>
-              <tr>
-                <th style="width:34px;"><input type="checkbox" class="form-check-input" id="colSelAll" onclick="toggleSelAll(this)" title="全选"></th>
-                <th style="width:44px;">颜色</th>
-                <th>名称</th>
-                <th style="width:80px;">可见性</th>
-                <th style="width:70px;">文档数</th>
-                {% if current_user.role == 'admin' %}<th style="width:100px;">创建者</th>{% endif %}
-                <th style="width:170px;">操作</th>
-              </tr>
-            </thead>
-            <tbody id="kbManageBody">
-              {% for c in collections %}
-              <tr>
-                <td><input type="checkbox" class="form-check-input kb-sel" data-cid="{{ c.id }}" data-cname="{{ c.name }}" onchange="updateSelState()"></td>
-                <td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:{{ c.color }};"></span></td>
-                <td style="font-weight:600;">{{ c.name }}</td>
-                <td>{% if c.visibility == 'public' %}<span class="status-badge status-done">公共</span>{% else %}<span class="text-muted">私有</span>{% endif %}
-                  {% if c.visibility == 'public' and coll_group_ids.get(c.id) %}
-                  <span class="badge text-bg-info" style="font-size:.72rem;" title="{{ group_name_map.get(c.id, {}).values() | join('、') }}">群组</span>
-                  {% endif %}
-                </td>
-                <td>{{ doc_counts.get(c.id, 0) }}</td>
-                {% if current_user.role == 'admin' %}<td class="text-muted">{{ owner_names.get(c.owner_id, '—') }}</td>{% endif %}
-                <td>
-                  {% if current_user.role == 'admin' or (c.owner_id == current_user.id and c.visibility == 'private') %}
-                  <button class="btn btn-xs-custom btn-outline-primary" data-cid="{{ c.id }}" data-cname="{{ c.name }}" data-ccolor="{{ c.color }}" data-cvis="{{ c.visibility }}" onclick="showCollectionModal(this)"><i class="bi bi-pencil"></i> 修改</button>
-                  <button class="btn btn-xs-custom btn-outline-danger" data-cid="{{ c.id }}" data-cname="{{ c.name }}" onclick="deleteCollection(this)"><i class="bi bi-trash"></i> 删除</button>
-                  {% else %}
-                  <span class="text-muted">只读</span>
-                  {% endif %}
-                </td>
-              </tr>
-              {% else %}
-              <tr><td colspan="7" class="text-center text-muted py-4">暂无集合</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- 批量修改集合可见范围弹框 -->
-<div class="modal fade" id="batchVisModal" tabindex="-1">
+<!-- 批量修改文档可见范围弹框 -->
+<div class="modal fade" id="docVisModal" tabindex="-1">
   <div class="modal-dialog modal-sm modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h6 class="modal-title"><i class="bi bi-sliders" style="color:var(--primary);"></i> 批量修改可见范围</h6>
+        <h6 class="modal-title"><i class="bi bi-eye" style="color:var(--primary);"></i> 批量修改可见范围</h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <small class="text-muted" id="batchVisName"></small>
-        <input type="hidden" id="batchVisIds">
-        <select id="batchVis" class="form-select mt-2" onchange="updateBatchVisBox()">
-          <option value="public">公共(所有用户可见)</option>
+        <small class="text-muted" id="docVisName"></small>
+        <select id="docVis" class="form-select mt-2" onchange="updateDocVisBox()">
           <option value="private">私有(仅创建者可见)</option>
+          <option value="group">群组可见(仅群组成员可见)</option>
+          <option value="public">公开(所有用户可见)</option>
         </select>
-        <div id="batchVisGroupsBox" style="display:block;" class="mt-2">
-          <label class="form-label mb-1"><i class="bi bi-people"></i> 可见群组(不勾选 = 所有用户可见)</label>
-          <div class="d-flex flex-wrap gap-1" id="batchVisGroups" style="max-height:140px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:6px;padding:8px;">
+        <div id="docVisGroupsBox" style="display:none;" class="mt-2">
+          <label class="form-label mb-1"><i class="bi bi-people"></i> 可见群组(需至少选择一个)</label>
+          <div class="d-flex flex-wrap gap-1" id="docVisGroups" style="max-height:140px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:6px;padding:8px;">
             {% for g in groups %}
             <label class="form-check form-check-inline mb-0">
-              <input class="form-check-input bg-check" type="checkbox" value="{{ g.id }}">
+              <input class="form-check-input dg-check" type="checkbox" value="{{ g.id }}">
               <span class="form-check-label" style="font-size:.85rem;">{{ g.name }}</span>
             </label>
             {% endfor %}
           </div>
         </div>
+        {% if current_user.role != 'admin' %}
+        <small class="text-muted d-block mt-2" style="font-size:.72rem;">仅管理员可将文档设为公开。</small>
+        {% endif %}
       </div>
       <div class="modal-footer">
         <button class="btn btn-sm" data-bs-dismiss="modal" style="background:var(--gray-100);color:var(--gray-600);">取消</button>
-        <button class="btn btn-sm btn-primary" id="saveBatchModifyBtn" onclick="saveBatchModify()">确定</button>
+        <button class="btn btn-sm btn-primary" onclick="saveDocVis()">确定</button>
       </div>
     </div>
   </div>
@@ -726,7 +661,7 @@ window.KB_URLS = {
   var selAll = document.getElementById('kbSelAll');
 
   function esc(s) { s = (s == null ? '' : String(s)); var d = document.createElement('div'); d.textContent = s; return d.innerHTML.replace(/"/g, '&quot;'); }
-  var COL_KEYS = ['cb', 'type', 'pages', 'status', 'time'];
+  var COL_KEYS = ['cb', 'type', 'pages', 'status', 'vis', 'time'];
 
   /* 列宽(记忆) */
   (function colWidths() {
@@ -766,6 +701,17 @@ window.KB_URLS = {
 
   function findDoc(id) { id = Number(id); for (var i = 0; i < state.docs.length; i++) if (state.docs[i].id === id) return state.docs[i]; return null; }
 
+  function visLabelHtml(d) {
+    var label = d.visibility_label || '私有';
+    var cls = d.visibility === 'public' ? 'status-done'
+      : d.visibility === 'group' ? 'status-ocr' : '';
+    var html = '<span class="status-badge ' + cls + '">' + esc(label) + '</span>';
+    if (d.visibility === 'group' && d.visibility_groups && d.visibility_groups.length) {
+      html += ' <span class="text-muted" style="font-size:.62rem;">' + esc(d.visibility_groups.join('、')) + '</span>';
+    }
+    return html;
+  }
+
   function rowHtml(d, i) {
     var cb = d.can_manage
       ? '<input type="checkbox" class="doc-check" value="' + d.id + '"' + (state.sel.has(String(d.id)) ? ' checked' : '') + ' onchange="window.__kb && kbSelToggle(this)">'
@@ -790,6 +736,7 @@ window.KB_URLS = {
       '<div class="kb-col kb-type"><span class="badge badge-low">' + esc(d.file_type) + '</span></div>' +
       '<div class="kb-col kb-pages">' + (d.page_count || '-') + '</div>' +
       '<div class="kb-col kb-status"><span class="status-badge status-' + esc(d.status) + '" data-status="' + d.id + '">' + esc(d.status_label) + '</span></div>' +
+      '<div class="kb-col kb-vis">' + visLabelHtml(d) + '</div>' +
       '<div class="kb-col kb-time">' + esc(d.created_short) + '</div>' +
       '<div class="kb-col kb-ops">' + ops + '</div>' +
       '</div>';
@@ -842,7 +789,8 @@ window.KB_URLS = {
         '<span class="badge badge-low">' + esc(d.file_type) + '</span>' +
         '<span class="status-badge status-' + esc(d.status) + '" data-status="' + d.id + '">' + esc(d.status_label) + '</span>' +
         (d.page_count ? '<span class="text-muted">' + d.page_count + ' 页</span>' : '') +
-        '<small class="text-muted">' + esc(d.created_short) + '</small></div></div></div></div></div>';
+        '<small class="text-muted">' + esc(d.created_short) + '</small></div>' +
+        '<div class="mt-1">' + visLabelHtml(d) + '</div></div></div></div></div>';
     }).join('');
   }
 
@@ -1318,77 +1266,56 @@ window.kbRefreshBar = kbRefreshBar;
         }).catch(function () { if (window.toast) toast('删除失败', 'danger'); });
     });
   };
-  window.kbManageOpen = function () {
-    updateSelState();
-    new bootstrap.Modal(document.getElementById('kbManageModal')).show();
-  };
-  window.toggleSelAll = function (el) {
-    var boxes = document.querySelectorAll('#kbManageBody .kb-sel');
-    for (var i = 0; i < boxes.length; i++) boxes[i].checked = el.checked;
-    updateSelState();
-  };
-  window.updateSelState = function () {
-    var boxes = document.querySelectorAll('#kbManageBody .kb-sel');
-    var selAll = document.getElementById('colSelAll');
-    var btn = document.getElementById('batchPublicBtn');
-    var checked = 0, all = boxes.length;
-    for (var i = 0; i < boxes.length; i++) if (boxes[i].checked) checked++;
-    if (selAll) selAll.checked = all > 0 && checked === all;
-    if (btn) btn.disabled = checked === 0;
-  };
-  window.batchModifyCollections = function () {
-    var boxes = document.querySelectorAll('#kbManageBody .kb-sel');
-    var ids = [], names = [];
-    for (var i = 0; i < boxes.length; i++) {
-      if (boxes[i].checked) { ids.push(Number(boxes[i].dataset.cid)); names.push(boxes[i].dataset.cname); }
+  function esc(s) { s = (s == null ? '' : String(s)); var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+})();
+</script>
+<script>
+/* ============ 文档批量修改可见范围 ============ */
+(function () {
+  var _docVisIds = [];
+  window.bulkModifyVis = function () {
+    var sel = window.__kb && window.__kb.sel;
+    var ids = [];
+    if (sel && sel.size) {
+      sel.forEach(function (v) { ids.push(Number(v)); });
     }
-    if (!ids.length) { if (window.toast) toast('请先勾选集合', 'warning'); return; }
-    document.getElementById('batchVisName').textContent = '已选 ' + ids.length + ' 个集合';
-    document.getElementById('batchVisIds').value = ids.join(',');
-    var vis = document.getElementById('batchVis');
-    vis.value = 'public';
-    updateBatchVisBox();
-    var checks = document.querySelectorAll('#batchVisGroups .bg-check');
-    for (var j = 0; j < checks.length; j++) checks[j].checked = false;
-    new bootstrap.Modal(document.getElementById('batchVisModal')).show();
+    if (!ids.length) { if (window.toast) toast('请先选择文档', 'warning'); return; }
+    _docVisIds = ids;
+    document.getElementById('docVisName').textContent = '已选 ' + ids.length + ' 篇文档';
+    var vis = document.getElementById('docVis');
+    vis.value = 'private';
+    updateDocVisBox();
+    var checks = document.querySelectorAll('#docVisGroups .dg-check');
+    for (var i = 0; i < checks.length; i++) checks[i].checked = false;
+    new bootstrap.Modal(document.getElementById('docVisModal')).show();
   };
-  window.updateBatchVisBox = function () {
-    var vis = document.getElementById('batchVis').value;
-    document.getElementById('batchVisGroupsBox').style.display = (vis === 'public') ? 'block' : 'none';
+  window.updateDocVisBox = function () {
+    var vis = document.getElementById('docVis').value;
+    document.getElementById('docVisGroupsBox').style.display = (vis === 'group') ? 'block' : 'none';
   };
-  window.saveBatchModify = function () {
-    var ids = document.getElementById('batchVisIds').value.split(',').map(function (x) { return Number(x); }).filter(function (x) { return x > 0; });
-    if (!ids.length) { if (window.toast) toast('请先勾选集合', 'warning'); return; }
-    var vis = document.getElementById('batchVis').value;
+  window.saveDocVis = function () {
+    var vis = document.getElementById('docVis').value;
     var group_ids = [];
-    document.querySelectorAll('#batchVisGroups .bg-check:checked').forEach(function (c) { group_ids.push(Number(c.value)); });
-    var btn = document.getElementById('saveBatchModifyBtn');
-    if (btn) btn.disabled = true;
-    fetch('{{ url_for('kb.api_collection_batch_update') }}', {
+    document.querySelectorAll('#docVisGroups .dg-check:checked').forEach(function (c) {
+      group_ids.push(Number(c.value));
+    });
+    if (vis === 'group' && !group_ids.length) {
+      if (window.toast) toast('群组可见需至少选择一个群组', 'warning');
+      return;
+    }
+    var body = JSON.stringify({ action: 'visibility', doc_ids: _docVisIds, visibility: vis, group_ids: group_ids });
+    fetch(window.KB_URLS.bulk, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: ids, visibility: vis, group_ids: group_ids })
+      body: body
     }).then(function (r) { return r.json(); }).then(function (d) {
-      bootstrap.Modal.getInstance(document.getElementById('batchVisModal')).hide();
-      if (btn) btn.disabled = false;
+      bootstrap.Modal.getInstance(document.getElementById('docVisModal')).hide();
       if (!d.ok) { if (window.toast) toast(d.error || '操作失败', 'danger'); return; }
-      var label = vis === 'private' ? '私有' : (group_ids.length ? '按群组公开' : '公共');
-      if (window.toast) toast(d.updated ? '已将 ' + d.updated + ' 个集合设为「' + label + '」' : '所选集合可见范围无需修改', d.updated ? 'success' : 'info');
-      location.reload();
-    }).catch(function () { if (btn) btn.disabled = false; if (window.toast) toast('操作失败', 'danger'); });
+      var label = vis === 'private' ? '私有' : (vis === 'group' ? '群组可见' : '公开');
+      if (window.toast) toast('已将 ' + d.updated + ' 篇文档设为「' + label + '」', 'success');
+      reloadFull();
+    }).catch(function () { if (window.toast) toast('网络错误', 'danger'); });
   };
-  window.pruneEmptyCollections = function () {
-    window.kbConfirm('清理空集合', '删除所有没有文档的空集合?', '清理', function () {
-      fetch('{{ url_for('kb.api_collection_prune_empty') }}', { method: 'POST' })
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          if (!d.ok) { if (window.toast) toast(d.error || '操作失败', 'danger'); return; }
-          if (window.toast) toast(d.deleted ? '已删除 ' + d.deleted + ' 个空集合' : '没有空集合', 'success');
-          location.reload();
-        }).catch(function () { if (window.toast) toast('操作失败', 'danger'); });
-    });
-  };
-  function esc(s) { s = (s == null ? '' : String(s)); var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 })();
 </script>
 <script>

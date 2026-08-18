@@ -955,7 +955,7 @@ window.kbRefreshBar = kbRefreshBar;
     if (n === 0) { if (window.toast) toast('请先选择文档', 'warning'); return; }
     if (window.CURRENT_USER.role !== 'admin') { if (window.toast) toast('仅管理员可设置公共文档', 'danger'); return; }
     var ids = Array.from(state.sel).map(function (v) { return Number(v); });
-    fetch('/api/documents/batch-public', {
+    fetch('/kb/api/documents/batch-public', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ids: ids})
@@ -976,7 +976,7 @@ window.kbRefreshBar = kbRefreshBar;
     if (n === 0) { if (window.toast) toast('请先选择文档', 'warning'); return; }
     if (window.CURRENT_USER.role !== 'admin') { if (window.toast) toast('仅管理员可设置按群组公开', 'danger'); return; }
     var ids = Array.from(state.sel).map(function (v) { return Number(v); });
-    fetch('/api/documents/batch-group-public', {
+    fetch('/kb/api/documents/batch-group-public', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ids: ids})

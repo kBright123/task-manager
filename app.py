@@ -1651,12 +1651,12 @@ def extract_title_from_text(text):
     QUOTE_CHARS = '\u201c\u201d\u300c\u300d"'
     QUOTE_PAT = re.compile(r'[' + QUOTE_CHARS + r']([^' + QUOTE_CHARS + r']{4,60})[' + QUOTE_CHARS + r']')
 
-    # 优先取【】中的名称,如【分中心项目委会议时间】→ 分中心项目委会议时间
+    # 优先取第一个【】中的内容,如【分中心项目委会议时间】→ 分中心项目委会议时间
     for line in lines:
-        m = re.search(r'【([^】]{2,60})】', line)
+        m = re.search(r'【([^】]+)】', line)
         if m:
             name = m.group(1).strip()
-            if name and not any(kw in name for kw in TITLE_BLOCK_WORDS):
+            if name:
                 return name[:80]
 
     considered = []

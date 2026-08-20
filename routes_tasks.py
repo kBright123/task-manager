@@ -18,6 +18,33 @@
 """tasks 路由, 自 app.py 单文件拆分, 保持原 endpoint 名称不变。"""
 from app import app, login_required
 
+
+def _similar_blocked_by_assignee(similar, assignee_ids, group_ids, is_all):
+    """判断新任务与相似未完成待办的分配对象是否有重叠。
+
+    新任务分配对象与任一相似待办的分配对象存在重叠时返回 True(拦截发布);
+    无任何重叠时返回 False(允许正常发布)。
+    """
+    new_ids = set(assignee_ids) if assignee_ids else set()
+    if is_all:
+        new_ids.update(u.id for u in User.query.all())
+    if group_ids:
+        groups = Group.query.filter(Group.id.in_(group_ids)).all()
+        for g in groups:
+            for m in g.members:
+                if not m.is_disabled and m.status == 'approved':
+                    new_ids.add(m.id)
+    if not new_ids:
+        return True
+    for d in similar:
+        task = d.get('task') if isinstance(d, dict) else None
+        if not task:
+            continue
+        old_ids = {a.user_id for a in task.assignments}
+        if old_ids & new_ids:
+            return True
+    return False
+
 @app.route('/user/tasks/batch_delete', methods=['POST'])
 @login_required
 def user_batch_delete_tasks():
@@ -379,6 +406,9 @@ def api_quick_task_preview():
         similar = find_similar_tasks(
             title, text, parsed.get('category') or '',
             start, end, unfinished_only=True)
+        if similar and not _similar_blocked_by_assignee(
+                similar, set(assignee_ids), [], is_all):
+            similar = []
         for d in similar:
             creator = getattr(d.get('task'), 'creator', None)
             duplicate_tasks.append({
@@ -442,12 +472,6 @@ def api_quick_task():
     category = (data.get('category') or '').strip() or '工作'
     description = (data.get('description') or '').strip() or title
 
-    similar = find_similar_tasks(title, description, category,
-                                 start, end, unfinished_only=True)
-    if similar:
-        return jsonify({'ok': False, 'duplicate': True,
-                        'error': '与现有未完成待办相似度过高（相似度 ≥ 70%），不允许发布，请修改待办标题或描述'}), 400
-
     is_all = current_user.role == 'admin' and bool(data.get('is_all'))
     assign_self = bool(data.get('assign_self', True))
     recurrence_interval_days = int(data.get('recurrence_interval_days') or 0)
@@ -472,6 +496,13 @@ def api_quick_task():
             continue
     if not is_all and not assignee_ids and not group_ids:
         return jsonify({'ok': False, 'error': '请至少选择一位负责人(可勾选自己)'}), 400
+
+    similar = find_similar_tasks(title, description, category,
+                                 start, end, unfinished_only=True)
+    if similar and _similar_blocked_by_assignee(
+            similar, assignee_ids, group_ids, is_all):
+        return jsonify({'ok': False, 'duplicate': True,
+                        'error': '与现有未完成待办相似度过高（相似度 ≥ 70%），不允许发布，请修改待办标题或描述'}), 400
 
     created_titles = []
     try:
@@ -689,7 +720,10 @@ def user_tasks():
                 similar = find_similar_tasks(title, description, category,
                                              start_time, end_time,
                                              unfinished_only=True)
-                if similar:
+                sim_uid = {int(x) for x in assignee_ids if str(x).isdigit()} if assignee_ids else set()
+                sim_gid = [int(gid) for gid in group_ids if str(gid).isdigit()]
+                if similar and _similar_blocked_by_assignee(
+                        similar, sim_uid, sim_gid, is_all):
                     preview_data = {
                         'title': title, 'category': category,
                         'start_time': start_time, 'end_time': end_time,
@@ -788,6 +822,18 @@ def user_tasks():
                 parsed.get('start_time'),
                 parsed.get('end_time'),
                 unfinished_only=True)
+            parsed_uid = set()
+            if not parsed.get('is_all'):
+                for name in parsed.get('assignees') or []:
+                    u = User.query.filter(db.or_(User.name == name,
+                                                 User.username == name)).first()
+                    if u:
+                        parsed_uid.add(u.id)
+                parsed_uid.add(current_user.id)
+            if parsed_duplicates and not _similar_blocked_by_assignee(
+                    parsed_duplicates, parsed_uid, [],
+                    parsed.get('is_all', False)):
+                parsed_duplicates = []
             template_data = {
                 'rejected_tasks': rejected_tasks,
                 'preview': parsed, 'users': users,

@@ -538,6 +538,7 @@ def api_tasks_timeline():
             'display': display,
             'section': section,
             'section_label': section_label,
+            'ref_date': ref.strftime('%Y-%m-%d') if ref else '',
             'note': (a.note or '') if a else '',
             'attachment': (a.attachment or '') if a else '',
             'assignment_id': a.id if a else None,

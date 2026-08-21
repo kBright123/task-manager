@@ -78,6 +78,8 @@
   .tl-card .tl-card-title{font-weight:600;color:var(--gray-800);word-break:break-word;font-size:.78rem;}
   .tl-card .tl-card-cat{font-size:.5rem;padding:0 4px;border-radius:3px;color:#fff;margin-left:3px;vertical-align:middle;}
   .tl-empty{text-align:center;padding:60px 20px;color:var(--gray-400);}
+  .tl-older{text-align:left;font-size:.72rem;color:var(--gray-500);background:var(--gray-100);border-radius:6px;margin:0 0 8px 28px;padding:5px 10px;cursor:pointer;user-select:none;width:fit-content;}
+  .tl-older:hover{color:var(--primary);background:var(--primary-light);}
   .tl-empty i{font-size:2rem;display:block;margin-bottom:8px;}
   /* 日历 */
   .cal-cell{position:relative;width:100%;aspect-ratio:1;border-radius:5px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;font-size:.68rem;color:#333;background:#fff;border:2px solid transparent;max-height:32px;}
@@ -266,7 +268,7 @@
         <div class="d-flex align-items-center gap-2">
           <span id="tlFilterChip" class="d-none" style="font-size:.68rem;background:var(--primary);color:#fff;border-radius:10px;padding:1px 8px;cursor:pointer;" onclick="tlClearFilter()" title="清除日期筛选"><span id="tlFilterText"></span> ×</span>
           <label class="d-flex align-items-center gap-1 mb-0" style="font-size:.68rem;color:var(--gray-500);cursor:pointer;">
-            <input type="checkbox" id="dashShowCompleted" onchange="dashLoadTimeline();calRender()" style="margin:0;width:16px;height:16px;cursor:pointer;">
+            <input type="checkbox" id="dashShowCompleted" checked onchange="dashLoadTimeline();calRender()" style="margin:0;width:16px;height:16px;cursor:pointer;">
             <span>已完成</span>
           </label>
           <span id="dashFeedCount" style="font-size:.68rem;color:var(--gray-400);"></span>
@@ -482,6 +484,49 @@ function openEditTaskDrawer(){
 }
 
 var _dashShowCompleted=false;var _tlFilter=null;
+var _tlCache=[];var _tlStage=0;var _tlBusy=false;
+var TL_STAGE_DAYS=[7,31,0];
+function tlDateStr(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function tlJumpToday(el){
+  var wrap=el.querySelector('.tl-wrap')||el;
+  var sec=wrap.querySelector('.tl-section.today')||wrap.querySelector('.tl-section.this_week');
+  wrap.scrollTop=sec?(sec.offsetTop-6):0;
+}
+function dashRenderTimeline(jump){
+  var el=document.getElementById('dashTimeline');if(!el)return;
+  var tasks=_tlCache;
+  var cut=(!_tlFilter)?TL_STAGE_DAYS[_tlStage]:0;
+  if(cut){var lim=tlDateStr(new Date(Date.now()-cut*86400000));tasks=tasks.filter(function(t){return !t.ref_date||t.ref_date>=lim;});}
+  var hidden=_tlCache.length-tasks.length;
+  if(!tasks.length&&!hidden){el.innerHTML='<div class="tl-empty"><i class="bi bi-calendar-x"></i>'+(_tlFilter?'该日暂无待办任务':'暂无待办任务')+'</div>';return;}
+  var catColors={'工作':'var(--primary)','个人':'var(--success)','会议':'var(--meeting)','培训':'var(--training)','考试':'var(--exam)'};
+  var order=['past','past_week','overdue','today','tomorrow','this_week','next_week','later'];var groups={};
+  tasks.forEach(function(t){if(t.display==='abandoned')return;var s=t.section||'later';if(!groups[s])groups[s]={label:t.section_label,items:[]};groups[s].items.push(t);});
+  var html='<div class="tl-wrap"><div class="tl-axis"></div>';
+  if(hidden>0)html+='<div class="tl-older" onclick="dashTlExpand()">↑ 加载更早的任务（还有 '+hidden+' 条）</div>';
+  order.forEach(function(s){var g=groups[s];if(!g)return;html+='<div class="tl-section '+s+'"><div class="tl-section-hd"><div class="tl-section-dot"></div><span class="tl-section-label">'+esc(g.label)+'</span><span class="tl-section-count">'+g.items.length+'</span></div><div class="tl-items">';
+  g.items.forEach(function(t){var color=catColors[t.category]||'var(--primary)';var isCompleted=t.display==='completed';var desc=t.description||'';var hasDesc=desc.length>0;var taskDate=t.start_time?t.start_time.substring(0,10):'';
+  html+='<div class="tl-card '+t.display+'" id="dtl-'+t.id+'" data-date="'+taskDate+'"><div style="display:flex;align-items:flex-start;gap:6px;">';
+  html+='<input type="checkbox" class="form-check-input mt-1" style="flex-shrink:0;cursor:pointer;" '+(isCompleted?'checked':'')+' onchange="dashToggleTask('+t.id+',this.checked,'+t.assignment_id+')" onclick="event.stopPropagation()">';
+  html+='<div style="flex:1;min-width:0;"><div class="tl-card-time">'+esc(t.start_time.substring(5,16))+' - '+esc(t.end_time.substring(5,16))+'</div>';
+  html+='<div class="tl-card-title" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onclick="dashOpenTaskDrawer('+JSON.stringify(t).replace(/"/g,'&quot;')+')">'+esc(t.title)+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
+  if(hasDesc){var shortDesc=desc.length>50?desc.substring(0,50)+'...':desc;html+='<div style="font-size:.72rem;color:var(--gray-500);margin-top:2px;cursor:pointer;" onclick="dashToggleDesc(this)" data-full="'+esc(desc)+'">'+esc(shortDesc)+'</div>';}
+  html+='</div></div></div>';});html+='</div></div>';});html+='</div>';el.innerHTML=html;
+  var wrap=el.querySelector('.tl-wrap')||el;
+  wrap.onscroll=function(){if(!_tlBusy&&_tlStage<TL_STAGE_DAYS.length-1&&!_tlFilter&&wrap.scrollTop<=2)dashTlExpand();};
+  if(jump)tlJumpToday(el);
+}
+function dashTlExpand(){
+  if(_tlBusy||_tlStage>=TL_STAGE_DAYS.length-1)return;
+  var el=document.getElementById('dashTimeline');
+  var wrap=el.querySelector('.tl-wrap')||el;
+  var keep=wrap.scrollHeight-wrap.scrollTop;
+  _tlBusy=true;_tlStage++;
+  dashRenderTimeline(false);
+  var w2=el.querySelector('.tl-wrap')||el;
+  w2.scrollTop=w2.scrollHeight-keep;
+  _tlBusy=false;
+}
 function dashLoadTimeline(){
   _dashShowCompleted=document.getElementById('dashShowCompleted')?.checked||false;
   var el=document.getElementById('dashTimeline');if(!el)return;
@@ -492,21 +537,10 @@ function dashLoadTimeline(){
   if(chip){if(_tlFilter){document.getElementById('tlFilterText').textContent=_tlFilter.substring(5).replace('-','/');chip.classList.remove('d-none');}else{chip.classList.add('d-none');}}
   var qs=params.length?'?'+params.join('&'):'';
   fetch('/api/tasks/timeline'+qs).then(function(r){return r.json();}).then(function(d){
-    if(!d.ok||!d.tasks||!d.tasks.length){el.innerHTML='<div class="tl-empty"><i class="bi bi-calendar-x"></i>'+(_tlFilter?'该日暂无待办任务':'暂无待办任务')+'</div>';var cnt=document.getElementById('dashFeedCount');if(cnt)cnt.textContent='';return;}
-    var cnt=document.getElementById('dashFeedCount');if(cnt)cnt.textContent='共 '+d.tasks.length+' 条';
-    var catColors={'工作':'var(--primary)','个人':'var(--success)','会议':'var(--meeting)','培训':'var(--training)','考试':'var(--exam)'};
-    var order=['past','past_week','overdue','today','tomorrow','this_week','next_week','later'];var groups={};
-    d.tasks.forEach(function(t){if(t.display==='abandoned')return;var s=t.section||'later';if(!groups[s])groups[s]={label:t.section_label,items:[]};groups[s].items.push(t);});
-    var html='<div class="tl-wrap"><div class="tl-axis"></div>';
-    order.forEach(function(s){var g=groups[s];if(!g)return;html+='<div class="tl-section '+s+'"><div class="tl-section-hd"><div class="tl-section-dot"></div><span class="tl-section-label">'+esc(g.label)+'</span><span class="tl-section-count">'+g.items.length+'</span></div><div class="tl-items">';
-    g.items.forEach(function(t){var color=catColors[t.category]||'var(--primary)';var isCompleted=t.display==='completed';var desc=t.description||'';var hasDesc=desc.length>0;var taskDate=t.start_time?t.start_time.substring(0,10):'';
-    html+='<div class="tl-card '+t.display+'" id="dtl-'+t.id+'" data-date="'+taskDate+'"><div style="display:flex;align-items:flex-start;gap:6px;">';
-    html+='<input type="checkbox" class="form-check-input mt-1" style="flex-shrink:0;cursor:pointer;" '+(isCompleted?'checked':'')+' onchange="dashToggleTask('+t.id+',this.checked,'+t.assignment_id+')" onclick="event.stopPropagation()">';
-    html+='<div style="flex:1;min-width:0;"><div class="tl-card-time">'+esc(t.start_time.substring(5,16))+' - '+esc(t.end_time.substring(5,16))+'</div>';
-    html+='<div class="tl-card-title" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onclick="dashOpenTaskDrawer('+JSON.stringify(t).replace(/"/g,'&quot;')+')">'+esc(t.title)+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
-    if(hasDesc){var shortDesc=desc.length>50?desc.substring(0,50)+'...':desc;html+='<div style="font-size:.72rem;color:var(--gray-500);margin-top:2px;cursor:pointer;" onclick="dashToggleDesc(this)" data-full="'+esc(desc)+'">'+esc(shortDesc)+'</div>';}
-    html+='</div></div></div>';});html+='</div></div>';});html+='</div>';el.innerHTML=html;
-    if(!_tlFilter){var todaySection=el.querySelector('.tl-section.today');if(todaySection){el.scrollTop=todaySection.offsetTop-el.offsetTop-8;}}
+    var cnt=document.getElementById('dashFeedCount');
+    if(!d.ok||!d.tasks||!d.tasks.length){_tlCache=[];dashRenderTimeline(false);if(cnt)cnt.textContent='';return;}
+    _tlCache=d.tasks;if(cnt)cnt.textContent='共 '+d.tasks.length+' 条';
+    dashRenderTimeline(true);
   }).catch(function(){el.innerHTML='<div class="tl-empty"><i class="bi bi-exclamation-circle"></i>加载失败</div>';});
 }
 function dashToggleTask(id,checked,aid){fetch('/user/tasks/'+aid+'/toggle',{method:'POST'}).then(function(r){return r.json();}).then(function(d){if(d.ok)dashLoadTimeline();});}

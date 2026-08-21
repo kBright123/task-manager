@@ -100,7 +100,9 @@
     .tl-card .tl-card-time{font-size:.68rem;color:var(--gray-400);margin-bottom:2px;}
     .tl-card .tl-card-title{font-weight:600;color:var(--gray-800);word-break:break-word;}
     .tl-card .tl-card-cat{font-size:.58rem;padding:1px 5px;border-radius:3px;color:#fff;margin-left:4px;vertical-align:middle;}
-    .tl-empty{text-align:center;padding:60px 20px;color:var(--gray-400);}
+     .tl-empty{text-align:center;padding:60px 20px;color:var(--gray-400);}
+     .tl-older{text-align:left;font-size:.72rem;color:var(--gray-500);background:var(--gray-100);border-radius:6px;margin:0 0 8px 28px;padding:5px 10px;cursor:pointer;user-select:none;width:fit-content;}
+     .tl-older:hover{color:var(--primary);background:var(--primary-light);}
     .tl-empty i{font-size:2rem;display:block;margin-bottom:8px;}
      @media(max-width:767px){
        .tl-wrap{padding:8px 8px 8px 12px;}
@@ -162,7 +164,7 @@
       <span style="font-size:.85rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-calendar-range" style="color:var(--primary);"></i> 时间轴</span>
       <div class="d-flex align-items-center gap-2">
         <label class="d-flex align-items-center gap-1 mb-0" style="font-size:.68rem;color:var(--gray-500);cursor:pointer;">
-          <input type="checkbox" id="tlShowCompleted" onchange="loadTaskFeed()" style="margin:0;width:12px;height:12px;">
+          <input type="checkbox" id="tlShowCompleted" checked onchange="loadTaskFeed()" style="margin:0;width:12px;height:12px;">
           <span>已完成</span>
         </label>
         <span id="taskFeedCount" style="font-size:.68rem;color:var(--gray-400);"></span>
@@ -526,6 +528,9 @@
   ta.addEventListener('input',resize);
   resize();
 })();
+var _tlfCache=[];var _tlfStage=0;var _tlfBusy=false;
+var TLF_STAGE_DAYS=[7,31,0];
+function tlfDateStr(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function loadTaskFeed(){
   var el=document.getElementById('taskTimelineView');
   if(!el) return;
@@ -537,24 +542,39 @@ function loadTaskFeed(){
   if(showCompleted) params.push('show_completed=1');
   var qs=params.length?'?'+params.join('&'):'';
   fetch('/api/tasks/timeline'+qs).then(function(r){return r.json();}).then(function(d){
+    var cnt=document.getElementById('taskFeedCount');
+    renderCatCounts(d.categories);
     if(!d.ok||!d.tasks||!d.tasks.length){
-      el.innerHTML='<div class="tl-axis"></div><div class="tl-empty"><i class="bi bi-calendar-x"></i>暂无任务</div>';
-      var cnt=document.getElementById('taskFeedCount');
+      _tlfCache=[];
+      renderTimeline(el,false);
       if(cnt) cnt.textContent='';
-      renderCatCounts(d.categories);
       return;
     }
-    var cnt=document.getElementById('taskFeedCount');
+    _tlfCache=d.tasks;
     if(cnt) cnt.textContent='共 '+d.tasks.length+' 条';
-    renderCatCounts(d.categories);
-    renderTimeline(el,d.tasks,d.today);
+    renderTimeline(el,true);
   }).catch(function(){
     el.innerHTML='<div class="tl-axis"></div><div class="tl-empty"><i class="bi bi-exclamation-circle"></i>加载失败</div>';
   });
 }
-function renderTimeline(el,tasks,todayStr){
+function tlfExpand(){
+  if(_tlfBusy||_tlfStage>=TLF_STAGE_DAYS.length-1)return;
+  var el=document.getElementById('taskTimelineView');if(!el)return;
+  var wrap=el.closest('.tl-wrap')||el;
+  var keep=wrap.scrollHeight-wrap.scrollTop;
+  _tlfBusy=true;_tlfStage++;
+  renderTimeline(el,false);
+  var w2=el.closest('.tl-wrap')||el;
+  w2.scrollTop=w2.scrollHeight-keep;
+  _tlfBusy=false;
+}
+function renderTimeline(el,jump){
   var catColors={'工作':'var(--primary)','个人':'var(--success)','会议':'var(--meeting)','培训':'var(--training)','考试':'var(--exam)'};
   var sectionOrder=['past','past_week','overdue','today','tomorrow','this_week','next_week','later'];
+  var tasks=_tlfCache;
+  var cut=TLF_STAGE_DAYS[_tlfStage];
+  if(cut){var lim=tlfDateStr(new Date(Date.now()-cut*86400000));tasks=tasks.filter(function(t){return !t.ref_date||t.ref_date>=lim;});}
+  var hidden=_tlfCache.length-tasks.length;
   var groups={};
   tasks.forEach(function(t){
     if(t.display==='abandoned') return;
@@ -563,6 +583,7 @@ function renderTimeline(el,tasks,todayStr){
     groups[s].items.push(t);
   });
   var html='';
+  if(hidden>0) html+='<div class="tl-older" onclick="tlfExpand()">↑ 加载更早的任务（还有 '+hidden+' 条）</div>';
   sectionOrder.forEach(function(s){
     var g=groups[s];
     if(!g||!g.items.length) return;
@@ -590,12 +611,13 @@ function renderTimeline(el,tasks,todayStr){
     });
     html+='</div></div>';
   });
+  if(!tasks.length&&!hidden){html='<div class="tl-empty"><i class="bi bi-calendar-x"></i>暂无任务</div>';}
   el.innerHTML='<div class="tl-axis"></div>'+html;
-  // 在时间轴容器内滚动到今天
-  var todaySection=el.querySelector('.tl-section.today');
-  if(todaySection){
-    var wrap=el.closest('.tl-wrap')||el.parentElement;
-    if(wrap&&wrap.scrollHeight>wrap.clientHeight){wrap.scrollTop=todaySection.offsetTop-8;}
+  var wrap=el.closest('.tl-wrap')||el.parentElement||el;
+  wrap.onscroll=function(){if(!_tlfBusy&&_tlfStage<TLF_STAGE_DAYS.length-1&&wrap.scrollTop<=2)tlfExpand();};
+  if(jump){
+    var sec=el.querySelector('.tl-section.today')||el.querySelector('.tl-section.this_week');
+    if(sec&&wrap.scrollHeight>wrap.clientHeight){wrap.scrollTop=sec.offsetTop-8;}
   }
 }
 function tlToggleTask(id,completed,assignmentId){

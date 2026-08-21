@@ -18,6 +18,18 @@
 """tasks 路由, 自 app.py 单文件拆分, 保持原 endpoint 名称不变。"""
 from app import app, login_required
 
+# chinese_calendar 返回英文名, 映射为中文用于日历展示
+_HOLIDAY_CN = {
+    "New Year's Day": '元旦',
+    'Spring Festival': '春节',
+    'Tomb-sweeping Day': '清明节',
+    'Labour Day': '劳动节',
+    'Dragon Boat Festival': '端午节',
+    'Mid-autumn Festival': '中秋节',
+    'National Day': '国庆节',
+    'Anti-Fascist 70th Day': '抗战胜利纪念日',
+}
+
 
 def _similar_blocked_by_assignee(similar, assignee_ids, group_ids, is_all):
     """判断新任务与相似未完成待办的分配对象是否有重叠。
@@ -359,11 +371,11 @@ def api_quick_tasks_feed():
                     'category': category, 'categories': categories})
 
 
-def _task_display_and_section(t, status, now):
+def _task_display_and_section(t, status, now, ref=None):
     """计算任务的显示状态(display)与时间轴分段(section/section_label)。
-    分段按截止时间归类,不按状态单独分段。"""
+    分段按 ref 时间归类(已完成=完成时间,未完成=截止时间),与日历口径一致。"""
     today_date = now.date()
-    end_date = t.end_time.date() if t.end_time else today_date
+    ref_date = (ref or t.end_time or now).date()
     start_date = t.start_time.date() if t.start_time else today_date
     # 显示状态
     if status == 'abandoned':
@@ -377,7 +389,7 @@ def _task_display_and_section(t, status, now):
     else:
         display = 'future'
     # 分段
-    diff_days = (end_date - today_date).days
+    diff_days = (ref_date - today_date).days
     if display == 'abandoned':
         section, section_label = 'abandoned', '已废弃'
     elif diff_days < -7:
@@ -431,18 +443,29 @@ def api_tasks_timeline():
         created = created.filter(Task.category == category)
     for t in created.all():
         task_ids.add(t.id)
-    # 被分配的任务
-    assigned = db.session.query(TaskAssignment.task_id).filter(
+    # 被分配的任务(show_completed 时纳入已完成,与日历口径一致)
+    a_statuses = ['pending', 'rejected']
+    if show_completed:
+        a_statuses += ['completed', 'approved']
+    assigned_ids = [r[0] for r in db.session.query(
+        TaskAssignment.task_id).filter(
         TaskAssignment.user_id == current_user.id,
-        TaskAssignment.status.in_(['pending', 'rejected']))
-    assigned_ids = [r[0] for r in assigned.all()]
-    if assigned_ids:
+        TaskAssignment.status.in_(a_statuses)).all()]
+    # 已完成按完成时间归档: 完成时间在范围内(截止不在)的任务也要纳入
+    done_in_range = []
+    if start and end:
+        done_in_range = [r[0] for r in db.session.query(
+            TaskAssignment.task_id).filter(
+            TaskAssignment.user_id == current_user.id,
+            TaskAssignment.status.in_(('completed', 'approved')),
+            TaskAssignment.completed_at.isnot(None),
+            TaskAssignment.completed_at >= start,
+            TaskAssignment.completed_at <= end).all()]
+    extra_ids = set(assigned_ids) | set(done_in_range)
+    if extra_ids:
+        # 不在此处过滤 end_time: 已完成任务由完成时间归档,越界项由下方 ref 校验剔除
         extra = Task.query.filter(
-            Task.id.in_(assigned_ids))
-        if start:
-            extra = extra.filter(Task.end_time >= start)
-        if end:
-            extra = extra.filter(Task.end_time <= end)
+            Task.id.in_(extra_ids))
         if category:
             extra = extra.filter(Task.category == category)
         for t in extra.all():
@@ -452,17 +475,22 @@ def api_tasks_timeline():
     tasks = Task.query.filter(Task.id.in_(task_ids)).order_by(Task.end_time).all()
     # 获取当前用户在这些任务上的分配状态
     assigns = {}
-    if assigned_ids:
-        for a in TaskAssignment.query.filter(
-                TaskAssignment.task_id.in_(task_ids),
-                TaskAssignment.user_id == current_user.id).all():
-            assigns[a.task_id] = a
+    for a in TaskAssignment.query.filter(
+            TaskAssignment.task_id.in_(task_ids),
+            TaskAssignment.user_id == current_user.id).all():
+        assigns[a.task_id] = a
     out = []
     for t in tasks:
         a = assigns.get(t.id)
         status = a.status if a else 'pending'
         now = datetime.now()
-        display, section, section_label = _task_display_and_section(t, status, now)
+        # 归类基准: 已完成按完成时间,未完成按截止时间(与日历口径一致)
+        done = status in ('completed', 'approved')
+        ref = (a.completed_at or t.end_time) if (done and a) else t.end_time
+        if start and end and ref and not (start <= ref <= end):
+            continue
+        display, section, section_label = _task_display_and_section(
+            t, status, now, ref=ref)
         # 默认不展示已完成
         if display == 'completed' and not show_completed:
             continue
@@ -506,9 +534,9 @@ def api_tasks_timeline():
 def api_tasks_calendar():
     """返回指定月份每天的任务密度 + 班/休标签"""
     try:
-        from chinese_calendar import is_workday, is_holiday as cn_holiday
+        from chinese_calendar import is_workday, get_holiday_detail
     except ImportError:
-        is_workday = cn_holiday = None
+        is_workday = get_holiday_detail = None
     year = request.args.get('year', datetime.now().year, type=int)
     month = request.args.get('month', datetime.now().month, type=int)
     start = datetime(year, month, 1)
@@ -552,6 +580,16 @@ def api_tasks_calendar():
                         'category': t.category,
                         'done': done})
     tags = {}
+    holidays = {}
+    # 探测 chinese_calendar 是否覆盖该年份(旧版包对新年度抛 NotImplementedError)
+    year_ok = True
+    if get_holiday_detail is not None:
+        try:
+            get_holiday_detail(date(year, month, 1))
+        except NotImplementedError:
+            year_ok = False
+        except Exception:
+            pass
     import calendar as cal_mod
     num_days = (end - start).days + 1
     for day in range(1, num_days + 1):
@@ -559,20 +597,24 @@ def api_tasks_calendar():
         dow = d.weekday()
         ds = d.strftime('%Y-%m-%d')
         is_weekend = dow >= 5
-        if is_workday is None:
-            # 未安装 chinese_calendar 时降级:周末视为休,无补班标记
+        if is_workday is None or not year_ok:
+            # 未安装/版本不支持时降级:周末视为休,无补班与节日标记
             if is_weekend:
                 tags[ds] = '休'
             continue
         try:
-            if is_weekend and is_workday(d):
-                tags[ds] = '班'
-            elif not is_weekend and cn_holiday(d):
-                tags[ds] = '休'
+            is_hol, hname = get_holiday_detail(d)
         except Exception:
-            pass
+            continue
+        if is_hol and hname:
+            # 法定假日统一标休(含长假中的周六日,如国庆/中秋假期)
+            tags[ds] = '休'
+            holidays[ds] = _HOLIDAY_CN.get(hname, hname)
+        elif is_weekend and is_workday(d):
+            tags[ds] = '班'
     return jsonify({'ok': True, 'density': density, 'tags': tags,
-                    'items': items, 'year': year, 'month': month})
+                    'holidays': holidays, 'items': items,
+                    'year': year, 'month': month})
 
 
 @app.route('/api/quick-task/preview', methods=['POST'])

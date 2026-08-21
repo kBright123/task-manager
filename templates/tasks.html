@@ -68,8 +68,8 @@
     .tl-wrap{position:relative;overflow-y:auto;flex:1;padding:12px 12px 12px 16px;}
     .tl-axis{position:absolute;left:28px;top:0;bottom:0;width:2px;background:var(--gray-200);}
     .tl-section{margin-bottom:8px;}
-    .tl-section-hd{display:flex;align-items:center;gap:8px;padding:8px 0 4px 0;position:relative;}
-    .tl-section-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;border:2px solid var(--gray-300);background:#fff;z-index:1;}
+    .tl-section-hd{display:flex;align-items:center;gap:8px;padding:8px 0 4px 24px;position:relative;}
+    .tl-section-dot{position:absolute;left:7px;top:50%;transform:translateY(-50%);width:12px;height:12px;border-radius:50%;flex-shrink:0;border:2px solid var(--gray-300);background:#fff;z-index:1;}
     .tl-section-hd .tl-section-label{font-size:.82rem;font-weight:700;color:var(--gray-600);}
     .tl-section-hd .tl-section-count{font-size:.65rem;color:var(--gray-400);background:var(--gray-100);padding:1px 6px;border-radius:8px;}
     /* 各 section 颜色 */
@@ -78,7 +78,7 @@
     .tl-section.past .tl-section-dot,.tl-section.past_week .tl-section-dot{border-color:var(--gray-400);background:var(--gray-400);}
     .tl-section.past .tl-section-label,.tl-section.past_week .tl-section-label{color:var(--gray-500);}
     .tl-section.overdue .tl-axis-seg{background:var(--danger);}
-    .tl-section.today .tl-section-dot{border-color:var(--warning);background:var(--warning);width:14px;height:14px;}
+    .tl-section.today .tl-section-dot{border-color:var(--warning);background:var(--warning);width:14px;height:14px;left:6px;}
     .tl-section.today .tl-section-label{color:var(--warning);font-size:.88rem;}
     .tl-section.today{background:rgba(255,193,7,.06);border-radius:8px;padding:4px 8px;margin-left:-8px;margin-right:-8px;}
     .tl-section.tomorrow .tl-section-dot{border-color:var(--primary);}
@@ -89,12 +89,10 @@
     .tl-section.abandoned .tl-section-dot{border-color:var(--gray-400);background:var(--gray-400);}
     .tl-section.abandoned .tl-section-label{color:var(--gray-400);}
     /* 任务卡片 */
-    .tl-items{margin-left:20px;padding-left:14px;border-left:2px solid var(--gray-200);}
-    .tl-section.overdue .tl-items{border-left-color:var(--danger);}
-    .tl-section.today .tl-items{border-left-color:var(--warning);}
+    .tl-items{margin-left:20px;padding-left:14px;}
     .tl-card{position:relative;margin-bottom:6px;padding:8px 10px;background:#fff;border:1px solid var(--gray-200);border-radius:8px;cursor:pointer;transition:all .15s;font-size:.82rem;}
     .tl-card:hover{border-color:var(--primary);box-shadow:var(--shadow-sm);}
-    .tl-card::before{content:'';position:absolute;left:-18px;top:10px;width:8px;height:8px;border-radius:50%;border:2px solid var(--primary);background:#fff;}
+    .tl-card::before{content:'';position:absolute;left:-27px;top:10px;width:8px;height:8px;border-radius:50%;border:2px solid var(--primary);background:#fff;}
     .tl-card.overdue::before{border-color:var(--danger);background:var(--danger);}
     .tl-card.today::before{border-color:var(--warning);background:var(--warning);}
     .tl-card.completed::before{border-color:var(--success);background:var(--success);}
@@ -104,11 +102,14 @@
     .tl-card .tl-card-cat{font-size:.58rem;padding:1px 5px;border-radius:3px;color:#fff;margin-left:4px;vertical-align:middle;}
     .tl-empty{text-align:center;padding:60px 20px;color:var(--gray-400);}
     .tl-empty i{font-size:2rem;display:block;margin-bottom:8px;}
-    @media(max-width:767px){
-      .tl-wrap{padding:8px 8px 8px 12px;}
-      .tl-section.today{margin-left:-4px;margin-right:-4px;padding:4px 6px;}
-      .tl-card{font-size:.8rem;padding:6px 8px;}
-    }
+     @media(max-width:767px){
+       .tl-wrap{padding:8px 8px 8px 12px;}
+       .tl-section.today{margin-left:-4px;margin-right:-4px;padding:4px 6px;}
+       .tl-section-dot{left:11px;}
+       .tl-section.today .tl-section-dot{left:8px;}
+       .tl-card::before{left:-23px;}
+       .tl-card{font-size:.8rem;padding:6px 8px;}
+     }
 </style>
 {% endblock %}
 {% block content %}

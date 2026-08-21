@@ -26,7 +26,12 @@
 避免循环导入:模型与 db 通过 init_models(database) 注入,与 knowledge.py 同模式。
 """
 import datetime
-from timeutil import cn_now
+
+
+def cn_now():
+    """当前北京时间(naive), 全项目统一时间源(与服务器时区无关)。"""
+    return datetime.datetime.now(
+        datetime.timezone(datetime.timedelta(hours=8))).replace(tzinfo=None)
 import hashlib
 import json
 import logging

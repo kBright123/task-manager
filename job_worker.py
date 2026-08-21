@@ -35,7 +35,10 @@ import os
 import re
 import time
 from datetime import datetime, timedelta
-from timeutil import cn_now
+def cn_now():
+    """当前北京时间(naive), 全项目统一时间源(与服务器时区无关)。"""
+    from datetime import timezone
+    return datetime.now(timezone(timedelta(hours=8))).replace(tzinfo=None)
 
 if os.environ.get('TZ'):
     try:

@@ -28,7 +28,12 @@
 模型类由 app.py 调用 init_models(db) 注入,避免循环导入。
 """
 import datetime
-from timeutil import cn_now
+
+
+def cn_now():
+    """当前北京时间(naive), 全项目统一时间源(与服务器时区无关)。"""
+    return datetime.datetime.now(
+        datetime.timezone(datetime.timedelta(hours=8))).replace(tzinfo=None)
 import hashlib
 import io
 import json

@@ -614,11 +614,12 @@ function renderTimeline(el,jump){
   if(!tasks.length&&!hidden){html='<div class="tl-empty"><i class="bi bi-calendar-x"></i>暂无任务</div>';}
   el.innerHTML='<div class="tl-axis"></div>'+html;
   var wrap=el.closest('.tl-wrap')||el.parentElement||el;
-  wrap.onscroll=function(){if(!_tlfBusy&&_tlfStage<TLF_STAGE_DAYS.length-1&&wrap.scrollTop<=2)tlfExpand();};
   if(jump){
-    var sec=el.querySelector('.tl-section.today')||el.querySelector('.tl-section.this_week');
+    var sec=el.querySelector('.tl-section.today');
+    if(!sec){var future=['tomorrow','this_week','next_week','later'];for(var i=0;i<future.length;i++){sec=el.querySelector('.tl-section.'+future[i]);if(sec)break;}}
     if(sec&&wrap.scrollHeight>wrap.clientHeight){wrap.scrollTop=sec.offsetTop-8;}
   }
+  wrap.onscroll=function(){if(!_tlfBusy&&_tlfStage<TLF_STAGE_DAYS.length-1&&wrap.scrollTop<=2)tlfExpand();};
 }
 function tlToggleTask(id,completed,assignmentId){
   fetch('/user/tasks/'+assignmentId+'/toggle',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
@@ -1168,12 +1169,14 @@ document.addEventListener('DOMContentLoaded', function () {
   loadTaskFeed();
   var params = new URLSearchParams(window.location.search);
   var newId = params.get('new');
+  // 手机端详情为滑出抽屉(带全屏遮罩), 不自动打开, 避免刷新后整页变灰
+  var isMobile = window.matchMedia('(max-width: 1100px)').matches;
   if (newId) {
-    loadTaskDetail(parseInt(newId, 10));
+    if (!isMobile) loadTaskDetail(parseInt(newId, 10));
     return;
   }
   {% if default_task_id %}
-  loadTaskDetail({{ default_task_id }});
+  if (!isMobile) loadTaskDetail({{ default_task_id }});
   {% endif %}
 });
 </script>

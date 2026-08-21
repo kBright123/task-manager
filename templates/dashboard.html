@@ -489,7 +489,8 @@ var TL_STAGE_DAYS=[7,31,0];
 function tlDateStr(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function tlJumpToday(el){
   var wrap=el.querySelector('.tl-wrap')||el;
-  var sec=wrap.querySelector('.tl-section.today')||wrap.querySelector('.tl-section.this_week');
+  var sec=wrap.querySelector('.tl-section.today');
+  if(!sec){var future=['tomorrow','this_week','next_week','later'];for(var i=0;i<future.length;i++){sec=wrap.querySelector('.tl-section.'+future[i]);if(sec)break;}}
   wrap.scrollTop=sec?(sec.offsetTop-6):0;
 }
 function dashRenderTimeline(jump){
@@ -511,10 +512,10 @@ function dashRenderTimeline(jump){
   html+='<div style="flex:1;min-width:0;"><div class="tl-card-time">'+esc(t.start_time.substring(5,16))+' - '+esc(t.end_time.substring(5,16))+'</div>';
   html+='<div class="tl-card-title" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onclick="dashOpenTaskDrawer('+JSON.stringify(t).replace(/"/g,'&quot;')+')">'+esc(t.title)+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
   if(hasDesc){var shortDesc=desc.length>50?desc.substring(0,50)+'...':desc;html+='<div style="font-size:.72rem;color:var(--gray-500);margin-top:2px;cursor:pointer;" onclick="dashToggleDesc(this)" data-full="'+esc(desc)+'">'+esc(shortDesc)+'</div>';}
-  html+='</div></div></div>';});html+='</div></div>';});html+='</div>';el.innerHTML=html;
+  html+='</div></div></div>';});html+='</div></div>';});html+='</div>';  el.innerHTML=html;
   var wrap=el.querySelector('.tl-wrap')||el;
-  wrap.onscroll=function(){if(!_tlBusy&&_tlStage<TL_STAGE_DAYS.length-1&&!_tlFilter&&wrap.scrollTop<=2)dashTlExpand();};
   if(jump)tlJumpToday(el);
+  wrap.onscroll=function(){if(!_tlBusy&&_tlStage<TL_STAGE_DAYS.length-1&&!_tlFilter&&wrap.scrollTop<=2)dashTlExpand();};
 }
 function dashTlExpand(){
   if(_tlBusy||_tlStage>=TL_STAGE_DAYS.length-1)return;

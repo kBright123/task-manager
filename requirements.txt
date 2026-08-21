@@ -15,6 +15,8 @@ onnxruntime>=1.18.0
 opencv-python-headless>=4.9.0
 pillow>=10.0.0
 requests>=2.31.0
+# 中国法定节假日/补班日历(日历组件班休标签);未安装时接口自动降级为周末判断
+chinese-calendar>=1.10.0
 sochdb>=0.8.0
 # fasttext 官方包在 Linux 下无预编译 wheel,需 gcc 源码编译;使用社区预编译
 # wheel(fasttext-wheel)作为替代,导入名仍为 fasttext。

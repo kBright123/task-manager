@@ -359,6 +359,223 @@ def api_quick_tasks_feed():
                     'category': category, 'categories': categories})
 
 
+@app.route('/api/tasks/timeline', methods=['GET'])
+@login_required
+def api_tasks_timeline():
+    """时间轴:返回当前用户相关任务的时间分布数据。
+    ?start=YYYY-MM-DD&end=YYYY-MM-DD 可选,不传则返回全部待办;
+    ?show_completed=1 包含已完成;?category=分类 按分类筛选。"""
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    try:
+        start = datetime.strptime(request.args.get('start', ''), '%Y-%m-%d') \
+            if request.args.get('start') else None
+    except Exception:
+        start = None
+    try:
+        end = datetime.strptime(request.args.get('end', ''), '%Y-%m-%d') \
+            if request.args.get('end') else None
+    except Exception:
+        end = None
+    if end:
+        end = end.replace(hour=23, minute=59, second=59)
+    category = (request.args.get('category') or '').strip()
+    show_completed = request.args.get('show_completed', '') == '1'
+    # 查询当前用户的任务(创建的 + 被分配的)
+    task_ids = set()
+    # 创建的任务
+    created = Task.query.filter(
+        Task.creator_id == current_user.id)
+    if start:
+        created = created.filter(Task.end_time >= start)
+    if end:
+        created = created.filter(Task.end_time <= end)
+    if category:
+        created = created.filter(Task.category == category)
+    for t in created.all():
+        task_ids.add(t.id)
+    # 被分配的任务
+    assigned = db.session.query(TaskAssignment.task_id).filter(
+        TaskAssignment.user_id == current_user.id,
+        TaskAssignment.status.in_(['pending', 'rejected']))
+    assigned_ids = [r[0] for r in assigned.all()]
+    if assigned_ids:
+        extra = Task.query.filter(
+            Task.id.in_(assigned_ids))
+        if start:
+            extra = extra.filter(Task.end_time >= start)
+        if end:
+            extra = extra.filter(Task.end_time <= end)
+        if category:
+            extra = extra.filter(Task.category == category)
+        for t in extra.all():
+            task_ids.add(t.id)
+    if not task_ids:
+        return jsonify({'ok': True, 'tasks': [], 'today': today.strftime('%Y-%m-%d')})
+    tasks = Task.query.filter(Task.id.in_(task_ids)).order_by(Task.end_time).all()
+    # 获取当前用户在这些任务上的分配状态
+    assigns = {}
+    if assigned_ids:
+        for a in TaskAssignment.query.filter(
+                TaskAssignment.task_id.in_(task_ids),
+                TaskAssignment.user_id == current_user.id).all():
+            assigns[a.task_id] = a
+    out = []
+    for t in tasks:
+        a = assigns.get(t.id)
+        status = a.status if a else 'pending'
+        now = datetime.now()
+        today_date = now.date()
+        end_date = t.end_time.date() if t.end_time else today_date
+        start_date = t.start_time.date() if t.start_time else today_date
+        # 计算显示状态
+        if status == 'abandoned':
+            display = 'abandoned'
+        elif status in ('completed', 'approved'):
+            display = 'completed'
+        elif t.end_time < now:
+            display = 'overdue'
+        elif start_date <= today_date:
+            display = 'today'
+        else:
+            display = 'future'
+        # 默认不展示已完成
+        if display == 'completed' and not show_completed:
+            continue
+        # 计算分段 — 按deadline时间归类,不按状态单独分段
+        diff_days = (end_date - today_date).days
+        if display == 'abandoned':
+            section = 'abandoned'
+            section_label = '已废弃'
+        elif diff_days < -7:
+            section = 'past'
+            section_label = '更早'
+        elif diff_days < 0:
+            section = 'past_week'
+            section_label = '过去一周'
+        elif diff_days == 0:
+            section = 'today'
+            section_label = '今天 · ' + today_date.strftime('%m月%d日')
+        elif diff_days == 1:
+            section = 'tomorrow'
+            section_label = '明天'
+        elif diff_days <= 6 - today_date.weekday():
+            section = 'this_week'
+            section_label = '本周'
+        elif diff_days <= 13 - today_date.weekday():
+            section = 'next_week'
+            section_label = '下周'
+        else:
+            section = 'later'
+            section_label = '更晚'
+        out.append({
+            'id': t.id,
+            'title': t.title,
+            'description': (t.description or '')[:200],
+            'full_description': t.description or '',
+            'category': t.category,
+            'start_time': t.start_time.strftime('%Y-%m-%d %H:%M'),
+            'end_time': t.end_time.strftime('%Y-%m-%d %H:%M'),
+            'progress': a.progress if a else 0,
+            'status': status,
+            'display': display,
+            'section': section,
+            'section_label': section_label,
+            'note': (a.note or '') if a else '',
+            'attachment': (a.attachment or '') if a else '',
+            'assignment_id': a.id if a else None,
+            'creator_id': t.creator_id,
+            'is_owner': t.creator_id == current_user.id or current_user.role == 'admin',
+            'assignee_ids': [aa.user_id for aa in t.assignments],
+            'group_ids': [g.id for g in t.groups],
+        })
+    # 分类计数 — 从全部任务计算(不受category和show_completed过滤影响)
+    all_categories = {}
+    for t in tasks:
+        a2 = assigns.get(t.id)
+        s2 = a2.status if a2 else 'pending'
+        if s2 == 'abandoned':
+            continue
+        if s2 in ('completed', 'approved') and not show_completed:
+            continue
+        all_categories[t.category] = all_categories.get(t.category, 0) + 1
+    return jsonify({'ok': True, 'tasks': out, 'today': today.strftime('%Y-%m-%d'),
+                    'categories': all_categories})
+
+
+@app.route('/api/tasks/calendar')
+@login_required
+def api_tasks_calendar():
+    """返回指定月份每天的任务密度 + 班/休标签"""
+    try:
+        from chinese_calendar import is_workday, is_holiday as cn_holiday
+    except ImportError:
+        is_workday = cn_holiday = None
+    year = request.args.get('year', datetime.now().year, type=int)
+    month = request.args.get('month', datetime.now().month, type=int)
+    start = datetime(year, month, 1)
+    if month == 12:
+        end = datetime(year + 1, 1, 1) - timedelta(seconds=1)
+    else:
+        end = datetime(year, month + 1, 1) - timedelta(seconds=1)
+    # 仅当前用户相关任务:创建的 + 被分配的(含已完成)
+    # 统计口径:已完成按完成时间(completed_at),未完成按截止时间(end_time)
+    assign_rows = TaskAssignment.query.filter(
+        TaskAssignment.user_id == current_user.id,
+        TaskAssignment.status.in_(['pending', 'rejected', 'completed', 'approved'])
+    ).all()
+    status_by_task = {a.task_id: a.status for a in assign_rows}
+    done_at_by_task = {a.task_id: a.completed_at for a in assign_rows
+                       if a.completed_at}
+    from sqlalchemy import or_, and_
+    done_in_range = [tid for tid, at in done_at_by_task.items()
+                     if start <= at <= end]
+    tasks = Task.query.filter(
+        or_(Task.creator_id == current_user.id,
+            Task.id.in_(status_by_task.keys())),
+        or_(and_(Task.end_time >= start, Task.end_time <= end),
+            Task.id.in_(done_in_range))
+    ).order_by(Task.end_time).all()
+    density = {}
+    items = {}
+    for t in tasks:
+        st = status_by_task.get(t.id)
+        done = st in ('completed', 'approved')
+        ref = done_at_by_task[t.id] if done and done_at_by_task.get(t.id) \
+            else t.end_time
+        if not (start <= ref <= end):
+            continue
+        ds = ref.strftime('%Y-%m-%d')
+        density[ds] = density.get(ds, 0) + 1
+        lst = items.setdefault(ds, [])
+        if len(lst) < 5:
+            lst.append({'title': t.title,
+                        'time': ref.strftime('%H:%M'),
+                        'category': t.category,
+                        'done': done})
+    tags = {}
+    import calendar as cal_mod
+    num_days = (end - start).days + 1
+    for day in range(1, num_days + 1):
+        d = date(year, month, day)
+        dow = d.weekday()
+        ds = d.strftime('%Y-%m-%d')
+        is_weekend = dow >= 5
+        if is_workday is None:
+            # 未安装 chinese_calendar 时降级:周末视为休,无补班标记
+            if is_weekend:
+                tags[ds] = '休'
+            continue
+        try:
+            if is_weekend and is_workday(d):
+                tags[ds] = '班'
+            elif not is_weekend and cn_holiday(d):
+                tags[ds] = '休'
+        except Exception:
+            pass
+    return jsonify({'ok': True, 'density': density, 'tags': tags,
+                    'items': items, 'year': year, 'month': month})
+
+
 @app.route('/api/quick-task/preview', methods=['POST'])
 @login_required
 def api_quick_task_preview():
@@ -897,6 +1114,15 @@ def user_tasks():
         'show_completed': show_completed,
         'frequent_assignees': _frequent_assignees(current_user.id),
     }
+    # 默认展示截止时间最早的一条未完成待办(从今天起算)
+    _today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    _default = TaskAssignment.query.join(Task).filter(
+        TaskAssignment.user_id == current_user.id,
+        TaskAssignment.status.in_(['pending', 'rejected']),
+        Task.end_time >= _today
+    ).order_by(Task.end_time).first()
+    if _default:
+        template_data['default_task_id'] = _default.task_id
     template_data.update(_stats_context())
     if is_admin_user:
         _now = datetime.now()

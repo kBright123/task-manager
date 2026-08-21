@@ -1150,6 +1150,21 @@ def api_task_edit(task_id):
     task.end_time = end
     if 'description' in data:
         task.description = (data.get('description') or '').strip()
+    # 修改任务状态(通过编辑面板)
+    new_status = (data.get('status') or '').strip()
+    if new_status in ('pending', 'completed', 'abandoned'):
+        assignment = TaskAssignment.query.filter_by(
+            task_id=task.id, user_id=current_user.id).first()
+        if assignment and assignment.status != new_status:
+            assignment.status = new_status
+            if new_status == 'completed':
+                assignment.progress = 100
+                assignment.completed_at = datetime.now()
+            elif new_status == 'pending':
+                assignment.progress = 0
+                assignment.completed_at = None
+            elif new_status == 'abandoned':
+                assignment.abandoned_at = datetime.now()
     db.session.commit()
     return jsonify({'ok': True, 'task_id': task.id})
 
@@ -1389,6 +1404,7 @@ def user_edit_task():
     start_str = request.form.get('start_time', '').strip()
     end_str = request.form.get('end_time', '').strip()
     description = request.form.get('description', '').strip()
+    new_status = request.form.get('status', '').strip()
     if not title:
         flash('待办标题不能为空', 'danger')
         return redirect(request.referrer or url_for('user_dashboard'))
@@ -1406,6 +1422,20 @@ def user_edit_task():
                 task.end_time = datetime.strptime(
                     end_str.replace('T', ' '), '%Y-%m-%d %H:%M')
             _sync_task_assignees_from_form(task)
+            # 修改任务状态
+            if new_status in ('pending', 'completed', 'abandoned'):
+                assignment = TaskAssignment.query.filter_by(
+                    task_id=task.id, user_id=current_user.id).first()
+                if assignment and assignment.status != new_status:
+                    assignment.status = new_status
+                    if new_status == 'completed':
+                        assignment.progress = 100
+                        assignment.completed_at = datetime.now()
+                    elif new_status == 'pending':
+                        assignment.progress = 0
+                        assignment.completed_at = None
+                    elif new_status == 'abandoned':
+                        assignment.abandoned_at = datetime.now()
         flash(f'待办 "{title}" 已更新', 'success')
     except Exception as e:
         db.session.rollback()

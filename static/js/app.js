@@ -529,3 +529,158 @@
       document.addEventListener('touchend', endPull);
       document.addEventListener('touchcancel', endPull);
     })();
+
+    // ---- 剪切板待办自动检测 ----
+    (function () {
+      var KEYWORDS = [
+        '会议通知', '培训通知', '会议安排', '培训安排',
+        '请参加', '请出席', '请参会', '请务必参加',
+        '全体员工', '全员参加', '所有人参加', '所有人',
+        '请各位', '请各部门', '请各单位', '各处室',
+        '开会', '例会', '晨会', '周会', '月会',
+        '评审会', '研讨会', '复盘会', '站会', '协调会',
+        '培训', '培训会', '课程', '集训', '学习班',
+        '研修班', '岗前培训', '入职培训',
+        '截止', '提交', '完成时间', 'deadline'
+      ];
+      var _pending = false;
+      var _polling = false;
+      var POLL_MS = 3000;
+      var STORE_KEY = '_clip_shown';
+
+      function _hash(s) {
+        var h = 0;
+        for (var i = 0; i < s.length; i++) {
+          h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+        }
+        return h.toString(36);
+      }
+
+      function _norm(s) {
+        return s.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '').trim();
+      }
+
+      function _getShown() {
+        try { return JSON.parse(sessionStorage.getItem(STORE_KEY) || '{}'); }
+        catch (e) { return {}; }
+      }
+      function _saveShown(obj) {
+        try { sessionStorage.setItem(STORE_KEY, JSON.stringify(obj)); } catch (e) {}
+      }
+      function _markShown(text) {
+        var obj = _getShown();
+        obj[_norm(text)] = Date.now();
+        _saveShown(obj);
+      }
+      function _isShown(text) {
+        var obj = _getShown();
+        return !!obj[_norm(text)];
+      }
+
+      function _matchKeywords(text) {
+        if (!text || text.length < 4) return false;
+        for (var i = 0; i < KEYWORDS.length; i++) {
+          if (text.indexOf(KEYWORDS[i]) !== -1) return true;
+        }
+        return false;
+      }
+
+      function _esc(s) {
+        var d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+      }
+
+      function _openQuickTask(text) {
+        var ta = document.getElementById('adminTaskText');
+        if (ta) {
+          ta.value = text;
+          ta.dispatchEvent(new Event('input'));
+          var btn = document.getElementById('taskParseBtn');
+          if (btn && typeof taskParse === 'function') taskParse(btn);
+          return;
+        }
+        var qm = document.getElementById('quickTaskModal');
+        if (qm) {
+          var qt = document.getElementById('qtText');
+          if (qt) { qt.value = text; qt.dispatchEvent(new Event('input')); }
+          bootstrap.Modal.getOrCreateInstance(qm).show();
+          return;
+        }
+        if (typeof showQuickTaskModal === 'function') {
+          showQuickTaskModal();
+          setTimeout(function () {
+            var qt2 = document.getElementById('qtText');
+            if (qt2) { qt2.value = text; qt2.dispatchEvent(new Event('input')); }
+          }, 120);
+        }
+      }
+
+      function showClipConfirm(text) {
+        if (_pending) return;
+        if (!_matchKeywords(text)) return;
+        _pending = true;
+        var c = document.getElementById('globalToast');
+        if (!c) {
+          c = document.createElement('div');
+          c.id = 'globalToast';
+          c.style.cssText = 'position:fixed;right:18px;top:72px;z-index:2000;display:flex;flex-direction:column;gap:8px;max-width:340px;';
+          document.body.appendChild(c);
+        }
+        var preview = text.substring(0, 80) + (text.length > 80 ? '...' : '');
+        var el = document.createElement('div');
+        el.style.cssText = 'background:#fff;border:1px solid var(--gray-200);border-left:4px solid var(--primary);border-radius:10px;box-shadow:var(--shadow-lg);padding:12px 14px;font-size:.83rem;color:var(--gray-700);animation:tmFadeIn .18s ease-out;max-width:340px;';
+        el.innerHTML =
+          '<div style="font-weight:600;margin-bottom:6px;"><i class="bi bi-clipboard-check" style="color:var(--primary);"></i> 检测到待办内容</div>' +
+          '<div style="font-size:.78rem;color:var(--gray-500);margin-bottom:10px;word-break:break-word;max-height:60px;overflow:hidden;">' + _esc(preview) + '</div>' +
+          '<div style="display:flex;gap:8px;">' +
+            '<button class="btn btn-sm btn-primary" id="_clipConfirm" style="flex:1;"><i class="bi bi-plus-lg"></i> 创建待办</button>' +
+            '<button class="btn btn-sm btn-outline-secondary" id="_clipCancel" style="flex:1;">取消</button>' +
+          '</div>';
+        c.appendChild(el);
+        var timer = setTimeout(function () { _remove(); }, 8000);
+        function _remove() {
+          clearTimeout(timer);
+          _pending = false;
+          _markShown(text);
+          el.style.opacity = '0';
+          el.style.transition = 'opacity .3s';
+          setTimeout(function () { el.remove(); }, 320);
+        }
+        document.getElementById('_clipConfirm').onclick = function () {
+          _remove();
+          _openQuickTask(text);
+        };
+        document.getElementById('_clipCancel').onclick = _remove;
+      }
+
+      // 轮询剪切板:内容变化时自动检测(需页面聚焦 + HTTPS)
+      function _pollClip() {
+        if (_pending || !navigator.clipboard || !navigator.clipboard.readText) return;
+        // toast 已在显示中,跳过
+        var existing = document.getElementById('globalToast');
+        if (existing && existing.children.length > 0) return;
+        navigator.clipboard.readText().then(function (text) {
+          if (!text) return;
+          var trimmed = text.trim();
+          if (!trimmed || trimmed.length < 4) return;
+          if (_isShown(trimmed)) return;        // 已提示过,跳过
+          showClipConfirm(trimmed);
+        }).catch(function () { /* 无权限或页面失焦,静默跳过 */ });
+      }
+
+      // 启动轮询(页面可见时才轮询,节省资源)
+      function _startPoll() {
+        if (_polling) return;
+        _polling = true;
+        setInterval(function () {
+          if (document.hidden) return;
+          _pollClip();
+        }, POLL_MS);
+      }
+      if (document.readyState === 'complete') { _startPoll(); }
+      else { window.addEventListener('load', _startPoll); }
+
+      window.showClipConfirm = showClipConfirm;
+      window._clipOpenQuickTask = _openQuickTask;
+    })();

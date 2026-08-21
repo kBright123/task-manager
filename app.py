@@ -150,7 +150,7 @@ app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 604800  # 静态资源缓存 7 天
 # 登录会话最长 4 小时(配合登录时 session.permanent = True 生效),
 # 超过则自动退出登录;所有登录会话共享该有效期。
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=4)
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=5)
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 # 生产关闭模板自动重载(启用 Jinja2 模板缓存);开发(FLASK_DEBUG/KB_AUTO_RELOAD)才实时读盘

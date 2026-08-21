@@ -62,9 +62,17 @@
               </select>
             </div>
           </div>
-          
+
           <div class="row g-2 mb-2">
-            <div class="col-6">
+            <div class="col-4">
+              <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">状态</label>
+              <select name="status" id="editTaskStatus" class="form-select" style="font-size:.84rem;padding:4px 8px;">
+                <option value="pending">进行中</option>
+                <option value="completed">已完成</option>
+                <option value="abandoned">已废弃</option>
+              </select>
+            </div>
+            <div class="col-4">
               <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">开始时间</label>
               {% if mode == 'server' and is_admin %}
               <input type="text" name="start_time" id="editTaskStart" class="form-control"
@@ -76,7 +84,7 @@
                      style="font-size:.84rem;padding:4px 8px;">
               {% endif %}
             </div>
-            <div class="col-6">
+            <div class="col-4">
               <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">截止时间</label>
               {% if mode == 'server' and is_admin %}
               <input type="text" name="end_time" id="editTaskEnd" class="form-control"

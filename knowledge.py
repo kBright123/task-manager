@@ -1013,6 +1013,8 @@ def _tfidf_cosine(points):
 
     特征为清洗后的字符 bigram,含功能字的 bigram 降权;返回
     [(i, j, score)] 相似对(阈值过滤,每点最多 KB_POINT_MAX_REL 条)。
+    通过字符 bigram 倒排桶只比较共享特征的候选点,避免大文档 O(n^2)
+    全对比较。
     """
     n = len(points)
     if n < 2:
@@ -1029,9 +1031,19 @@ def _tfidf_cosine(points):
         for g in vec:
             vec[g] /= norm
         vectors.append(vec)
+    # 倒排桶:共享 bigram 才比较,避免 O(n^2) 全对比较
+    inv = {}
+    for i, vec in enumerate(vectors):
+        for g in vec:
+            inv.setdefault(g, set()).add(i)
     scores = {}
     for i in range(n):
-        for j in range(i + 1, n):
+        cands = set()
+        for g in vectors[i]:
+            cands.update(inv.get(g, ()))
+        for j in sorted(cands):
+            if j <= i:
+                continue
             vi, vj = vectors[i], vectors[j]
             if len(vi) > len(vj):
                 vi, vj = vj, vi
@@ -1123,6 +1135,10 @@ _KB_POINT_DDL = [
      'target_type TEXT DEFAULT \'\', '
      'target_id INTEGER DEFAULT 0, '
      'created_at DATETIME DEFAULT CURRENT_TIMESTAMP)'),
+    ('kb_merge_state',
+     'CREATE TABLE IF NOT EXISTS kb_merge_state ('
+     'key TEXT PRIMARY KEY, '
+     'value INTEGER DEFAULT 0)'),
 ]
 
 
@@ -1536,66 +1552,80 @@ def _remap_merged_point(conn, old_id, keeper_id):
     conn.execute('DELETE FROM kb_point WHERE id=?', (old_id,))
 
 
-def merge_duplicate_points(limit=None, threshold=None):
+def merge_duplicate_points(limit=None, threshold=None, pool_size=None):
     """合并全局重复知识点:内容高度相似的保留内容最长的一条,其余删除,
-    并把相似关联/引用重指向保留条。返回 (合并条数, 剩余条数)。
+    并把相似关联/引用重指向保留条。返回 (合并条数, 本批新知识点剩余数)。
 
-    相似度优先使用语义嵌入(fastembed,阈值用余弦相似度),嵌入不可用时
-    降级为字符 n-gram TF 向量余弦。合并后删除的空内容点一并清理。
+    增量收敛:
+    - 按 id 水位线(kb_merge_state.last_point_id)逐批推进,避免每轮都从
+      最旧知识点重扫,使去重能随多次任务跑完整库;
+    - 本批新知识点与"最近 pool_size 条已扫知识点"组成的参考池比较
+      (旧-旧不重复比较),新点可并入旧保留点;
+    - 仅对共享字符 bigram 的候选点做语义嵌入比较(孤立点不嵌入,省 CPU);
+      参考池用 n-gram 余弦,避免每轮重嵌入。
+    相似度优先语义嵌入(fastembed,余弦阈值),不可用时降级为字符 n-gram
+    TF 向量余弦。
     """
     limit = limit or KB_POINT_MERGE_MAX
     threshold = threshold if threshold is not None \
         else KB_POINT_MERGE_THRESHOLD
+    pool_size = pool_size if pool_size is not None else int(
+        os.environ.get('KB_POINT_MERGE_POOL', str(limit * 2)))
     conn = _db_conn()
     try:
-        rows = conn.execute(
-            'SELECT id, title, content FROM kb_point ORDER BY id LIMIT ?',
-            (limit,)).fetchall()
-        n = len(rows)
-        if n < 2:
-            return 0, n
+        conn.execute('CREATE TABLE IF NOT EXISTS kb_merge_state ('
+                     'key TEXT PRIMARY KEY, '
+                     'value INTEGER DEFAULT 0)')
+        row = conn.execute(
+            "SELECT value FROM kb_merge_state WHERE key='last_point_id'"
+        ).fetchone()
+        since_id = int(row[0]) if row and row[0] is not None else 0
+        new_rows = conn.execute(
+            'SELECT id, title, content FROM kb_point '
+            'WHERE id > ? ORDER BY id LIMIT ?',
+            (since_id, limit)).fetchall()
+        n_new = len(new_rows)
+        if n_new == 0:
+            return 0, 0
+        pool_rows = conn.execute(
+            'SELECT id, title, content FROM kb_point '
+            'WHERE id <= ? ORDER BY id DESC LIMIT ?',
+            (since_id, max(pool_size, 0))).fetchall()
+        rows = pool_rows + new_rows
+        n_pool = len(pool_rows)
+        n = n_pool + n_new
+        is_new = [i >= n_pool for i in range(n)]
+
         texts = [('%s\n%s' % ((r[1] or ''), (r[2] or ''))).strip()
                  for r in rows]
 
-        # 优先语义嵌入;失败则用字符 n-gram
-        vectors = None
-        try:
-            if not KB_VECTOR_DISABLED:
-                import numpy as np
-                emb = embed_texts(texts)
-                vectors = [np.asarray(v, dtype='float64') / (
-                    np.linalg.norm(v) or 1.0) for v in emb]
-        except Exception as e:
-            logger.warning('embed merge fallback to n-gram: %s', e)
-        if vectors is None:
-            vectors = []
-            for t in texts:
-                grams = _content_grams(t)
-                vec = {}
-                norm = 0.0
-                for g, tf in grams.items():
-                    vec[g] = tf
-                    norm += tf * tf
-                norm = norm ** 0.5 or 1.0
-                for g in vec:
-                    vec[g] /= norm
-                vectors.append(vec)
+        # 字符 bigram 倒排:共享任一 bigram 才可能是重复,其余为孤立点
+        import numpy as np
+        grams_list = [_content_grams(t) for t in texts]
+        # 归一化的 gram 向量(用于 n-gram 相似度)
+        gram_vec = []
+        for grams in grams_list:
+            vec = {}
+            norm = 0.0
+            for g, tf in grams.items():
+                vec[g] = tf
+                norm += tf * tf
+            norm = norm ** 0.5 or 1.0
+            for g in vec:
+                vec[g] /= norm
+            gram_vec.append(vec)
+        inv = {}
+        for i, grams in enumerate(grams_list):
+            for g in grams:
+                inv.setdefault(g, set()).add(i)
+        cand_map = {}
+        for i in range(n):
+            cands = set()
+            for g in grams_list[i]:
+                cands.update(inv.get(g, ()))
+            cands.discard(i)
+            cand_map[i] = sorted(cands)
 
-        def _sim(i, j):
-            a, b = vectors[i], vectors[j]
-            if isinstance(a, dict):
-                if len(a) > len(b):
-                    a, b = b, a
-                s = 0.0
-                for g, w in a.items():
-                    wj = b.get(g)
-                    if wj:
-                        s += w * wj
-                return s
-            import numpy as np
-            return float(np.dot(a, b))
-
-        # 并查集:相似的点归为一组
         parent = list(range(n))
 
         def _find(x):
@@ -1609,38 +1639,44 @@ def merge_duplicate_points(limit=None, threshold=None):
             if ra != rb:
                 parent[rb] = ra
 
-        if isinstance(vectors[0], dict):
-            # 字符 n-gram 回退:倒排桶加速,避免 O(n^2) 全对比较
-            inv = {}
-            for i, vec in enumerate(vectors):
-                for g in vec:
-                    inv.setdefault(g, set()).add(i)
-            for i in range(n):
-                cands = set()
-                for g in vectors[i]:
-                    cands.update(inv.get(g, ()))
-                cands.discard(i)
-                for j in sorted(cands):
-                    if j <= i or _find(i) == _find(j):
-                        continue
-                    if _sim(i, j) >= threshold:
-                        _union(i, j)
-        else:
-            # 语义嵌入:numpy 矩阵乘法批量比较,单次阈值内剪枝
-            import numpy as np
-            mat = np.stack(vectors)
-            for i in range(n):
-                sims = mat @ mat[i]
-                order = np.argsort(-sims)
-                for j in order:
-                    j = int(j)
-                    if j <= i or _find(i) == _find(j):
-                        continue
-                    if sims[j] >= threshold:
-                        _union(i, j)
-                    elif sims[j] < threshold:
-                        # 已按相似度降序,再往后只会更低,直接跳出
-                        break
+        # 语义嵌入:仅嵌入本批新候选点(参考池用 n-gram,避免每轮重嵌入)
+        emb_vec = {}
+        if not KB_VECTOR_DISABLED:
+            new_active = [i for i in range(n) if is_new[i] and cand_map[i]]
+            if new_active:
+                try:
+                    emb = embed_texts([texts[i] for i in new_active])
+                    for k, i in enumerate(new_active):
+                        v = np.asarray(emb[k], dtype='float64')
+                        nrm = np.linalg.norm(v) or 1.0
+                        emb_vec[i] = v / nrm
+                except Exception as e:
+                    logger.warning('embed merge fallback to n-gram: %s', e)
+                    emb_vec = {}
+
+        def _sim(i, j):
+            a, b = emb_vec.get(i), emb_vec.get(j)
+            if a is not None and b is not None:
+                return float(np.dot(a, b))
+            ai, bi = gram_vec[i], gram_vec[j]
+            if len(ai) > len(bi):
+                ai, bi = bi, ai
+            s = 0.0
+            for g, w in ai.items():
+                wj = bi.get(g)
+                if wj:
+                    s += w * wj
+            return s
+
+        # 比较:以新点为发起方,与本批/参考池候选比较;旧-旧不重复比较
+        for i in range(n):
+            if not is_new[i]:
+                continue
+            for j in cand_map[i]:
+                if _find(i) == _find(j):
+                    continue
+                if _sim(i, j) >= threshold:
+                    _union(i, j)
 
         groups = {}
         for i in range(n):
@@ -1649,13 +1685,21 @@ def merge_duplicate_points(limit=None, threshold=None):
         for root, members in groups.items():
             if len(members) < 2:
                 continue
+            if not any(is_new[m] for m in members):
+                continue
             keeper = max(members, key=lambda x: len(rows[x][2] or ''))
             for j in members:
                 if j != keeper:
                     _remap_merged_point(conn, rows[j][0], rows[keeper][0])
                     merged += 1
+        # 推进水位线:本批最大 id 之后为新知识点
+        conn.execute(
+            "INSERT INTO kb_merge_state(key, value) "
+            "VALUES('last_point_id', ?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (max(r[0] for r in new_rows),))
         conn.commit()
-        return merged, n - merged
+        return merged, n_new
     finally:
         conn.close()
 

@@ -90,8 +90,8 @@
   .cal-cell.cal-other{color:#ccc;background:transparent;}
   .cal-dots{display:flex;gap:2px;justify-content:center;margin-top:0;}
   .cal-dot{border-radius:50%;}
-  .cal-tag-work{position:absolute;top:1px;right:1px;width:16px;height:13px;background:#FFF3E0;color:#E65100;border-radius:2px;font-size:.42rem;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1;}
-  .cal-tag-rest{position:absolute;top:1px;right:1px;width:16px;height:13px;background:#E8F5E9;color:#2E7D32;border-radius:2px;font-size:.42rem;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1;}
+  .cal-tag-work{position:absolute;top:1px;right:1px;width:18px;height:15px;background:#FFF3E0;color:#E65100;border-radius:2px;font-size:.48rem;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1;}
+  .cal-tag-rest{position:absolute;top:1px;right:1px;width:18px;height:15px;background:#E8F5E9;color:#2E7D32;border-radius:2px;font-size:.48rem;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1;}
   .cal-week-num{font-size:.5rem;color:#bbb;text-align:right;padding-right:3px;line-height:1;}
   .cal-picker{position:absolute;top:34px;left:0;right:0;background:#fff;border:1px solid var(--gray-200);border-radius:8px;padding:10px;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,.1);}
   .cal-picker-month{font-size:.72rem;padding:4px 0;border-radius:4px;cursor:pointer;text-align:center;transition:all .15s;}
@@ -105,8 +105,6 @@
 </style>
 {% endblock %}
 {% block content %}
-
-<div class="app-container">
 
 <div class="stat-grid stat-grid-4 mb-4">
   <a href="{{ url_for('user_tasks') }}" class="stat-card card-lift" style="background:linear-gradient(135deg,#007a33,#006633);padding:14px 18px;text-decoration:none;">
@@ -270,7 +268,7 @@
         <div class="d-flex align-items-center gap-2">
           <span id="tlFilterChip" class="d-none" style="font-size:.68rem;background:var(--primary);color:#fff;border-radius:10px;padding:1px 8px;cursor:pointer;" onclick="tlClearFilter()" title="清除日期筛选"><span id="tlFilterText"></span> ×</span>
           <label class="d-flex align-items-center gap-1 mb-0" style="font-size:.68rem;color:var(--gray-500);cursor:pointer;">
-            <input type="checkbox" id="dashShowCompleted" onchange="dashLoadTimeline()" style="margin:0;width:12px;height:12px;">
+            <input type="checkbox" id="dashShowCompleted" onchange="dashLoadTimeline()" style="margin:0;width:16px;height:16px;cursor:pointer;">
             <span>已完成</span>
           </label>
           <span id="dashFeedCount" style="font-size:.68rem;color:var(--gray-400);"></span>
@@ -286,13 +284,13 @@
     <div class="card mb-3" id="calCard" style="background:rgba(245,247,250,.72);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.6);box-shadow:0 4px 20px rgba(0,0,0,.06);position:relative;">
       <div class="card-header d-flex justify-content-between align-items-center py-0 px-2" style="background:transparent;border-bottom:1px solid rgba(0,0,0,.05);height:28px;">
         <div class="d-flex align-items-center gap-1">
-          <button class="btn btn-sm" style="border:none;padding:2px 6px;font-size:.9rem;color:#666;" onclick="calNav(-1)"><i class="bi bi-chevron-left"></i></button>
+          <button class="btn btn-sm" style="border:none;padding:4px 8px;font-size:.9rem;color:#666;" onclick="calNav(-1)"><i class="bi bi-chevron-left"></i></button>
           <span id="calTitle" style="font-size:.85rem;font-weight:700;color:#333;cursor:pointer;" onclick="calTogglePicker()"></span>
-          <button class="btn btn-sm" style="border:none;padding:2px 6px;font-size:.9rem;color:#666;" onclick="calNav(1)"><i class="bi bi-chevron-right"></i></button>
+          <button class="btn btn-sm" style="border:none;padding:4px 8px;font-size:.9rem;color:#666;" onclick="calNav(1)"><i class="bi bi-chevron-right"></i></button>
         </div>
         <div class="d-flex align-items-center gap-1">
-          <button class="btn btn-sm btn-outline-secondary" style="padding:1px 8px;font-size:.65rem;border-radius:4px;" onclick="calGoToday()">今天</button>
-          <button class="btn btn-sm btn-outline-secondary" style="padding:1px 8px;font-size:.65rem;border-radius:4px;" id="calViewBtn" onclick="calToggleView()">周</button>
+          <button class="btn btn-sm btn-outline-secondary" style="padding:3px 10px;font-size:.7rem;border-radius:4px;" onclick="calGoToday()">今天</button>
+          <button class="btn btn-sm btn-outline-secondary" style="padding:3px 10px;font-size:.7rem;border-radius:4px;" id="calViewBtn" onclick="calToggleView()">周</button>
         </div>
       </div>
       <div class="card-body py-0 px-2" style="background:transparent;position:relative;">
@@ -339,8 +337,6 @@
     </div>
     {% endif %}
   </div>
-</div>
-
 </div>
 
 <!-- Task Detail Drawer -->

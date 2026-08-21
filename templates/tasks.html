@@ -22,9 +22,23 @@
 {% block extra_css %}
 <style>
   body.tasks-full .app-container { padding-bottom: 0; }
+  @media (max-width: 767px) { body.tasks-full .app-container { padding-bottom: calc(var(--bottom-nav-height) + 8px); } }
   .tasks-layout { display: grid; grid-template-columns: 220px 1fr 380px; gap: 12px; height: calc(100vh - var(--nav-height) - 24px); min-height: 480px; }
-   @media (max-width: 1100px) { .tasks-layout { grid-template-columns: 200px 1fr; } .tasks-layout > .tasks-panel:nth-child(3) { display: none; } }
-   @media (max-width: 860px) { .tasks-layout { grid-template-columns: 1fr; height: auto; } .tasks-layout > .tasks-panel:nth-child(3) { display: none; } }
+   @media (max-width: 1100px) {
+     .tasks-layout { grid-template-columns: 200px 1fr; }
+     /* 平板/手机: 右侧详情面板变为滑出抽屉,修复点任务无反应 */
+     .tasks-layout > .tasks-panel:nth-child(3) {
+       position: fixed; top: var(--nav-height); bottom: 0; left: 0; right: 0; width: auto;
+       z-index: 1100; border-radius: 0; border-left: none; border-right: none;
+       transform: translateX(100%); transition: transform .22s ease-out;
+     }
+     .tasks-layout > .tasks-panel:nth-child(3).open { transform: translateX(0); }
+     .task-detail-close { display: inline-flex !important; }
+   }
+   @media (max-width: 767px) {
+     .tasks-layout { grid-template-columns: 1fr; height: auto; }
+     .tasks-layout > .tasks-panel:nth-child(3) { bottom: var(--bottom-nav-height); }
+   }
   .tasks-panel { background: #fff; border: 1px solid var(--gray-200); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; }
   .cat-head { display: flex; align-items: center; gap: 8px; padding: 9px 12px; cursor: pointer; border-radius: 8px; transition: background .15s; background: var(--gray-50); border: 1px solid var(--gray-100); }
   .cat-head:hover { background: var(--gray-100); }
@@ -90,7 +104,7 @@
     .tl-card .tl-card-cat{font-size:.58rem;padding:1px 5px;border-radius:3px;color:#fff;margin-left:4px;vertical-align:middle;}
     .tl-empty{text-align:center;padding:60px 20px;color:var(--gray-400);}
     .tl-empty i{font-size:2rem;display:block;margin-bottom:8px;}
-    @media(max-width:768px){
+    @media(max-width:767px){
       .tl-wrap{padding:8px 8px 8px 12px;}
       .tl-section.today{margin-left:-4px;margin-right:-4px;padding:4px 6px;}
       .tl-card{font-size:.8rem;padding:6px 8px;}
@@ -466,10 +480,14 @@
   </script>
 
   <!-- 右栏: 待办详情 -->
-  <div class="tasks-panel">
+  <div class="drawer-overlay d-none" id="taskDetailOverlay" onclick="closeTaskDetail()" style="z-index:1090;"></div>
+  <div class="tasks-panel" id="taskDetailPanel">
     <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
       <span style="font-size:.84rem;font-weight:600;"><i class="bi bi-info-circle" style="color:var(--primary);"></i> 待办详情</span>
-      <a href="{{ url_for('user_dashboard') }}" class="text-muted text-decoration-none" style="font-size:.72rem;"><i class="bi bi-arrow-left"></i> 返回</a>
+      <div class="d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-sm btn-light task-detail-close" style="display:none;padding:2px 10px;font-size:.75rem;" onclick="closeTaskDetail()"><i class="bi bi-x-lg"></i> 收起</button>
+        <a href="{{ url_for('user_dashboard') }}" class="text-muted text-decoration-none" style="font-size:.72rem;"><i class="bi bi-arrow-left"></i> 返回</a>
+      </div>
     </div>
     <div class="card-body" id="taskDetailBody" style="font-size:.82rem;color:var(--gray-600);overflow-y:auto;">
       {% if rejected_tasks %}
@@ -482,7 +500,7 @@
             <small class="d-block text-danger" style="font-size:.68rem;"><i class="bi bi-x-circle"></i> {{ a.rejection_reason }}</small>
           </div>
           <form method="POST" action="{{ url_for('user_complete_task', assignment_id=a.id) }}" class="ms-2">
-            <button type="submit" class="btn btn-sm btn-outline-success" style="padding:1px 8px;font-size:.65rem;">重交</button>
+            <button type="submit" class="btn btn-sm btn-outline-success" style="padding:3px 10px;font-size:.72rem;">重交</button>
           </form>
         </div>
         {% endfor %}
@@ -642,10 +660,22 @@ function taskFocusInput(){
   if(el){el.focus();}
   else if(window.location.pathname!=='/user/tasks'){window.location.href='/user/tasks';}
 }
+function openTaskDetail(){
+  var p=document.getElementById('taskDetailPanel');if(!p)return;
+  if(window.matchMedia('(max-width:1100px)').matches){
+    p.classList.add('open');
+    var ov=document.getElementById('taskDetailOverlay');if(ov)ov.classList.remove('d-none');
+  }
+}
+function closeTaskDetail(){
+  var p=document.getElementById('taskDetailPanel');if(p)p.classList.remove('open');
+  var ov=document.getElementById('taskDetailOverlay');if(ov)ov.classList.add('d-none');
+}
 function loadTaskDetail(taskId) {
   window.curTaskId=taskId;
   var body = document.getElementById('taskDetailBody');
   if (!body) return;
+  openTaskDetail();
   document.querySelectorAll('.cat-item.active').forEach(function(el){el.classList.remove('active');});
   var active = document.querySelector('.cat-item[data-task-id="' + taskId + '"]');
   if (active) active.classList.add('active');

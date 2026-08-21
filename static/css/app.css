@@ -63,7 +63,14 @@
     body.authed { padding-top: var(--nav-height); }
     @media (max-width: 767px) { body.authed { padding-top: var(--nav-height); padding-bottom: var(--bottom-nav-height); } }
     .app-container { max-width: 1600px; margin: 0 auto; padding: 24px 24px 40px; }
-    @media (max-width: 767px) { .app-container { padding: 16px; } }
+    @media (max-width: 767px) {
+      .app-container { padding: 12px 12px 20px; }
+      .card-body { padding: 14px; }
+      .card-header { padding: 10px 14px; }
+      .card-header.px-3 { padding-left: 14px !important; padding-right: 14px !important; }
+      /* 通知下拉改为贴边全宽,避免 min-width:320px 在小屏溢出 */
+      #notificationDropdown { position: fixed; left: 8px; right: 8px; top: calc(var(--nav-height) + 4px); min-width: 0; margin-top: 0; }
+    }
     @media (min-width: 768px) and (max-width: 1023px) { .app-container { padding: 20px 24px; } }
 
     /* 管理后台(桌面): 满高布局, 页面不出现竖直滚动条, 列表区域内部滚动 */

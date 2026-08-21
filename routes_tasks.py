@@ -359,6 +359,44 @@ def api_quick_tasks_feed():
                     'category': category, 'categories': categories})
 
 
+def _task_display_and_section(t, status, now):
+    """计算任务的显示状态(display)与时间轴分段(section/section_label)。
+    分段按截止时间归类,不按状态单独分段。"""
+    today_date = now.date()
+    end_date = t.end_time.date() if t.end_time else today_date
+    start_date = t.start_time.date() if t.start_time else today_date
+    # 显示状态
+    if status == 'abandoned':
+        display = 'abandoned'
+    elif status in ('completed', 'approved'):
+        display = 'completed'
+    elif t.end_time < now:
+        display = 'overdue'
+    elif start_date <= today_date:
+        display = 'today'
+    else:
+        display = 'future'
+    # 分段
+    diff_days = (end_date - today_date).days
+    if display == 'abandoned':
+        section, section_label = 'abandoned', '已废弃'
+    elif diff_days < -7:
+        section, section_label = 'past', '更早'
+    elif diff_days < 0:
+        section, section_label = 'past_week', '过去一周'
+    elif diff_days == 0:
+        section, section_label = 'today', '今天 · ' + today_date.strftime('%m月%d日')
+    elif diff_days == 1:
+        section, section_label = 'tomorrow', '明天'
+    elif diff_days <= 6 - today_date.weekday():
+        section, section_label = 'this_week', '本周'
+    elif diff_days <= 13 - today_date.weekday():
+        section, section_label = 'next_week', '下周'
+    else:
+        section, section_label = 'later', '更晚'
+    return display, section, section_label
+
+
 @app.route('/api/tasks/timeline', methods=['GET'])
 @login_required
 def api_tasks_timeline():
@@ -424,49 +462,10 @@ def api_tasks_timeline():
         a = assigns.get(t.id)
         status = a.status if a else 'pending'
         now = datetime.now()
-        today_date = now.date()
-        end_date = t.end_time.date() if t.end_time else today_date
-        start_date = t.start_time.date() if t.start_time else today_date
-        # 计算显示状态
-        if status == 'abandoned':
-            display = 'abandoned'
-        elif status in ('completed', 'approved'):
-            display = 'completed'
-        elif t.end_time < now:
-            display = 'overdue'
-        elif start_date <= today_date:
-            display = 'today'
-        else:
-            display = 'future'
+        display, section, section_label = _task_display_and_section(t, status, now)
         # 默认不展示已完成
         if display == 'completed' and not show_completed:
             continue
-        # 计算分段 — 按deadline时间归类,不按状态单独分段
-        diff_days = (end_date - today_date).days
-        if display == 'abandoned':
-            section = 'abandoned'
-            section_label = '已废弃'
-        elif diff_days < -7:
-            section = 'past'
-            section_label = '更早'
-        elif diff_days < 0:
-            section = 'past_week'
-            section_label = '过去一周'
-        elif diff_days == 0:
-            section = 'today'
-            section_label = '今天 · ' + today_date.strftime('%m月%d日')
-        elif diff_days == 1:
-            section = 'tomorrow'
-            section_label = '明天'
-        elif diff_days <= 6 - today_date.weekday():
-            section = 'this_week'
-            section_label = '本周'
-        elif diff_days <= 13 - today_date.weekday():
-            section = 'next_week'
-            section_label = '下周'
-        else:
-            section = 'later'
-            section_label = '更晚'
         out.append({
             'id': t.id,
             'title': t.title,

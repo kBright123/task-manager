@@ -44,9 +44,9 @@ def send_unlock_code(user):
     """为锁定账号生成解锁验证码并发送邮件。返回 (ok, err, dev_code)。"""
     code = generate_verify_code()
     user.unlock_code = code
-    user.unlock_code_expires_at = (datetime.utcnow() +
+    user.unlock_code_expires_at = (cn_now() +
                                    timedelta(minutes=UNLOCK_CODE_TTL_MINUTES))
-    user.locked_until = datetime.utcnow() + timedelta(minutes=LOGIN_LOCK_MINUTES)
+    user.locked_until = cn_now() + timedelta(minutes=LOGIN_LOCK_MINUTES)
     db.session.commit()
     text = (f'您的账号 @{user.username} 因多次密码输入错误已被临时锁定。\n'
             f'解锁验证码为: {code}\n'
@@ -77,7 +77,7 @@ def login():
         password = request.form.get('password', '')
         ctx['username'] = username
         user = User.query.filter_by(username=username).first()
-        now = datetime.utcnow()
+        now = cn_now()
         if user and user.locked_until and user.locked_until > now:
             if user.unlock_code:
                 ctx['lock_email'] = True
@@ -151,7 +151,7 @@ def login_unlock_send():
     """锁定账号重发解锁验证码。"""
     username = request.form.get('username', '').strip()
     user = User.query.filter_by(username=username).first()
-    now = datetime.utcnow()
+    now = cn_now()
     if (user and user.locked_until and user.locked_until > now
             and user.email_verified and user.email):
         send_unlock_code(user)
@@ -168,7 +168,7 @@ def login_unlock():
     code = (request.form.get('code') or '').strip()
     new_password = request.form.get('new_password', '')
     user = User.query.filter_by(username=username).first()
-    now = datetime.utcnow()
+    now = cn_now()
     if not user or not user.locked_until or user.locked_until <= now:
         flash('账号未处于锁定状态', 'danger')
         return redirect(url_for('login'))
@@ -321,7 +321,7 @@ def profile_verify_email():
         return jsonify({'ok': False, 'error': '邮箱与发送校验码时不一致,请重新发送'})
     if user.email_code != code:
         return jsonify({'ok': False, 'error': '校验码不正确,请重新输入'})
-    if not user.email_code_expires_at or user.email_code_expires_at < datetime.utcnow():
+    if not user.email_code_expires_at or user.email_code_expires_at < cn_now():
         return jsonify({'ok': False, 'error': '校验码已过期,请重新发送'})
     user.email = email
     user.email_verified = True
@@ -343,7 +343,7 @@ def api_token():
     if not username or not password:
         return jsonify({'ok': False, 'error': '缺少用户名或密码'}), 400
     user = User.query.filter_by(username=username).first()
-    now = datetime.utcnow()
+    now = cn_now()
     if user and user.locked_until and user.locked_until > now:
         log_operation('api_token_fail', username, '账号锁定中,拒绝发放令牌')
         db.session.commit()

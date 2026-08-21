@@ -30,6 +30,37 @@ _HOLIDAY_CN = {
     'Anti-Fascist 70th Day': '抗战胜利纪念日',
 }
 
+# 在线节假日接口按年缓存(数据年内不变, 进程内仅请求一次)
+_HOLIDAY_API_CACHE = {}
+
+
+def _holiday_data_from_api(year):
+    """免费节假日接口(timor.tech)按年获取, 作为本地库缺失/未更新的兜底与复核。
+
+    返回 {'MM-DD': {'holiday': True休/False补班, 'name': 中文节日名}}; 失败返回 None。
+    """
+    if year in _HOLIDAY_API_CACHE:
+        return _HOLIDAY_API_CACHE[year]
+    try:
+        import json as _json
+        import urllib.request
+        url = f'https://timor.tech/api/holiday/year/{year}'
+        req = urllib.request.Request(
+            url, headers={'User-Agent': 'TaskManager/1.0'})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = _json.loads(resp.read().decode('utf-8'))
+        out = {}
+        for k, v in (data.get('holiday') or {}).items():
+            parts = str(k).split('-')
+            m, dd = int(parts[0]), int(parts[1])
+            out[f'{m:02d}-{dd:02d}'] = {
+                'holiday': bool(v.get('holiday')),
+                'name': str(v.get('name') or '')}
+        _HOLIDAY_API_CACHE[year] = out
+        return out
+    except Exception:
+        return None
+
 
 def _similar_blocked_by_assignee(similar, assignee_ids, group_ids, is_all):
     """判断新任务与相似未完成待办的分配对象是否有重叠。
@@ -120,7 +151,7 @@ def abandon_task_all(task_id):
     if task.creator_id != current_user.id and current_user.role != 'admin':
         flash('只有待办创建者或管理员可以废弃整个待办', 'danger')
         return redirect(request.referrer or url_for('user_dashboard'))
-    now = datetime.now()
+    now = cn_now()
     for a in task.assignments:
         if a.status not in ('abandoned',):
             a.status = 'abandoned'
@@ -131,7 +162,7 @@ def abandon_task_all(task_id):
 @app.route('/user/dashboard')
 @login_required
 def user_dashboard():
-    now = datetime.now()
+    now = cn_now()
 
     # 状态计数:一次 GROUP BY 聚合,替代 4 条独立 COUNT
     _status_rows = db.session.query(
@@ -415,7 +446,7 @@ def api_tasks_timeline():
     """时间轴:返回当前用户相关任务的时间分布数据。
     ?start=YYYY-MM-DD&end=YYYY-MM-DD 可选,不传则返回全部待办;
     ?show_completed=1 包含已完成;?category=分类 按分类筛选。"""
-    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today = cn_now().replace(hour=0, minute=0, second=0, microsecond=0)
     try:
         start = datetime.strptime(request.args.get('start', ''), '%Y-%m-%d') \
             if request.args.get('start') else None
@@ -483,7 +514,7 @@ def api_tasks_timeline():
     for t in tasks:
         a = assigns.get(t.id)
         status = a.status if a else 'pending'
-        now = datetime.now()
+        now = cn_now()
         # 归类基准: 已完成按完成时间,未完成按截止时间(与日历口径一致)
         done = status in ('completed', 'approved')
         ref = (a.completed_at or t.end_time) if (done and a) else t.end_time
@@ -537,8 +568,8 @@ def api_tasks_calendar():
         from chinese_calendar import is_workday, get_holiday_detail
     except ImportError:
         is_workday = get_holiday_detail = None
-    year = request.args.get('year', datetime.now().year, type=int)
-    month = request.args.get('month', datetime.now().month, type=int)
+    year = request.args.get('year', cn_now().year, type=int)
+    month = request.args.get('month', cn_now().month, type=int)
     start = datetime(year, month, 1)
     if month == 12:
         end = datetime(year + 1, 1, 1) - timedelta(seconds=1)
@@ -590,15 +621,39 @@ def api_tasks_calendar():
             year_ok = False
         except Exception:
             pass
+    lib_mode = is_workday is not None and year_ok
+    holiday_mode = 'lib' if lib_mode else 'fallback'
+
+    def _apply_api_day(ds, info):
+        """应用在线接口的单日数据: holiday=True 休(带节日名), False 调休补班。"""
+        if info.get('holiday'):
+            tags[ds] = '休'
+            if info.get('name'):
+                holidays[ds] = info['name']
+        else:
+            tags[ds] = '班'
+
     import calendar as cal_mod
     num_days = (end - start).days + 1
+    # 库缺失或版本过旧时, 先尝试在线接口兜底(避免 Python 库未更新导致无假日标记)
+    api_year = None
+    if not lib_mode:
+        api_year = _holiday_data_from_api(year)
     for day in range(1, num_days + 1):
         d = date(year, month, day)
         dow = d.weekday()
         ds = d.strftime('%Y-%m-%d')
         is_weekend = dow >= 5
-        if is_workday is None or not year_ok:
-            # 未安装/版本不支持时降级:周末视为休,无补班与节日标记
+        if api_year is not None:
+            info = api_year.get(d.strftime('%m-%d'))
+            if info is not None:
+                _apply_api_day(ds, info)
+                holiday_mode = 'api'
+            elif is_weekend:
+                tags[ds] = '休'
+            continue
+        if not lib_mode:
+            # 库与接口均不可用: 周末视为休, 无补班与节日标记
             if is_weekend:
                 tags[ds] = '休'
             continue
@@ -612,8 +667,22 @@ def api_tasks_calendar():
             holidays[ds] = _HOLIDAY_CN.get(hname, hname)
         elif is_weekend and is_workday(d):
             tags[ds] = '班'
+    if lib_mode and not holidays:
+        # 对比检验: 本地库本月未识别出任何法定假日时调接口复核, 防库数据过期
+        api_year = _holiday_data_from_api(year)
+        if api_year:
+            applied = False
+            for day in range(1, num_days + 1):
+                d = date(year, month, day)
+                info = api_year.get(d.strftime('%m-%d'))
+                if info is not None:
+                    _apply_api_day(d.strftime('%Y-%m-%d'), info)
+                    applied = True
+            if applied:
+                holiday_mode = 'api'
     return jsonify({'ok': True, 'density': density, 'tags': tags,
                     'holidays': holidays, 'items': items,
+                    'holiday_mode': holiday_mode,
                     'year': year, 'month': month})
 
 
@@ -639,7 +708,7 @@ def api_quick_task_preview():
         return jsonify({'ok': False, 'error': '无法提取待办标题（至少 2 个字）'}), 400
 
     # 解析出可编辑的初始值
-    start = parsed.get('start_time') or datetime.now()
+    start = parsed.get('start_time') or cn_now()
     end = parsed.get('end_time') or (start + timedelta(days=1))
     if end <= start:
         end = start + timedelta(hours=1)
@@ -720,7 +789,7 @@ def api_quick_task():
     try:
         start = datetime.strptime(data.get('start_time', ''), dt_fmt)
     except Exception:
-        start = datetime.now()
+        start = cn_now()
     try:
         end = datetime.strptime(data.get('end_time', ''), dt_fmt)
     except Exception:
@@ -942,7 +1011,7 @@ def user_tasks():
                 'my_tasks': my_tasks,
                 'other_assigned': other_assigned,
                 'TaskAssignment': TaskAssignment,
-                'now': datetime.now(),
+                'now': cn_now(),
                 'is_admin': current_user.role == 'admin',
                 'sensitive_words': sensitive,
                 'sensitive_text': highlight_sensitive_words(text),
@@ -1001,7 +1070,7 @@ def user_tasks():
                         'my_tasks': my_tasks,
                         'other_assigned': other_assigned,
                         'TaskAssignment': TaskAssignment,
-                        'now': datetime.now(),
+                        'now': cn_now(),
                         'is_admin': current_user.role == 'admin',
                         'user_groups': user_groups,
                         'duplicate_tasks': similar,
@@ -1097,7 +1166,7 @@ def user_tasks():
                 'preview': parsed, 'users': users,
                 'my_tasks': my_tasks,
                 'TaskAssignment': TaskAssignment,
-                'now': datetime.now(),
+                'now': cn_now(),
                 'is_admin': is_admin_user,
                 'user_groups': user_groups,
                 'duplicate_tasks': parsed_duplicates,
@@ -1111,7 +1180,7 @@ def user_tasks():
                 'my_tasks': my_tasks,
                 'other_assigned': other_assigned,
                 'TaskAssignment': TaskAssignment,
-                'now': datetime.now(),
+                'now': cn_now(),
                 'is_admin': is_admin_user,
             })
             template_data.update(_stats_context())
@@ -1149,14 +1218,14 @@ def user_tasks():
         'my_tasks': my_tasks,
         'other_assigned': other_assigned,
         'TaskAssignment': TaskAssignment,
-        'now': datetime.now(),
+        'now': cn_now(),
         'is_admin': is_admin_user,
         'user_groups': user_groups,
         'show_completed': show_completed,
         'frequent_assignees': _frequent_assignees(current_user.id),
     }
     # 默认展示截止时间最早的一条未完成待办(从今天起算)
-    _today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    _today = cn_now().replace(hour=0, minute=0, second=0, microsecond=0)
     _default = TaskAssignment.query.join(Task).filter(
         TaskAssignment.user_id == current_user.id,
         TaskAssignment.status.in_(['pending', 'rejected']),
@@ -1166,7 +1235,7 @@ def user_tasks():
         template_data['default_task_id'] = _default.task_id
     template_data.update(_stats_context())
     if is_admin_user:
-        _now = datetime.now()
+        _now = cn_now()
         user_ids = [u.id for u in users]
         user_stats = []
         status_rows = db.session.query(
@@ -1225,7 +1294,7 @@ def user_complete_task(assignment_id):
         flash('待办不存在', 'danger')
         return redirect(request.referrer or url_for('user_dashboard'))
     assignment.status = 'completed'
-    assignment.completed_at = datetime.now()
+    assignment.completed_at = cn_now()
     assignment.rejection_reason = None
     assignment.progress = 100
     db.session.commit()
@@ -1246,7 +1315,7 @@ def user_toggle_task(assignment_id):
     else:
         assignment.status = 'completed'
         assignment.progress = 100
-        assignment.completed_at = datetime.now()
+        assignment.completed_at = cn_now()
         assignment.rejection_reason = None
     db.session.commit()
     return jsonify(ok=True, status=assignment.status, progress=assignment.progress)
@@ -1260,7 +1329,7 @@ def user_abandon_task(assignment_id):
         flash('待办不存在', 'danger')
         return redirect(request.referrer or url_for('user_dashboard'))
     assignment.status = 'abandoned'
-    assignment.abandoned_at = datetime.now()
+    assignment.abandoned_at = cn_now()
     assignment.rejection_reason = None
     db.session.commit()
     flash('待办已标记为废弃', 'info')
@@ -1317,7 +1386,7 @@ def user_task_detail(task_id):
                            assignment=assignment,
                            pending_assignments=pending_assignments,
                            is_admin=False,
-                           now=datetime.now(),
+                           now=cn_now(),
                            users=get_same_group_users(current_user),
                            user_groups=current_user.groups.all())
 
@@ -1426,12 +1495,12 @@ def api_task_edit(task_id):
             assignment.status = new_status
             if new_status == 'completed':
                 assignment.progress = 100
-                assignment.completed_at = datetime.now()
+                assignment.completed_at = cn_now()
             elif new_status == 'pending':
                 assignment.progress = 0
                 assignment.completed_at = None
             elif new_status == 'abandoned':
-                assignment.abandoned_at = datetime.now()
+                assignment.abandoned_at = cn_now()
     db.session.commit()
     return jsonify({'ok': True, 'task_id': task.id})
 
@@ -1558,7 +1627,7 @@ def api_task_assign(task_id):
                 a.abandoned_at = None
                 a.progress = 0
         removed = []
-        now = datetime.now()
+        now = cn_now()
         for a in rows:
             if a.user_id not in keep and a.status != 'abandoned':
                 a.status = 'abandoned'
@@ -1644,7 +1713,7 @@ def _sync_task_assignees_from_form(task):
             a.abandoned_at = None
             a.progress = 0
     
-    now = datetime.now()
+    now = cn_now()
     for a in existing:
         if a.user_id not in kept_ids and a.status != 'abandoned':
             a.status = 'abandoned'
@@ -1697,12 +1766,12 @@ def user_edit_task():
                     assignment.status = new_status
                     if new_status == 'completed':
                         assignment.progress = 100
-                        assignment.completed_at = datetime.now()
+                        assignment.completed_at = cn_now()
                     elif new_status == 'pending':
                         assignment.progress = 0
                         assignment.completed_at = None
                     elif new_status == 'abandoned':
-                        assignment.abandoned_at = datetime.now()
+                        assignment.abandoned_at = cn_now()
         flash(f'待办 "{title}" 已更新', 'success')
     except Exception as e:
         db.session.rollback()
@@ -1731,7 +1800,7 @@ def user_update_assign_progress(assignment_id):
                 original = secure_filename(f.filename)
                 if not original or '.' not in original:
                     ext = f.filename.rsplit('.', 1)[-1].lower() if '.' in f.filename else 'png'
-                    original = f"upload_{int(datetime.now().timestamp())}.{ext}"
+                    original = f"upload_{int(cn_now().timestamp())}.{ext}"
                 filename = f"{current_user.id}_{assignment.id}_{original}"
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -1742,7 +1811,7 @@ def user_update_assign_progress(assignment_id):
                 flash('不支持的文件类型', 'danger')
     if progress == 100 and assignment.status == 'pending':
         assignment.status = 'completed'
-        assignment.completed_at = datetime.now()
+        assignment.completed_at = cn_now()
         assignment.rejection_reason = None
         flash('恭喜，待办已完成！', 'success')
     elif progress is not None and progress < 100 and assignment.status == 'completed':

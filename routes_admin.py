@@ -76,7 +76,7 @@ def admin_dashboard():
     stats = get_overall_stats()
     users = User.query.all()
     user_ids = [u.id for u in users]
-    now = datetime.now()
+    now = cn_now()
     total_rows = dict(db.session.query(
         TaskAssignment.user_id, func.count(TaskAssignment.id)
     ).filter(TaskAssignment.user_id.in_(user_ids))
@@ -136,7 +136,7 @@ def admin_dashboard():
     ).order_by(TaskAssignment.completed_at.desc()).limit(5).all()
     recent_tasks = Task.query.order_by(Task.created_at.desc()).limit(10).all()
 
-    now_dt = datetime.now()
+    now_dt = cn_now()
     week_start = now_dt - timedelta(days=now_dt.weekday())
     week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
     today_start = now_dt.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -228,7 +228,7 @@ def admin_logs():
     if action:
         query = query.filter(OperationLog.action == action)
     if days:
-        since = datetime.utcnow() - timedelta(days=days)
+        since = cn_now() - timedelta(days=days)
         query = query.filter(OperationLog.created_at >= since)
 
     pagination = db.paginate(
@@ -258,7 +258,7 @@ def admin_logs_cleanup():
         label = '清空全部日志'
     else:
         days = {'7d': 7, '30d': 30, '90d': 90}.get(mode, 30)
-        before = datetime.utcnow() - timedelta(days=days)
+        before = cn_now() - timedelta(days=days)
         query = OperationLog.query.filter(OperationLog.created_at < before)
         label = f'删除{days}天前日志'
     try:
@@ -315,7 +315,7 @@ def admin_emails_cleanup():
     """清理邮件记录:删除已超过30天的记录。"""
     try:
         from datetime import datetime, timedelta
-        cutoff = datetime.utcnow() - timedelta(days=30)
+        cutoff = cn_now() - timedelta(days=30)
         deleted, = db.session.query(EmailRecord).filter(
             EmailRecord.created_at < cutoff).delete(synchronize_session=False)
         db.session.commit()
@@ -645,7 +645,7 @@ def admin_task_detail(task_id):
                            assignment=assignment,
                            TaskAssignment=TaskAssignment,
                            is_admin=True,
-                           now=datetime.now(),
+                           now=cn_now(),
                            users=User.query.filter_by(status='approved').all(),
                            user_groups=Group.query.all(),
                            task_assignee_ids=[a.user_id for a in assignments])
@@ -931,7 +931,7 @@ def admin_jobs_retry(job_id):
     job.error = ''
     job.result = ''
     job.progress = 0
-    job.created_at = datetime.utcnow()
+    job.created_at = cn_now()
     job.started_at = None
     job.finished_at = None
     db.session.commit()

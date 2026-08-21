@@ -35,6 +35,7 @@ import os
 import re
 import time
 from datetime import datetime, timedelta
+from timeutil import cn_now
 
 if os.environ.get('TZ'):
     try:
@@ -182,9 +183,9 @@ def _has_cleanup_work():
         return True
     days = _cleanup_keep_days()
     from app import OperationLog, EmailRecord
-    cutoff_log = datetime.utcnow() - timedelta(days=days)
-    cutoff_email = datetime.utcnow() - timedelta(days=days)
-    cutoff_job = datetime.utcnow() - timedelta(days=days)
+    cutoff_log = cn_now() - timedelta(days=days)
+    cutoff_email = cn_now() - timedelta(days=days)
+    cutoff_job = cn_now() - timedelta(days=days)
     try:
         if OperationLog.query.filter(
                 OperationLog.created_at < cutoff_log).first():
@@ -203,7 +204,7 @@ def _cleanup_logs_msg():
     """清理超过保留期的操作日志,返回报告文本。"""
     from app import OperationLog
     days = _cleanup_keep_days()
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = cn_now() - timedelta(days=days)
     try:
         deleted = OperationLog.query.filter(
             OperationLog.created_at < cutoff).delete(
@@ -221,7 +222,7 @@ def _cleanup_emails_msg():
     """清理超过保留期的邮件记录,返回报告文本。"""
     from app import EmailRecord
     days = _cleanup_keep_days()
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = cn_now() - timedelta(days=days)
     try:
         deleted = EmailRecord.query.filter(
             EmailRecord.created_at < cutoff).delete(
@@ -238,7 +239,7 @@ def _cleanup_emails_msg():
 def _cleanup_jobs_msg():
     """清理超过保留期的定时任务执行记录,返回报告文本。"""
     days = _cleanup_keep_days()
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = cn_now() - timedelta(days=days)
     try:
         deleted = NoteJob.query.filter(
             NoteJob.created_at < cutoff).delete(
@@ -285,7 +286,7 @@ def _sync_result(job, reports):
     """把当前累计的执行日志同步到 job.result,供前端实时展示。"""
     text = '\n'.join(r for r in reports if r)
     job.result = text
-    job.updated_at = datetime.utcnow()
+    job.updated_at = cn_now()
     db.session.add(job)
 
 
@@ -392,14 +393,14 @@ def _execute(job):
     job.progress = 5
     job.phase = '准备'
     job.cancel = 0
-    job.started_at = datetime.utcnow()
+    job.started_at = cn_now()
     db.session.commit()
     try:
         if job.scope == 'backup':
             result, cancelled = run_backup(job)
         else:
             result, cancelled = run_organization(job)
-        job.finished_at = datetime.utcnow()
+        job.finished_at = cn_now()
         if cancelled:
             job.status = 'cancelled'
             job.result = result or ''
@@ -414,7 +415,7 @@ def _execute(job):
         logger.info('job %s done', job.id)
         _notify_job_result(job, f'定时任务 #{job.id}({job.scope}) 执行完成')
     except Exception as e:
-        job.finished_at = datetime.utcnow()
+        job.finished_at = cn_now()
         job.status = 'failed'
         job.error = str(e)
         db.session.commit()
@@ -428,7 +429,7 @@ def _claim():
         NoteJob.created_at, NoteJob.id).first()
     if job:
         job.status = 'running'
-        job.started_at = datetime.utcnow()
+        job.started_at = cn_now()
         db.session.commit()
     return job
 
@@ -438,7 +439,7 @@ RECOVER_AFTER_MINUTES = int(os.environ.get('JOB_RECOVER_MINUTES', '20'))
 
 def _recover_stale():
     """把因进程突然退出而长期无心跳的 running 作业恢复为 queued,实现续跑。"""
-    cutoff = datetime.utcnow() - timedelta(minutes=RECOVER_AFTER_MINUTES)
+    cutoff = cn_now() - timedelta(minutes=RECOVER_AFTER_MINUTES)
     stale = []
     for j in NoteJob.query.filter_by(status='running').all():
         if j.updated_at is None or j.updated_at < cutoff:
@@ -475,7 +476,7 @@ def _enqueue_auto(now):
     if not has_new_note and not has_kb:
         return
     db.session.add(NoteJob(scope='all', status='queued', trigger='auto',
-                           created_by=None, created_at=datetime.now()))
+                           created_by=None, created_at=cn_now()))
     db.session.commit()
     logger.info('入队本周自动整理待办')
 
@@ -495,7 +496,7 @@ def _enqueue_auto_cleanup(now):
     if not _has_cleanup_work():
         return
     db.session.add(NoteJob(scope='cleanup', status='queued', trigger='auto',
-                           created_by=None, created_at=datetime.now()))
+                           created_by=None, created_at=cn_now()))
     db.session.commit()
     logger.info('入队本周自动清理(黑名单字/操作日志/邮件/任务记录)')
 
@@ -529,10 +530,10 @@ def main():
     while True:
         try:
             with app.app_context():
-                now = datetime.now()
+                now = cn_now()
                 _enqueue_auto(now)
                 _enqueue_auto_cleanup(now)
-                _enqueue_auto_backup(datetime.now())
+                _enqueue_auto_backup(cn_now())
                 _recover_stale()
                 job = _claim()
                 if job:

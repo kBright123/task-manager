@@ -39,7 +39,7 @@ def _unified_search_data(q):
         return {'q': '', 'tasks': [], 'notes': [], 'kb': [], 'total': 0}
     pat = f'%{q}%'
 
-    now = datetime.now()
+    now = cn_now()
 
     # 待办(我参与的)
     filters = [TaskAssignment.user_id == current_user.id]

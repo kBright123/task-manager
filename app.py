@@ -20,6 +20,7 @@ import secrets
 import logging
 import contextlib
 from datetime import datetime, timedelta, date
+from timeutil import cn_now
 from flask import (Flask, render_template, request, redirect, url_for,
                    flash, jsonify, send_from_directory, g, session, abort)
 from flask_sqlalchemy import SQLAlchemy
@@ -431,13 +432,13 @@ def inject_globals():
                 'created_at': n.created_at,
             } for n in rows]
             _set_cached_notifications(current_user.id, (unread_count, recent))
-        return {'now': datetime.now, 'today_str': datetime.now().strftime(
+        return {'now': cn_now, 'today_str': cn_now().strftime(
             '%Y年%m月%d日 %A'), 'timedelta': timedelta,
                 'VERSION': VERSION,
                 'staticv': _static_mtime_version,
                 'unread_notifications': unread_count,
                 'recent_notifications': recent}
-    return {'now': datetime.now, 'today_str': datetime.now().strftime(
+    return {'now': cn_now, 'today_str': cn_now().strftime(
         '%Y年%m月%d日 %A'), 'timedelta': timedelta, 'VERSION': VERSION,
             'staticv': _static_mtime_version}
 
@@ -475,7 +476,7 @@ class User(UserMixin, db.Model):
     email_code_expires_at = db.Column(db.DateTime)
     api_token = db.Column(db.String(64), default='', index=True)
     api_token_created_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=cn_now)
     registration_ip = db.Column(db.String(64), default='', index=True)
 
     def set_password(self, password):
@@ -499,7 +500,7 @@ class Task(db.Model):
     end_time = db.Column(db.DateTime, nullable=False)
     creator_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     is_all = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    created_at = db.Column(db.DateTime, default=cn_now, index=True)
 
     creator = db.relationship('User', backref='created_tasks')
     assignments = db.relationship('TaskAssignment', backref='task',
@@ -531,7 +532,7 @@ class EmailLog(db.Model):
     __tablename__ = 'email_log'
     id = db.Column(db.Integer, primary_key=True)
     key = db.Column(db.String(200), unique=True, nullable=False, index=True)
-    sent_at = db.Column(db.DateTime, default=datetime.utcnow)
+    sent_at = db.Column(db.DateTime, default=cn_now)
 
 
 class EmailRecord(db.Model):
@@ -542,7 +543,7 @@ class EmailRecord(db.Model):
     category = db.Column(db.String(30), default='')
     status = db.Column(db.String(20), default='sent')
     error = db.Column(db.String(500), default='')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    created_at = db.Column(db.DateTime, default=cn_now, index=True)
 
 
 user_group = db.Table('user_group',
@@ -561,7 +562,7 @@ class Group(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), unique=True, nullable=False)
     description = db.Column(db.String(200), default='')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=cn_now)
 
     members = db.relationship('User', secondary=user_group, backref=db.backref('groups', lazy='dynamic'))
 
@@ -579,7 +580,7 @@ class Notification(db.Model):
     type = db.Column(db.String(50), default='task_assigned')
     message = db.Column(db.String(500), nullable=False)
     is_read = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=cn_now)
 
     user = db.relationship('User', backref='notifications')
 
@@ -598,7 +599,7 @@ class OperationLog(db.Model):
     target = db.Column(db.String(200), default='')
     detail = db.Column(db.String(1000), default='')
     ip = db.Column(db.String(64), default='')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    created_at = db.Column(db.DateTime, default=cn_now, index=True)
 
 
 class SysSetting(db.Model):
@@ -744,7 +745,7 @@ def send_verify_code(user, email):
     code = generate_verify_code()
     user.pending_email = email
     user.email_code = code
-    user.email_code_expires_at = datetime.utcnow() + timedelta(minutes=10)
+    user.email_code_expires_at = cn_now() + timedelta(minutes=10)
     db.session.commit()
     text = (f'您正在绑定邮箱 {email}。\n'
             f'您的校验码为: {code}\n'
@@ -1082,11 +1083,70 @@ def _run_sqlite_migrations():
         print(f'Migration note: {e}')
 
 
+# 旧数据由 datetime.utcnow(UTC) 写入, 统一迁移为北京时间(+8h)。
+# 幂等: 以 sys_setting 键做一次性标记, 重复启动不会二次偏移。
+_TZ_MIGRATE_TABLES = [
+    ('user', ('created_at', 'api_token_created_at')),
+    ('task', ('created_at',)),
+    ('email_log', ('sent_at',)),
+    ('email_record', ('created_at',)),
+    ('group', ('created_at',)),
+    ('notification', ('created_at',)),
+    ('operation_log', ('created_at',)),
+    ('note', ('created_at', 'updated_at')),
+    ('thread', ('created_at',)),
+    ('note_job', ('created_at', 'started_at', 'finished_at')),
+    ('kb_collection', ('created_at',)),
+    ('kb_document', ('created_at', 'updated_at')),
+    ('kb_point', ('created_at',)),
+    ('kb_point_rel', ('created_at',)),
+    ('kb_point_ref', ('created_at',)),
+]
+
+
+def _migrate_utc_to_cn_time():
+    """历史 UTC 时间戳一次性 +8h 迁移(跳过 locked_until 等短时效字段)。
+    BEGIN IMMEDIATE 串行化多 worker 并发, 幂等键防止二次偏移。"""
+    try:
+        conn = db.engine.raw_connection()
+        try:
+            cur = conn.cursor()
+            cur.execute('BEGIN IMMEDIATE')
+            cur.execute(
+                "SELECT value FROM sys_setting WHERE key='tz_migrated_v1'")
+            if cur.fetchone():
+                conn.rollback()
+                return
+            for table, cols in _TZ_MIGRATE_TABLES:
+                for col in cols:
+                    try:
+                        cur.execute(
+                            f'UPDATE "{table}" SET {col} = '
+                            f"datetime({col}, '+8 hours') "
+                            f'WHERE {col} IS NOT NULL')
+                    except Exception as e:
+                        print(f'[tz-migrate] 跳过 {table}.{col}: {e}')
+            cur.execute(
+                "INSERT OR REPLACE INTO sys_setting(key,value) "
+                "VALUES('tz_migrated_v1', ?)",
+                (cn_now().strftime('%Y-%m-%d %H:%M:%S'),))
+            conn.commit()
+            print('[tz-migrate] 历史 UTC 时间已迁移为北京时间(+8h)')
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f'[tz-migrate] 迁移失败(不影响启动): {e}')
+
+
 def init_db():
     with db_init_lock():
         db.create_all()
         _run_sqlite_migrations()
         enable_sqlite_wal()
+        _migrate_utc_to_cn_time()
         fresh = not User.query.filter_by(username='bright').first()
         if fresh:
             admin = User(username='bright', role='admin')
@@ -1140,7 +1200,7 @@ def seed_demo_data(force=False):
 
     db.session.flush()
 
-    now = datetime.now()
+    now = cn_now()
     today_start = now.replace(hour=9, minute=0, second=0, microsecond=0)
 
     demo_tasks = [
@@ -1239,7 +1299,7 @@ WEEKDAY_MAP = {
 
 
 def parse_chinese_datetime(text):
-    now = datetime.now()
+    now = cn_now()
     result_date = now
     result_time = None
 
@@ -1341,7 +1401,7 @@ def parse_chinese_datetime(text):
             result_date = result_date.replace(hour=9, minute=0,
                                               second=0, microsecond=0)
     except (ValueError, OverflowError):
-        result_date = datetime.now().replace(hour=9, minute=0,
+        result_date = cn_now().replace(hour=9, minute=0,
                                              second=0, microsecond=0)
 
     return result_date
@@ -1459,7 +1519,7 @@ def _parse_time(text):
 def _find_all_datetime_candidates(text):
     """Find all (datetime, date_text) candidates from time expressions in text.
     Returns list sorted by datetime ascending."""
-    now = datetime.now()
+    now = cn_now()
     candidates = []
 
     # find all date references and their positions
@@ -1549,7 +1609,7 @@ def _find_all_datetime_candidates(text):
 
 
 def detect_deadline_from_text(text):
-    now = datetime.now()
+    now = cn_now()
 
     # find time that appears AFTER deadline keywords (到/截止/至/-)
     end_text = text
@@ -1713,7 +1773,7 @@ def extract_title_from_text(text):
 
 
 def parse_task_from_text(text):
-    now = datetime.now()
+    now = cn_now()
 
     result = {
         'title': extract_title_from_text(text),
@@ -1830,3 +1890,7 @@ import routes_notify
 for _routes_module in (routes_auth, routes_admin, routes_tasks,
                        routes_search, routes_notify):
     _routes_module.__dict__.update(globals())
+
+# ---- 启动即执行一次性 UTC→北京时间历史数据迁移(幂等, 多 worker 安全) ----
+with app.app_context():
+    _migrate_utc_to_cn_time()

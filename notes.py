@@ -26,6 +26,7 @@
 避免循环导入:模型与 db 通过 init_models(database) 注入,与 knowledge.py 同模式。
 """
 import datetime
+from timeutil import cn_now
 import hashlib
 import json
 import logging
@@ -71,7 +72,7 @@ def init_models(database):
         parent_id = database.Column(database.Integer, nullable=True)
         color = database.Column(database.String(20), default='#4f46e7')
         created_at = database.Column(database.DateTime,
-                                    default=datetime.datetime.utcnow)
+                                    default=cn_now)
 
     class Note_(database.Model):
         __tablename__ = 'note'
@@ -91,10 +92,10 @@ def init_models(database):
         simhash = database.Column(database.String(64), default='', index=True)
         refined_at = database.Column(database.DateTime)
         created_at = database.Column(database.DateTime,
-                                    default=datetime.datetime.utcnow)
+                                    default=cn_now)
         updated_at = database.Column(
-            database.DateTime, default=datetime.datetime.utcnow,
-            onupdate=datetime.datetime.utcnow)
+            database.DateTime, default=cn_now,
+            onupdate=cn_now)
 
         thread = database.relationship(Thread_, backref=database.backref(
             'notes', lazy='dynamic', cascade='all, delete-orphan'))
@@ -130,12 +131,12 @@ def init_models(database):
         error = database.Column(database.Text, default='')
         created_by = database.Column(database.Integer, nullable=True)
         created_at = database.Column(database.DateTime,
-                                    default=datetime.datetime.utcnow)
+                                    default=cn_now)
         started_at = database.Column(database.DateTime)
         finished_at = database.Column(database.DateTime)
         updated_at = database.Column(database.DateTime,
-                                     default=datetime.datetime.utcnow,
-                                     onupdate=datetime.datetime.utcnow)
+                                     default=cn_now,
+                                     onupdate=cn_now)
 
     Note, Thread, NoteRule, NoteJob = Note_, Thread_, NoteRule_, NoteJob_
     # 表由 app.py init_db() 的 db.create_all() 统一创建,无需在此 create_all
@@ -247,7 +248,7 @@ def find_duplicates(note, lookback_days=7, threshold=0.70, limit=5):
                         note.content or '')
     if len(tokens) < 3:
         return []
-    since = datetime.datetime.utcnow() - datetime.timedelta(
+    since = cn_now() - datetime.timedelta(
         days=lookback_days)
     q = Note.query.filter(Note.id != note.id, Note.simhash != '',
                           Note.created_at >= since)

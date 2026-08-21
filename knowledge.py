@@ -28,6 +28,7 @@
 模型类由 app.py 调用 init_models(db) 注入,避免循环导入。
 """
 import datetime
+from timeutil import cn_now
 import hashlib
 import io
 import json
@@ -180,7 +181,7 @@ def init_models(database):
         owner_id = database.Column(database.Integer,
                                      database.ForeignKey('user.id'))
         created_at = database.Column(database.DateTime,
-                                       default=datetime.datetime.utcnow)
+                                       default=cn_now)
 
     class _KbDocument(database.Model):
         __tablename__ = 'kb_document'
@@ -202,10 +203,10 @@ def init_models(database):
                                       database.ForeignKey('user.id'),
                                       index=True)
         created_at = database.Column(database.DateTime,
-                                     default=datetime.datetime.utcnow)
+                                     default=cn_now)
         updated_at = database.Column(database.DateTime,
-                                     default=datetime.datetime.utcnow,
-                                     onupdate=datetime.datetime.utcnow)
+                                     default=cn_now,
+                                     onupdate=cn_now)
         last_recognition_at = database.Column(database.DateTime)
         last_recognition_type = database.Column(database.String(20))
         last_recognition_result = database.Column(database.String(20))
@@ -248,7 +249,7 @@ def init_models(database):
         summary = database.Column(database.Text, default='')
         refined_at = database.Column(database.DateTime)
         created_at = database.Column(database.DateTime,
-                                     default=datetime.datetime.utcnow)
+                                     default=cn_now)
 
     class _KbPointRel(database.Model):
         __tablename__ = 'kb_point_rel'
@@ -262,7 +263,7 @@ def init_models(database):
         rel_type = database.Column(database.String(20), default='similar')
         score = database.Column(database.Float, default=0.0)
         created_at = database.Column(database.DateTime,
-                                     default=datetime.datetime.utcnow)
+                                     default=cn_now)
 
     class _KbPointRef(database.Model):
         __tablename__ = 'kb_point_ref'
@@ -273,7 +274,7 @@ def init_models(database):
         target_type = database.Column(database.String(20), default='')
         target_id = database.Column(database.Integer, default=0)
         created_at = database.Column(database.DateTime,
-                                     default=datetime.datetime.utcnow)
+                                     default=cn_now)
 
     class _KbCollectionGroup(database.Model):
         __tablename__ = 'kb_collection_group'
@@ -1797,7 +1798,7 @@ def _refine_points_llm(rows, max_text=220):
 
 def _apply_refined_points(rows, mapping):
     old_titles = {pid: title for pid, title, _c in rows}
-    now = datetime.datetime.now()
+    now = datetime.cn_now()
     conn = _db_conn()
     try:
         for pid, v in mapping.items():
@@ -1942,7 +1943,7 @@ def _refine_docs(full, max_docs):
     mapping = _refine_doc_titles_llm(built)
     if not mapping:
         return 0
-    now = datetime.datetime.now()
+    now = datetime.cn_now()
     conn = _db_conn()
     try:
         for doc_id, t in mapping.items():
@@ -4056,7 +4057,7 @@ def api_refine_all():
     if current_user.role != 'admin':
         return jsonify({'ok': False, 'error': '仅管理员可操作'}), 403
     from notes import NoteJob
-    now = datetime.datetime.now()
+    now = datetime.cn_now()
     recent = NoteJob.query.filter(
         NoteJob.scope == 'refine',
         NoteJob.status.in_(['queued', 'running'])
@@ -4592,7 +4593,7 @@ def doc_reprocess(doc_id):
     doc.cancel = 0
     doc.attempts = 0
     doc.last_recognition_type = 'reprocess'
-    doc.updated_at = datetime.datetime.utcnow()
+    doc.updated_at = cn_now()
     db.session.commit()
     _bump_data_version()
     _log_op('kb_reprocess', doc.title, f'重新识别文档 #{doc_id}')
@@ -4680,7 +4681,7 @@ def bulk():
         db.session.commit()
         return jsonify({'ok': True, 'deleted': len(docs)})
     if action == 'reprocess':
-        now = datetime.datetime.utcnow()
+        now = cn_now()
         for doc in docs:
             doc.status = STATUS_QUEUED
             doc.error = None

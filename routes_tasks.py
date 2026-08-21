@@ -570,26 +570,33 @@ def api_tasks_calendar():
         is_workday = get_holiday_detail = None
     year = request.args.get('year', cn_now().year, type=int)
     month = request.args.get('month', cn_now().month, type=int)
+    show_completed = request.args.get('show_completed', '') == '1'
     start = datetime(year, month, 1)
     if month == 12:
         end = datetime(year + 1, 1, 1) - timedelta(seconds=1)
     else:
         end = datetime(year, month + 1, 1) - timedelta(seconds=1)
-    # 仅当前用户相关任务:创建的 + 被分配的(含已完成)
-    # 统计口径:已完成按完成时间(completed_at),未完成按截止时间(end_time)
-    assign_rows = TaskAssignment.query.filter(
-        TaskAssignment.user_id == current_user.id,
-        TaskAssignment.status.in_(['pending', 'rejected', 'completed', 'approved'])
-    ).all()
-    status_by_task = {a.task_id: a.status for a in assign_rows}
-    done_at_by_task = {a.task_id: a.completed_at for a in assign_rows
+    # 仅当前用户相关任务:创建的 + 被分配的。
+    # 口径与时间轴一致: 默认仅未完成(pending/rejected),
+    # 勾选"显示已完成"(show_completed=1)时纳入已完成(completed/approved)。
+    # 归档口径: 已完成按完成时间(completed_at),未完成按截止时间(end_time)
+    a_statuses = ['pending', 'rejected']
+    if show_completed:
+        a_statuses += ['completed', 'approved']
+    # 全量状态表(与时间轴同构): 创建的任务若自身分配已完成,
+    # 未勾选"显示已完成"时同样排除, 保证日历圆点/悬浮框与时间轴一致
+    all_rows = TaskAssignment.query.filter(
+        TaskAssignment.user_id == current_user.id).all()
+    status_by_task = {a.task_id: a.status for a in all_rows}
+    visible_ids = {a.task_id for a in all_rows if a.status in a_statuses}
+    done_at_by_task = {a.task_id: a.completed_at for a in all_rows
                        if a.completed_at}
     from sqlalchemy import or_, and_
     done_in_range = [tid for tid, at in done_at_by_task.items()
                      if start <= at <= end]
     tasks = Task.query.filter(
         or_(Task.creator_id == current_user.id,
-            Task.id.in_(status_by_task.keys())),
+            Task.id.in_(visible_ids)),
         or_(and_(Task.end_time >= start, Task.end_time <= end),
             Task.id.in_(done_in_range))
     ).order_by(Task.end_time).all()
@@ -598,6 +605,8 @@ def api_tasks_calendar():
     for t in tasks:
         st = status_by_task.get(t.id)
         done = st in ('completed', 'approved')
+        if done and not show_completed:
+            continue
         ref = done_at_by_task[t.id] if done and done_at_by_task.get(t.id) \
             else t.end_time
         if not (start <= ref <= end):

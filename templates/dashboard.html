@@ -266,7 +266,7 @@
         <div class="d-flex align-items-center gap-2">
           <span id="tlFilterChip" class="d-none" style="font-size:.68rem;background:var(--primary);color:#fff;border-radius:10px;padding:1px 8px;cursor:pointer;" onclick="tlClearFilter()" title="清除日期筛选"><span id="tlFilterText"></span> ×</span>
           <label class="d-flex align-items-center gap-1 mb-0" style="font-size:.68rem;color:var(--gray-500);cursor:pointer;">
-            <input type="checkbox" id="dashShowCompleted" onchange="dashLoadTimeline()" style="margin:0;width:16px;height:16px;cursor:pointer;">
+            <input type="checkbox" id="dashShowCompleted" onchange="dashLoadTimeline();calRender()" style="margin:0;width:16px;height:16px;cursor:pointer;">
             <span>已完成</span>
           </label>
           <span id="dashFeedCount" style="font-size:.68rem;color:var(--gray-400);"></span>
@@ -549,7 +549,7 @@ var _calAllTasks=[];
 function calDots(cnt){if(!cnt)return '';var c=cnt>=5?'#E06B6B':(cnt>=3?'#4A90D9':'#B0D4F1');var n=cnt>=5?3:(cnt>=3?2:1);var s='<div class="cal-dots">';for(var i=0;i<n;i++)s+='<span class="cal-dot" style="width:8px;height:8px;background:'+c+';'+(i?'margin-left:-2px;':'')+'"></span>';return s+'</div>';}
   function calRender(){var el=document.getElementById('calGrid');var titleEl=document.getElementById('calTitle');if(!el)return;if(calView==='week'){titleEl.textContent=calYear+'年 第'+calGetWeekNumber(calWeekStart)+'周';}else{titleEl.textContent=calYear+'年'+calMonth+'月';}
   var today=new Date();var todayStr=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
-  fetch('/api/tasks/calendar?year='+calYear+'&month='+calMonth).then(function(r){return r.json();}).then(function(d){
+  fetch('/api/tasks/calendar?year='+calYear+'&month='+calMonth+(document.getElementById('dashShowCompleted')?.checked?'&show_completed=1':'')).then(function(r){return r.json();}).then(function(d){
     var density=d.ok?d.density:{};var tags=d.ok?(d.tags||{}):{};window._calItems=d.ok?(d.items||{}):{};window._calHolidays=d.ok?(d.holidays||{}):{};window._calDensity=density;_calAllTasks=[];Object.keys(density).forEach(function(k){for(var i=0;i<density[k];i++)_calAllTasks.push({date:k,count:density[k]});});
     var html='';if(calView==='week'){for(var i=0;i<7;i++){var dt=new Date(calWeekStart);dt.setDate(dt.getDate()+i);var ds=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');var cnt=density[ds]||0;var tag=tags[ds]||null;var isToday=ds===todayStr;var cls='cal-cell';if(isToday)cls+=' today';html+='<div class="'+cls+'" data-date="'+ds+'" onclick="calSelect(this,\''+ds+'\')" onmouseenter="calShowTooltip(this,\''+ds+'\')" onmouseleave="calHideTooltip()"><span>'+dt.getDate()+'</span>';if(tag)html+='<span class="cal-tag-'+(tag==='班'?'work':'rest')+'">'+tag+'</span>';html+=calDots(cnt);html+='</div>';}
     }else{var firstDay=new Date(calYear,calMonth-1,1);var lastDay=new Date(calYear,calMonth,0);var startDow=firstDay.getDay()||7;var totalDays=lastDay.getDate();for(var i=1;i<startDow;i++)html+='<div class="cal-cell cal-other"></div>';

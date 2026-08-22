@@ -1154,9 +1154,16 @@
   /* 触控热区: 复选框视觉不变, 伪元素扩大点击区 */
   .form-check-input { position: relative; }
   .form-check-input::after { content: ''; position: absolute; inset: -7px; }
-  .tl-card .form-check-input::after { inset: -8px; }
+  /* 时间轴卡片内热区右移让位标题(间隙仅6px), 已完成禁用框不再扩区 */
+  .tl-card .form-check-input::after { inset: -8px -4px -8px -8px; }
+  .tl-card .form-check-input[disabled]::after { content: none; }
+  .tl-card { touch-action: manipulation; }
   /* 小按钮触控高度提升(左右内边距保留原值) */
   .btn-sm { padding-top: .34rem !important; padding-bottom: .34rem !important; font-size: .78rem !important; }
   /* 小字下限: 徽标不小于 0.65rem */
   .badge { font-size: .65rem !important; }
+  /* 关闭移动端默认灰块点击高亮, 改用自定义按压反馈 */
+  * { -webkit-tap-highlight-color: transparent; }
+  .tl-card:active { background: var(--gray-50); border-color: var(--gray-300); }
+  .cat-item:active, .sr-item:active, .bottom-nav a:active { opacity: .75; }
 }

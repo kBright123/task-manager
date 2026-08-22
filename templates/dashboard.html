@@ -698,7 +698,10 @@ function dashJumpToday(){
     if(tt){
       var id=parseInt(tt.getAttribute('data-id'),10),i;
       for(i=0;i<_tlCache.length;i++){if(_tlCache[i].id===id){dashOpenTaskDrawer(_tlCache[i]);return;}}
+      return;
     }
+    var card=e.target.closest('.tl-card');
+    if(card){var ti=card.querySelector('.tl-card-title');if(ti){var id2=parseInt(ti.getAttribute('data-id'),10);for(var j=0;j<_tlCache.length;j++){if(_tlCache[j].id===id2){dashOpenTaskDrawer(_tlCache[j]);return;}}}}
   });
   el.addEventListener('change',function(e){
     var cb=e.target.closest('.tl-check');

@@ -766,7 +766,9 @@ function tlToggleDesc(el){
     var ds=e.target.closest('.tl-card-desc');
     if(ds){tlToggleDesc(ds);return;}
     var tt=e.target.closest('.tl-card-title');
-    if(tt&&tt.getAttribute('data-id'))tlOpenEdit(parseInt(tt.getAttribute('data-id'),10));
+    if(tt&&tt.getAttribute('data-id')){tlOpenEdit(parseInt(tt.getAttribute('data-id'),10));return;}
+    var card=e.target.closest('.tl-card');
+    if(card){var ti=card.querySelector('.tl-card-title');if(ti&&ti.getAttribute('data-id'))tlOpenEdit(parseInt(ti.getAttribute('data-id'),10));}
   });
   el.addEventListener('change',function(e){
     var cb=e.target.closest('.tl-check');

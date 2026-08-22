@@ -60,6 +60,13 @@
     #calGrid{flex:1;grid-auto-rows:minmax(30px,1fr);min-height:0;}
     #calGrid .cal-cell{aspect-ratio:auto;max-height:none;height:100%;min-height:30px;}
     .app-container{padding-bottom:14px!important;}
+    /* 桌面端: 日历居左, 时间轴居右(仅视觉换位, 手机堆叠仍时间轴在前) */
+    .dash-row>.dash-col:nth-child(1){order:2;}
+    .dash-row>.dash-col:nth-child(2){order:1;}
+  }
+  @media (max-width:991px){
+    /* 手机/平板: 解除时间轴内联限高, 取消双滚动 */
+    #dashTimeline{max-height:none!important;height:auto!important;overflow:visible!important;}
   }
   .tl-axis{position:absolute;left:28px;top:0;bottom:0;width:2px;background:var(--gray-200);}
   .tl-section{margin-bottom:4px;}

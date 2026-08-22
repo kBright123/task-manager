@@ -25,13 +25,13 @@
   body.notes-full .email-reminder { display: none !important; }
   .notes-layout{display:grid;grid-template-columns:240px minmax(0,1fr) minmax(400px,480px);gap:16px;height:calc(100vh - var(--nav-height) - 16px);padding-top:16px;}
   .notes-panel{background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column;}
-  @media (max-width:1023px){.notes-layout{grid-template-columns:180px 1fr;padding-top:16px;}.notes-layout>div:nth-child(3){display:none;}}
-  @media (max-width:767px){body.notes-full .app-container{padding:16px 12px calc(var(--bottom-nav-height) + 12px);}.notes-layout{grid-template-columns:1fr;gap:10px;height:auto;min-height:0;padding-top:0;}.notes-layout>div:nth-child(3){display:none;}.note-timeline{max-height:none;}}
-  /* 手机端: 笔记详情改为底部抽屉, 点击笔记时滑出 */
+  @media (max-width:1023px){.notes-layout{grid-template-columns:180px 1fr;padding-top:16px;}}
+  @media (max-width:767px){body.notes-full .app-container{padding:16px 12px calc(var(--bottom-nav-height) + 12px);}.notes-layout{grid-template-columns:1fr;gap:10px;height:auto;min-height:0;padding-top:0;}.note-timeline{max-height:none;}}
+  /* 手机/平板(≤1023): 笔记详情改为底部抽屉, 点击笔记时滑出 */
   .note-meta-drawer{display:flex;flex-direction:column;}
   .close-drawer{display:none;}
   .note-meta-actions{display:none;}
-  @media (max-width:767px){
+  @media (max-width:1023px){
     .note-meta-drawer #metaActions{display:none !important;}
     .note-meta-actions{
       display:flex;gap:10px;padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));
@@ -44,7 +44,7 @@
     }
     .notes-layout>div.note-meta-drawer{
       display:flex;flex-direction:column;position:fixed;left:0;right:0;
-      bottom:var(--bottom-nav-height, 0px);
+      bottom:0;
       height:min(62vh, 520px);z-index:1200;background:#fff;
       border-radius:18px 18px 0 0;box-shadow:0 -10px 34px rgba(0,0,0,.22);
       transform:translateY(110%);transition:transform .28s cubic-bezier(.22,.61,.36,1);
@@ -58,8 +58,11 @@
       margin:8px auto 2px;
     }
   }
-  .note-meta-mask{display:none;}
   @media (max-width:767px){
+    .notes-layout>div.note-meta-drawer{bottom:var(--bottom-nav-height, 0px);}
+  }
+  .note-meta-mask{display:none;}
+  @media (max-width:1023px){
     .note-meta-mask{display:block;position:fixed;inset:0;background:rgba(20,20,30,.4);
       opacity:0;pointer-events:none;transition:opacity .25s ease;z-index:1190;}
     .note-meta-mask.show{opacity:1;pointer-events:auto;}
@@ -416,7 +419,7 @@ function showMeta(id, tap){
     if(!n)return;
     curMeta=n;
     renderMeta();
-    if(tap && window.innerWidth<=767) openMetaDrawer();
+    if(tap && window.innerWidth<=1023) openMetaDrawer();
   });
 }
 function openMetaDrawer(){

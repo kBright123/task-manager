@@ -582,8 +582,6 @@ function renderTimeline(el,jump){
     html+='<div class="tl-items">';
     g.items.forEach(function(t){
       var color=catColors[t.category]||'var(--primary)';
-      var desc=t.description||'';
-      var hasDesc=desc.length>0;
       var isCompleted=t.display==='completed';
       html+='<div class="tl-card '+t.display+'" id="tl-'+t.id+'">';
       html+='<div style="display:flex;align-items:flex-start;gap:6px;">';
@@ -591,10 +589,6 @@ function renderTimeline(el,jump){
       html+='<div style="flex:1;min-width:0;">';
       html+='<div class="tl-card-time">'+esc(t.start_time.substring(5,16))+' - '+esc(t.end_time.substring(5,16))+'</div>';
       html+='<div class="tl-card-title" data-id="'+t.id+'" role="button" tabindex="0" aria-label="编辑任务:'+esc(t.title)+'" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">'+esc(t.title)+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
-      if(hasDesc){
-        var shortDesc=desc.length>60?desc.substring(0,60)+'...':desc;
-        html+='<div class="tl-card-desc" style="font-size:.72rem;color:var(--gray-500);margin-top:2px;cursor:pointer;" data-full="'+esc(desc)+'">'+esc(shortDesc)+'</div>';
-      }
       html+='</div></div></div>';
     });
     html+='</div></div>';
@@ -757,10 +751,6 @@ function jumpTodaySection(){
   var hd=sec&&sec.querySelector('.tl-section-hd');
   if(hd)tlSecJump(hd);
 }
-function tlToggleDesc(el){
-  var full=el.getAttribute('data-full');
-  var short=full.length>60?full.substring(0,60)+'...':full;
-  if(el.textContent===short||el.textContent===full&&full.length<=60){el.textContent=full;}
   else{el.textContent=short;}
 }
 // 时间轴事件委托(容器常驻, 内部重渲染无需重复绑定): 勾选/描述/编辑入口
@@ -768,8 +758,6 @@ function tlToggleDesc(el){
   var el=document.getElementById('taskTimelineView');if(!el)return;
   el.addEventListener('click',function(e){
     if(e.target.closest('.tl-check')){e.stopPropagation();return;}
-    var ds=e.target.closest('.tl-card-desc');
-    if(ds){tlToggleDesc(ds);return;}
     var tt=e.target.closest('.tl-card-title');
     if(tt&&tt.getAttribute('data-id')){tlOpenEdit(parseInt(tt.getAttribute('data-id'),10));return;}
     var card=e.target.closest('.tl-card');

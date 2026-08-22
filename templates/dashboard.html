@@ -50,18 +50,22 @@
   .tl-wrap{position:relative;overflow-y:auto;flex:1;padding:12px 12px 12px 16px;}
   /* 桌面端双栏铺满一屏: 时间轴与日历拉伸至视口剩余高度 */
   @media (min-width:768px){
-    .dash-row{height:calc(100vh - 128px);max-height:100vh;}
-    .dash-col{display:flex;flex-direction:column;min-height:0;}
+    /* 纯CSS一屏(不依赖JS测量): 容器锁定视口高, 行弹性填充, 全链显式min-height:0 */
+    html,body{overflow:hidden;}
+    .app-container{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;padding-bottom:14px!important;}
+    .stat-grid{flex:0 0 auto;}
+    .dash-row{flex:1 1 0;min-height:0;height:auto!important;max-height:none!important;}
+    .dash-col{height:100%;min-height:0;display:flex;flex-direction:column;}
     .dash-col>.card{display:flex;flex-direction:column;margin-bottom:0!important;min-height:0;height:100%;}
     #calCard{flex:1;min-height:0;overflow:hidden;}
-    #dashTimeline{max-height:none!important;flex:1;display:flex;flex-direction:column;overflow:hidden;}
-    #dashTimeline .tl-wrap{flex:1;min-height:0;}
-    #calCard>.card-body{flex:1;display:flex;flex-direction:column;min-height:0;padding-bottom:10px;overflow-y:auto;}
-    /* 日历格子紧凑化: 不随列高拉伸变形(时间轴再长格子也保持自然高), 余量留在卡片底部 */
+    #calCard>.card-body{flex:1 1 0;display:flex;flex-direction:column;min-height:0;padding-bottom:10px;overflow-y:auto;}
+    /* 日历格子紧凑自然高, 余量留卡底, 不随列拉伸变形 */
     #calGrid{flex:0 0 auto;grid-auto-rows:minmax(30px,auto);align-content:start;}
-    #calGrid .cal-cell{aspect-ratio:auto;max-height:none;height:auto;min-height:30px;}
-    .app-container{padding-bottom:14px!important;}
-    .tl-wrap,.tl-wrap::-webkit-scrollbar,#calCard>.card-body{scrollbar-width:thin;}
+    #calGrid .cal-cell{aspect-ratio:auto;height:auto;min-height:30px;}
+    /* 时间轴内部滚动(滚动条细化) */
+    #dashTimeline{max-height:none!important;height:auto!important;min-height:60px!important;flex:1 1 0;display:flex;flex-direction:column;overflow:hidden;}
+    #dashTimeline .tl-wrap{flex:1 1 0;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+    .tl-wrap,#calCard>.card-body{scrollbar-width:thin;scrollbar-color:var(--gray-300) transparent;}
     .tl-wrap::-webkit-scrollbar,#calCard>.card-body::-webkit-scrollbar{width:6px;height:6px;}
     .tl-wrap::-webkit-scrollbar-thumb,#calCard>.card-body::-webkit-scrollbar-thumb{background:var(--gray-300);border-radius:3px;}
     .tl-wrap::-webkit-scrollbar-track,#calCard>.card-body::-webkit-scrollbar-track{background:transparent;}
@@ -843,7 +847,7 @@ function calShowTooltip(el,dateStr){var items=(window._calItems||{})[dateStr];if
 function calHideTooltip(){var tip=document.getElementById('calTooltip');if(tip)tip.classList.add('d-none');}
 calRender();
 // 一屏自适应: 按行顶部实际位置精确锁定高度, 兼容不同导航/边距高度(预留6px舍入容差)
-function dashFit(){var row=document.querySelector('.dash-row');if(!row)return;if(window.innerWidth<768){row.style.height='';return;}var top=row.getBoundingClientRect().top;var h=window.innerHeight-top-20;row.style.height=Math.max(h,420)+'px';}
+function dashFit(){var row=document.querySelector('.dash-row');if(!row)return;row.style.height='';}
 </script>
 <script>
 // 布局引导独立于主脚本: 主脚本任何运行时错误都不影响一屏锁定

@@ -333,8 +333,9 @@ function loadByTag(tag){
   fetch('/notes/api/notes?tag='+encodeURIComponent(tag)).then(r=>r.json()).then(function(d){if(d.ok)renderNotes(d.notes);});
   loadTags();
 }
-// 初始进入: 默认选中最近一条笔记的第一个标签(无标签则显示全部)
+// 初始进入: 默认选中最近一条笔记的第一个标签(无标签则显示全部); 带 note_id 跳转时保持全部列表以便定位
 function initDefaultTag(){
+  if(focusId){loadNotes();return;}
   fetch('/notes/api/notes').then(r=>r.json()).then(function(d){
     if(!d.ok)return;
     var first=(d.notes||[])[0];

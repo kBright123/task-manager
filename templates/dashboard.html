@@ -153,11 +153,6 @@
   .cal-picker-month{font-size:.72rem;padding:4px 0;border-radius:4px;cursor:pointer;text-align:center;transition:all .15s;}
   .cal-picker-month:hover{background:#EBF5FF;}
   .cal-picker-month.active{background:#4A90D9;color:#fff;}
-  .cal-tooltip{position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:#f5f5f7;border:1px solid rgba(0,0,0,.08);border-radius:8px;padding:8px 10px;font-size:.72rem;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:100;max-width:220px;pointer-events:none;}
-  .cal-tooltip-title{font-weight:700;margin-bottom:4px;color:#333;font-size:.72rem;}
-  .cal-tooltip-list{color:#667;max-height:120px;overflow-y:auto;}
-  .cal-tooltip-item{padding:2px 0;border-bottom:1px solid var(--gray-100);font-size:.68rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .cal-tooltip-item:last-child{border-bottom:none;}
 </style>
 {% endblock %}
 {% block content %}
@@ -350,9 +345,6 @@
       </div>
       <div class="card-body py-0 px-2" style="background:transparent;position:relative;padding-top:14px;padding-bottom:10px;">
         <div id="calPicker" class="cal-picker d-none"></div>
-        <div id="calTooltip" class="cal-tooltip d-none">
-          <div id="calTooltipTitle" class="cal-tooltip-title"></div>
-          <div id="calTooltipList" class="cal-tooltip-list"></div>
         </div>
         <div id="calSheetMask" onclick="calSheetClose()"></div>
         <div id="calSheet">
@@ -813,7 +805,7 @@ function calDots(cnt){if(!cnt)return '';var c=cnt>=5?'#E06B6B':(cnt>=3?'#4A90D9'
   fetchJSON('/api/tasks/calendar?year='+calYear+'&month='+calMonth+(document.getElementById('dashShowCompleted')?.checked?'&show_completed=1':'')).then(function(d){
     var density=d.ok?d.density:{};var tags=d.ok?(d.tags||{}):{};window._calItems=d.ok?(d.items||{}):{};window._calHolidays=d.ok?(d.holidays||{}):{};window._calDensity=density;_calAllTasks=[];Object.keys(density).forEach(function(k){for(var i=0;i<density[k];i++)_calAllTasks.push({date:k,count:density[k]});});
     var html='';var firstDay=new Date(calYear,calMonth-1,1);var lastDay=new Date(calYear,calMonth,0);var startDow=firstDay.getDay()||7;var totalDays=lastDay.getDate();for(var i=1;i<startDow;i++)html+='<div class="cal-cell cal-other"></div>';
-    for(var day=1;day<=totalDays;day++){var ds=calYear+'-'+String(calMonth).padStart(2,'0')+'-'+String(day).padStart(2,'0');var isToday=ds===todayStr;var cnt=density[ds]||0;var tag=tags[ds]||null;var hn=(window._calHolidays||{})[ds];var cls='cal-cell';if(isToday)cls+=' today';if(hn)cls+=' holiday';html+='<div class="'+cls+'" data-date="'+ds+'" onclick="calSelect(this,\''+ds+'\')" onmouseenter="calShowTooltip(this,\''+ds+'\')" onmouseleave="calHideTooltip()"><span>'+day+'</span>';if(hn){html+='<span class="cal-hn">'+hn+'</span>';if(tag==='休')html+='<span class="cal-tag-rest">休</span>';}else if(tag==='休')html+='<span class="cal-tag-rest">休</span>';else if(tag==='班')html+='<span class="cal-tag-work">班</span>';html+=calDots(cnt);html+='</div>';}
+    for(var day=1;day<=totalDays;day++){var ds=calYear+'-'+String(calMonth).padStart(2,'0')+'-'+String(day).padStart(2,'0');var isToday=ds===todayStr;var cnt=density[ds]||0;var tag=tags[ds]||null;var hn=(window._calHolidays||{})[ds];var cls='cal-cell';if(isToday)cls+=' today';if(hn)cls+=' holiday';html+='<div class="'+cls+'" data-date="'+ds+'" onclick="calSelect(this,\''+ds+'\')"><span>'+day+'</span>';if(hn){html+='<span class="cal-hn">'+hn+'</span>';if(tag==='休')html+='<span class="cal-tag-rest">休</span>';}else if(tag==='休')html+='<span class="cal-tag-rest">休</span>';else if(tag==='班')html+='<span class="cal-tag-work">班</span>';html+=calDots(cnt);html+='</div>';}
     el.innerHTML=html;}).catch(function(e){el.innerHTML='<div style="grid-column:1/8;text-align:center;color:#999;font-size:.75rem;padding:20px;">'+(window.netErrMsg?netErrMsg(e):'加载失败')+'</div>';});}
 function calSelect(el,dateStr){
   if(window.matchMedia('(hover: none)').matches&&window.innerWidth<768){calSheetShow(el,dateStr);return;}
@@ -850,8 +842,6 @@ function calSheetClose(){
   if(m)m.classList.remove('show');if(s)s.classList.remove('open');
 }
 function tlClearFilter(){_tlFilter=null;document.querySelectorAll('.cal-cell.selected').forEach(function(c){c.classList.remove('selected');});dashLoadTimeline();}
-function calShowTooltip(el,dateStr){var items=(window._calItems||{})[dateStr];if(!items||!items.length){calHideTooltip();return;}var tip=document.getElementById('calTooltip');var titleEl=document.getElementById('calTooltipTitle');var listEl=document.getElementById('calTooltipList');if(!tip)return;var dateObj=new Date(dateStr);var weekdays=['日','一','二','三','四','五','六'];var hn=(window._calHolidays||{})[dateStr];var total=(window._calDensity||{})[dateStr]||items.length;titleEl.textContent=dateStr+' 周'+weekdays[dateObj.getDay()]+(hn?' · '+hn:'')+' · '+total+'项';var cc={'工作':'var(--primary)','个人':'var(--success)','会议':'var(--meeting)','培训':'var(--training)','考试':'var(--exam)'};listEl.innerHTML=items.map(function(t){return'<div class="cal-tooltip-item"><span style="color:'+(cc[t.category]||'var(--primary)')+';font-weight:600;margin-right:4px;">'+esc(t.category)+'</span> <span style="'+(t.done?'text-decoration:line-through;color:#aaa;':'')+'">'+esc(t.title)+'</span><small style="color:#999;margin-left:4px;">'+(t.done?'完成 ':'截止 ')+t.time+'</small></div>';}).join('');if(total>items.length)listEl.innerHTML+='<div class="cal-tooltip-item" style="color:#999;">…还有'+(total-items.length)+'条</div>';tip.classList.remove('d-none');var cardRect=document.getElementById('calCard').getBoundingClientRect();var elRect=el.getBoundingClientRect();var w=tip.offsetWidth,h=tip.offsetHeight;var vx=elRect.left+elRect.width/2-w/2;vx=Math.max(4,Math.min(vx,window.innerWidth-w-4));var above=elRect.top-h-4,below=elRect.bottom+4;var vy=(above>=4)?above:((below+h<=window.innerHeight-4)?below:above);tip.style.left=(vx-cardRect.left)+'px';tip.style.top=(vy-cardRect.top)+'px';}
-function calHideTooltip(){var tip=document.getElementById('calTooltip');if(tip)tip.classList.add('d-none');}
 calRender();
 // 一屏自适应: 按行顶部实际位置精确锁定高度, 兼容不同导航/边距高度(预留6px舍入容差)
 function dashFit(){var row=document.querySelector('.dash-row');if(!row)return;row.style.height='';}

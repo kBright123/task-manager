@@ -91,7 +91,7 @@
     .brand-mark { width: 1.4rem; height: 1.4rem; flex-shrink: 0; border-radius: 6px; box-shadow: 0 1px 4px rgba(15,23,42,.18); }
     .brand-mark .brand-bg { fill: #F5F6FA; }
     .brand-mark .brand-stroke { stroke: url(#brandGradLight); }
-    [data-theme="dark"] {
+    @media (prefers-color-scheme: dark) {
       :root {
         --brand-bg-color: #1C1C1E;
         --brand-stroke-url: url(#brandGradDark);
@@ -228,7 +228,7 @@
     .bottom-nav a i { font-size: 1.2rem; transition: transform .2s; }
     .bottom-nav a.active i { transform: scale(1.1); }
     .bottom-nav a .dot { position: absolute; top: 4px; right: 50%; transform: translateX(16px); width: 7px; height: 7px; border-radius: 50%; background: var(--danger); border: 2px solid #fff; }
-    @media (prefers-color-scheme: dark) {
+    [data-theme="dark"] {
       .bottom-nav { background: #16181D; border-top: 1px solid #2A2E37; }
       .bottom-nav a { color: #9CA3AF; }
       .bottom-nav a .dot { border-color: #16181D; }
@@ -445,7 +445,7 @@
       color: #fff;
       box-shadow: 0 4px 12px rgba(0, 102, 51, .35);
     }
-    @media (prefers-color-scheme: dark) {
+    [data-theme="dark"] {
       .ptr-indicator {
         background: rgba(15, 23, 42, .92);
         border-color: rgba(71, 85, 105, .55);
@@ -1033,7 +1033,7 @@
       .pet-act-label { font-size: .68rem; }
     }
 
-    @media (prefers-color-scheme: dark) {
+    [data-theme="dark"] {
       .pet-modal-content { background: linear-gradient(170deg, #2a2033 0%, #241f35 70%, #1f2140 100%); }
       .pet-bg-deco {
         background:
@@ -1110,7 +1110,7 @@
 .tl-wrap > .tl-empty { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); white-space: nowrap; margin: 0; }
 
 /* ===== 暗黑模式: 变量重映射+主要表面覆盖(跟随系统) ===== */
-@media (prefers-color-scheme: dark) {
+[data-theme="dark"] {
   :root {
     color-scheme: dark;
     --gray-50: #131c2e;
@@ -1148,6 +1148,9 @@
   /* --- 暗色补全: 导航/搜索浮层/快捷球/高亮/日历 --- */
   body { background:#0b1220; color:var(--gray-700); }
   .top-nav,.bottom-nav,.quick-fab-item { background:#101a2d; }
+  --brand-bg-color:#1C1C1E; --brand-stroke-url:url(#brandGradDark);
+  .brand-mark .brand-bg { fill:#1C1C1E; }
+  .brand-mark .brand-stroke { stroke:url(#brandGradDark); }
   .us-suggest,.us-modal-card,.us-modal-foot { background:#101a2d; }
   mark,.us-r-item mark,.us-item-title mark,.us-suggest mark { background:#5c4d12; color:#ffe08a; }
   .badge-high { background:#3a2410; color:#f8b98a; }
@@ -1160,6 +1163,8 @@
   .cal-cell.holiday { background:#2a1a22; }
   .cal-cell.weekend { color:#7c8aa5; }
   .cal-hn { color:#e58b8b; }
+  .text-muted { color: var(--gray-400) !important; }
+}
 
 /* ===== 移动端体验修复(≤767) ===== */
 @media (max-width: 767px) {

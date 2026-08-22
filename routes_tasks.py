@@ -736,6 +736,9 @@ def api_quick_task_preview():
     except Exception as e:
         logger.error('Quick task preview failed: %s', e, exc_info=True)
         return jsonify({'ok': False, 'error': '解析待办失败，请检查输入格式'}), 400
+    # 时间解析器可见性: jionlp=语义解析(准确) legacy=旧正则回退(容器缺jionlp)
+    parsed['time_parser'] = 'legacy' if getattr(
+        parse_task_from_text, '_last_time_parser', '') == 'legacy' else 'jionlp'
     title = (parsed.get('title') or '').strip()
     if not title or title == '未命名待办' or len(title) < 2:
         return jsonify({'ok': False, 'error': '无法提取待办标题（至少 2 个字）'}), 400

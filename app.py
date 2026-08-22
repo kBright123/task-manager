@@ -17,6 +17,7 @@
 import re
 import hmac
 import secrets
+import sys
 import logging
 import contextlib
 from datetime import datetime, timedelta, date, timezone
@@ -1736,18 +1737,39 @@ _JIO = None
 
 
 def _get_jionlp():
-    """懒加载 jionlp(未安装/失败返回 None); 屏蔽其导入时的 banner 打印。"""
+    """懒加载 jionlp(未安装时尝试自动 pip 安装一次; 失败返回 None 走旧正则)。
+
+    KB_AUTOPIP=0 关闭自动安装; KB_TIME_PARSER=legacy 整体回退(见调用方)。
+    """
     global _JIO
     if _JIO is None:
         import io as _io
         import contextlib as _cl
         buf = _io.StringIO()
+        jio_mod = None
         try:
             with _cl.redirect_stdout(buf):
                 import jionlp as jio_mod
-            _JIO = jio_mod
         except Exception:
-            _JIO = False
+            jio_mod = None
+        if jio_mod is None and os.environ.get('KB_AUTOPIP', '1') != '0':
+            # 容器镜像未包含时兜底安装(自托管场景; 首次解析会慢几十秒)
+            try:
+                import subprocess
+                _log = logging.getLogger(__name__)
+                _log.warning('jionlp 未安装, 尝试自动 pip 安装(仅此一次)...')
+                subprocess.run([sys.executable, '-m', 'pip', 'install',
+                                '--no-cache-dir', '--quiet',
+                                'jionlp>=1.5.29'],
+                               timeout=300, check=False)
+                with _cl.redirect_stdout(buf):
+                    import jionlp as jio_mod
+                _log.warning('jionlp 自动安装完成, 时间语义解析已启用')
+            except Exception as e:
+                logging.getLogger(__name__).warning(
+                    'jionlp 自动安装失败(%s), 时间字段回退旧正则解析', e)
+                jio_mod = None
+        _JIO = jio_mod if jio_mod else False
     return _JIO or None
 
 
@@ -1985,6 +2007,7 @@ def parse_task_from_text(text):
 
     # 时间: 优先 JioNLP 语义解析(可给出未来开始时间); 失败回退旧候选链
     span = _parse_timespan_jionlp(text)
+    parse_task_from_text._last_time_parser = 'jionlp' if span else 'legacy'
     best = None
     if span:
         if span.get('end'):

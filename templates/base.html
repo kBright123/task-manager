@@ -84,9 +84,10 @@
     var retries = (_retries === undefined) ? (method === 'GET' ? 1 : 0) : _retries;
     var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var timer = null;
+    var timedOut = false;
     if (ctl && !opts.signal) {
       opts.signal = ctl.signal;
-      timer = setTimeout(function () { ctl.abort(); }, opts.timeoutMs || 10000);
+      timer = setTimeout(function () { timedOut = true; ctl.abort(); }, opts.timeoutMs || 10000);
     }
     return fetch(url, opts).then(function (r) {
       if (timer) clearTimeout(timer);
@@ -104,6 +105,10 @@
           return window.fetchJSON(url, opts, retries - 1);
         });
       }
+      // 错误分类: 供 netErrMsg() 给出差异化文案
+      if (timedOut || (e && e.name === 'AbortError')) e.kind = 'timeout';
+      else if (!e || !e.kind) e = e || new Error('network');
+      if (!e.kind) e.kind = navigator.onLine === false ? 'offline' : 'network';
       throw e;
     });
   };
@@ -116,6 +121,70 @@
       }
     });
   });
+  /* Toast 轻提示: toast(msg, type)
+     type: 'success'|'error'|undefined; 或传对象 {actionLabel, onAction, duration} */
+  window.toast = function (msg, opts) {
+    if (typeof opts === 'string') opts = { type: opts };
+    opts = opts || {};
+    var old = document.querySelector('.app-toast');
+    if (old) old.remove();
+    var t = document.createElement('div');
+    t.className = 'app-toast';
+    var span = document.createElement('span');
+    span.textContent = msg;
+    t.appendChild(span);
+    var timer = null;
+    if (opts.actionLabel && typeof opts.onAction === 'function') {
+      var btn = document.createElement('button');
+      btn.textContent = opts.actionLabel;
+      btn.onclick = function () {
+        if (timer) clearTimeout(timer);
+        t.remove();
+        try { opts.onAction(); } catch (e) { /* 回调异常不阻塞 */ }
+      };
+      t.appendChild(btn);
+    } else if (opts.type === 'success') {
+      var ok = document.createElement('span');
+      ok.textContent = '✓';
+      t.appendChild(ok);
+    }
+    document.body.appendChild(t);
+    timer = setTimeout(function () { t.remove(); }, opts.duration || 2200);
+  };
+  /* 网络错误分类文案(配合 fetchJSON 的 e.kind) */
+  window.netErrMsg = function (e) {
+    var offline = navigator.onLine === false;
+    var k = (e && e.kind) || (offline ? 'offline' : '');
+    if (k === 'timeout') return '网络超时，请检查网络后重试';
+    if (k === 'network' || k === 'offline') return '当前似乎已离线，请检查网络连接';
+    return '服务暂时不可用，请稍后再试';
+  };
+  /* 离线状态横幅: 断网提示 / 恢复自动消失并刷新数据视图 */
+  (function () {
+    var banner = null;
+    function ensure() {
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.className = 'net-banner';
+        banner.textContent = '当前处于离线状态，数据可能无法加载或保存';
+        document.body.appendChild(banner);
+      }
+      return banner;
+    }
+    function update() {
+      ensure().classList.toggle('show', navigator.onLine === false);
+    }
+    window.addEventListener('offline', update);
+    window.addEventListener('online', function () {
+      update();
+      if (navigator.onLine && typeof window.loadTaskFeed === 'function') {
+        try { window.loadTaskFeed(); } catch (e) { /* 页面无此函数时忽略 */ }
+      }
+    });
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', update);
+    } else { update(); }
+  })();
 </script>
   {% block extra_css %}{% endblock %}
 </head>

@@ -413,7 +413,7 @@
         <button class="btn btn-sm btn-outline-danger" style="padding:2px 10px;font-size:.7rem;"><i class="bi bi-x-circle"></i> 废弃</button>
       </form>
       <button class="btn btn-sm btn-outline-primary" style="padding:2px 10px;font-size:.7rem;" onclick="openEditTaskDrawer()"><i class="bi bi-pencil"></i> 编辑</button>
-      <form id="drawerDeleteForm" method="POST" onsubmit="return confirm('确认删除此待办？删除后不可恢复。')">
+      <form id="drawerDeleteForm" onsubmit="return dashDeleteSubmit(event)">
         <button class="btn btn-sm btn-outline-danger" style="padding:2px 10px;font-size:.7rem;"><i class="bi bi-trash"></i> 删除</button>
       </form>
     </div>
@@ -530,7 +530,7 @@ function dashTlExpand(){
 function dashLoadTimeline(){
   _dashShowCompleted=document.getElementById('dashShowCompleted')?.checked||false;
   var el=document.getElementById('dashTimeline');if(!el)return;
-  el.innerHTML='<div class="tl-empty"><i class="bi bi-hourglass-split"></i>加载中...</div>';
+  el.innerHTML='<div class="tl-axis"></div><div style="padding:8px 2px;"><div class="tl-skeleton" style="width:72%"></div><div class="tl-skeleton" style="width:88%"></div><div class="tl-skeleton" style="width:55%"></div></div>';
   var params=[];if(_dashShowCompleted)params.push('show_completed=1');
   if(_tlFilter){params.push('start='+_tlFilter);params.push('end='+_tlFilter);}
   var chip=document.getElementById('tlFilterChip');
@@ -541,11 +541,32 @@ function dashLoadTimeline(){
     if(!d.ok||!d.tasks||!d.tasks.length){_tlCache=[];dashRenderTimeline(false);if(cnt)cnt.textContent='';return;}
     _tlCache=d.tasks;if(cnt)cnt.textContent='共 '+d.tasks.length+' 条';
     dashRenderTimeline(true);
-  }).catch(function(){el.innerHTML='<div class="tl-empty"><i class="bi bi-exclamation-circle"></i>加载失败</div>';});
+  }).catch(function(e){el.innerHTML='<div class="tl-empty"><i class="bi bi-exclamation-circle"></i>'+(window.netErrMsg?netErrMsg(e):'加载失败')+'</div>';});
 }
-function dashToggleTask(id,checked,aid){fetch('/user/tasks/'+aid+'/toggle',{method:'POST'}).then(function(r){return r.json();}).then(function(d){if(d.ok)dashLoadTimeline();});}
+function dashToggleTask(id,checked,aid){fetch('/user/tasks/'+aid+'/toggle',{method:'POST'}).then(function(r){return r.json();}).then(function(d){if(d.ok){if(checked&&window.toast)toast('已完成','success');dashLoadTimeline();}});}
 function dashToggleDesc(el){var full=el.getAttribute('data-full');var short=full.length>50?full.substring(0,50)+'...':full;if(el.textContent===short){el.textContent=full;}else{el.textContent=short;}}
 var _dashDrawerData=null;
+// 删除待办(fetch+可撤销): 10s 内可通过 toast 撤销, 以原字段重新创建
+function dashDeleteSubmit(ev){
+  ev.preventDefault();
+  if(!confirm('确认删除此待办？删除后不可恢复。'))return false;
+  var data=_dashDrawerData;
+  var id=(ev.target.action.match(/\/(\d+)\/delete/)||[])[1];
+  fetchJSON('/api/task/'+id+'/delete',{method:'POST'}).then(function(d){
+    if(!d||!d.ok){toast((d&&d.error)||'删除失败','error');return;}
+    closeTaskDrawer();
+    dashLoadTimeline();
+    if(data&&data.title){
+      toast('已删除「'+data.title+'」',{actionLabel:'撤销',duration:8000,onAction:function(){
+        fetchJSON('/api/quick-task',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:data.title,start_time:data.start_time,end_time:data.end_time,category:data.category,description:data.full_description||'',assignee_ids:data.assignee_ids||[],group_ids:data.group_ids||[],is_all:false})}).then(function(rd){
+          if(rd.ok){toast('已恢复','success');}else{toast(rd.error||'恢复失败','error');}
+          dashLoadTimeline();
+        }).catch(function(e){toast(netErrMsg(e),'error');});
+      }});
+    }else if(window.toast){toast('已删除','success');}
+  }).catch(function(e){toast(netErrMsg(e),'error');});
+  return false;
+}
 function dashOpenTaskDrawer(t){_dashDrawerData=t;var d=t;
   document.getElementById('drawerTitle').textContent=d.title;
   var descEl=document.getElementById('drawerDesc');if(d.full_description&&d.full_description!==d.title){descEl.innerHTML=escapeHtml(d.full_description).replace(/\n/g,'<br>');descEl.style.display='block';}else{descEl.style.display='none';}
@@ -588,7 +609,7 @@ function calDots(cnt){if(!cnt)return '';var c=cnt>=5?'#E06B6B':(cnt>=3?'#4A90D9'
     var html='';if(calView==='week'){for(var i=0;i<7;i++){var dt=new Date(calWeekStart);dt.setDate(dt.getDate()+i);var ds=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');var cnt=density[ds]||0;var tag=tags[ds]||null;var isToday=ds===todayStr;var cls='cal-cell';if(isToday)cls+=' today';html+='<div class="'+cls+'" data-date="'+ds+'" onclick="calSelect(this,\''+ds+'\')" onmouseenter="calShowTooltip(this,\''+ds+'\')" onmouseleave="calHideTooltip()"><span>'+dt.getDate()+'</span>';if(tag)html+='<span class="cal-tag-'+(tag==='班'?'work':'rest')+'">'+tag+'</span>';html+=calDots(cnt);html+='</div>';}
     }else{var firstDay=new Date(calYear,calMonth-1,1);var lastDay=new Date(calYear,calMonth,0);var startDow=firstDay.getDay()||7;var totalDays=lastDay.getDate();for(var i=1;i<startDow;i++)html+='<div class="cal-cell cal-other"></div>';
     for(var day=1;day<=totalDays;day++){var ds=calYear+'-'+String(calMonth).padStart(2,'0')+'-'+String(day).padStart(2,'0');var isToday=ds===todayStr;var cnt=density[ds]||0;var tag=tags[ds]||null;var cls='cal-cell';if(isToday)cls+=' today';html+='<div class="'+cls+'" data-date="'+ds+'" onclick="calSelect(this,\''+ds+'\')" onmouseenter="calShowTooltip(this,\''+ds+'\')" onmouseleave="calHideTooltip()"><span>'+day+'</span>';if(tag)html+='<span class="cal-tag-'+(tag==='班'?'work':'rest')+'">'+tag+'</span>';html+=calDots(cnt);html+='</div>';}}
-    el.innerHTML=html;}).catch(function(){el.innerHTML='<div style="grid-column:1/8;text-align:center;color:#999;font-size:.75rem;padding:20px;">加载失败</div>';});}
+    el.innerHTML=html;}).catch(function(e){el.innerHTML='<div style="grid-column:1/8;text-align:center;color:#999;font-size:.75rem;padding:20px;">'+(window.netErrMsg?netErrMsg(e):'加载失败')+'</div>';});}
 function calSelect(el,dateStr){var was=el.classList.contains('selected');document.querySelectorAll('.cal-cell.selected').forEach(function(c){c.classList.remove('selected');});if(was||_tlFilter===dateStr){tlClearFilter();return;}el.classList.add('selected');_tlFilter=dateStr;dashLoadTimeline();}
 function tlClearFilter(){_tlFilter=null;document.querySelectorAll('.cal-cell.selected').forEach(function(c){c.classList.remove('selected');});dashLoadTimeline();}
 function calShowTooltip(el,dateStr){var items=(window._calItems||{})[dateStr];if(!items||!items.length){calHideTooltip();return;}var tip=document.getElementById('calTooltip');var titleEl=document.getElementById('calTooltipTitle');var listEl=document.getElementById('calTooltipList');if(!tip)return;var dateObj=new Date(dateStr);var weekdays=['日','一','二','三','四','五','六'];var hn=(window._calHolidays||{})[dateStr];var total=(window._calDensity||{})[dateStr]||items.length;titleEl.textContent=dateStr+' 周'+weekdays[dateObj.getDay()]+(hn?' · '+hn:'')+' · '+total+'项';var cc={'工作':'var(--primary)','个人':'var(--success)','会议':'var(--meeting)','培训':'var(--training)','考试':'var(--exam)'};listEl.innerHTML=items.map(function(t){return'<div class="cal-tooltip-item"><span class="tl-card-cat" style="background:'+(cc[t.category]||'var(--primary)')+';">'+esc(t.category)+'</span> <span style="'+(t.done?'text-decoration:line-through;color:#aaa;':'')+'">'+esc(t.title)+'</span><small style="color:#999;margin-left:4px;">'+(t.done?'完成 ':'截止 ')+t.time+'</small></div>';}).join('');if(total>items.length)listEl.innerHTML+='<div class="cal-tooltip-item" style="color:#999;">…还有'+(total-items.length)+'条</div>';tip.classList.remove('d-none');var cardRect=document.getElementById('calCard').getBoundingClientRect();var elRect=el.getBoundingClientRect();var w=tip.offsetWidth,h=tip.offsetHeight;var vx=elRect.left+elRect.width/2-w/2;vx=Math.max(4,Math.min(vx,window.innerWidth-w-4));var above=elRect.top-h-4,below=elRect.bottom+4;var vy=(above>=4)?above:((below+h<=window.innerHeight-4)?below:above);tip.style.left=(vx-cardRect.left)+'px';tip.style.top=(vy-cardRect.top)+'px';}
@@ -617,5 +638,18 @@ ta.addEventListener('input',function(){var pos=ta.selectionStart;var val=ta.valu
 ta.addEventListener('keydown',function(e){if(dd.style.display!=='block')return;if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();var items=dd.querySelectorAll('.qt-mention-item');var cur=dd.querySelector('.qt-mention-item[style*="var(--gray-50)"]');var idx=-1;if(cur)idx=Array.from(items).indexOf(cur);if(e.key==='ArrowDown')idx=Math.min(idx+1,items.length-1);else idx=Math.max(idx-1,0);items.forEach(function(el){el.style.background=''});items[idx].style.background='var(--gray-50)';}else if(e.key==='Enter'&&atPos>=0){e.preventDefault();var items=dd.querySelectorAll('.qt-mention-item');var cur=dd.querySelector('.qt-mention-item[style*="var(--gray-50)"]');if(cur){cur.click();}}else if(e.key==='Escape'){dd.style.display='none';atPos=-1;}});
 ta.addEventListener('blur',function(){setTimeout(function(){dd.style.display='none';},200);});})();
 function quickNote(){var content=document.getElementById('qnContent').value.trim();if(!content){return;}fetch('/api/quick-note',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:content})}).then(function(r){return r.json();}).then(function(d){if(d.ok){document.getElementById('qnContent').value='';document.getElementById('qnHint').textContent=(d.warnings&&d.warnings.length)?('疑似重复:'+d.warnings.map(function(w){return w.title;}).join(',')):'已保存';}else{document.getElementById('qnHint').textContent=d.error||'保存失败';}});}
+// 快速创建: 开始/结束时间失焦即时校验, 减少提交后返工
+(function(){
+  var s=document.getElementById('qtStart'),e=document.getElementById('qtEnd'),err=document.getElementById('qtErr2');
+  if(!s||!e||!err)return;
+  function orderOk(){
+    if(s.value&&e.value&&s.value>e.value){err.textContent='结束时间需晚于开始时间';return false;}
+    return true;
+  }
+  s.addEventListener('blur',function(){if(!s.value){err.textContent='请填写开始时间';}else if(e.value){orderOk();}});
+  e.addEventListener('blur',function(){if(!e.value){err.textContent='请填写结束时间';}else{orderOk();}});
+  s.addEventListener('input',orderOk);
+  e.addEventListener('input',orderOk);
+})();
 </script>
 {% endblock %}

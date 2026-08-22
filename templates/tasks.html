@@ -534,7 +534,7 @@ function tlfDateStr(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStar
 function loadTaskFeed(){
   var el=document.getElementById('taskTimelineView');
   if(!el) return;
-  el.innerHTML='<div class="tl-axis"></div><div class="tl-empty"><i class="bi bi-hourglass-split"></i>加载中...</div>';
+  el.innerHTML='<div class="tl-axis"></div><div style="padding:8px 2px;"><div class="tl-skeleton" style="width:72%"></div><div class="tl-skeleton" style="width:88%"></div><div class="tl-skeleton" style="width:55%"></div></div>';
   var cat=window.taskFilter.category||'';
   var showCompleted=document.getElementById('tlShowCompleted')?.checked;
   var params=[];
@@ -553,8 +553,8 @@ function loadTaskFeed(){
     _tlfCache=d.tasks;
     if(cnt) cnt.textContent='共 '+d.tasks.length+' 条';
     renderTimeline(el,true);
-  }).catch(function(){
-    el.innerHTML='<div class="tl-axis"></div><div class="tl-empty"><i class="bi bi-exclamation-circle"></i>加载失败</div>';
+  }).catch(function(e){
+    el.innerHTML='<div class="tl-axis"></div><div class="tl-empty"><i class="bi bi-exclamation-circle"></i>'+(window.netErrMsg?netErrMsg(e):'加载失败')+'</div>';
   });
 }
 function tlfExpand(){
@@ -889,12 +889,24 @@ function saveTaskEdit(){
     }).catch(function(e){ alert('保存失败: ' + e.message); });
 }
 function deleteTask(id){
-  if(!confirm('确定删除该待办？此操作不可恢复。')) return;
-  fetch('{{ url_for('api_task_delete', task_id=0) }}'.replace('/0','/' + id), {method:'POST'})
-    .then(function(r){return r.json();}).then(function(d){
-      if(d.ok){ window.location.reload(); }
-      else { alert(d.error || '删除失败'); }
-    });
+  if(!confirm('确定删除该待办？删除后 10 秒内可撤销。')) return;
+  var data=_tlfCache.find(function(x){return x.id===id;});
+  fetchJSON('{{ url_for('api_task_delete', task_id=0) }}'.replace('/0','/' + id), {method:'POST'})
+    .then(function(d){
+      if(!d||!d.ok){alert((d&&d.error)||'删除失败');return;}
+      var i=_tlfCache.findIndex(function(x){return x.id===id;});
+      if(i>-1)_tlfCache.splice(i,1);
+      var el=document.getElementById('taskTimelineView');
+      var cnt=document.getElementById('taskFeedCount');
+      if(cnt)cnt.textContent='共 '+_tlfCache.length+' 条';
+      if(el)renderTimeline(el,false);
+      toast('已删除「'+((data&&data.title)||'待办')+'」',{actionLabel:'撤销',duration:8000,onAction:function(){
+        fetchJSON('/api/quick-task',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:data.title,start_time:data.start_time,end_time:data.end_time,category:data.category,description:data.full_description||'',assignee_ids:data.assignee_ids||[],group_ids:data.group_ids||[],is_all:false})}).then(function(rd){
+          if(rd.ok){toast('已恢复','success');}else{toast(rd.error||'恢复失败','error');}
+          loadTaskFeed();
+        }).catch(function(e){toast(netErrMsg(e),'error');});
+      }});
+    }).catch(function(e){toast(netErrMsg(e),'error');});
 }
 function reopenTask(id){
   if(!confirm('重新打开待办并将所有已完成状态重置为进行中？')) return;

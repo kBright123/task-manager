@@ -52,8 +52,7 @@
   @media (min-width:992px){
     .dash-row{height:calc(100vh - 128px);}
     .dash-col{display:flex;flex-direction:column;min-height:0;}
-    .dash-col>.card{display:flex;flex-direction:column;margin-bottom:0!important;min-height:0;}
-    .dash-col>.card+.card{margin-top:12px;flex-shrink:0;max-height:34%;overflow-y:auto;}
+    .dash-col>.card{display:flex;flex-direction:column;margin-bottom:0!important;min-height:0;height:100%;}
     #calCard{flex:1;min-height:0;overflow:hidden;}
     #dashTimeline{max-height:none!important;flex:1;display:flex;flex-direction:column;overflow:hidden;}
     #dashTimeline .tl-wrap{flex:1;min-height:0;}
@@ -324,31 +323,9 @@
         <div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;"></div>
       </div>
     </div>
+  </div>
+</div>
 
-    {% if is_admin and user_stats %}
-    <div class="card">
-      <div class="card-header d-flex justify-content-between align-items-center py-1 px-2">
-        <span><i class="bi bi-people" style="color:var(--primary);"></i> 全员负载</span>
-        <a href="{{ url_for('admin_users') }}" class="btn btn-sm btn-outline-primary" style="padding:2px 8px;font-size:.72rem;">详情</a>
-      </div>
-      <div class="card-body py-1 px-2">
-        {% for us in user_stats %}
-        <div class="d-flex align-items-center gap-2 mb-1">
-          <span class="avatar avatar-sm" style="width:20px;height:20px;font-size:.6rem;">{{ (us.user.name or us.user.username)[0]|upper }}</span>
-          <div class="flex-grow-1" style="min-width:0;">
-            <div class="d-flex justify-content-between" style="font-size:.7rem;">
-              <span class="text-truncate">{{ us.user.name or us.user.username }}</span>
-              <span style="color:{{ 'var(--danger)' if us.rate > 100 else 'var(--success)' }};font-weight:600;">{{ us.total }}待办</span>
-            </div>
-            <div class="progress-custom" style="height:3px;margin-top:1px;">
-              <div class="progress-custom-bar" style="width:{{ us.rate }}%;background:{{ 'var(--danger)' if us.rate > 100 else 'var(--warning)' if us.rate > 60 else 'var(--success)' }};"></div>
-            </div>
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-    {% endif %}
   </div>
 </div>
 

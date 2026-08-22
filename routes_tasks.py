@@ -1272,48 +1272,6 @@ def user_tasks():
     if _default:
         template_data['default_task_id'] = _default.task_id
     template_data.update(_stats_context())
-    if is_admin_user:
-        _now = cn_now()
-        user_ids = [u.id for u in users]
-        user_stats = []
-        status_rows = db.session.query(
-            TaskAssignment.user_id, TaskAssignment.status,
-            func.count(TaskAssignment.id)
-        ).filter(TaskAssignment.user_id.in_(user_ids)).group_by(
-            TaskAssignment.user_id, TaskAssignment.status).all()
-        per_status = {}
-        for uid, status, n in status_rows:
-            per_status.setdefault(uid, {})[status] = n
-        if user_ids:
-            urgent_rows = db.session.query(
-                TaskAssignment.user_id, func.count(TaskAssignment.id)
-            ).join(Task).filter(
-                TaskAssignment.user_id.in_(user_ids),
-                TaskAssignment.status == 'pending',
-                Task.end_time <= _now
-            ).group_by(TaskAssignment.user_id).all()
-            overdue_rows = db.session.query(
-                TaskAssignment.user_id, func.count(TaskAssignment.id)
-            ).join(Task).filter(
-                TaskAssignment.user_id.in_(user_ids),
-                TaskAssignment.status == 'pending',
-                Task.end_time < _now
-            ).group_by(TaskAssignment.user_id).all()
-        else:
-            urgent_rows, overdue_rows = [], []
-        urgent = dict(urgent_rows)
-        overdue = dict(overdue_rows)
-        for u in users:
-            s = per_status.get(u.id, {})
-            total = sum(s.values())
-            completed_count = s.get('completed', 0) + s.get('approved', 0)
-            rate = round(completed_count / total * 100, 1) if total > 0 else 0
-            user_stats.append({
-                'user': u, 'total': total, 'completed': completed_count,
-                'rate': rate, 'urgent': urgent.get(u.id, 0),
-                'overdue': overdue.get(u.id, 0)
-            })
-        template_data['user_stats'] = user_stats
 
     return render_template('tasks.html', **template_data)
 

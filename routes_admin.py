@@ -74,45 +74,6 @@ def get_overall_stats():
 @admin_required
 def admin_dashboard():
     stats = get_overall_stats()
-    users = User.query.all()
-    user_ids = [u.id for u in users]
-    now = cn_now()
-    total_rows = dict(db.session.query(
-        TaskAssignment.user_id, func.count(TaskAssignment.id)
-    ).filter(TaskAssignment.user_id.in_(user_ids))
-     .group_by(TaskAssignment.user_id).all())
-    completed_rows = dict(db.session.query(
-        TaskAssignment.user_id, func.count(TaskAssignment.id)
-    ).filter(TaskAssignment.user_id.in_(user_ids),
-             TaskAssignment.status == 'completed')
-     .group_by(TaskAssignment.user_id).all())
-    urgent_rows = dict(db.session.query(
-        TaskAssignment.user_id, func.count(TaskAssignment.id)
-    ).join(Task).filter(
-        TaskAssignment.user_id.in_(user_ids),
-        TaskAssignment.status == 'pending',
-        Task.end_time <= now + timedelta(days=3),
-        Task.end_time >= now
-    ).group_by(TaskAssignment.user_id).all())
-    overdue_rows = dict(db.session.query(
-        TaskAssignment.user_id, func.count(TaskAssignment.id)
-    ).join(Task).filter(
-        TaskAssignment.user_id.in_(user_ids),
-        TaskAssignment.status == 'pending',
-        Task.end_time < now
-    ).group_by(TaskAssignment.user_id).all())
-    user_stats = []
-    for u in users:
-        total = total_rows.get(u.id, 0)
-        completed = completed_rows.get(u.id, 0)
-        rate = round(completed / total * 100, 1) if total > 0 else 0
-        user_stats.append({
-            'user': u, 'total': total, 'completed': completed,
-            'rate': rate,
-            'urgent': urgent_rows.get(u.id, 0),
-            'overdue': overdue_rows.get(u.id, 0)
-        })
-
     uid = current_user.id
     total = TaskAssignment.query.filter_by(user_id=uid).count()
     completed = TaskAssignment.query.filter_by(user_id=uid, status='completed').count()
@@ -190,7 +151,7 @@ def admin_dashboard():
     notes_delta = new_notes_yesterday - new_notes_prev
     docs_delta = new_docs_yesterday - new_docs_prev
 
-    return render_template('dashboard.html', stats=stats, user_stats=user_stats,
+    return render_template('dashboard.html', stats=stats,
                            total=total, completed=completed, pending=pending,
                            rejected=rejected, rate=rate, upcoming=upcoming,
                            overdue=overdue,

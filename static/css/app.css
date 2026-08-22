@@ -1152,6 +1152,7 @@
   .brand-mark .brand-bg { fill:#1C1C1E; }
   .brand-mark .brand-stroke { stroke:url(#brandGradDark); }
   .us-suggest,.us-modal-card,.us-modal-foot { background:#101a2d; }
+  [data-theme="dark"] #notificationDropdown{background:#101a2d !important;border:1px solid var(--gray-200);}
   mark,.us-r-item mark,.us-item-title mark,.us-suggest mark { background:#5c4d12; color:#ffe08a; }
   .badge-high { background:#3a2410; color:#f8b98a; }
   a.list-group-item, .list-group-item { background-color:#101a2d; border-color:var(--gray-200); }
@@ -1177,6 +1178,8 @@
   .tl-card .form-check-input::after { inset: -8px -4px -8px -8px; }
   .tl-card .form-check-input[disabled]::after { content: none; }
   .tl-card { touch-action: manipulation; }
+  /* 手机端通知下拉: 固定定位全宽面板, 不再锚定铃铛导致超出屏幕 */
+  #notificationDropdown{position:fixed !important;left:8px !important;right:8px !important;top:calc(var(--nav-height) + 6px) !important;margin-top:0 !important;min-width:0 !important;width:auto;max-height:72vh;}
   /* 小按钮触控高度提升(左右内边距保留原值) */
   .btn-sm { padding-top: .34rem !important; padding-bottom: .34rem !important; font-size: .78rem !important; }
   /* 小字下限: 徽标不小于 0.65rem */

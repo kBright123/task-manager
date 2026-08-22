@@ -76,6 +76,13 @@ else
   SOCHDB_PATH="${KB_SOCHDB_PATH:-/app/instance/kb_data/kb.soch}"
   mkdir -p "$(dirname "$SOCHDB_PATH")"
 
+  # 上次进程被强杀时可能残留 socket 文件, 导致新 server 等待超时而整体启动失败
+  SOCK="$SOCHDB_PATH/sochdb.sock"
+  if [ -S "$SOCK" ] || [ -e "$SOCK" ]; then
+    echo "[entrypoint] removing stale socket $SOCK"
+    rm -f "$SOCK"
+  fi
+
   SOCHDB_BIN=$(python -c \
     "import glob, os, sochdb; print(glob.glob(os.path.join(sochdb.__path__[0], '_bin', '*', 'sochdb-server'))[0])")
 
@@ -83,7 +90,6 @@ else
   "$SOCHDB_BIN" --db "$SOCHDB_PATH" --log-level info &
   SOCHDB_PID=$!
 
-  SOCK="$SOCHDB_PATH/sochdb.sock"
   for _ in $(seq 1 60); do
     [ -S "$SOCK" ] && break
     sleep 0.5

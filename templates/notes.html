@@ -333,6 +333,15 @@ function loadByTag(tag){
   fetch('/notes/api/notes?tag='+encodeURIComponent(tag)).then(r=>r.json()).then(function(d){if(d.ok)renderNotes(d.notes);});
   loadTags();
 }
+// 初始进入: 默认选中最近一条笔记的第一个标签(无标签则显示全部)
+function initDefaultTag(){
+  fetch('/notes/api/notes').then(r=>r.json()).then(function(d){
+    if(!d.ok)return;
+    var first=(d.notes||[])[0];
+    var t=first&&first.tags&&first.tags[0];
+    if(t){loadByTag(t);}else{renderNotes(d.notes);loadTags();}
+  }).catch(function(){loadNotes();});
+}
 function loadTags(){
   var box=document.getElementById('tagList');
   if(!box) return;
@@ -525,6 +534,6 @@ document.getElementById('noteFileInput').addEventListener('change',function(e){
 });
 bindNotePasteDrop(noteInputEl);
 autoResizeNoteInput();
-loadNotes();
+initDefaultTag();
 </script>
 {% endblock %}

@@ -421,6 +421,15 @@ pet_init_models(db)
 app.register_blueprint(pet_bp)
 
 
+@app.route('/sw.js')
+def service_worker_js():
+    """根路径提供 SW(保证默认 scope=/ 覆盖页面), 仅做静态资源缓存。"""
+    resp = send_from_directory(app.static_folder, 'sw.js')
+    resp.headers['Content-Type'] = 'application/javascript'
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
+
+
 @app.route('/pet')
 @login_required
 def pet_page():

@@ -510,10 +510,10 @@ function dashRenderTimeline(jump){
   order.forEach(function(s){var g=groups[s];if(!g||!g.items||!g.items.length)return;html+='<div class="tl-section '+s+'"><div class="tl-section-hd" role="button" tabindex="0" aria-label="展开'+esc(g.label)+'的待办" onclick="tlSecDashJump(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}"><div class="tl-section-dot"></div><span class="tl-section-label">'+esc(g.label)+'</span><span class="tl-section-count">'+g.items.length+'</span></div><div class="tl-items">';
   g.items.forEach(function(t){var color=catColors[t.category]||'var(--primary)';var isCompleted=t.display==='completed';var desc=t.description||'';var hasDesc=desc.length>0;var taskDate=t.start_time?t.start_time.substring(0,10):'';
   html+='<div class="tl-card '+t.display+'" id="dtl-'+t.id+'" data-date="'+taskDate+'"><div style="display:flex;align-items:flex-start;gap:6px;">';
-  html+='<input type="checkbox" class="form-check-input mt-1" style="flex-shrink:0;cursor:pointer;" '+(isCompleted?'checked':'')+' onchange="dashToggleTask('+t.id+',this.checked,'+t.assignment_id+')" onclick="event.stopPropagation()">';
+  html+='<input type="checkbox" class="form-check-input tl-check" style="flex-shrink:0;" '+(isCompleted?'checked':'')+' data-aid="'+t.assignment_id+'" aria-label="标记完成:'+esc(t.title)+'">';
   html+='<div style="flex:1;min-width:0;"><div class="tl-card-time">'+esc(t.start_time.substring(5,16))+' - '+esc(t.end_time.substring(5,16))+'</div>';
-  html+='<div class="tl-card-title" role="button" tabindex="0" aria-label="查看任务:'+esc(t.title)+'" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onclick="dashOpenTaskDrawer('+JSON.stringify(t).replace(/"/g,'&quot;')+')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">'+esc(t.title)+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
-  if(hasDesc){var shortDesc=desc.length>50?desc.substring(0,50)+'...':desc;html+='<div style="font-size:.72rem;color:var(--gray-500);margin-top:2px;cursor:pointer;" onclick="dashToggleDesc(this)" data-full="'+esc(desc)+'">'+esc(shortDesc)+'</div>';}
+  html+='<div class="tl-card-title" data-id="'+t.id+'" role="button" tabindex="0" aria-label="查看任务:'+esc(t.title)+'" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">'+esc(t.title)+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
+  if(hasDesc){var shortDesc=desc.length>50?desc.substring(0,50)+'...':desc;html+='<div class="dash-card-desc" style="font-size:.72rem;color:var(--gray-500);margin-top:2px;cursor:pointer;" data-full="'+esc(desc)+'">'+esc(shortDesc)+'</div>';}
   html+='</div></div></div>';});html+='</div></div>';});html+='</div>';
   el.innerHTML=html;
   var wrap=el.querySelector('.tl-wrap')||el;
@@ -599,7 +599,7 @@ function dashTlExpand(){
   w2.scrollTop=w2.scrollHeight-keep;
   _tlBusy=false;
 }
-function dashLoadTimeline(){
+function dashLoadTimeline(keepView){
   _dashShowCompleted=document.getElementById('dashShowCompleted')?.checked||false;
   var el=document.getElementById('dashTimeline');if(!el)return;
   el.innerHTML='<div class="tl-axis"></div><div style="padding:8px 2px;"><div class="tl-skeleton" style="width:72%"></div><div class="tl-skeleton" style="width:88%"></div><div class="tl-skeleton" style="width:55%"></div></div>';
@@ -612,12 +612,70 @@ function dashLoadTimeline(){
     var cnt=document.getElementById('dashFeedCount');
     if(!d.ok||!d.tasks||!d.tasks.length){_tlCache=[];dashRenderTimeline(false);if(cnt)cnt.textContent='';return;}
     _tlCache=d.tasks;if(cnt)cnt.textContent='共 '+d.tasks.length+' 条';
-    dashRenderTimeline(true);
+    dashRenderTimeline(!keepView);
   }).catch(function(e){el.innerHTML='<div class="tl-empty"><i class="bi bi-exclamation-circle"></i>'+(window.netErrMsg?netErrMsg(e):'加载失败')+'</div>';});
 }
-function dashToggleTask(id,checked,aid){fetch('/user/tasks/'+aid+'/toggle',{method:'POST'}).then(function(r){return r.json();}).then(function(d){if(d.ok){if(checked&&window.toast)toast('已完成','success');dashLoadTimeline();}});}
-function dashToggleDesc(el){var full=el.getAttribute('data-full');var short=full.length>50?full.substring(0,50)+'...':full;if(el.textContent===short){el.textContent=full;}else{el.textContent=short;}}
-var _dashDrawerData=null;
+// 勾选乐观更新(首页): 即时反馈, 失败回滚, 成功后静默对账刷新
+function dashOptToggle(cb){
+  var aid=cb.getAttribute('data-aid');
+  if(!aid)return;
+  var card=cb.closest('.tl-card');
+  var want=cb.checked;
+  card.classList.add('pending');
+  fetch('/user/tasks/'+aid+'/toggle',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
+    if(!d.ok)throw new Error(d.error||'操作失败');
+    card.classList.remove('pending');
+    var ti=card.querySelector('.tl-card-title');
+    if(ti)ti.style.textDecoration=want?'line-through':'';
+    card.classList.toggle('completed',want);
+    if(want&&window.toast)toast('已完成','success');
+    setTimeout(function(){dashLoadTimeline(true);},400);
+  }).catch(function(err){
+    cb.checked=!want;
+    card.classList.remove('pending');
+    if(window.toast)toast(window.netErrMsg?netErrMsg(err):(err&&err.message)||'操作失败','danger');
+  });
+}
+function dashToggleDesc(el){
+  var full=el.getAttribute('data-full');
+  var short=full.length>50?full.substring(0,50)+'...':full;
+  if(el.textContent===short||el.textContent===full&&full.length<=50){el.textContent=full;}
+  else{el.textContent=short;}
+}
+function dashJumpToday(){
+  var el=document.getElementById('dashTimeline');if(!el)return;
+  var wrap=el.querySelector('.tl-wrap')||el;
+  var sec=wrap.querySelector('.tl-section.today')||wrap.querySelector('.tl-section.tomorrow')||wrap.querySelector('.tl-section.this_week');
+  var hd=sec&&sec.querySelector('.tl-section-hd');
+  if(hd)tlSecDashJump(hd);
+}
+// 首页时间轴事件委托: 勾选/描述/打开抽屉
+(function(){
+  var el=document.getElementById('dashTimeline');if(!el)return;
+  el.addEventListener('click',function(e){
+    if(e.target.closest('.tl-check')){e.stopPropagation();return;}
+    var ds=e.target.closest('.dash-card-desc');
+    if(ds){dashToggleDesc(ds);return;}
+    var tt=e.target.closest('.tl-card-title');
+    if(tt){
+      var id=parseInt(tt.getAttribute('data-id'),10),i;
+      for(i=0;i<_tlCache.length;i++){if(_tlCache[i].id===id){dashOpenTaskDrawer(_tlCache[i]);return;}}
+    }
+  });
+  el.addEventListener('change',function(e){
+    var cb=e.target.closest('.tl-check');
+    if(cb)dashOptToggle(cb);
+  });
+})();
+// 首页快捷键: n 聚焦快速输入 / t 回今天
+document.addEventListener('keydown',function(e){
+  if(e.defaultPrevented||e.metaKey||e.ctrlKey||e.altKey)return;
+  var tag=(e.target.tagName||'').toLowerCase();
+  if(tag==='input'||tag==='textarea'||tag==='select'||e.target.isContentEditable)return;
+  var k=e.key;
+  if(k==='n'||k==='N'){e.preventDefault();var inp=document.getElementById('qtTitle');if(inp){inp.scrollIntoView({block:'center'});inp.focus();}}
+  else if(k==='t'||k==='T'){e.preventDefault();dashJumpToday();}
+});
 // 删除待办(fetch+可撤销): 10s 内可通过 toast 撤销, 以原字段重新创建
 function dashDeleteSubmit(ev){
   ev.preventDefault();

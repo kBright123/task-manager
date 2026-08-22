@@ -24,7 +24,9 @@
   <title>{% block title %}知行合一{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg', v=staticv('favicon.svg')) }}">
   <link href="{{ url_for('static', filename='vendor/bootstrap.min.css', v=staticv('vendor/bootstrap.min.css')) }}" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons.min.css', v=staticv('vendor/bootstrap-icons.min.css')) }}">
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="{{ url_for('static', filename='vendor/fonts/bootstrap-icons.woff2', v=staticv('vendor/fonts/bootstrap-icons.woff2')) }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons.min.css', v=staticv('vendor/bootstrap-icons.min.css')) }}" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons.min.css', v=staticv('vendor/bootstrap-icons.min.css')) }}"></noscript>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css', v=staticv('css/app.css')) }}">
 <script>
   window.CSRF_TOKEN = '{{ csrf_token() }}';
@@ -36,7 +38,14 @@
       i.type = 'hidden'; i.name = '_csrf_token'; i.value = TOKEN;
       f.appendChild(i);
     }
-    function onReady() { document.querySelectorAll('form').forEach(addTokenToForm); }
+    function onReady() {
+      document.querySelectorAll('form').forEach(addTokenToForm);
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('{{ url_for("static", filename="sw.js") }}').catch(function () {});
+        });
+      }
+    }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', onReady);
     else onReady();
     if (window.MutationObserver) {

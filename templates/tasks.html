@@ -373,7 +373,9 @@
       {% if sensitive_text %}<div class="mt-2 p-2 rounded" style="background:#fff;font-size:.82rem;word-break:break-all;">{{ sensitive_text|safe }}</div>{% endif %}
     </div>
     {% endif %}
+    <div class="tl-toolbar"><button type="button" id="batchBtn" class="btn btn-outline-secondary">批量管理</button></div>
     <div class="tl-wrap" id="taskTimelineView"><div class="tl-axis"></div></div>
+    <div id="batchBar"><span class="b-count">未选择</span><button type="button" class="b-all">全选</button><button type="button" class="b-done">完成</button><button type="button" class="b-del">删除</button><button type="button" class="b-exit">退出</button></div>
     <div class="card-footer" style="background:#fafafa;padding:10px 14px 12px;">
       <form method="POST" class="d-flex gap-2" onsubmit="return false;">
         <input type="hidden" name="action" value="preview">
@@ -531,7 +533,7 @@
 var _tlfCache=[];var _tlfStage=0;var _tlfBusy=false;
 var TLF_STAGE_DAYS=[7,31,0];
 function tlfDateStr(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
-function loadTaskFeed(){
+function loadTaskFeed(keepView){
   var el=document.getElementById('taskTimelineView');
   if(!el) return;
   el.innerHTML='<div class="tl-axis"></div><div style="padding:8px 2px;"><div class="tl-skeleton" style="width:72%"></div><div class="tl-skeleton" style="width:88%"></div><div class="tl-skeleton" style="width:55%"></div></div>';
@@ -552,7 +554,7 @@ function loadTaskFeed(){
     }
     _tlfCache=d.tasks;
     if(cnt) cnt.textContent='共 '+d.tasks.length+' 条';
-    renderTimeline(el,true);
+    renderTimeline(el,!keepView);
   }).catch(function(e){
     el.innerHTML='<div class="tl-axis"></div><div class="tl-empty"><i class="bi bi-exclamation-circle"></i>'+(window.netErrMsg?netErrMsg(e):'加载失败')+'</div>';
   });
@@ -598,13 +600,13 @@ function renderTimeline(el,jump){
       var isCompleted=t.display==='completed';
       html+='<div class="tl-card '+t.display+'" id="tl-'+t.id+'">';
       html+='<div style="display:flex;align-items:flex-start;gap:6px;">';
-      html+='<input type="checkbox" class="form-check-input mt-1" style="flex-shrink:0;cursor:pointer;" '+(isCompleted?'checked':'')+' onchange="tlToggleTask('+t.id+',this.checked,'+t.assignment_id+')" onclick="event.stopPropagation()">';
+      html+='<input type="checkbox" class="form-check-input tl-check" style="flex-shrink:0;" '+(isCompleted?'checked':'')+' data-aid="'+t.assignment_id+'" aria-label="标记完成:'+esc(t.title)+'">';
       html+='<div style="flex:1;min-width:0;">';
       html+='<div class="tl-card-time">'+esc(t.start_time.substring(5,16))+' - '+esc(t.end_time.substring(5,16))+'</div>';
-      html+='<div class="tl-card-title" role="button" tabindex="0" aria-label="编辑任务:'+esc(t.title)+'" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onclick="tlOpenEdit('+t.id+')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">'+esc(t.title)+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
+      html+='<div class="tl-card-title" data-id="'+t.id+'" role="button" tabindex="0" aria-label="编辑任务:'+esc(t.title)+'" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">'+esc(t.title)+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
       if(hasDesc){
         var shortDesc=desc.length>60?desc.substring(0,60)+'...':desc;
-        html+='<div class="tl-card-desc" style="font-size:.72rem;color:var(--gray-500);margin-top:2px;cursor:pointer;" onclick="tlToggleDesc(this)" data-full="'+esc(desc)+'">'+esc(shortDesc)+'</div>';
+        html+='<div class="tl-card-desc" style="font-size:.72rem;color:var(--gray-500);margin-top:2px;cursor:pointer;" data-full="'+esc(desc)+'">'+esc(shortDesc)+'</div>';
       }
       html+='</div></div></div>';
     });
@@ -612,7 +614,8 @@ function renderTimeline(el,jump){
   });
   if(!tasks.length){
     html='<div class="tl-empty"><i class="bi bi-calendar-x"></i>'+
-      (hidden>0?'暂无近期任务 · 向上滚动加载更早的 '+hidden+' 条':'暂无任务')+'</div>';
+      (hidden>0?'暂无近期任务 · 向上滚动加载更早的 '+hidden+' 条':'暂无任务')+
+      '<div style="margin-top:10px;"><button type="button" class="btn btn-primary btn-sm es-action" onclick="focusQuickAdd()">记一条</button></div></div>';
   }
   el.innerHTML='<div class="tl-axis"></div>'+html;
   var wrap=el.closest('.tl-wrap')||el.parentElement||el;
@@ -695,11 +698,135 @@ function tlSecJump(hd){
   el.scrollTo({top:Math.max(sec.offsetTop-6,0),behavior:reduce?'auto':'smooth'});
 }
 // 锚点导航: 平滑滚动到对应分区(尊重系统减弱动效偏好)
-function tlToggleTask(id,completed,assignmentId){
-  fetch('/user/tasks/'+assignmentId+'/toggle',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
-    if(d.ok){loadTaskFeed();}
-    else{if(window.toast)toast(d.error||'操作失败','danger');}
+// 勾选乐观更新: 即时反馈, 失败回滚, 成功后静默对账刷新(不整页重载不打断浏览)
+function tlOptToggle(cb){
+  var aid=cb.getAttribute('data-aid');
+  if(!aid)return;
+  var card=cb.closest('.tl-card');
+  var want=cb.checked;
+  card.classList.add('pending');
+  fetch('/user/tasks/'+aid+'/toggle',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
+    if(!d.ok)throw new Error(d.error||'操作失败');
+    card.classList.remove('pending');
+    var ti=card.querySelector('.tl-card-title');
+    if(ti)ti.style.textDecoration=want?'line-through':'';
+    card.classList.toggle('completed',want);
+    if(want&&window.toast)toast('已完成','success');
+    setTimeout(function(){loadTaskFeed(true);},400);
+  }).catch(function(err){
+    cb.checked=!want;
+    card.classList.remove('pending');
+    if(window.toast)toast(window.netErrMsg?netErrMsg(err):(err&&err.message)||'操作失败','danger');
   });
+}
+function focusQuickAdd(){
+  var inp=document.getElementById('adminTaskText');
+  if(inp){inp.scrollIntoView({block:'center'});inp.focus();}
+}
+// j/k 在当前展开分区的卡片间移动焦点
+function kbStep(dir){
+  var el=document.getElementById('taskTimelineView');if(!el)return;
+  var cards=[].slice.call(el.querySelectorAll('.tl-section.open .tl-card'));
+  if(!cards.length)return;
+  var cur=(document.activeElement&&document.activeElement.closest)?document.activeElement.closest('.tl-card'):null;
+  var i=cards.indexOf(cur);
+  var nxt=cards[Math.min(Math.max(i+dir,0),cards.length-1)];
+  if(!nxt||nxt===cur)return;
+  var tt=nxt.querySelector('.tl-card-title');
+  if(tt)tt.focus();
+  nxt.scrollIntoView({block:'nearest'});
+}
+// t 回到今天分区
+function jumpTodaySection(){
+  var el=document.getElementById('taskTimelineView');if(!el)return;
+  var sec=el.querySelector('.tl-section.today')||el.querySelector('.tl-section.tomorrow')||el.querySelector('.tl-section.this_week');
+  var hd=sec&&sec.querySelector('.tl-section-hd');
+  if(hd)tlSecJump(hd);
+}
+// 批量管理模式: 多选后批量完成/删除, 删除支持整体撤销重建
+var _batchSel={};
+function toggleBatchMode(force){
+  var on=(typeof force==='boolean')?force:!document.body.classList.contains('batch-mode');
+  document.body.classList.toggle('batch-mode',on);
+  _batchSel={};
+  document.querySelectorAll('#taskTimelineView .tl-card.selected').forEach(function(c){c.classList.remove('selected');});
+  var btn=document.getElementById('batchBtn');
+  if(btn)btn.textContent=on?'退出批量':'批量管理';
+  updateBatchBar();
+}
+function toggleBatchSelect(card){
+  if(!card)return;
+  var on=card.classList.toggle('selected');
+  if(on)_batchSel[card.id]=1;else delete _batchSel[card.id];
+  updateBatchBar();
+}
+function batchSelectedCards(){
+  return Object.keys(_batchSel).map(function(id){return document.getElementById(id);}).filter(Boolean);
+}
+function updateBatchBar(){
+  var bar=document.getElementById('batchBar');if(!bar)return;
+  bar.classList.toggle('on',document.body.classList.contains('batch-mode'));
+  var n=batchSelectedCards().length;
+  var cnt=bar.querySelector('.b-count');
+  if(cnt)cnt.textContent=n?('已选 '+n+' 项'):'未选择';
+  ['b-done','b-del'].forEach(function(cls){
+    var b=bar.querySelector('.'+cls);if(b)b.disabled=!n;
+  });
+}
+function batchAll(){
+  var el=document.getElementById('taskTimelineView');if(!el)return;
+  _batchSel={};
+  el.querySelectorAll('.tl-card').forEach(function(c){c.classList.add('selected');_batchSel[c.id]=1;});
+  updateBatchBar();
+}
+function batchDone(){
+  var cards=batchSelectedCards(),any=false;
+  cards.forEach(function(c){
+    var cb=c.querySelector('.tl-check');
+    if(cb&&!cb.checked){any=true;cb.checked=true;tlOptToggle(cb);}
+  });
+  if(!any&&window.toast)toast('选中项均已完成','info');
+}
+function batchDel(){
+  var cards=batchSelectedCards();if(!cards.length)return;
+  var ids=[],payload=[];
+  cards.forEach(function(c){
+    var id=parseInt(String(c.id).replace(/^tl-/,''),10);
+    if(id)ids.push(id);
+    for(var i=0;i<_tlfCache.length;i++){
+      if(_tlfCache[i].id===id){
+        payload.push({title:_tlfCache[i].title,start_time:_tlfCache[i].start_time,end_time:_tlfCache[i].end_time,category:_tlfCache[i].category,description:_tlfCache[i].description||'',assignee_ids:[],group_ids:[],is_all:false});
+        break;
+      }
+    }
+  });
+  var bar=document.getElementById('batchBar');
+  if(bar)bar.querySelectorAll('button').forEach(function(b){b.disabled=true;});
+  var done=0,fail=0;
+  var step=function(k){
+    if(k>=ids.length){
+      exitBatch();
+      loadTaskFeed(true);
+      if(window.toast&&fail)toast('删除完成，'+fail+' 项失败，可重试','danger');
+      else if(window.toast&&done)toast('已删除 '+done+' 项',{actionLabel:'撤销',duration:8000,onAction:function(){
+        var chain=function(m){
+          if(m>=payload.length){loadTaskFeed(true);return;}
+          fetchJSON('/api/quick-task',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload[m])}).then(function(){chain(m+1);}).catch(function(){chain(m+1);});
+        };
+        chain(0);
+      }});
+      return;
+    }
+    fetchJSON('/api/task/'+ids[k]+'/delete',{method:'POST'}).then(function(d){if(d&&d.ok)done++;else fail++;}).catch(function(){fail++;}).then(function(){step(k+1);});
+  };
+  step(0);
+}
+function exitBatch(){
+  document.body.classList.remove('batch-mode');
+  _batchSel={};
+  var btn=document.getElementById('batchBtn');
+  if(btn)btn.textContent='批量管理';
+  updateBatchBar();
 }
 function tlToggleDesc(el){
   var full=el.getAttribute('data-full');
@@ -707,6 +834,46 @@ function tlToggleDesc(el){
   if(el.textContent===short||el.textContent===full&&full.length<=60){el.textContent=full;}
   else{el.textContent=short;}
 }
+// 时间轴事件委托(容器常驻, 内部重渲染无需重复绑定): 勾选/描述/编辑入口/批量选择
+(function(){
+  var el=document.getElementById('taskTimelineView');if(!el)return;
+  el.addEventListener('click',function(e){
+    if(e.target.closest('.tl-check')){e.stopPropagation();return;}
+    if(document.body.classList.contains('batch-mode')){
+      var c2=e.target.closest('.tl-card');
+      if(c2)toggleBatchSelect(c2);
+      return;
+    }
+    var ds=e.target.closest('.tl-card-desc');
+    if(ds){tlToggleDesc(ds);return;}
+    var tt=e.target.closest('.tl-card-title');
+    if(tt&&tt.getAttribute('data-id'))tlOpenEdit(parseInt(tt.getAttribute('data-id'),10));
+  });
+  el.addEventListener('change',function(e){
+    var cb=e.target.closest('.tl-check');
+    if(cb)tlOptToggle(cb);
+  });
+  var bb=document.getElementById('batchBtn');
+  if(bb)bb.addEventListener('click',function(){toggleBatchMode();});
+  var bar=document.getElementById('batchBar');
+  if(bar)bar.addEventListener('click',function(e){
+    if(e.target.classList.contains('b-all'))batchAll();
+    else if(e.target.classList.contains('b-done'))batchDone();
+    else if(e.target.classList.contains('b-del'))batchDel();
+    else if(e.target.classList.contains('b-exit'))exitBatch();
+  });
+})();
+// 全局快捷键: n 聚焦快速输入 / j,k 卡片间移动 / t 回今天
+document.addEventListener('keydown',function(e){
+  if(e.defaultPrevented||e.metaKey||e.ctrlKey||e.altKey)return;
+  var tag=(e.target.tagName||'').toLowerCase();
+  if(tag==='input'||tag==='textarea'||tag==='select'||e.target.isContentEditable)return;
+  var k=e.key;
+  if(k==='n'||k==='N'){e.preventDefault();focusQuickAdd();}
+  else if(k==='j'||k==='J'){e.preventDefault();kbStep(1);}
+  else if(k==='k'||k==='K'){e.preventDefault();kbStep(-1);}
+  else if(k==='t'||k==='T'){e.preventDefault();jumpTodaySection();}
+});
 function tlOpenEdit(id){
   loadTaskDetail(id);
 }
@@ -1217,6 +1384,14 @@ function taskPublish(btn){
     .then(function(r){return r.json();}).then(function(d){
       if(d.ok){
         if(window.toast)toast((d.created&&d.created.length>1)?('周期待办创建成功，共 '+d.created.length+' 个'):'待办创建成功','success');
+        try{
+          var sv_st=document.getElementById('tmStart').value,sv_en=document.getElementById('tmEnd').value;
+          var sv_a=new Date(sv_st),sv_b=new Date(sv_en);
+          if(!isNaN(sv_a)&&!isNaN(sv_b)&&sv_b>sv_a){
+            localStorage.setItem('tmLastDur',String(Math.round((sv_b-sv_a)/60000)));
+            localStorage.setItem('tmLastCat',document.getElementById('tmCategory').value);
+          }
+        }catch(e){}
         var modalEl=document.getElementById('taskModal');
         var m=bootstrap.Modal.getInstance(modalEl);
         if(m){m.hide();}
@@ -1242,10 +1417,32 @@ function taskPublish(btn){
     });
   }
 })();
+// 智能默认时长: 记住同分类上次使用的开始到结束时长, 新建时自动带出(用户手动改过时间则不覆盖)
+(function(){
+  var cat=document.getElementById('tmCategory'),st=document.getElementById('tmStart'),en=document.getElementById('tmEnd');
+  var modalEl=document.getElementById('taskModal');
+  if(!cat||!st||!en)return;
+  var touched=false;
+  [st,en].forEach(function(x){x.addEventListener('input',function(){touched=true;});});
+  function pad(n){return (n<10?'0':'')+n;}
+  function fmt(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());}
+  function apply(){
+    if(touched||!st.value)return;
+    var dur=0;
+    try{
+      if(localStorage.getItem('tmLastCat')===cat.value)dur=parseInt(localStorage.getItem('tmLastDur')||'0',10);
+    }catch(e){}
+    if(!(dur>0))return;
+    var a=new Date(st.value);
+    if(isNaN(a))return;
+    en.value=fmt(new Date(a.getTime()+dur*60000));
+  }
+  cat.addEventListener('change',apply);
+  if(modalEl)modalEl.addEventListener('show.bs.modal',function(){touched=false;setTimeout(apply,0);});
+})();
 </script>
 
-{% set mode = "ajax" %}
-{% set show_assign = True %}
+{% set mode = "ajax" %}{% set show_assign = True %}
 {% set show_delete = False %}
 {% set centered = True %}
 {% include "_task_edit_modal.html" with context %}

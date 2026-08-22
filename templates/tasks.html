@@ -378,10 +378,10 @@
       <form method="POST" class="d-flex gap-2" onsubmit="return false;">
         <input type="hidden" name="action" value="preview">
         <div style="position:relative;flex:1;min-width:0;">
-          <textarea name="text" class="form-control form-control-sm" rows="1" id="adminTaskText" placeholder="例：开发登录功能 从明天上午9点开始 到下周五下午6点结束 发给张三、李四（输入 @ 选择人员，自动解析标题、时间、分配，支持每周/每月/每年周期待办）" style="font-size:.88rem;resize:none;overflow-y:auto;">{% if original_text %}{{ original_text }}{% endif %}</textarea>
+          <textarea name="text" class="form-control form-control-sm" rows="1" id="adminTaskText" placeholder="例：开发登录功能 从明天上午9点开始 到下周五下午6点结束 发给张三、李四（输入 @ 选择人员，自动解析标题、时间、分配，支持每周/每月/每年周期待办）" style="font-size:.78rem;resize:none;overflow-y:auto;">{% if original_text %}{{ original_text }}{% endif %}</textarea>
           <div id="mentionDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:180px;overflow-y:auto;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:1000;margin-top:2px;"></div>
         </div>
-        <button type="button" class="btn btn-primary" id="taskParseBtn" onclick="taskParse(this)" style="white-space:nowrap;flex-shrink:0;padding:6px 18px;"><i class="bi bi-send"></i> 发布</button>
+        <button type="button" class="btn btn-sm btn-primary" id="taskParseBtn" onclick="taskParse(this)" style="white-space:nowrap;flex-shrink:0;padding:4px 14px;font-size:.8rem;"><i class="bi bi-send"></i> 发布</button>
       </form>
     </div>
     {% endif %}
@@ -489,7 +489,6 @@
       <span style="font-size:.84rem;font-weight:600;"><i class="bi bi-info-circle" style="color:var(--primary);"></i> 待办详情</span>
       <div class="d-flex align-items-center gap-2">
         <button type="button" class="btn btn-sm btn-light task-detail-close" style="display:none;padding:2px 10px;font-size:.75rem;" onclick="closeTaskDetail()"><i class="bi bi-x-lg"></i> 收起</button>
-        <a href="{{ url_for('user_dashboard') }}" class="text-muted text-decoration-none" style="font-size:.72rem;"><i class="bi bi-arrow-left"></i> 返回</a>
       </div>
     </div>
     <div class="card-body" id="taskDetailBody" style="font-size:.82rem;color:var(--gray-600);overflow-y:auto;">
@@ -879,7 +878,7 @@ function renderTaskDetail(t, body){
     headBtns += '<button type="button" class="btn btn-xs-custom btn-outline-danger" style="font-size:.72rem;flex-shrink:0;" onclick="deleteTask(' + t.id + ')" title="删除待办"><i class="bi bi-trash"></i> 删除</button>';
   }
   head.innerHTML = '<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;">' +
-      '<div style="font-size:1rem;font-weight:700;color:var(--gray-900);flex:1;min-width:0;word-break:break-word;">' + esc(t.title) + '</div>' +
+      '<div style="font-size:.9rem;font-weight:700;color:var(--gray-900);flex:1;min-width:0;word-break:break-word;">' + esc(t.title) + '</div>' +
       headBtns + '</div>' +
     '<div class="d-flex flex-wrap gap-2 align-items-center">' +
       '<span class="badge" style="background:var(--primary);font-size:.65rem;">' + esc(t.category) + '</span>' +

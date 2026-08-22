@@ -704,6 +704,7 @@ function dashDeleteSubmit(ev){
   return false;
 }
 function dashOpenTaskDrawer(t){_dashDrawerData=t;var d=t;
+  _drawerEdit={taskId:d.id,title:d.title,category:d.category||'工作',status:d.status||'pending',start:d.start_time||'',end:d.end_time||'',desc:d.full_description||'',assigneeIds:d.assignee_ids||[],groupIds:d.group_ids||[]};
   document.getElementById('drawerTitle').textContent=d.title;
   var descEl=document.getElementById('drawerDesc');if(d.full_description&&d.full_description!==d.title){descEl.innerHTML=escapeHtml(d.full_description).replace(/\n/g,'<br>');descEl.style.display='block';}else{descEl.style.display='none';}
   document.getElementById('drawerStart').textContent=d.start_time;document.getElementById('drawerEnd').textContent=d.end_time;

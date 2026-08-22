@@ -472,8 +472,6 @@ def api_tasks_timeline():
         created = created.filter(Task.end_time >= start)
     if end:
         created = created.filter(Task.end_time <= end)
-    if category:
-        created = created.filter(Task.category == category)
     for t in created.all():
         task_ids.add(t.id)
     # 被分配的任务(show_completed 时纳入已完成,与日历口径一致)
@@ -499,8 +497,6 @@ def api_tasks_timeline():
         # 不在此处过滤 end_time: 已完成任务由完成时间归档,越界项由下方 ref 校验剔除
         extra = Task.query.filter(
             Task.id.in_(extra_ids))
-        if category:
-            extra = extra.filter(Task.category == category)
         for t in extra.all():
             task_ids.add(t.id)
     if not task_ids:
@@ -522,6 +518,8 @@ def api_tasks_timeline():
             TaskAssignment.task_id.in_(task_ids)).all():
         assignee_map.setdefault(aa.task_id, []).append(aa.user_id)
     out = []
+    all_categories = {}
+    cat_key = lambda t: (t.category or '').strip() or '未分类'
     for t in tasks:
         a = assigns.get(t.id)
         status = a.status if a else 'pending'
@@ -533,6 +531,13 @@ def api_tasks_timeline():
             continue
         display, section, section_label = _task_display_and_section(
             t, status, now, ref=ref)
+        # 分类计数 — 与「全部」同口径的全集统计(不受category过滤影响, 归一化脏数据)
+        s2 = status
+        if s2 != 'abandoned' and not (s2 in ('completed', 'approved') and not show_completed):
+            k = cat_key(t)
+            all_categories[k] = all_categories.get(k, 0) + 1
+        if category and cat_key(t) != category:
+            continue
         # 默认不展示已完成
         if display == 'completed' and not show_completed:
             continue
@@ -541,7 +546,7 @@ def api_tasks_timeline():
             'title': t.title,
             'description': (t.description or '')[:200],
             'full_description': t.description or '',
-            'category': t.category,
+            'category': cat_key(t),
             'start_time': t.start_time.strftime('%Y-%m-%d %H:%M'),
             'end_time': t.end_time.strftime('%Y-%m-%d %H:%M'),
             'progress': a.progress if a else 0,
@@ -558,16 +563,6 @@ def api_tasks_timeline():
             'assignee_ids': assignee_map.get(t.id, []),
             'group_ids': [g.id for g in t.groups],
         })
-    # 分类计数 — 从全部任务计算(不受category和show_completed过滤影响)
-    all_categories = {}
-    for t in tasks:
-        a2 = assigns.get(t.id)
-        s2 = a2.status if a2 else 'pending'
-        if s2 == 'abandoned':
-            continue
-        if s2 in ('completed', 'approved') and not show_completed:
-            continue
-        all_categories[t.category] = all_categories.get(t.category, 0) + 1
     # 安全上限: 防止极端数据量下响应过大(has_more 提示被截断)
     TL_MAX = 2000
     has_more = len(out) > TL_MAX
@@ -1031,7 +1026,8 @@ def user_tasks():
             if t.id in seen:
                 continue
             seen.add(t.id)
-            groups.setdefault(t.category, []).append(t)
+            key = (t.category or '').strip() or '未分类'
+            groups.setdefault(key, []).append(t)
         ctx['task_categories'] = [{'category': c, 'tasks': groups.get(c, [])}
                                   for c in order + [k for k in groups if k not in order]]
         return ctx

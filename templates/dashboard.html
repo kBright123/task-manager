@@ -489,7 +489,7 @@ function tlDateStr(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart
 function tlJumpToday(el){
   var wrap=el.querySelector('.tl-wrap')||el;
   var sec=wrap.querySelector('.tl-section.today');
-  if(!sec){var future=['tomorrow','this_week','next_week','later'];for(var i=0;i<future.length;i++){sec=wrap.querySelector('.tl-section.'+future[i]);if(sec)break;}}
+  if(!sec){var future=['tomorrow','this_week','next_week','this_month','later'];for(var i=0;i<future.length;i++){sec=wrap.querySelector('.tl-section.'+future[i]);if(sec)break;}}
   wrap.scrollTop=sec?(sec.offsetTop-6):0;
 }
 function dashRenderTimeline(jump){
@@ -498,23 +498,95 @@ function dashRenderTimeline(jump){
   var cut=(!_tlFilter)?TL_STAGE_DAYS[_tlStage]:0;
   if(cut){var lim=tlDateStr(new Date(Date.now()-cut*86400000));tasks=tasks.filter(function(t){return !t.ref_date||t.ref_date>=lim;});}
   var hidden=_tlCache.length-tasks.length;
-  if(!tasks.length&&!hidden){el.innerHTML='<div class="tl-empty"><i class="bi bi-calendar-x"></i>'+(_tlFilter?'该日暂无待办任务':'暂无待办任务')+'</div>';return;}
+  if(!tasks.length){
+    el.innerHTML='<div class="tl-empty"><i class="bi bi-calendar-x"></i>'+
+      (hidden>0?'暂无近期待办 · 向上滚动加载更早的 '+hidden+' 条':(_tlFilter?'该日暂无待办任务':'暂无待办任务'))+'</div>';
+    return;
+  }
   var catColors={'工作':'var(--primary)','个人':'var(--success)','会议':'var(--meeting)','培训':'var(--training)','考试':'var(--exam)'};
-  var order=['past','past_week','overdue','today','tomorrow','this_week','next_week','later'];var groups={};
+  var order=['past','past_month','past_week','today','tomorrow','this_week','next_week','this_month','later'];var groups={};
   tasks.forEach(function(t){if(t.display==='abandoned')return;var s=t.section||'later';if(!groups[s])groups[s]={label:t.section_label,items:[]};groups[s].items.push(t);});
   var html='<div class="tl-wrap"><div class="tl-axis"></div>';
-  if(hidden>0)html+='<div class="tl-older" onclick="dashTlExpand()">↑ 加载更早的任务（还有 '+hidden+' 条）</div>';
-  order.forEach(function(s){var g=groups[s];if(!g)return;html+='<div class="tl-section '+s+'"><div class="tl-section-hd"><div class="tl-section-dot"></div><span class="tl-section-label">'+esc(g.label)+'</span><span class="tl-section-count">'+g.items.length+'</span></div><div class="tl-items">';
+  order.forEach(function(s){var g=groups[s];if(!g||!g.items||!g.items.length)return;html+='<div class="tl-section '+s+'"><div class="tl-section-hd" role="button" tabindex="0" aria-label="展开'+esc(g.label)+'的待办" onclick="tlSecDashJump(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}"><div class="tl-section-dot"></div><span class="tl-section-label">'+esc(g.label)+'</span><span class="tl-section-count">'+g.items.length+'</span></div><div class="tl-items">';
   g.items.forEach(function(t){var color=catColors[t.category]||'var(--primary)';var isCompleted=t.display==='completed';var desc=t.description||'';var hasDesc=desc.length>0;var taskDate=t.start_time?t.start_time.substring(0,10):'';
   html+='<div class="tl-card '+t.display+'" id="dtl-'+t.id+'" data-date="'+taskDate+'"><div style="display:flex;align-items:flex-start;gap:6px;">';
   html+='<input type="checkbox" class="form-check-input mt-1" style="flex-shrink:0;cursor:pointer;" '+(isCompleted?'checked':'')+' onchange="dashToggleTask('+t.id+',this.checked,'+t.assignment_id+')" onclick="event.stopPropagation()">';
   html+='<div style="flex:1;min-width:0;"><div class="tl-card-time">'+esc(t.start_time.substring(5,16))+' - '+esc(t.end_time.substring(5,16))+'</div>';
   html+='<div class="tl-card-title" role="button" tabindex="0" aria-label="查看任务:'+esc(t.title)+'" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onclick="dashOpenTaskDrawer('+JSON.stringify(t).replace(/"/g,'&quot;')+')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">'+esc(t.title)+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
   if(hasDesc){var shortDesc=desc.length>50?desc.substring(0,50)+'...':desc;html+='<div style="font-size:.72rem;color:var(--gray-500);margin-top:2px;cursor:pointer;" onclick="dashToggleDesc(this)" data-full="'+esc(desc)+'">'+esc(shortDesc)+'</div>';}
-  html+='</div></div></div>';});html+='</div></div>';});html+='</div>';  el.innerHTML=html;
+  html+='</div></div></div>';});html+='</div></div>';});html+='</div>';
+  el.innerHTML=html;
   var wrap=el.querySelector('.tl-wrap')||el;
   if(jump)tlJumpToday(el);
-  wrap.onscroll=function(){if(!_tlBusy&&_tlStage<TL_STAGE_DAYS.length-1&&!_tlFilter&&wrap.scrollTop<=2)dashTlExpand();};
+  dashAccordion(true);
+  wrap.onscroll=function(){if(!_tlBusy&&_tlStage<TL_STAGE_DAYS.length-1&&!_tlFilter&&wrap.scrollTop<=2)dashTlExpand();dashAccordion(false);};
+  if(!wrap._tlGestureBound){
+    wrap._tlGestureBound=true;
+    var accY=null;
+    wrap.addEventListener('wheel',function(e){
+      if(window._dtlStepping)return;
+      var d=e.deltaY||0;
+      var atEnd=wrap.scrollTop+wrap.clientHeight>=wrap.scrollHeight-2;
+      var atTop=wrap.scrollTop<=0;
+      if((d>0&&atEnd)||(d<0&&atTop))dashTlStep(d>0?1:-1);
+    },{passive:true});
+    wrap.addEventListener('touchstart',function(e){accY=e.touches[0].clientY;},{passive:true});
+    wrap.addEventListener('touchmove',function(e){
+      if(accY==null||window._dtlStepping)return;
+      var dy=accY-e.touches[0].clientY;
+      if(Math.abs(dy)<18)return;
+      var atEnd=wrap.scrollTop+wrap.clientHeight>=wrap.scrollHeight-2;
+      var atTop=wrap.scrollTop<=0;
+      if((dy>0&&atEnd)||(dy<0&&atTop)){dashTlStep(dy>0?1:-1);accY=e.touches[0].clientY;}
+    },{passive:true});
+  }
+}
+// 分区折叠(首页): 时间点常驻轴上(仅标题), 滚动到哪个时间点就展开哪个分区
+function dashAccordion(force){
+  var el=document.getElementById('dashTimeline');if(!el)return;
+  var wrap=el.querySelector('.tl-wrap')||el;
+  var secs=wrap.querySelectorAll('.tl-section');
+  if(!secs.length){window._dtlCurEl=null;return;}
+  if(window._dtlStepping)return;
+  var cur=null;
+  // 当前分区=最后一个标题越过视口中线的分区
+  var mid=wrap.scrollTop+Math.min(wrap.clientHeight*0.45,260);
+  secs.forEach(function(s){
+    if(s.offsetTop<=mid)cur=s;
+  });
+  if(!cur)cur=secs[0];
+  if(!force&&window._dtlCurEl===cur)return;
+  window._dtlCurEl=cur;
+  // 目标分区头在视口上方时补偿展开高度, 防视图跳动
+  var compensate=cur.offsetTop<wrap.scrollTop;
+  var before=wrap.scrollHeight;
+  secs.forEach(function(s){s.classList.toggle('open',s===cur);});
+  if(compensate)wrap.scrollTop+=wrap.scrollHeight-before;
+}
+// 分区步进(滚轮/触摸兜底, 首页): 折叠态内容不足一屏无滚动量, 在边界继续滑动即切换分区
+function dashTlStep(dir){
+  var el=document.getElementById('dashTimeline');if(!el)return;
+  var wrap=el.querySelector('.tl-wrap')||el;
+  var secs=[].slice.call(wrap.querySelectorAll('.tl-section'));
+  if(!secs.length)return;
+  var idx=secs.indexOf(window._dtlCurEl);
+  var nxt=secs[Math.min(Math.max((idx<0?0:idx)+dir,0),secs.length-1)];
+  if(nxt===window._dtlCurEl)return;
+  var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window._dtlCurEl=nxt;
+  window._dtlStepping=true;
+  secs.forEach(function(s){s.classList.toggle('open',s===nxt);});
+  wrap.scrollTo({top:Math.max(nxt.offsetTop-6,0),behavior:reduce?'auto':'smooth'});
+  setTimeout(function(){window._dtlStepping=false;},400);
+}
+// 点击时间点标题(首页): 立即展开并平滑滚到该分区
+function tlSecDashJump(hd){
+  var sec=hd.closest('.tl-section');
+  if(!sec)return;
+  var el=document.getElementById('dashTimeline');if(!el)return;
+  var wrap=el.querySelector('.tl-wrap')||el;
+  var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  wrap.scrollTo({top:Math.max(sec.offsetTop-6,0),behavior:reduce?'auto':'smooth'});
 }
 function dashTlExpand(){
   if(_tlBusy||_tlStage>=TL_STAGE_DAYS.length-1)return;

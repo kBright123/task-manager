@@ -1077,3 +1077,12 @@
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
     }
+    /* 时间轴分区折叠: 时间点常驻轴上(仅标题), 滚动到位自动展开该分区 */
+    .tl-section .tl-items { display: none; }
+    .tl-section.open .tl-items { display: block; animation: tlFadeIn .22s ease; }
+    @keyframes tlFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .tl-section-hd { cursor: pointer; border-radius: 8px; transition: background .15s; }
+    .tl-section-hd:hover { background: var(--gray-50); }
+    .tl-section-hd:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+    .tl-section.open > .tl-section-hd .tl-section-label { color: var(--primary); }
+    .tl-section.open > .tl-section-hd .tl-section-dot::after { content: ''; position: absolute; inset: 2px; border-radius: 50%; background: var(--primary); }

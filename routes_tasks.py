@@ -423,8 +423,10 @@ def _task_display_and_section(t, status, now, ref=None):
     diff_days = (ref_date - today_date).days
     if display == 'abandoned':
         section, section_label = 'abandoned', '已废弃'
-    elif diff_days < -7:
+    elif diff_days < -31:
         section, section_label = 'past', '更早'
+    elif diff_days < -7:
+        section, section_label = 'past_month', '过去一个月'
     elif diff_days < 0:
         section, section_label = 'past_week', '过去一周'
     elif diff_days == 0:
@@ -436,7 +438,12 @@ def _task_display_and_section(t, status, now, ref=None):
     elif diff_days <= 13 - today_date.weekday():
         section, section_label = 'next_week', '下周'
     else:
-        section, section_label = 'later', '更晚'
+        # 本月: 下周之后但仍在当前自然月内; 更晚: 超出本月
+        nm_first = (today_date.replace(day=1) + timedelta(days=32)).replace(day=1)
+        if ref_date < nm_first:
+            section, section_label = 'this_month', '本月'
+        else:
+            section, section_label = 'later', '更晚'
     return display, section, section_label
 
 

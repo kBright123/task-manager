@@ -570,7 +570,7 @@ function tlfExpand(){
 }
 function renderTimeline(el,jump){
   var catColors={'工作':'var(--primary)','个人':'var(--success)','会议':'var(--meeting)','培训':'var(--training)','考试':'var(--exam)'};
-  var sectionOrder=['past','past_week','overdue','today','tomorrow','this_week','next_week','later'];
+  var sectionOrder=['past','past_month','past_week','today','tomorrow','this_week','next_week','this_month','later'];
   var tasks=_tlfCache;
   var cut=TLF_STAGE_DAYS[_tlfStage];
   if(cut){var lim=tlfDateStr(new Date(Date.now()-cut*86400000));tasks=tasks.filter(function(t){return !t.ref_date||t.ref_date>=lim;});}
@@ -583,12 +583,11 @@ function renderTimeline(el,jump){
     groups[s].items.push(t);
   });
   var html='';
-  if(hidden>0) html+='<div class="tl-older" onclick="tlfExpand()">↑ 加载更早的任务（还有 '+hidden+' 条）</div>';
   sectionOrder.forEach(function(s){
     var g=groups[s];
     if(!g||!g.items.length) return;
     html+='<div class="tl-section '+s+'">';
-    html+='<div class="tl-section-hd"><div class="tl-section-dot"></div>';
+    html+='<div class="tl-section-hd" role="button" tabindex="0" aria-label="展开'+esc(g.label)+'的任务" onclick="tlSecJump(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}"><div class="tl-section-dot"></div>';
     html+='<span class="tl-section-label">'+esc(g.label)+'</span>';
     html+='<span class="tl-section-count">'+g.items.length+'</span></div>';
     html+='<div class="tl-items">';
@@ -611,16 +610,91 @@ function renderTimeline(el,jump){
     });
     html+='</div></div>';
   });
-  if(!tasks.length&&!hidden){html='<div class="tl-empty"><i class="bi bi-calendar-x"></i>暂无任务</div>';}
+  if(!tasks.length){
+    html='<div class="tl-empty"><i class="bi bi-calendar-x"></i>'+
+      (hidden>0?'暂无近期任务 · 向上滚动加载更早的 '+hidden+' 条':'暂无任务')+'</div>';
+  }
   el.innerHTML='<div class="tl-axis"></div>'+html;
   var wrap=el.closest('.tl-wrap')||el.parentElement||el;
   if(jump){
     var sec=el.querySelector('.tl-section.today');
-    if(!sec){var future=['tomorrow','this_week','next_week','later'];for(var i=0;i<future.length;i++){sec=el.querySelector('.tl-section.'+future[i]);if(sec)break;}}
+    if(!sec){var future=['tomorrow','this_week','next_week','this_month','later'];for(var i=0;i<future.length;i++){sec=el.querySelector('.tl-section.'+future[i]);if(sec)break;}}
     if(sec&&wrap.scrollHeight>wrap.clientHeight){wrap.scrollTop=sec.offsetTop-8;}
   }
-  wrap.onscroll=function(){if(!_tlfBusy&&_tlfStage<TLF_STAGE_DAYS.length-1&&wrap.scrollTop<=2)tlfExpand();};
+  tlfAccordion(true);
+  wrap.onscroll=function(){
+    if(!_tlfBusy&&_tlfStage<TLF_STAGE_DAYS.length-1&&wrap.scrollTop<=2)tlfExpand();
+    tlfAccordion(false);
+  };
+  if(!wrap._tlGestureBound){
+    wrap._tlGestureBound=true;
+    var accY=null;
+    wrap.addEventListener('wheel',function(e){
+      if(window._tlfStepping)return;
+      var d=e.deltaY||0;
+      var atEnd=wrap.scrollTop+wrap.clientHeight>=wrap.scrollHeight-2;
+      var atTop=wrap.scrollTop<=0;
+      if((d>0&&atEnd)||(d<0&&atTop))tlfStep(d>0?1:-1);
+    },{passive:true});
+    wrap.addEventListener('touchstart',function(e){accY=e.touches[0].clientY;},{passive:true});
+    wrap.addEventListener('touchmove',function(e){
+      if(accY==null||window._tlfStepping)return;
+      var dy=accY-e.touches[0].clientY;
+      if(Math.abs(dy)<18)return;
+      var atEnd=wrap.scrollTop+wrap.clientHeight>=wrap.scrollHeight-2;
+      var atTop=wrap.scrollTop<=0;
+      if((dy>0&&atEnd)||(dy<0&&atTop)){tlfStep(dy>0?1:-1);accY=e.touches[0].clientY;}
+    },{passive:true});
+  }
 }
+// 分区折叠: 时间点常驻轴上(仅标题), 滚动到哪个时间点就展开哪个分区
+function tlfAccordion(force){
+  var el=document.getElementById('taskTimelineView');
+  if(!el)return;
+  var secs=el.querySelectorAll('.tl-section');
+  if(!secs.length){window._tlfCurEl=null;return;}
+  if(window._tlfStepping)return;
+  var cur=null;
+  // 当前分区=最后一个标题越过视口中线的分区
+  var mid=el.scrollTop+Math.min(el.clientHeight*0.45,260);
+  secs.forEach(function(s){
+    if(s.offsetTop<=mid)cur=s;
+  });
+  if(!cur)cur=secs[0];
+  if(!force&&window._tlfCurEl===cur)return;
+  window._tlfCurEl=cur;
+  // 若目标分区头已在视口上方, 展开带来的高度增量需补偿, 防止视图跳动
+  var compensate=cur.offsetTop<el.scrollTop;
+  var before=el.scrollHeight;
+  secs.forEach(function(s){s.classList.toggle('open',s===cur);});
+  if(compensate)el.scrollTop+=el.scrollHeight-before;
+}
+// 分区步进(滚轮/触摸兜底): 折叠态内容不足一屏无滚动量, 在边界继续滑动即切换分区
+function tlfStep(dir){
+  var el=document.getElementById('taskTimelineView');
+  if(!el)return;
+  var secs=[].slice.call(el.querySelectorAll('.tl-section'));
+  if(!secs.length)return;
+  var idx=secs.indexOf(window._tlfCurEl);
+  var nxt=secs[Math.min(Math.max((idx<0?0:idx)+dir,0),secs.length-1)];
+  if(nxt===window._tlfCurEl)return;
+  var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window._tlfCurEl=nxt;
+  window._tlfStepping=true;
+  secs.forEach(function(s){s.classList.toggle('open',s===nxt);});
+  el.scrollTo({top:Math.max(nxt.offsetTop-6,0),behavior:reduce?'auto':'smooth'});
+  setTimeout(function(){window._tlfStepping=false;},400);
+}
+// 点击时间点标题: 立即展开并平滑滚到该分区
+function tlSecJump(hd){
+  var sec=hd.closest('.tl-section');
+  if(!sec)return;
+  var el=document.getElementById('taskTimelineView');
+  if(!el)return;
+  var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  el.scrollTo({top:Math.max(sec.offsetTop-6,0),behavior:reduce?'auto':'smooth'});
+}
+// 锚点导航: 平滑滚动到对应分区(尊重系统减弱动效偏好)
 function tlToggleTask(id,completed,assignmentId){
   fetch('/user/tasks/'+assignmentId+'/toggle',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
     if(d.ok){loadTaskFeed();}

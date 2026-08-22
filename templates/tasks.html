@@ -22,7 +22,7 @@
 {% block extra_css %}
 <style>
   body.tasks-full .app-container { padding-bottom: 0; }
-  @media (max-width: 767px) { body.tasks-full .app-container { padding-bottom: calc(var(--bottom-nav-height) + 8px); } }
+  @media (max-width: 767px) { body.tasks-full .app-container { padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 8px); } }
   .tasks-layout { display: grid; grid-template-columns: 220px 1fr 380px; gap: 12px; height: calc(100vh - var(--nav-height) - 24px); min-height: 480px; }
    @media (max-width: 1100px) {
      .tasks-layout { grid-template-columns: 200px 1fr; }
@@ -613,13 +613,15 @@ function renderTimeline(el,jump){
   if(!wrap._tlGestureBound){
     wrap._tlGestureBound=true;
     var accY=null;
+    var _noTouchStep=window.matchMedia&&matchMedia('(hover: none)').matches;
     wrap.addEventListener('wheel',function(e){
-      if(window._tlfStepping)return;
+      if(_noTouchStep||window._tlfStepping)return;
       var d=e.deltaY||0;
       var atEnd=wrap.scrollTop+wrap.clientHeight>=wrap.scrollHeight-2;
       var atTop=wrap.scrollTop<=0;
       if((d>0&&atEnd)||(d<0&&atTop))tlfStep(d>0?1:-1);
     },{passive:true});
+    if(!_noTouchStep){
     wrap.addEventListener('touchstart',function(e){accY=e.touches[0].clientY;},{passive:true});
     wrap.addEventListener('touchmove',function(e){
       if(accY==null||window._tlfStepping)return;
@@ -629,6 +631,7 @@ function renderTimeline(el,jump){
       var atTop=wrap.scrollTop<=0;
       if((dy>0&&atEnd)||(dy<0&&atTop)){tlfStep(dy>0?1:-1);accY=e.touches[0].clientY;}
     },{passive:true});
+    }
   }
 }
 // 分区折叠: 时间点常驻轴上(仅标题), 滚动到哪个时间点就展开哪个分区
@@ -1382,6 +1385,12 @@ document.addEventListener('DOMContentLoaded', function () {
   .tasks-layout>.tasks-panel:first-child .cat-item.active{background:var(--primary-light);border-color:var(--primary);}
   .tasks-layout>.tasks-panel:first-child hr,
   .tasks-layout>.tasks-panel:first-child div.px-2{display:none;}
+  /* 创建输入栏吸底(bottom-nav之上) */
+  .tasks-layout>.tasks-panel:nth-child(2) .card-footer{
+    position:sticky;z-index:60;background:#fff;
+    bottom:calc(var(--bottom-nav-height) + env(safe-area-inset-bottom,0px));
+    box-shadow:0 -4px 12px rgba(15,23,42,.06);
+  }
 }
 </style>
 {% endblock %}

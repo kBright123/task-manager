@@ -75,6 +75,10 @@
     .cal-sheet-grip{flex-shrink:0;width:44px;height:5px;border-radius:3px;background:var(--gray-300);margin:8px auto 2px;}
     .cal-sheet-hd{flex-shrink:0;display:flex;align-items:center;gap:8px;padding:4px 14px 6px;}
     #calSheetList{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:2px 14px;font-size:.78rem;}
+    /* 日历格子移动端: 高度自适应, 节日名可读 */
+    #calGrid{grid-auto-rows:minmax(44px,auto);}
+    #calGrid .cal-cell{aspect-ratio:auto;height:auto;min-height:44px;padding:4px 0 16px;}
+    .cal-hn{font-size:.56rem;}
   }
   .tl-axis{position:absolute;left:28px;top:0;bottom:0;width:2px;background:var(--gray-200);}
   .tl-section{margin-bottom:4px;}
@@ -539,13 +543,15 @@ function dashRenderTimeline(jump){
   if(!wrap._tlGestureBound){
     wrap._tlGestureBound=true;
     var accY=null;
+    var _noTouchStep=window.matchMedia&&matchMedia('(hover: none)').matches;
     wrap.addEventListener('wheel',function(e){
-      if(window._dtlStepping)return;
+      if(_noTouchStep||window._dtlStepping)return;
       var d=e.deltaY||0;
       var atEnd=wrap.scrollTop+wrap.clientHeight>=wrap.scrollHeight-2;
       var atTop=wrap.scrollTop<=0;
       if((d>0&&atEnd)||(d<0&&atTop))dashTlStep(d>0?1:-1);
     },{passive:true});
+    if(!_noTouchStep){
     wrap.addEventListener('touchstart',function(e){accY=e.touches[0].clientY;},{passive:true});
     wrap.addEventListener('touchmove',function(e){
       if(accY==null||window._dtlStepping)return;
@@ -555,6 +561,7 @@ function dashRenderTimeline(jump){
       var atTop=wrap.scrollTop<=0;
       if((dy>0&&atEnd)||(dy<0&&atTop)){dashTlStep(dy>0?1:-1);accY=e.touches[0].clientY;}
     },{passive:true});
+    }
   }
 }
 // 分区折叠(首页): 时间点常驻轴上(仅标题), 滚动到哪个时间点就展开哪个分区

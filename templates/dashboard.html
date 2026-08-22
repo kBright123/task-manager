@@ -129,6 +129,12 @@
   .tl-older{text-align:left;font-size:.72rem;color:var(--gray-500);background:var(--gray-100);border-radius:6px;margin:0 0 8px 28px;padding:5px 10px;cursor:pointer;user-select:none;width:fit-content;}
   .tl-older:hover{color:var(--primary);background:var(--primary-light);}
   .tl-empty i{font-size:2rem;display:block;margin-bottom:8px;}
+  /* --- 暗色模式补全(本页特有面) --- */
+  [data-theme="dark"] #calSheet{background:#101a2d;}
+  [data-theme="dark"] .cal-picker{background:#101a2d;}
+  [data-theme="dark"] .tl-section-dot,[data-theme="dark"] .tl-card::before{background:#16233b;}
+  [data-theme="dark"] .cal-cell{color:#dbe3ee;}
+  [data-theme="dark"] .cal-cell:hover{background:#12293f;transform:none;}
   /* 日历 */
   .cal-cell{position:relative;width:100%;aspect-ratio:1;border-radius:0;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:background .15s;font-size:.68rem;color:#333;background:#fff;box-shadow:inset 0 0 0 .5px var(--gray-200);}
   .cal-cell:hover{background:#EBF5FF;border-color:#B0D4F1;transform:scale(1.02);}

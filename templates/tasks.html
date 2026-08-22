@@ -50,6 +50,11 @@
    .cat-item.overdue { color: var(--danger); }
    .cat-item.overdue .text-truncate { color: var(--danger); }
    @keyframes flashTask { 0%,50% { background: #fff7c2; } 100% { background: transparent; } }
+  /* --- 暗色模式补全(本页特有面) --- */
+  [data-theme="dark"] .tasks-panel{background:#101a2d;}
+  [data-theme="dark"] .task-bubble .bubble{background:#101a2d;}
+  [data-theme="dark"] .tl-section-dot,[data-theme="dark"] .tl-card::before{background:#16233b;}
+  [data-theme="dark"] #mentionDropdown{background:#101a2d;}
    /* 自然语言创建固定在面板顶部,滚动时始终可见 */
    .tasks-layout > .notes-panel { position: sticky; top: 14px; align-self: start; }
    /* 对话流(历史创建任务) */

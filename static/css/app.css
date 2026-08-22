@@ -91,7 +91,7 @@
     .brand-mark { width: 1.4rem; height: 1.4rem; flex-shrink: 0; border-radius: 6px; box-shadow: 0 1px 4px rgba(15,23,42,.18); }
     .brand-mark .brand-bg { fill: #F5F6FA; }
     .brand-mark .brand-stroke { stroke: url(#brandGradLight); }
-    @media (prefers-color-scheme: dark) {
+    [data-theme="dark"] {
       :root {
         --brand-bg-color: #1C1C1E;
         --brand-stroke-url: url(#brandGradDark);
@@ -1145,7 +1145,21 @@
   .btn-outline-secondary:hover { background: var(--gray-100); color: var(--gray-700); }
   a { color: #6fbf95; }
   .text-muted { color: var(--gray-400) !important; }
-}
+  /* --- 暗色补全: 导航/搜索浮层/快捷球/高亮/日历 --- */
+  body { background:#0b1220; color:var(--gray-700); }
+  .top-nav,.bottom-nav,.quick-fab-item { background:#101a2d; }
+  .us-suggest,.us-modal-card,.us-modal-foot { background:#101a2d; }
+  mark,.us-r-item mark,.us-item-title mark,.us-suggest mark { background:#5c4d12; color:#ffe08a; }
+  .badge-high { background:#3a2410; color:#f8b98a; }
+  a.list-group-item, .list-group-item { background-color:#101a2d; border-color:var(--gray-200); }
+  /* 日历平铺格 */
+  .cal-cell { background:#16233b; box-shadow:inset 0 0 0 .5px #2a3a57; color:var(--gray-700); }
+  .cal-cell.cal-other { background:transparent; color:#46536d; }
+  .cal-cell.today { background:#38202a; }
+  .cal-cell.selected { background:#12293f; }
+  .cal-cell.holiday { background:#2a1a22; }
+  .cal-cell.weekend { color:#7c8aa5; }
+  .cal-hn { color:#e58b8b; }
 
 /* ===== 移动端体验修复(≤767) ===== */
 @media (max-width: 767px) {

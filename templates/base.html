@@ -22,6 +22,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}知行合一{% endblock %}</title>
+  <script>
+  // 主题初始化: 用户选择 > 跟随系统 (置于样式前避免闪白/闪黑)
+  (function(){try{var t=localStorage.getItem('kb_theme');
+    if(t!=='dark'&&t!=='light'){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
+    document.documentElement.setAttribute('data-theme',t);}catch(e){}})();
+  </script>
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg', v=staticv('favicon.svg')) }}">
   <link href="{{ url_for('static', filename='vendor/bootstrap.min.css', v=staticv('vendor/bootstrap.min.css')) }}" rel="stylesheet">
     <link rel="preload" as="font" type="font/woff2" crossorigin href="{{ url_for('static', filename='vendor/fonts/bootstrap-icons.woff2', v=staticv('vendor/fonts/bootstrap-icons.woff2')) }}">
@@ -265,6 +271,7 @@
       </div>
       <div class="top-nav-right">
         <button type="button" class="nav-search-btn" id="navSearchBtn" title="搜索" aria-label="搜索"><i class="bi bi-search"></i></button>
+        <button type="button" class="nav-search-btn" id="themeToggle" title="切换深浅色" aria-label="切换深浅色"><i class="bi bi-moon-stars"></i></button>
         <div id="unifiedSearchWrap" class="top-nav-search">
           <div class="input-group">
             <input type="text" id="unifiedSearchInput" class="form-control" placeholder="检索待办、随手记、知识库..." autocomplete="off">
@@ -480,6 +487,21 @@
   })();
   </script>
   {% endif %}
+  <script>
+  // 深浅色切换: 写入 localStorage 并同步图标
+  (function(){
+    var btn=document.getElementById('themeToggle');if(!btn)return;
+    function icon(t){btn.innerHTML='<i class="bi '+(t==='dark'?'bi-sun':'bi-moon-stars')+'"></i>';}
+    icon(document.documentElement.getAttribute('data-theme')||'light');
+    btn.addEventListener('click',function(){
+      var cur=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';
+      var nxt=cur==='dark'?'light':'dark';
+      document.documentElement.setAttribute('data-theme',nxt);
+      try{localStorage.setItem('kb_theme',nxt);}catch(e){}
+      icon(nxt);
+    });
+  })();
+  </script>
   {% block extra_js %}{% endblock %}
 </body>
 </html>

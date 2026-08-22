@@ -76,7 +76,7 @@
   .tl-section.today{background:rgba(255,193,7,.06);border-radius:8px;padding:4px 8px;margin-left:-8px;margin-right:-8px;}
   .tl-section.tomorrow .tl-section-dot{border-color:var(--primary);}
   .tl-section.tomorrow .tl-section-label{color:var(--primary);}
-  .tl-section.this_week .tl-section-dot{border-color:var(--primary);background:var(--primary-light);}
+  .tl-section.future_week .tl-section-dot{border-color:var(--primary);background:var(--primary-light);}
   .tl-section.abandoned .tl-section-dot{border-color:var(--gray-400);background:var(--gray-400);}
   .tl-section.abandoned .tl-section-label{color:var(--gray-400);}
   .tl-items{margin-left:16px;padding-left:10px;}
@@ -502,7 +502,7 @@ function tlDateStr(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart
 function tlJumpToday(el){
   var wrap=el.querySelector('.tl-wrap')||el;
   var sec=wrap.querySelector('.tl-section.today');
-  if(!sec){var future=['tomorrow','this_week','next_week','this_month','later'];for(var i=0;i<future.length;i++){sec=wrap.querySelector('.tl-section.'+future[i]);if(sec)break;}}
+  if(!sec){var future=['tomorrow','future_week','future_month','later'];for(var i=0;i<future.length;i++){sec=wrap.querySelector('.tl-section.'+future[i]);if(sec)break;}}
   wrap.scrollTop=sec?(sec.offsetTop-6):0;
 }
 function dashRenderTimeline(jump){
@@ -517,7 +517,7 @@ function dashRenderTimeline(jump){
     return;
   }
   var catColors={'工作':'var(--primary)','个人':'var(--success)','会议':'var(--meeting)','培训':'var(--training)','考试':'var(--exam)'};
-   var order=['past','past_year','past_half_year','past_three_months','past_two_months','past_month','past_week','today','tomorrow','this_week','next_week','this_month','later'];var groups={};
+   var order=['past','past_month','past_week','today','tomorrow','future_week','future_month','later'];var groups={};
   tasks.forEach(function(t){if(t.display==='abandoned')return;var s=t.section||'later';if(!groups[s])groups[s]={label:t.section_label,items:[]};groups[s].items.push(t);});
   var html='<div class="tl-wrap"><div class="tl-axis"></div>';
   order.forEach(function(s){var g=groups[s];if(!g||!g.items||!g.items.length)return;html+='<div class="tl-section '+s+'" data-s="'+s+'"><div class="tl-section-hd" role="button" tabindex="0" aria-label="展开'+esc(g.label)+'的待办" onclick="tlSecDashJump(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}"><div class="tl-section-dot"></div><span class="tl-section-label">'+esc(g.label)+'</span><span class="tl-section-count">'+g.items.length+'</span></div><div class="tl-items">';
@@ -584,7 +584,7 @@ function dashAccordion(force){
 }
 // 分区步进(滚轮/触摸兜底, 首页): 折叠态内容不足一屏无滚动量, 在边界继续滑动即切换分区
 // 分区→所需数据窗口(天): 过去侧分区被访问时自动升级阶段, 数据本已全量在缓存
-var DASH_SEC_NEED={past_month:31,past_two_months:60,past_three_months:90,past_half_year:180,past_year:365,past:0};
+var DASH_SEC_NEED={past_month:31,past:0};
 function dashEnsureData(secKey){
   if(!(secKey in DASH_SEC_NEED))return false;
   var curCut=TL_STAGE_DAYS[_tlStage];
@@ -693,7 +693,7 @@ function dashToggleDesc(el){
 function dashJumpToday(){
   var el=document.getElementById('dashTimeline');if(!el)return;
   var wrap=el.querySelector('.tl-wrap')||el;
-  var sec=wrap.querySelector('.tl-section.today')||wrap.querySelector('.tl-section.tomorrow')||wrap.querySelector('.tl-section.this_week');
+  var sec=wrap.querySelector('.tl-section.today')||wrap.querySelector('.tl-section.tomorrow')||wrap.querySelector('.tl-section.future_week');
   var hd=sec&&sec.querySelector('.tl-section-hd');
   if(hd)tlSecDashJump(hd);
 }

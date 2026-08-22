@@ -83,7 +83,7 @@
     .tl-section.today{background:rgba(255,193,7,.06);border-radius:8px;padding:4px 8px;margin-left:-8px;margin-right:-8px;}
     .tl-section.tomorrow .tl-section-dot{border-color:var(--primary);}
     .tl-section.tomorrow .tl-section-label{color:var(--primary);}
-    .tl-section.this_week .tl-section-dot{border-color:var(--primary);background:var(--primary-light);}
+    .tl-section.future_week .tl-section-dot{border-color:var(--primary);background:var(--primary-light);}
     .tl-section.completed .tl-section-dot{border-color:var(--success);background:var(--success);}
     .tl-section.completed .tl-section-label{color:var(--success);}
     .tl-section.abandoned .tl-section-dot{border-color:var(--gray-400);background:var(--gray-400);}
@@ -570,7 +570,7 @@ function tlfExpand(){
 }
 function renderTimeline(el,jump){
   var catColors={'工作':'var(--primary)','个人':'var(--success)','会议':'var(--meeting)','培训':'var(--training)','考试':'var(--exam)'};
-   var sectionOrder=['past','past_year','past_half_year','past_three_months','past_two_months','past_month','past_week','today','tomorrow','this_week','next_week','this_month','later'];
+   var sectionOrder=['past','past_month','past_week','today','tomorrow','future_week','future_month','later'];
   var tasks=_tlfCache;
   var cut=TLF_STAGE_DAYS[_tlfStage];
   if(cut){var lim=tlfDateStr(new Date(Date.now()-cut*86400000));tasks=tasks.filter(function(t){return !t.ref_date||t.ref_date>=lim;});}
@@ -619,7 +619,7 @@ function renderTimeline(el,jump){
   var wrap=el.closest('.tl-wrap')||el.parentElement||el;
   if(jump){
     var sec=el.querySelector('.tl-section.today');
-    if(!sec){var future=['tomorrow','this_week','next_week','this_month','later'];for(var i=0;i<future.length;i++){sec=el.querySelector('.tl-section.'+future[i]);if(sec)break;}}
+    if(!sec){var future=['tomorrow','future_week','future_month','later'];for(var i=0;i<future.length;i++){sec=el.querySelector('.tl-section.'+future[i]);if(sec)break;}}
     if(sec&&wrap.scrollHeight>wrap.clientHeight){wrap.scrollTop=sec.offsetTop-8;}
   }
   tlfAccordion(true);
@@ -677,7 +677,7 @@ function tlfAccordion(force){
   if(compensate)el.scrollTop+=el.scrollHeight-before;
 }
 // 分区→所需数据窗口(天): 过去侧分区被访问时自动升级阶段, 数据本已全量在缓存
-var TLF_SEC_NEED={past_month:31,past_two_months:60,past_three_months:90,past_half_year:180,past_year:365,past:0};
+var TLF_SEC_NEED={past_month:31,past:0};
 function tlfEnsureData(secKey){
   if(!(secKey in TLF_SEC_NEED))return false;
   var curCut=TLF_STAGE_DAYS[_tlfStage];
@@ -768,7 +768,7 @@ function kbStep(dir){
 // t 回到今天分区
 function jumpTodaySection(){
   var el=document.getElementById('taskTimelineView');if(!el)return;
-  var sec=el.querySelector('.tl-section.today')||el.querySelector('.tl-section.tomorrow')||el.querySelector('.tl-section.this_week');
+  var sec=el.querySelector('.tl-section.today')||el.querySelector('.tl-section.tomorrow')||el.querySelector('.tl-section.future_week');
   var hd=sec&&sec.querySelector('.tl-section-hd');
   if(hd)tlSecJump(hd);
 }

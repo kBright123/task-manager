@@ -1389,15 +1389,14 @@ document.addEventListener('DOMContentLoaded', function () {
   .tasks-layout>.tasks-panel:first-child .cat-item.active{background:var(--primary-light);border-color:var(--primary);}
   /* 移动端隐藏整个分配概览(含标题与数据行) */
   .tasks-layout>.tasks-panel:first-child .assign-overview{display:none;}
-  /* 创建输入栏吸底(bottom-nav之上); 时间轴底部留白避免内容被栏遮挡 */
-  .tasks-layout>.tasks-panel:nth-child(2) .card-body{
-    padding-bottom:70px;
-  }
+  /* 手机端发布栏不吸底(避免遮挡时间轴), 示例文字单独缩小 */
   .tasks-layout>.tasks-panel:nth-child(2) .card-footer{
-    position:sticky;z-index:60;background:#fff;
-    bottom:calc(var(--bottom-nav-height) + env(safe-area-inset-bottom,0px));
-    box-shadow:0 -4px 12px rgba(15,23,42,.06);
-    border-top:1px solid var(--gray-100);
+    position:static;background:#fafafa;
+    box-shadow:none;border-top:1px solid var(--gray-100);
+    padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));
+  }
+  .tasks-layout>.tasks-panel:nth-child(2) .form-control::placeholder{
+    font-size:.66rem;line-height:1.4;
   }
 }
 </style>

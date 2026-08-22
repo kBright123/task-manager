@@ -815,6 +815,8 @@ function renderCatCounts(categories){
     var cat=c.getAttribute('data-cat');
     if(!cat) return;
     var count=categories[cat]||0;
+    var badge=c.querySelector('.cat-count');
+    if(badge)badge.textContent=count;
     c.style.display=count>0?'':'none';
   });
 }

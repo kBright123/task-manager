@@ -1760,12 +1760,8 @@ def _try_install_jionlp(timeout_s):
         log.warning('jionlp 自动安装失败(%s), 时间字段回退旧正则解析; '
                     '建议重建镜像内置依赖或配置 KB_PIP_MIRROR', e)
         return False
-    import io as _io
-    import contextlib as _cl
-    buf = _io.StringIO()
     try:
-        with _cl.redirect_stdout(buf):
-            import jionlp as jio_mod
+        import jionlp as jio_mod
         if jio_mod:
             log.warning('jionlp 自动安装完成, 时间语义解析已启用')
             return True
@@ -1784,11 +1780,7 @@ def _get_jionlp():
     if _JIO is None:
         jio_mod = None
         try:
-            import io as _io
-            import contextlib as _cl
-            b = _io.StringIO()
-            with _cl.redirect_stdout(b):
-                import jionlp as jio_mod
+            import jionlp as jio_mod
         except Exception:
             jio_mod = None
         if jio_mod is None and os.environ.get('KB_AUTOPIP', '1') != '0':
@@ -1799,10 +1791,7 @@ def _get_jionlp():
                 timeout_s = 600.0
             if _try_install_jionlp(timeout_s):
                 try:
-                    import io as _io
-                    import contextlib as _cl
-                    with _cl.redirect_stdout(_io.StringIO()):
-                        import jionlp as jio_mod
+                    import jionlp as jio_mod
                 except Exception:
                     jio_mod = None
         _JIO = jio_mod if jio_mod else False
@@ -1820,10 +1809,7 @@ def ensure_jionlp_async():
 
     def _bg():
         try:
-            import io as _io
-            import contextlib as _cl
-            with _cl.redirect_stdout(_io.StringIO()):
-                import jionlp  # noqa: F401
+            import jionlp  # noqa: F401
             return  # 已安装, 无需处理
         except Exception:
             pass

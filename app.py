@@ -1734,43 +1734,110 @@ def detect_deadline_from_text(text):
 
 
 _JIO = None
+_AUTOPIP_STATE = {'started': False}
+
+
+def _pip_install_cmd():
+    """构造 pip 安装命令; KB_PIP_MIRROR 指定镜像源(默认清华, 设空串禁用)。"""
+    cmd = [sys.executable, '-m', 'pip', 'install',
+           '--no-cache-dir', '--quiet']
+    mirror = os.environ.get('KB_PIP_MIRROR')
+    if mirror is None:
+        mirror = 'https://pypi.tuna.tsinghua.edu.cn/simple'
+    if mirror:
+        cmd += ['-i', mirror, '--trusted-host', 'pypi.tuna.tsinghua.edu.cn']
+    return cmd + ['jionlp>=1.5.29']
+
+
+def _try_install_jionlp(timeout_s):
+    """同步安装 jionlp(供懒加载与后台预装共用); 成功返回 True。"""
+    import subprocess
+    log = logging.getLogger(__name__)
+    log.warning('jionlp 未安装, 尝试自动 pip 安装(超时 %ss)...', timeout_s)
+    try:
+        subprocess.run(_pip_install_cmd(), timeout=timeout_s, check=False)
+    except Exception as e:
+        log.warning('jionlp 自动安装失败(%s), 时间字段回退旧正则解析; '
+                    '建议重建镜像内置依赖或配置 KB_PIP_MIRROR', e)
+        return False
+    import io as _io
+    import contextlib as _cl
+    buf = _io.StringIO()
+    try:
+        with _cl.redirect_stdout(buf):
+            import jionlp as jio_mod
+        if jio_mod:
+            log.warning('jionlp 自动安装完成, 时间语义解析已启用')
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def _get_jionlp():
     """懒加载 jionlp(未安装时尝试自动 pip 安装一次; 失败返回 None 走旧正则)。
 
-    KB_AUTOPIP=0 关闭自动安装; KB_TIME_PARSER=legacy 整体回退(见调用方)。
+    KB_AUTOPIP=0 关闭自动安装; KB_TIME_PARSER=legacy 整体回退(见调用方);
+    KB_AUTOPIP_TIMEOUT 秒数(默认600)。
     """
     global _JIO
     if _JIO is None:
-        import io as _io
-        import contextlib as _cl
-        buf = _io.StringIO()
         jio_mod = None
         try:
-            with _cl.redirect_stdout(buf):
+            import io as _io
+            import contextlib as _cl
+            b = _io.StringIO()
+            with _cl.redirect_stdout(b):
                 import jionlp as jio_mod
         except Exception:
             jio_mod = None
         if jio_mod is None and os.environ.get('KB_AUTOPIP', '1') != '0':
-            # 容器镜像未包含时兜底安装(自托管场景; 首次解析会慢几十秒)
             try:
-                import subprocess
-                _log = logging.getLogger(__name__)
-                _log.warning('jionlp 未安装, 尝试自动 pip 安装(仅此一次)...')
-                subprocess.run([sys.executable, '-m', 'pip', 'install',
-                                '--no-cache-dir', '--quiet',
-                                'jionlp>=1.5.29'],
-                               timeout=300, check=False)
-                with _cl.redirect_stdout(buf):
-                    import jionlp as jio_mod
-                _log.warning('jionlp 自动安装完成, 时间语义解析已启用')
-            except Exception as e:
-                logging.getLogger(__name__).warning(
-                    'jionlp 自动安装失败(%s), 时间字段回退旧正则解析', e)
-                jio_mod = None
+                timeout_s = float(os.environ.get(
+                    'KB_AUTOPIP_TIMEOUT', '600') or 600)
+            except ValueError:
+                timeout_s = 600.0
+            if _try_install_jionlp(timeout_s):
+                try:
+                    import io as _io
+                    import contextlib as _cl
+                    with _cl.redirect_stdout(_io.StringIO()):
+                        import jionlp as jio_mod
+                except Exception:
+                    jio_mod = None
         _JIO = jio_mod if jio_mod else False
     return _JIO or None
+
+
+def ensure_jionlp_async():
+    """启动后台守护线程预装 jionlp, 避免首次解析被安装阻塞。"""
+    if _AUTOPIP_STATE['started']:
+        return
+    if os.environ.get('KB_AUTOPIP', '1') == '0' \
+            or os.environ.get('KB_TIME_PARSER') == 'legacy':
+        return
+    import threading
+
+    def _bg():
+        try:
+            import io as _io
+            import contextlib as _cl
+            with _cl.redirect_stdout(_io.StringIO()):
+                import jionlp  # noqa: F401
+            return  # 已安装, 无需处理
+        except Exception:
+            pass
+        try:
+            timeout_s = float(os.environ.get(
+                'KB_AUTOPIP_TIMEOUT', '600') or 600)
+        except ValueError:
+            timeout_s = 600.0
+        if _try_install_jionlp(timeout_s):
+            global _JIO
+            _JIO = None  # 重置缓存, 下次 _get_jionlp 重新导入
+    _AUTOPIP_STATE['started'] = True
+    threading.Thread(target=_bg, daemon=True,
+                     name='jionlp-autopip').start()
 
 
 def _parse_timespan_jionlp(text):
@@ -2120,3 +2187,9 @@ for _routes_module in (routes_auth, routes_admin, routes_tasks,
 # ---- 启动即执行一次性 UTC→北京时间历史数据迁移(幂等, 多 worker 安全) ----
 with app.app_context():
     _migrate_utc_to_cn_time()
+
+# 后台预装 jionlp(容器缺依赖时不阻塞首次解析; 已装则立即返回)
+try:
+    ensure_jionlp_async()
+except Exception:
+    pass

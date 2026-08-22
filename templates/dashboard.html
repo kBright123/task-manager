@@ -59,6 +59,7 @@
     #calCard>.card-body{flex:1;display:flex;flex-direction:column;min-height:0;padding-bottom:10px;overflow-y:auto;}
     #calGrid{flex:1;grid-auto-rows:minmax(30px,1fr);min-height:0;}
     #calGrid .cal-cell{aspect-ratio:auto;max-height:none;height:100%;min-height:30px;}
+    .app-container{padding-bottom:14px!important;}
   }
   .tl-axis{position:absolute;left:28px;top:0;bottom:0;width:2px;background:var(--gray-200);}
   .tl-section{margin-bottom:4px;}
@@ -103,6 +104,8 @@
   .cal-dots{display:flex;gap:2px;justify-content:center;margin-top:0;}
   .cal-dot{border-radius:50%;}
   .cal-tag-work{position:absolute;top:1px;right:1px;width:18px;height:15px;background:#FFF3E0;color:#E65100;border-radius:2px;font-size:.48rem;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1;}
+  .cal-hn{position:absolute;bottom:2px;left:0;right:0;font-size:.5rem;line-height:1.1;color:#E06B6B;font-weight:600;padding:0 1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .cal-cell.holiday{background:#FFF5F5;}
   .cal-tag-rest{position:absolute;top:1px;right:1px;width:18px;height:15px;background:#E8F5E9;color:#2E7D32;border-radius:2px;font-size:.48rem;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1;}
   .cal-week-num{font-size:.5rem;color:#bbb;text-align:right;padding-right:3px;line-height:1;}
   .cal-picker{position:absolute;top:34px;left:0;right:0;background:#fff;border:1px solid var(--gray-200);border-radius:8px;padding:10px;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,.1);}
@@ -302,7 +305,6 @@
         </div>
         <div class="d-flex align-items-center gap-1">
           <button class="btn btn-sm btn-outline-secondary" style="padding:3px 10px;font-size:.7rem;border-radius:4px;" onclick="calGoToday()">今天</button>
-          <button class="btn btn-sm btn-outline-secondary" style="padding:3px 10px;font-size:.7rem;border-radius:4px;" id="calViewBtn" onclick="calToggleView()">周</button>
         </div>
       </div>
       <div class="card-body py-0 px-2" style="background:transparent;position:relative;">
@@ -727,31 +729,30 @@ function dashOpenTaskDrawer(t){_dashDrawerData=t;var d=t;
 dashLoadTimeline();
 </script>
 <script>
-var calYear=new Date().getFullYear(),calMonth=new Date().getMonth()+1,calView='month';
-var calWeekStart=(function(){var t=new Date();t.setDate(t.getDate()-((t.getDay()+6)%7));return t;})();
-function calNav(delta){if(calView==='week'){calWeekStart.setDate(calWeekStart.getDate()+delta*7);calYear=calWeekStart.getFullYear();calMonth=calWeekStart.getMonth()+1;}else{calMonth+=delta;if(calMonth>12){calMonth=1;calYear++;}if(calMonth<1){calMonth=12;calYear--;}}calRender();}
-function calGoToday(){var today=new Date();calYear=today.getFullYear();calMonth=today.getMonth()+1;calWeekStart=new Date(today);calWeekStart.setDate(today.getDate()-((today.getDay()+6)%7));calRender();}
-function calToggleView(){var btn=document.getElementById('calViewBtn');if(calView==='month'){calView='week';var today=new Date();calWeekStart=new Date(today);calWeekStart.setDate(today.getDate()-((today.getDay()+6)%7));btn.textContent='月';}else{calView='month';btn.textContent='周';}calRender();}
+var calYear=new Date().getFullYear(),calMonth=new Date().getMonth()+1;
+function calNav(delta){calMonth+=delta;if(calMonth>12){calMonth=1;calYear++;}if(calMonth<1){calMonth=12;calYear--;}calRender();}
+function calGoToday(){var today=new Date();calYear=today.getFullYear();calMonth=today.getMonth()+1;calRender();if(_tlFilter)tlClearFilter();}
 var _calPickerYear=calYear;
 function calTogglePicker(){var el=document.getElementById('calPicker');el.classList.toggle('d-none');if(!el.classList.contains('d-none'))calRenderPicker();}
 function calPickerNav(delta){_calPickerYear+=delta;calRenderPicker();}
 function calRenderPicker(){var el=document.getElementById('calPicker');el.innerHTML='<div class="d-flex justify-content-between align-items-center mb-2"><button class="btn btn-sm" style="border:none;font-size:.8rem;" onclick="calPickerNav(-1)"><i class="bi bi-chevron-left"></i></button><span style="font-size:.82rem;font-weight:700;">'+_calPickerYear+'年</span><button class="btn btn-sm" style="border:none;font-size:.8rem;" onclick="calPickerNav(1)"><i class="bi bi-chevron-right"></i></button></div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;"></div>';var grid=el.querySelector('div:last-child');['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'].forEach(function(m,i){var d=document.createElement('div');d.className='cal-picker-month'+(_calPickerYear===calYear&&(i+1)===calMonth?' active':'');d.textContent=m;d.onclick=function(){calYear=_calPickerYear;calMonth=i+1;document.getElementById('calPicker').classList.add('d-none');calRender();};grid.appendChild(d);});}
-function calGetWeekNumber(date){var d=new Date(date.getFullYear(),date.getMonth(),date.getDate());var dayNum=d.getDay()||7;d.setDate(d.getDate()+4-dayNum);var yearStart=new Date(d.getFullYear(),0,1);return Math.ceil(((d-yearStart)/86400000+1)/7);}
 var _calAllTasks=[];
 function calDots(cnt){if(!cnt)return '';var c=cnt>=5?'#E06B6B':(cnt>=3?'#4A90D9':'#B0D4F1');var n=cnt>=5?3:(cnt>=3?2:1);var s='<div class="cal-dots">';for(var i=0;i<n;i++)s+='<span class="cal-dot" style="width:8px;height:8px;background:'+c+';'+(i?'margin-left:-2px;':'')+'"></span>';return s+'</div>';}
-  function calRender(){var el=document.getElementById('calGrid');var titleEl=document.getElementById('calTitle');if(!el)return;if(calView==='week'){titleEl.textContent=calYear+'年 第'+calGetWeekNumber(calWeekStart)+'周';}else{titleEl.textContent=calYear+'年'+calMonth+'月';}
+  function calRender(){var el=document.getElementById('calGrid');var titleEl=document.getElementById('calTitle');if(!el)return;titleEl.textContent=calYear+'年'+calMonth+'月';
   var today=new Date();var todayStr=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
   fetchJSON('/api/tasks/calendar?year='+calYear+'&month='+calMonth+(document.getElementById('dashShowCompleted')?.checked?'&show_completed=1':'')).then(function(d){
     var density=d.ok?d.density:{};var tags=d.ok?(d.tags||{}):{};window._calItems=d.ok?(d.items||{}):{};window._calHolidays=d.ok?(d.holidays||{}):{};window._calDensity=density;_calAllTasks=[];Object.keys(density).forEach(function(k){for(var i=0;i<density[k];i++)_calAllTasks.push({date:k,count:density[k]});});
-    var html='';if(calView==='week'){for(var i=0;i<7;i++){var dt=new Date(calWeekStart);dt.setDate(dt.getDate()+i);var ds=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');var cnt=density[ds]||0;var tag=tags[ds]||null;var isToday=ds===todayStr;var cls='cal-cell';if(isToday)cls+=' today';html+='<div class="'+cls+'" data-date="'+ds+'" onclick="calSelect(this,\''+ds+'\')" onmouseenter="calShowTooltip(this,\''+ds+'\')" onmouseleave="calHideTooltip()"><span>'+dt.getDate()+'</span>';if(tag)html+='<span class="cal-tag-'+(tag==='班'?'work':'rest')+'">'+tag+'</span>';html+=calDots(cnt);html+='</div>';}
-    }else{var firstDay=new Date(calYear,calMonth-1,1);var lastDay=new Date(calYear,calMonth,0);var startDow=firstDay.getDay()||7;var totalDays=lastDay.getDate();for(var i=1;i<startDow;i++)html+='<div class="cal-cell cal-other"></div>';
-    for(var day=1;day<=totalDays;day++){var ds=calYear+'-'+String(calMonth).padStart(2,'0')+'-'+String(day).padStart(2,'0');var isToday=ds===todayStr;var cnt=density[ds]||0;var tag=tags[ds]||null;var cls='cal-cell';if(isToday)cls+=' today';html+='<div class="'+cls+'" data-date="'+ds+'" onclick="calSelect(this,\''+ds+'\')" onmouseenter="calShowTooltip(this,\''+ds+'\')" onmouseleave="calHideTooltip()"><span>'+day+'</span>';if(tag)html+='<span class="cal-tag-'+(tag==='班'?'work':'rest')+'">'+tag+'</span>';html+=calDots(cnt);html+='</div>';}}
+    var html='';var firstDay=new Date(calYear,calMonth-1,1);var lastDay=new Date(calYear,calMonth,0);var startDow=firstDay.getDay()||7;var totalDays=lastDay.getDate();for(var i=1;i<startDow;i++)html+='<div class="cal-cell cal-other"></div>';
+    for(var day=1;day<=totalDays;day++){var ds=calYear+'-'+String(calMonth).padStart(2,'0')+'-'+String(day).padStart(2,'0');var isToday=ds===todayStr;var cnt=density[ds]||0;var tag=tags[ds]||null;var hn=(window._calHolidays||{})[ds];var cls='cal-cell';if(isToday)cls+=' today';if(hn)cls+=' holiday';html+='<div class="'+cls+'" data-date="'+ds+'" onclick="calSelect(this,\''+ds+'\')" onmouseenter="calShowTooltip(this,\''+ds+'\')" onmouseleave="calHideTooltip()"><span>'+day+'</span>';if(hn)html+='<span class="cal-hn">'+hn+'</span>';else if(tag==='班')html+='<span class="cal-tag-work">班</span>';html+=calDots(cnt);html+='</div>';}
     el.innerHTML=html;}).catch(function(e){el.innerHTML='<div style="grid-column:1/8;text-align:center;color:#999;font-size:.75rem;padding:20px;">'+(window.netErrMsg?netErrMsg(e):'加载失败')+'</div>';});}
 function calSelect(el,dateStr){var was=el.classList.contains('selected');document.querySelectorAll('.cal-cell.selected').forEach(function(c){c.classList.remove('selected');});if(was||_tlFilter===dateStr){tlClearFilter();return;}el.classList.add('selected');_tlFilter=dateStr;dashLoadTimeline();}
 function tlClearFilter(){_tlFilter=null;document.querySelectorAll('.cal-cell.selected').forEach(function(c){c.classList.remove('selected');});dashLoadTimeline();}
 function calShowTooltip(el,dateStr){var items=(window._calItems||{})[dateStr];if(!items||!items.length){calHideTooltip();return;}var tip=document.getElementById('calTooltip');var titleEl=document.getElementById('calTooltipTitle');var listEl=document.getElementById('calTooltipList');if(!tip)return;var dateObj=new Date(dateStr);var weekdays=['日','一','二','三','四','五','六'];var hn=(window._calHolidays||{})[dateStr];var total=(window._calDensity||{})[dateStr]||items.length;titleEl.textContent=dateStr+' 周'+weekdays[dateObj.getDay()]+(hn?' · '+hn:'')+' · '+total+'项';var cc={'工作':'var(--primary)','个人':'var(--success)','会议':'var(--meeting)','培训':'var(--training)','考试':'var(--exam)'};listEl.innerHTML=items.map(function(t){return'<div class="cal-tooltip-item"><span class="tl-card-cat" style="background:'+(cc[t.category]||'var(--primary)')+';">'+esc(t.category)+'</span> <span style="'+(t.done?'text-decoration:line-through;color:#aaa;':'')+'">'+esc(t.title)+'</span><small style="color:#999;margin-left:4px;">'+(t.done?'完成 ':'截止 ')+t.time+'</small></div>';}).join('');if(total>items.length)listEl.innerHTML+='<div class="cal-tooltip-item" style="color:#999;">…还有'+(total-items.length)+'条</div>';tip.classList.remove('d-none');var cardRect=document.getElementById('calCard').getBoundingClientRect();var elRect=el.getBoundingClientRect();var w=tip.offsetWidth,h=tip.offsetHeight;var vx=elRect.left+elRect.width/2-w/2;vx=Math.max(4,Math.min(vx,window.innerWidth-w-4));var above=elRect.top-h-4,below=elRect.bottom+4;var vy=(above>=4)?above:((below+h<=window.innerHeight-4)?below:above);tip.style.left=(vx-cardRect.left)+'px';tip.style.top=(vy-cardRect.top)+'px';}
 function calHideTooltip(){var tip=document.getElementById('calTooltip');if(tip)tip.classList.add('d-none');}
 calRender();
+// 一屏自适应: 按行顶部实际位置精确锁定高度, 兼容不同导航/边距高度
+function dashFit(){var row=document.querySelector('.dash-row');if(!row)return;if(window.innerWidth<992){row.style.height='';return;}var top=row.getBoundingClientRect().top;var h=window.innerHeight-top-14;row.style.height=Math.max(h,420)+'px';}
+window.addEventListener('resize',dashFit);dashFit();
 </script>
 <script>
 function kbSearch(){var input=document.getElementById('kbAskInput');var q=input.value.trim();if(!q){input.focus();return;}window.location.href='{{ url_for("kb.workbench") }}?q='+encodeURIComponent(q);}

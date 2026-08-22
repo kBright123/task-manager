@@ -1098,7 +1098,7 @@
 }
 
 /* ===== 时间轴卡片勾选框: 扩大命中区(24px 视觉), 保持原生渲染 ===== */
-.tl-card .form-check-input { width: 24px; height: 24px; margin-top: -4px; cursor: pointer; }
+.tl-card .form-check-input { width: 18px; height: 18px; margin-top: -2px; cursor: pointer; flex-shrink: 0; }
 
 /* ===== 乐观更新挂起态: 立即反馈, 失败回滚后恢复 ===== */
 .tl-card.pending { opacity: .55; pointer-events: none; transition: opacity .15s; }

@@ -751,8 +751,6 @@ function jumpTodaySection(){
   var hd=sec&&sec.querySelector('.tl-section-hd');
   if(hd)tlSecJump(hd);
 }
-  else{el.textContent=short;}
-}
 // 时间轴事件委托(容器常驻, 内部重渲染无需重复绑定): 勾选/描述/编辑入口
 (function(){
   var el=document.getElementById('taskTimelineView');if(!el)return;

@@ -1398,6 +1398,15 @@ document.addEventListener('DOMContentLoaded', function () {
   .tasks-layout>.tasks-panel:nth-child(2) .form-control::placeholder{
     font-size:.66rem;line-height:1.4;
   }
+  /* 发布栏紧凑化: 收内外留白, 控件对齐 */
+  .tasks-layout>.tasks-panel:nth-child(2) .card-footer{
+    padding:8px 10px calc(10px + env(safe-area-inset-bottom,0px))!important;
+  }
+  .tasks-layout>.tasks-panel:nth-child(2) form.d-flex{gap:8px!important;align-items:center;}
+  .tasks-layout>.tasks-panel:nth-child(2) #adminTaskText{padding:6px 10px!important;}
+  .tasks-layout>.tasks-panel:nth-child(2) #taskParseBtn{
+    padding:6px 12px!important;font-size:.76rem!important;border-radius:8px;
+  }
 }
 </style>
 {% endblock %}

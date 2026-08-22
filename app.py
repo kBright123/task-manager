@@ -1544,24 +1544,34 @@ NEXT_WEEK_KEYS = ['下周', '下星期']
 
 
 def _parse_time(text):
-    """Extract (hour, minute) from a time expression in text. Returns None if no match."""
-    m = re.search(r'(上[午]|下[午]|晚[上])?(\d{1,2})[：:点](\d{2})?(?:分)?', text)
+    """Extract (hour, minute) from a time expression in text. Returns None if no match.
+
+    冒号格式(X:XX)按 24 小时制处理, 不做上下午猜测;
+    「点/时」格式识别 上午/早上/早晨/凌晨/下午/晚上。
+    """
+    m = re.search(r'(上[午]|下[午]|晚[上]|早[上晨]|凌[晨])?\s*(\d{1,2})\s*[：:]\s*(\d{1,2})', text)
+    if m:
+        h = int(m.group(2))
+        mi = int(m.group(3))
+        if h < 24 and mi < 60:
+            return (h, mi)
+    m = re.search(r'(上[午]|下[午]|晚[上]|早[上晨]|凌[晨])?(\d{1,2})[点时](半|\d{1,2})?分?(?:钟)?', text)
     if m:
         period = m.group(1)
         h = int(m.group(2))
-        minute = int(m.group(3)) if m.group(3) else 0
-        if period and period in ('下午', '晚上'):
+        minute = 30 if m.group(3) == '半' else int(m.group(3) or 0)
+        if period in ('下午', '晚上'):
             h = h if h >= 12 else h + 12
-        elif period and period == '上午':
-            h = h if h < 12 else h - 12
-        elif h < 7:
+        elif period in ('上午', '早上', '早晨', '凌晨'):
+            h = 0 if h == 12 else h
+        elif not period and h < 7:
             h += 12
-        return (h, minute)
+        return (h % 24, min(59, max(0, minute)))
     cm = re.search(r'(\d{1,2}):(\d{2})', text)
     if cm:
-        h, m = int(cm.group(1)), int(cm.group(2))
-        if h < 24 and m < 60:
-            return (h, m)
+        h, mm = int(cm.group(1)), int(cm.group(2))
+        if h < 24 and mm < 60:
+            return (h, mm)
     return None
 
 
@@ -1722,6 +1732,101 @@ def detect_deadline_from_text(text):
     return (None, hour, minute)
 
 
+_JIO = None
+
+
+def _get_jionlp():
+    """懒加载 jionlp(未安装/失败返回 None); 屏蔽其导入时的 banner 打印。"""
+    global _JIO
+    if _JIO is None:
+        import io as _io
+        import contextlib as _cl
+        buf = _io.StringIO()
+        try:
+            with _cl.redirect_stdout(buf):
+                import jionlp as jio_mod
+            _JIO = jio_mod
+        except Exception:
+            _JIO = False
+    return _JIO or None
+
+
+def _parse_timespan_jionlp(text):
+    """基于 JioNLP 的时间解析(KB_TIME_PARSER=legacy 回退旧正则)。
+
+    返回 {'start': datetime|None, 'end': datetime|None}; 无有效时间返回 None。
+    策略: 显式区间(X-Y点)给出 start+end; 截止式(...前/截止)给 end;
+    其余取最远未来为 end。标题【】内与纯年份实体视为噪声剔除。
+    """
+    if os.environ.get('KB_TIME_PARSER') == 'legacy':
+        return None
+    jio = _get_jionlp()
+    if not jio:
+        return None
+    try:
+        ents = jio.ner.extract_time(text)
+    except Exception:
+        return None
+
+    def _dt(s):
+        try:
+            return datetime.strptime(s, '%Y-%m-%d %H:%M:%S')
+        except (ValueError, TypeError):
+            return None
+
+    now = cn_now()
+    cands = []
+    for ent in ents or []:
+        txt = (ent.get('text') or '').strip()
+        off = ent.get('offset') or [0, 0]
+        if not txt or re.fullmatch(r'\d{4}年?', txt):
+            continue
+        seg = text[max(0, off[0] - 80):off[0]]
+        if '【' in seg and '】' not in seg.split('【')[-1]:
+            continue
+        d = ent.get('detail') or {}
+        t = d.get('time')
+        s = _dt(t[0]) if isinstance(t, list) and t else None
+        e = _dt(t[1]) if isinstance(t, list) and len(t) > 1 else None
+        if not s:
+            continue
+        has_tod = bool(re.search(r'\d{1,2}[点时：:]', txt))
+        kind = ('range' if re.search(r'\d{1,2}[：:]\d{2}\s*[-—~至]\s*\d{1,2}[：:]\d{2}', txt)
+                else ('deadline' if re.search(r'前$|之前|截止', txt) else 'point'))
+        if e and e.second == 59:
+            e = e.replace(second=0)
+        if s.second == 59:
+            s = s.replace(second=0)
+        if not has_tod and kind == 'point':
+            s = s.replace(hour=9, minute=0)
+            if e:
+                e = e.replace(hour=17, minute=0)
+        cands.append({'txt': txt, 's': s, 'e': e, 'kind': kind})
+    if not cands:
+        return None
+    out = {'start': None, 'end': None}
+    rngs = [c for c in cands if c['kind'] == 'range']
+    dls = [c for c in cands if c['kind'] == 'deadline']
+    if rngs:
+        r0 = min(rngs, key=lambda c: c['s'])
+        out['start'] = r0['s']
+        out['end'] = max((c['e'] or c['s']) for c in rngs)
+    elif dls:
+        out['end'] = max((c['e'] or c['s']) for c in dls)
+        pts = [c for c in cands if c['kind'] == 'point']
+        fpts = [c for c in pts if c['s'] > now]
+        if fpts and min(c['s'] for c in fpts) < out['end']:
+            out['start'] = min(c['s'] for c in fpts)
+    else:
+        out['end'] = max((c['e'] or c['s']) for c in cands)
+        fs = [c['s'] for c in cands if c['s'] > now]
+        if fs:
+            out['start'] = min(fs)
+    if out['end'] and out['end'] < now:
+        out['end'] = None
+    return out if (out['start'] or out['end']) else None
+
+
 def extract_assignees_from_text(text):
     result = {'assignees': [], 'is_all': False}
 
@@ -1773,9 +1878,20 @@ def extract_title_from_text(text):
         clean = re.sub(r'https?://\S+', '', line).strip()
         clean = re.sub(r'【[^】]*】', '', clean).strip()
         clean = re.sub(r'@所有人|@all|@All|@all', '', clean).strip()
-        clean = re.sub(r'[：:].*$', '', clean).strip()
         if clean:
             considered.append(clean)
+
+    # 「动词:内容」结构优先取冒号后内容(如 提醒:明天交周报 → 明天交周报)
+    for c in considered:
+        m2c = re.search(r'^[^【】\n]{1,10}[：:]\s*(.+)$', c)
+        if m2c:
+            tail = m2c.group(1).strip()
+            tail = re.sub(r'@\S+', '', tail).strip()
+            if 4 <= len(tail) <= 60 and \
+               not any(kw in tail for kw in TITLE_BLOCK_WORDS):
+                return tail[:80]
+
+    considered = [re.sub(r'[：:].*$', '', c).strip() or c for c in considered]
 
     for c in considered:
         quoted = QUOTE_PAT.findall(c)
@@ -1842,38 +1958,61 @@ def parse_task_from_text(text):
         '工作': ['工作', '项目', '待办', '报告', '汇报', '方案', '开发', '测试', '上线', '需求', '周报', '月报'],
         '个人': ['个人', '学习', '读书', '运动', '健身', '购物', '家务', '休息', '娱乐', '游戏', '电影', '旅游'],
     }
+    # 分类: 关键词命中计数投票(平票按定义顺序优先), 替代首中即停
+    cat_scores = {}
     for cat, keywords in category_keywords.items():
-        if any(kw in text for kw in keywords):
-            result['category'] = cat
-            break
+        sc = sum(1 for kw in keywords if kw in text)
+        if sc:
+            cat_scores[cat] = sc
+    if cat_scores:
+        result['category'] = max(cat_scores.items(), key=lambda x: x[1])[0]
 
     assign_info = extract_assignees_from_text(text)
     result['assignees'] = assign_info['assignees']
     result['is_all'] = assign_info['is_all']
+    # 人名校验: 仅保留系统中真实存在的姓名/用户名, 滤除「交给领导审批」类误抓
+    try:
+        _valid = set()
+        for u in User.query.all():
+            if u.name:
+                _valid.add(u.name)
+            if u.username:
+                _valid.add(u.username)
+    except Exception:
+        _valid = set()
+    if _valid and result['assignees']:
+        result['assignees'] = [n for n in result['assignees'] if n in _valid]
 
-    # start_time is always now
-    result['start_time'] = now
+    # 时间: 优先 JioNLP 语义解析(可给出未来开始时间); 失败回退旧候选链
+    span = _parse_timespan_jionlp(text)
+    best = None
+    if span:
+        if span.get('end'):
+            best = span['end']
+        if span.get('start') and span['start'] > now:
+            result['start_time'] = span['start']
 
-    # end_time: find all datetime candidates, pick the farthest future one
-    candidates = _find_all_datetime_candidates(text)
-    if candidates:
-        best = candidates[-1]
-    else:
-        # fallback to detect_deadline_from_text
-        deadline_dt, dl_hour, dl_minute = detect_deadline_from_text(text)
-        if deadline_dt:
-            best = deadline_dt
+    # end_time: JioNLP 未命中时回退旧候选链
+    if best is None:
+        candidates = _find_all_datetime_candidates(text)
+        if candidates:
+            best = candidates[-1]
         else:
-            m = re.search(r'(\d+)([天周])', text)
-            if m:
-                num = int(m.group(1))
-                unit = m.group(2)
-                if unit == '天':
-                    best = now + timedelta(days=num)
-                elif unit == '周':
-                    best = now + timedelta(weeks=num)
+            # fallback to detect_deadline_from_text
+            deadline_dt, dl_hour, dl_minute = detect_deadline_from_text(text)
+            if deadline_dt:
+                best = deadline_dt
             else:
-                best = (now + timedelta(days=7)).replace(hour=18, minute=0, second=0)
+                m = re.search(r'(\d+)([天周])', text)
+                if m:
+                    num = int(m.group(1))
+                    unit = m.group(2)
+                    if unit == '天':
+                        best = now + timedelta(days=num)
+                    elif unit == '周':
+                        best = now + timedelta(weeks=num)
+                else:
+                    best = (now + timedelta(days=7)).replace(hour=18, minute=0, second=0)
 
     result['end_time'] = best
 
@@ -1883,26 +2022,41 @@ def parse_task_from_text(text):
     result['recurrence_count'] = 0
     result['recurrence_interval_days'] = 0
     rec_text = text.replace('两', '2')
-    rec_m = re.search(r'每(\d*)(周|个?月|年)', rec_text)
-    if rec_m:
-        num_str = rec_m.group(1)
-        unit = rec_m.group(2)
-        num = int(num_str) if num_str else 1
-        if unit == '周':
+    # 每天/每日/天天
+    if re.search(r'每[天日]|天天', text):
+        result['recurrence'] = 'daily'
+        result['recurrence_interval_days'] = 1
+        result['recurrence_count'] = 10
+        result['recurrence_text'] = '每天'
+    else:
+        # 每周X: 区间7天, 起点由时间解析落在对应星期
+        wm = re.search(r'每(?:周|星期)([一二三四五六日天])', rec_text)
+        if wm:
             result['recurrence'] = 'weekly'
-            result['recurrence_interval_days'] = num * 7
+            result['recurrence_interval_days'] = 7
             result['recurrence_count'] = 4
-            result['recurrence_text'] = f'每{num}周' if num > 1 else '每周'
-        elif '月' in unit:
-            result['recurrence'] = 'monthly'
-            result['recurrence_interval_days'] = num * 30
-            result['recurrence_count'] = 3
-            result['recurrence_text'] = f'每{num}个月' if num > 1 else '每月'
-        elif '年' in unit:
-            result['recurrence'] = 'yearly'
-            result['recurrence_interval_days'] = num * 365
-            result['recurrence_count'] = 2
-            result['recurrence_text'] = f'每{num}年' if num > 1 else '每年'
+            result['recurrence_text'] = '每周' + wm.group(1)
+        else:
+            rec_m = re.search(r'每(\d*)(周|个?月|年)', rec_text)
+            if rec_m:
+                num_str = rec_m.group(1)
+                unit = rec_m.group(2)
+                num = int(num_str) if num_str else 1
+                if unit == '周':
+                    result['recurrence'] = 'weekly'
+                    result['recurrence_interval_days'] = num * 7
+                    result['recurrence_count'] = 4
+                    result['recurrence_text'] = f'每{num}周' if num > 1 else '每周'
+                elif '月' in unit:
+                    result['recurrence'] = 'monthly'
+                    result['recurrence_interval_days'] = num * 30
+                    result['recurrence_count'] = 3
+                    result['recurrence_text'] = f'每{num}个月' if num > 1 else '每月'
+                elif '年' in unit:
+                    result['recurrence'] = 'yearly'
+                    result['recurrence_interval_days'] = num * 365
+                    result['recurrence_count'] = 2
+                    result['recurrence_text'] = f'每{num}年' if num > 1 else '每年'
 
     return result
 

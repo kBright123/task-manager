@@ -50,16 +50,16 @@
   .tl-wrap{position:relative;overflow-y:auto;flex:1;padding:12px 12px 12px 16px;}
   /* 桌面端双栏铺满一屏: 时间轴与日历拉伸至视口剩余高度 */
   @media (min-width:992px){
-    .dash-row{min-height:calc(100vh - 128px);}
-    .dash-col{display:flex;flex-direction:column;}
+    .dash-row{height:calc(100vh - 128px);}
+    .dash-col{display:flex;flex-direction:column;min-height:0;}
     .dash-col>.card{display:flex;flex-direction:column;margin-bottom:0!important;min-height:0;}
-    .dash-col>.card+.card{margin-top:12px;}
-    #calCard{flex:1;}
+    .dash-col>.card+.card{margin-top:12px;flex-shrink:0;max-height:34%;overflow-y:auto;}
+    #calCard{flex:1;min-height:0;overflow:hidden;}
     #dashTimeline{max-height:none!important;flex:1;display:flex;flex-direction:column;overflow:hidden;}
     #dashTimeline .tl-wrap{flex:1;min-height:0;}
-    #calCard>.card-body{flex:1;display:flex;flex-direction:column;min-height:0;padding-bottom:10px;}
-    #calGrid{flex:1;grid-auto-rows:1fr;min-height:0;}
-    #calGrid .cal-cell{aspect-ratio:auto;max-height:none;height:100%;min-height:34px;}
+    #calCard>.card-body{flex:1;display:flex;flex-direction:column;min-height:0;padding-bottom:10px;overflow-y:auto;}
+    #calGrid{flex:1;grid-auto-rows:minmax(30px,1fr);min-height:0;}
+    #calGrid .cal-cell{aspect-ratio:auto;max-height:none;height:100%;min-height:30px;}
   }
   .tl-axis{position:absolute;left:28px;top:0;bottom:0;width:2px;background:var(--gray-200);}
   .tl-section{margin-bottom:4px;}

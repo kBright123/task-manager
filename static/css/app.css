@@ -1145,3 +1145,15 @@
   a { color: #6fbf95; }
   .text-muted { color: var(--gray-400) !important; }
 }
+
+/* ===== 移动端体验修复(≤767) ===== */
+@media (max-width: 767px) {
+  /* iOS 聚焦自动放大防护: 输入类字号统一 16px */
+  .form-control, .form-select { font-size: 16px !important; }
+  /* 触控热区: 复选框视觉不变, 伪元素扩大点击区 */
+  .form-check-input { position: relative; }
+  .form-check-input::after { content: ''; position: absolute; inset: -7px; }
+  .tl-card .form-check-input::after { inset: -8px; }
+  /* 小按钮触控高度提升(左右内边距保留原值) */
+  .btn-sm { padding-top: .34rem !important; padding-bottom: .34rem !important; font-size: .78rem !important; }
+}

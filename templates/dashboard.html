@@ -67,6 +67,14 @@
   @media (max-width:991px){
     /* 手机/平板: 解除时间轴内联限高, 取消双滚动 */
     #dashTimeline{max-height:none!important;height:auto!important;overflow:visible!important;}
+    /* 触屏点日期: 底部弹层展示当日待办 */
+    #calSheetMask{display:block;position:fixed;inset:0;background:rgba(20,20,30,.4);opacity:0;pointer-events:none;transition:opacity .25s ease;z-index:1290;}
+    #calSheetMask.show{opacity:1;pointer-events:auto;}
+    #calSheet{display:flex;flex-direction:column;position:fixed;left:0;right:0;bottom:var(--bottom-nav-height,0px);max-height:min(60vh,480px);z-index:1300;background:#fff;border-radius:16px 16px 0 0;box-shadow:0 -10px 34px rgba(0,0,0,.22);transform:translateY(110%);transition:transform .28s cubic-bezier(.22,.61,.36,1);border:1px solid var(--gray-200);border-bottom:none;}
+    #calSheet.open{transform:translateY(0);}
+    .cal-sheet-grip{flex-shrink:0;width:44px;height:5px;border-radius:3px;background:var(--gray-300);margin:8px auto 2px;}
+    .cal-sheet-hd{flex-shrink:0;display:flex;align-items:center;gap:8px;padding:4px 14px 6px;}
+    #calSheetList{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:2px 14px;font-size:.78rem;}
   }
   .tl-axis{position:absolute;left:28px;top:0;bottom:0;width:2px;background:var(--gray-200);}
   .tl-section{margin-bottom:4px;}
@@ -319,6 +327,16 @@
         <div id="calTooltip" class="cal-tooltip d-none">
           <div id="calTooltipTitle" class="cal-tooltip-title"></div>
           <div id="calTooltipList" class="cal-tooltip-list"></div>
+        </div>
+        <div id="calSheetMask" onclick="calSheetClose()"></div>
+        <div id="calSheet">
+          <div class="cal-sheet-grip"></div>
+          <div class="cal-sheet-hd">
+            <span id="calSheetTitle" style="font-weight:700;font-size:.82rem;color:#333;"></span>
+            <button type="button" class="close-drawer" style="display:inline-flex;align-items:center;justify-content:center;margin-left:auto;border:none;background:var(--gray-100);border-radius:50%;width:28px;height:28px;color:#666;font-size:1rem;" onclick="calSheetClose()"><i class="bi bi-x"></i></button>
+          </div>
+          <div id="calSheetList"></div>
+          <button type="button" class="btn btn-sm btn-outline-primary" id="calSheetFilterBtn" style="margin:10px 14px calc(12px + env(safe-area-inset-bottom,0px));">查看该日待办</button>
         </div>
         <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:0;text-align:center;margin-bottom:2px;">
           <span style="font-size:.66rem;color:#8a8a8a;font-weight:600;">一</span>
@@ -750,7 +768,40 @@ function calDots(cnt){if(!cnt)return '';var c=cnt>=5?'#E06B6B':(cnt>=3?'#4A90D9'
     var html='';var firstDay=new Date(calYear,calMonth-1,1);var lastDay=new Date(calYear,calMonth,0);var startDow=firstDay.getDay()||7;var totalDays=lastDay.getDate();for(var i=1;i<startDow;i++)html+='<div class="cal-cell cal-other"></div>';
     for(var day=1;day<=totalDays;day++){var ds=calYear+'-'+String(calMonth).padStart(2,'0')+'-'+String(day).padStart(2,'0');var isToday=ds===todayStr;var cnt=density[ds]||0;var tag=tags[ds]||null;var hn=(window._calHolidays||{})[ds];var cls='cal-cell';if(isToday)cls+=' today';if(hn)cls+=' holiday';html+='<div class="'+cls+'" data-date="'+ds+'" onclick="calSelect(this,\''+ds+'\')" onmouseenter="calShowTooltip(this,\''+ds+'\')" onmouseleave="calHideTooltip()"><span>'+day+'</span>';if(hn)html+='<span class="cal-hn">'+hn+'</span>';else if(tag==='休')html+='<span class="cal-tag-rest">休</span>';else if(tag==='班')html+='<span class="cal-tag-work">班</span>';html+=calDots(cnt);html+='</div>';}
     el.innerHTML=html;}).catch(function(e){el.innerHTML='<div style="grid-column:1/8;text-align:center;color:#999;font-size:.75rem;padding:20px;">'+(window.netErrMsg?netErrMsg(e):'加载失败')+'</div>';});}
-function calSelect(el,dateStr){var was=el.classList.contains('selected');document.querySelectorAll('.cal-cell.selected').forEach(function(c){c.classList.remove('selected');});if(was||_tlFilter===dateStr){tlClearFilter();return;}el.classList.add('selected');_tlFilter=dateStr;dashLoadTimeline();}
+function calSelect(el,dateStr){
+  if(window.matchMedia('(hover: none)').matches){calSheetShow(el,dateStr);return;}
+  var was=el.classList.contains('selected');document.querySelectorAll('.cal-cell.selected').forEach(function(c){c.classList.remove('selected');});if(was||_tlFilter===dateStr){tlClearFilter();return;}el.classList.add('selected');_tlFilter=dateStr;dashLoadTimeline();}
+var _calSheetCell=null;
+function calSheetShow(el,dateStr){
+  _calSheetCell=el;
+  document.querySelectorAll('.cal-cell.selected').forEach(function(c){c.classList.remove('selected');});
+  el.classList.add('selected');
+  var d=new Date(dateStr);var wd=['日','一','二','三','四','五','六'][d.getDay()];
+  var hn=(window._calHolidays||{})[dateStr];
+  document.getElementById('calSheetTitle').textContent=dateStr+' 周'+wd+(hn?' · '+hn:'');
+  var items=(window._calItems||{})[dateStr]||[];
+  var total=(window._calDensity||{})[dateStr]||items.length;
+  var cc={'工作':'var(--primary)','个人':'var(--success)','会议':'var(--meeting)','培训':'var(--training)','考试':'var(--exam)'};
+  var html=items.map(function(t){return'<div class="cal-tooltip-item" style="padding:6px 0;border-bottom:1px solid var(--gray-100);"><span style="color:'+(cc[t.category]||'var(--primary)')+';font-weight:600;margin-right:4px;">'+esc(t.category)+'</span> <span style="'+(t.done?'text-decoration:line-through;color:#aaa;':'')+'">'+esc(t.title)+'</span><small style="color:#999;margin-left:4px;">'+(t.done?'完成 ':'截止 ')+t.time+'</small></div>';}).join('');
+  if(!html)html='<div style="color:#999;text-align:center;padding:18px 0;font-size:.75rem;">当天暂无待办</div>';
+  if(total>items.length)html+='<div style="color:#999;font-size:.72rem;text-align:center;padding:6px 0;">…还有'+(total-items.length)+'条</div>';
+  document.getElementById('calSheetList').innerHTML=html;
+  var fb=document.getElementById('calSheetFilterBtn');
+  if(_tlFilter===dateStr){fb.textContent='取消该日筛选';}else{fb.textContent='查看该日待办';}
+  fb.onclick=function(){
+    calSheetClose();
+    if(_tlFilter===dateStr){tlClearFilter();return;}
+    document.querySelectorAll('.cal-cell.selected').forEach(function(c){c.classList.remove('selected');});
+    if(_calSheetCell)_calSheetCell.classList.add('selected');
+    _tlFilter=dateStr;dashLoadTimeline();
+  };
+  document.getElementById('calSheetMask').classList.add('show');
+  document.getElementById('calSheet').classList.add('open');
+}
+function calSheetClose(){
+  var m=document.getElementById('calSheetMask'),s=document.getElementById('calSheet');
+  if(m)m.classList.remove('show');if(s)s.classList.remove('open');
+}
 function tlClearFilter(){_tlFilter=null;document.querySelectorAll('.cal-cell.selected').forEach(function(c){c.classList.remove('selected');});dashLoadTimeline();}
 function calShowTooltip(el,dateStr){var items=(window._calItems||{})[dateStr];if(!items||!items.length){calHideTooltip();return;}var tip=document.getElementById('calTooltip');var titleEl=document.getElementById('calTooltipTitle');var listEl=document.getElementById('calTooltipList');if(!tip)return;var dateObj=new Date(dateStr);var weekdays=['日','一','二','三','四','五','六'];var hn=(window._calHolidays||{})[dateStr];var total=(window._calDensity||{})[dateStr]||items.length;titleEl.textContent=dateStr+' 周'+weekdays[dateObj.getDay()]+(hn?' · '+hn:'')+' · '+total+'项';var cc={'工作':'var(--primary)','个人':'var(--success)','会议':'var(--meeting)','培训':'var(--training)','考试':'var(--exam)'};listEl.innerHTML=items.map(function(t){return'<div class="cal-tooltip-item"><span style="color:'+(cc[t.category]||'var(--primary)')+';font-weight:600;margin-right:4px;">'+esc(t.category)+'</span> <span style="'+(t.done?'text-decoration:line-through;color:#aaa;':'')+'">'+esc(t.title)+'</span><small style="color:#999;margin-left:4px;">'+(t.done?'完成 ':'截止 ')+t.time+'</small></div>';}).join('');if(total>items.length)listEl.innerHTML+='<div class="cal-tooltip-item" style="color:#999;">…还有'+(total-items.length)+'条</div>';tip.classList.remove('d-none');var cardRect=document.getElementById('calCard').getBoundingClientRect();var elRect=el.getBoundingClientRect();var w=tip.offsetWidth,h=tip.offsetHeight;var vx=elRect.left+elRect.width/2-w/2;vx=Math.max(4,Math.min(vx,window.innerWidth-w-4));var above=elRect.top-h-4,below=elRect.bottom+4;var vy=(above>=4)?above:((below+h<=window.innerHeight-4)?below:above);tip.style.left=(vx-cardRect.left)+'px';tip.style.top=(vy-cardRect.top)+'px';}
 function calHideTooltip(){var tip=document.getElementById('calTooltip');if(tip)tip.classList.add('d-none');}

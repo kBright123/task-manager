@@ -1372,4 +1372,16 @@ document.addEventListener('DOMContentLoaded', function () {
   {% endif %}
 });
 </script>
+<style>
+/* 移动端: 分类栏横向滑动 chips, 隐藏分配概览 */
+@media (max-width: 767px){
+  .tasks-layout>.tasks-panel:first-child{margin-bottom:10px;}
+  .tasks-layout>.tasks-panel:first-child .card-header{padding:8px 12px;}
+  .tasks-layout>.tasks-panel:first-child .card-body{flex-direction:row;align-items:center;gap:6px;overflow-x:auto;overflow-y:hidden;padding:8px 10px;-webkit-overflow-scrolling:touch;}
+  .tasks-layout>.tasks-panel:first-child .cat-item{flex-shrink:0;margin:0;padding:6px 13px;border-radius:100px;background:var(--gray-50);border:1px solid var(--gray-100);white-space:nowrap;}
+  .tasks-layout>.tasks-panel:first-child .cat-item.active{background:var(--primary-light);border-color:var(--primary);}
+  .tasks-layout>.tasks-panel:first-child hr,
+  .tasks-layout>.tasks-panel:first-child div.px-2{display:none;}
+}
+</style>
 {% endblock %}

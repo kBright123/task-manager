@@ -586,7 +586,7 @@ function renderTimeline(el,jump){
   sectionOrder.forEach(function(s){
     var g=groups[s];
     if(!g||!g.items.length) return;
-    html+='<div class="tl-section '+s+'">';
+    html+='<div class="tl-section '+s+'" data-s="'+s+'">';
     html+='<div class="tl-section-hd" role="button" tabindex="0" aria-label="展开'+esc(g.label)+'的任务" onclick="tlSecJump(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}"><div class="tl-section-dot"></div>';
     html+='<span class="tl-section-label">'+esc(g.label)+'</span>';
     html+='<span class="tl-section-count">'+g.items.length+'</span></div>';
@@ -662,6 +662,12 @@ function tlfAccordion(force){
     if(s.offsetTop<=mid)cur=s;
   });
   if(!cur)cur=secs[0];
+  if(tlfEnsureData(cur.getAttribute('data-s'))){
+    secs=el.querySelectorAll('.tl-section');
+    var mid2=el.scrollTop+Math.min(el.clientHeight*0.45,260);cur=null;
+    secs.forEach(function(s){if(s.offsetTop<=mid2)cur=s;});
+    if(!cur)cur=secs[0];
+  }
   if(!force&&window._tlfCurEl===cur)return;
   window._tlfCurEl=cur;
   // 若目标分区头已在视口上方, 展开带来的高度增量需补偿, 防止视图跳动
@@ -669,6 +675,24 @@ function tlfAccordion(force){
   var before=el.scrollHeight;
   secs.forEach(function(s){s.classList.toggle('open',s===cur);});
   if(compensate)el.scrollTop+=el.scrollHeight-before;
+}
+// 分区→所需数据窗口(天): 过去侧分区被访问时自动升级阶段, 数据本已全量在缓存
+var TLF_SEC_NEED={past_month:31,past_two_months:60,past_three_months:90,past_half_year:180,past_year:365,past:0};
+function tlfEnsureData(secKey){
+  if(!(secKey in TLF_SEC_NEED))return false;
+  var curCut=TLF_STAGE_DAYS[_tlfStage];
+  if(curCut===0||curCut>TLF_SEC_NEED[secKey])return false;
+  var i=_tlfStage;
+  while(i<TLF_STAGE_DAYS.length-1&&TLF_STAGE_DAYS[i]!==0&&TLF_STAGE_DAYS[i]<TLF_SEC_NEED[secKey])i++;
+  if(TLF_STAGE_DAYS[i]!==0&&TLF_STAGE_DAYS[i]<TLF_SEC_NEED[secKey])return false;
+  var el=document.getElementById('taskTimelineView');if(!el)return false;
+  var wrap=el.closest('.tl-wrap')||el;
+  var keepSec=window._tlfCurEl?window._tlfCurEl.getAttribute('data-s'):null;
+  var prevTop=wrap.scrollTop;
+  _tlfBusy=true;_tlfStage=i;renderTimeline(el,false);_tlfBusy=false;
+  if(keepSec){var s2=el.querySelector('.tl-section[data-s="'+keepSec+'"]');if(s2){window._tlfCurEl=s2;s2.classList.add('open');}}
+  wrap.scrollTop=Math.min(prevTop,wrap.scrollHeight);
+  return true;
 }
 // 分区步进(滚轮/触摸兜底): 折叠态内容不足一屏无滚动量, 在边界继续滑动即切换分区
 function tlfStep(dir){
@@ -679,6 +703,9 @@ function tlfStep(dir){
   var idx=secs.indexOf(window._tlfCurEl);
   var nxt=secs[Math.min(Math.max((idx<0?0:idx)+dir,0),secs.length-1)];
   if(nxt===window._tlfCurEl)return;
+  if(tlfEnsureData(nxt.getAttribute('data-s'))){
+    nxt=el.querySelector('.tl-section[data-s="'+nxt.getAttribute('data-s')+'"]')||nxt;
+  }
   var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
   window._tlfCurEl=nxt;
   window._tlfStepping=true;
@@ -692,6 +719,10 @@ function tlSecJump(hd){
   if(!sec)return;
   var el=document.getElementById('taskTimelineView');
   if(!el)return;
+  if(tlfEnsureData(sec.getAttribute('data-s'))){
+    sec=el.querySelector('.tl-section[data-s="'+sec.getAttribute('data-s')+'"]')||sec;
+    window._tlfCurEl=sec;sec.classList.add('open');
+  }
   var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
   el.scrollTo({top:Math.max(sec.offsetTop-6,0),behavior:reduce?'auto':'smooth'});
 }

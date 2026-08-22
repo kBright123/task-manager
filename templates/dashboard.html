@@ -567,12 +567,6 @@ function dashAccordion(force){
     if(s.offsetTop<=mid)cur=s;
   });
   if(!cur)cur=secs[0];
-  if(dashEnsureData(cur.getAttribute('data-s'))){
-    secs=wrap.querySelectorAll('.tl-section');
-    var mid2=wrap.scrollTop+Math.min(wrap.clientHeight*0.45,260);cur=null;
-    secs.forEach(function(s){if(s.offsetTop<=mid2)cur=s;});
-    if(!cur)cur=secs[0];
-  }
   if(!force&&window._dtlCurEl===cur)return;
   window._dtlCurEl=cur;
   // 目标分区头在视口上方时补偿展开高度, 防视图跳动

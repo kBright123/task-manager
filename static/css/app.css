@@ -1103,24 +1103,9 @@
 /* ===== 乐观更新挂起态: 立即反馈, 失败回滚后恢复 ===== */
 .tl-card.pending { opacity: .55; pointer-events: none; transition: opacity .15s; }
 
-/* ===== 批量管理模式(tasks 页) ===== */
-.tl-toolbar { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 14px 0; }
-.tl-toolbar .btn { font-size: .78rem; padding: 3px 10px; border-radius: 8px; }
-body.batch-mode .tl-card { cursor: pointer; }
-body.batch-mode .tl-card.selected { border-color: var(--primary); background: var(--primary-light); box-shadow: 0 0 0 2px rgba(0,102,51,.12); }
-body.batch-mode .tl-card .batch-check { display: inline-flex; }
-.tl-card .batch-check { display: none; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--gray-300); align-items: center; justify-content: center; color: transparent; font-size: .8rem; background: #fff; }
-.tl-card.selected .batch-check { border-color: var(--primary); background: var(--primary); color: #fff; }
-#batchBar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px; z-index: 1080; display: none; align-items: center; gap: 10px; padding: 8px 12px; background: var(--gray-900); color: #fff; border-radius: 999px; box-shadow: var(--shadow-lg); font-size: .82rem; max-width: calc(100vw - 24px); }
-#batchBar.on { display: flex; }
-#batchBar button { border: none; background: transparent; color: #fff; font-size: .8rem; padding: 5px 10px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
-#batchBar button:hover { background: rgba(255,255,255,.15); }
-#batchBar button.b-del:hover { background: var(--danger); }
-#batchBar button:disabled { opacity: .5; cursor: default; }
-
-/* ===== 空态主行动按钮 ===== */
-.empty-state .es-action, .tl-empty + .es-action { margin-top: 4px; }
+/* ===== 空态主行动按钮 + 时间轴空态垂直居中 ===== */
 .es-action { font-size: .82rem; padding: 6px 16px; border-radius: 999px; }
+.tl-wrap > .tl-empty { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); white-space: nowrap; margin: 0; }
 
 /* ===== 暗黑模式: 变量重映射+主要表面覆盖(跟随系统) ===== */
 @media (prefers-color-scheme: dark) {
@@ -1159,4 +1144,3 @@ body.batch-mode .tl-card .batch-check { display: inline-flex; }
   a { color: #6fbf95; }
   .text-muted { color: var(--gray-400) !important; }
 }
-body.batch-mode .tl-card { padding-right: 38px; }

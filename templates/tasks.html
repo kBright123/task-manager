@@ -541,7 +541,7 @@ function loadTaskFeed(){
   if(cat) params.push('category='+encodeURIComponent(cat));
   if(showCompleted) params.push('show_completed=1');
   var qs=params.length?'?'+params.join('&'):'';
-  fetch('/api/tasks/timeline'+qs).then(function(r){return r.json();}).then(function(d){
+  fetchJSON('/api/tasks/timeline'+qs).then(function(d){
     var cnt=document.getElementById('taskFeedCount');
     renderCatCounts(d.categories);
     if(!d.ok||!d.tasks||!d.tasks.length){
@@ -602,7 +602,7 @@ function renderTimeline(el,jump){
       html+='<input type="checkbox" class="form-check-input mt-1" style="flex-shrink:0;cursor:pointer;" '+(isCompleted?'checked':'')+' onchange="tlToggleTask('+t.id+',this.checked,'+t.assignment_id+')" onclick="event.stopPropagation()">';
       html+='<div style="flex:1;min-width:0;">';
       html+='<div class="tl-card-time">'+esc(t.start_time.substring(5,16))+' - '+esc(t.end_time.substring(5,16))+'</div>';
-      html+='<div class="tl-card-title" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onclick="tlOpenEdit('+t.id+')">'+esc(t.title)+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
+      html+='<div class="tl-card-title" role="button" tabindex="0" aria-label="编辑任务:'+esc(t.title)+'" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onclick="tlOpenEdit('+t.id+')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">'+esc(t.title)+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
       if(hasDesc){
         var shortDesc=desc.length>60?desc.substring(0,60)+'...':desc;
         html+='<div class="tl-card-desc" style="font-size:.72rem;color:var(--gray-500);margin-top:2px;cursor:pointer;" onclick="tlToggleDesc(this)" data-full="'+esc(desc)+'">'+esc(shortDesc)+'</div>';
@@ -775,7 +775,7 @@ function renderTaskDetail(t, body){
 function metaRow(k, v){
   return '<div style="display:flex;justify-content:space-between;padding:3px 0;"><small style="color:var(--gray-500);font-size:.72rem;flex-shrink:0;">'+k+'</small><span style="font-size:.8rem;color:var(--gray-800);text-align:right;">'+v+'</span></div>';
 }
-function esc(s){s=(s==null?'':String(s));var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+// esc 使用 base.html 提供的全局实现
 function linkify(s){
   if (!s) return '';
   var e = esc(s);

@@ -161,7 +161,7 @@ function focusNote(){
   showMeta(el.getAttribute('data-nid'));
   setTimeout(function(){el.classList.remove('focus-flash');},1800);
 }
-function esc(s){s=(s==null?'':String(s));var d=document.createElement('div');d.textContent=s;return d.innerHTML.replace(/"/g,'&quot;');}
+// esc 使用 base.html 提供的全局实现
 function renderContent(html){
   return html.replace(/!\[([^\]]*)\]\(([^)\s]+)\)|\[([^\]]*)\]\((https?:\/\/[^)\s]+|\/notes\/attachments\/[^)\s]+)\)|(https?:\/\/[^\s<>"'，。；：、！？（）【】\[\]]+)/g,function(m,alt,imgUrl,txt,lnkUrl,plainUrl){
     if(imgUrl!==undefined){

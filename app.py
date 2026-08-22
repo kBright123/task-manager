@@ -160,6 +160,8 @@ app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 604800  # 静态资源缓存 7 天
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=5)
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
+# HTTPS 部署时设环境变量 COOKIE_SECURE=1: 会话 Cookie 仅经加密连接传输
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('COOKIE_SECURE') == '1'
 # 生产关闭模板自动重载(启用 Jinja2 模板缓存);开发(FLASK_DEBUG/KB_AUTO_RELOAD)才实时读盘
 app.config['TEMPLATES_AUTO_RELOAD'] = (
     os.environ.get('FLASK_DEBUG') == '1'
@@ -282,6 +284,36 @@ def _req_timing_log(resp):
 _CACHE_IMMUTABLE = 'public, max-age=31536000, immutable'
 _CACHE_PRIVATE = 'private, max-age=31536000'
 _CACHE_REVALIDATE = 'no-cache, must-revalidate, max-age=0'
+
+_GZIP_TYPES = ('text/html', 'text/css', 'text/javascript',
+               'application/javascript', 'application/json', 'image/svg+xml')
+_COMPRESS_MIN_SIZE = 500
+
+
+@app.after_request
+def _gzip_response(resp):
+    """轻量 gzip 压缩(无 nginx 前置时降低 HTML/JS/JSON 传输体积约 70%)。
+
+    跳过: 客户端不支持、已压缩(Content-Encoding 存在)、流式响应、小响应。
+    """
+    if (resp.status_code < 200 or resp.status_code >= 300
+            or resp.headers.get('Content-Encoding')
+            or 'gzip' not in (request.headers.get('Accept-Encoding') or '')):
+        return resp
+    ctype = (resp.mimetype or '').split(';')[0].strip()
+    if ctype not in _GZIP_TYPES:
+        return resp
+    if resp.direct_passthrough:
+        # send_file 流式直通(静态资源): 关闭后读取内容统一压缩
+        resp.direct_passthrough = False
+    data = resp.get_data()
+    if len(data) < _COMPRESS_MIN_SIZE:
+        return resp
+    import gzip as _gzip_mod
+    resp.set_data(_gzip_mod.compress(data, compresslevel=6))
+    resp.headers['Content-Encoding'] = 'gzip'
+    resp.headers['Content-Length'] = str(len(resp.get_data()))
+    return resp
 
 
 @app.after_request
@@ -519,6 +551,7 @@ class TaskAssignment(db.Model):
     __tablename__ = 'task_assignment'
     __table_args__ = (
         db.Index('ix_task_assignment_user_status', 'user_id', 'status'),
+        db.Index('ix_assignment_user_completed', 'user_id', 'completed_at'),
     )
     id = db.Column(db.Integer, primary_key=True)
     task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False, index=True)
@@ -1064,6 +1097,7 @@ def _run_sqlite_migrations():
             for sql in [
                 'CREATE INDEX IF NOT EXISTS ix_task_creator_end ON task (creator_id, end_time)',
                 'CREATE INDEX IF NOT EXISTS ix_task_start ON task (start_time)',
+                'CREATE INDEX IF NOT EXISTS ix_assignment_user_completed ON task_assignment (user_id, completed_at)',
                 'CREATE INDEX IF NOT EXISTS ix_task_creator ON task (creator_id)',
                 'CREATE INDEX IF NOT EXISTS ix_task_category ON task (category)',
                 'CREATE INDEX IF NOT EXISTS ix_task_created ON task (created_at)',

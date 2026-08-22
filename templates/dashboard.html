@@ -284,9 +284,9 @@
     <div class="card mb-3" id="calCard" style="background:rgba(245,247,250,.72);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.6);box-shadow:0 4px 20px rgba(0,0,0,.06);position:relative;">
       <div class="card-header d-flex justify-content-between align-items-center py-0 px-2" style="background:transparent;border-bottom:1px solid rgba(0,0,0,.05);height:28px;">
         <div class="d-flex align-items-center gap-1">
-          <button class="btn btn-sm" style="border:none;padding:4px 8px;font-size:.9rem;color:#666;" onclick="calNav(-1)"><i class="bi bi-chevron-left"></i></button>
+          <button class="btn btn-sm" aria-label="上一月" style="border:none;padding:4px 8px;font-size:.9rem;color:#666;" onclick="calNav(-1)"><i class="bi bi-chevron-left"></i></button>
           <span id="calTitle" style="font-size:.85rem;font-weight:700;color:#333;cursor:pointer;" onclick="calTogglePicker()"></span>
-          <button class="btn btn-sm" style="border:none;padding:4px 8px;font-size:.9rem;color:#666;" onclick="calNav(1)"><i class="bi bi-chevron-right"></i></button>
+          <button class="btn btn-sm" aria-label="下一月" style="border:none;padding:4px 8px;font-size:.9rem;color:#666;" onclick="calNav(1)"><i class="bi bi-chevron-right"></i></button>
         </div>
         <div class="d-flex align-items-center gap-1">
           <button class="btn btn-sm btn-outline-secondary" style="padding:3px 10px;font-size:.7rem;border-radius:4px;" onclick="calGoToday()">今天</button>
@@ -438,8 +438,7 @@
 
 {% block extra_js %}
 <script>
-function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
-function esc(s){s=(s==null?'':String(s));var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+// esc/escapeHtml 使用 base.html 提供的全局实现
 function linkifyText(s){return s.replace(/(https?:\/\/[^\s<>"'\)），。、！？]+)/g,'<a href="$1" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:underline;">$1</a>');}
 var _drawerEdit=null;
 function openTaskDrawer(d){
@@ -510,7 +509,7 @@ function dashRenderTimeline(jump){
   html+='<div class="tl-card '+t.display+'" id="dtl-'+t.id+'" data-date="'+taskDate+'"><div style="display:flex;align-items:flex-start;gap:6px;">';
   html+='<input type="checkbox" class="form-check-input mt-1" style="flex-shrink:0;cursor:pointer;" '+(isCompleted?'checked':'')+' onchange="dashToggleTask('+t.id+',this.checked,'+t.assignment_id+')" onclick="event.stopPropagation()">';
   html+='<div style="flex:1;min-width:0;"><div class="tl-card-time">'+esc(t.start_time.substring(5,16))+' - '+esc(t.end_time.substring(5,16))+'</div>';
-  html+='<div class="tl-card-title" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onclick="dashOpenTaskDrawer('+JSON.stringify(t).replace(/"/g,'&quot;')+')">'+esc(t.title)+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
+  html+='<div class="tl-card-title" role="button" tabindex="0" aria-label="查看任务:'+esc(t.title)+'" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onclick="dashOpenTaskDrawer('+JSON.stringify(t).replace(/"/g,'&quot;')+')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">'+esc(t.title)+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
   if(hasDesc){var shortDesc=desc.length>50?desc.substring(0,50)+'...':desc;html+='<div style="font-size:.72rem;color:var(--gray-500);margin-top:2px;cursor:pointer;" onclick="dashToggleDesc(this)" data-full="'+esc(desc)+'">'+esc(shortDesc)+'</div>';}
   html+='</div></div></div>';});html+='</div></div>';});html+='</div>';  el.innerHTML=html;
   var wrap=el.querySelector('.tl-wrap')||el;
@@ -537,7 +536,7 @@ function dashLoadTimeline(){
   var chip=document.getElementById('tlFilterChip');
   if(chip){if(_tlFilter){document.getElementById('tlFilterText').textContent=_tlFilter.substring(5).replace('-','/');chip.classList.remove('d-none');}else{chip.classList.add('d-none');}}
   var qs=params.length?'?'+params.join('&'):'';
-  fetch('/api/tasks/timeline'+qs).then(function(r){return r.json();}).then(function(d){
+  fetchJSON('/api/tasks/timeline'+qs).then(function(d){
     var cnt=document.getElementById('dashFeedCount');
     if(!d.ok||!d.tasks||!d.tasks.length){_tlCache=[];dashRenderTimeline(false);if(cnt)cnt.textContent='';return;}
     _tlCache=d.tasks;if(cnt)cnt.textContent='共 '+d.tasks.length+' 条';
@@ -584,7 +583,7 @@ var _calAllTasks=[];
 function calDots(cnt){if(!cnt)return '';var c=cnt>=5?'#E06B6B':(cnt>=3?'#4A90D9':'#B0D4F1');var n=cnt>=5?3:(cnt>=3?2:1);var s='<div class="cal-dots">';for(var i=0;i<n;i++)s+='<span class="cal-dot" style="width:8px;height:8px;background:'+c+';'+(i?'margin-left:-2px;':'')+'"></span>';return s+'</div>';}
   function calRender(){var el=document.getElementById('calGrid');var titleEl=document.getElementById('calTitle');if(!el)return;if(calView==='week'){titleEl.textContent=calYear+'年 第'+calGetWeekNumber(calWeekStart)+'周';}else{titleEl.textContent=calYear+'年'+calMonth+'月';}
   var today=new Date();var todayStr=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
-  fetch('/api/tasks/calendar?year='+calYear+'&month='+calMonth+(document.getElementById('dashShowCompleted')?.checked?'&show_completed=1':'')).then(function(r){return r.json();}).then(function(d){
+  fetchJSON('/api/tasks/calendar?year='+calYear+'&month='+calMonth+(document.getElementById('dashShowCompleted')?.checked?'&show_completed=1':'')).then(function(d){
     var density=d.ok?d.density:{};var tags=d.ok?(d.tags||{}):{};window._calItems=d.ok?(d.items||{}):{};window._calHolidays=d.ok?(d.holidays||{}):{};window._calDensity=density;_calAllTasks=[];Object.keys(density).forEach(function(k){for(var i=0;i<density[k];i++)_calAllTasks.push({date:k,count:density[k]});});
     var html='';if(calView==='week'){for(var i=0;i<7;i++){var dt=new Date(calWeekStart);dt.setDate(dt.getDate()+i);var ds=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');var cnt=density[ds]||0;var tag=tags[ds]||null;var isToday=ds===todayStr;var cls='cal-cell';if(isToday)cls+=' today';html+='<div class="'+cls+'" data-date="'+ds+'" onclick="calSelect(this,\''+ds+'\')" onmouseenter="calShowTooltip(this,\''+ds+'\')" onmouseleave="calHideTooltip()"><span>'+dt.getDate()+'</span>';if(tag)html+='<span class="cal-tag-'+(tag==='班'?'work':'rest')+'">'+tag+'</span>';html+=calDots(cnt);html+='</div>';}
     }else{var firstDay=new Date(calYear,calMonth-1,1);var lastDay=new Date(calYear,calMonth,0);var startDow=firstDay.getDay()||7;var totalDays=lastDay.getDate();for(var i=1;i<startDow;i++)html+='<div class="cal-cell cal-other"></div>';

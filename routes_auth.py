@@ -29,6 +29,35 @@ MAX_LOGIN_FAILS = 5
 LOGIN_LOCK_MINUTES = 10
 UNLOCK_CODE_TTL_MINUTES = 10
 
+# --- 轻量 IP 限速(内存滑动窗口): 与按账号锁定互补, 防脚本高频撞库 ---
+import threading
+import time as _time_mod
+from collections import deque as _deque
+
+_ip_attempts = {}
+_ip_lock = threading.Lock()
+
+
+def _ip_rate_limited(key, limit=10, window=60):
+    """滑动窗口限速: 同一 key(window 秒内)超过 limit 次返回 True。"""
+    now = _time_mod.time()
+    with _ip_lock:
+        dq = _ip_attempts.setdefault(key, _deque())
+        while dq and now - dq[0] > window:
+            dq.popleft()
+        if len(dq) >= limit:
+            return True
+        dq.append(now)
+        if len(_ip_attempts) > 10000:  # 防字典无限增长, 清理空桶
+            for k in [k for k, v in _ip_attempts.items() if not v]:
+                _ip_attempts.pop(k, None)
+        return False
+
+
+def _client_key():
+    return (request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+            or request.remote_addr or 'unknown')
+
 
 def mask_email(email):
     """脱敏邮箱用于页面展示: abc@qq.com -> a**@qq.com"""
@@ -73,6 +102,9 @@ def login():
         return redirect(url_for('index'))
     ctx = {'username': '', 'lock_email': False, 'masked_email': ''}
     if request.method == 'POST':
+        if _ip_rate_limited('login:' + _client_key(), limit=10, window=60):
+            flash('尝试过于频繁，请 1 分钟后再试', 'warning')
+            return render_template('login.html', **ctx)
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         ctx['username'] = username
@@ -338,6 +370,8 @@ def api_token():
     """第三方 API 令牌获取: 使用用户名/密码换取 API Token。
     返回 {ok, token, user}; 之后通过 Authorization: Bearer <token> 访问接口。"""
     data = request.get_json(silent=True) or request.form
+    if _ip_rate_limited('token:' + _client_key(), limit=10, window=60):
+        return jsonify({'ok': False, 'error': '请求过于频繁,请稍后再试'}), 429
     username = (data.get('username') or '').strip()
     password = data.get('password') or ''
     if not username or not password:

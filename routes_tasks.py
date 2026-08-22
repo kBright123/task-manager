@@ -503,13 +503,22 @@ def api_tasks_timeline():
             task_ids.add(t.id)
     if not task_ids:
         return jsonify({'ok': True, 'tasks': [], 'today': today.strftime('%Y-%m-%d')})
-    tasks = Task.query.filter(Task.id.in_(task_ids)).order_by(Task.end_time).all()
+    # 消除序列化循环 N+1: groups 预取; assignments 为 lazy='dynamic'
+    # 不支持预加载, 改为一次性批量载入后按任务分组
+    from sqlalchemy.orm import selectinload
+    tasks = Task.query.filter(Task.id.in_(task_ids)).options(
+        selectinload(Task.groups)).order_by(Task.end_time).all()
     # 获取当前用户在这些任务上的分配状态
     assigns = {}
     for a in TaskAssignment.query.filter(
             TaskAssignment.task_id.in_(task_ids),
             TaskAssignment.user_id == current_user.id).all():
         assigns[a.task_id] = a
+    # 全体被分配人(批量预取, 供序列化 assignee_ids 使用)
+    assignee_map = {}
+    for aa in TaskAssignment.query.filter(
+            TaskAssignment.task_id.in_(task_ids)).all():
+        assignee_map.setdefault(aa.task_id, []).append(aa.user_id)
     out = []
     for t in tasks:
         a = assigns.get(t.id)
@@ -544,7 +553,7 @@ def api_tasks_timeline():
             'assignment_id': a.id if a else None,
             'creator_id': t.creator_id,
             'is_owner': t.creator_id == current_user.id or current_user.role == 'admin',
-            'assignee_ids': [aa.user_id for aa in t.assignments],
+            'assignee_ids': assignee_map.get(t.id, []),
             'group_ids': [g.id for g in t.groups],
         })
     # 分类计数 — 从全部任务计算(不受category和show_completed过滤影响)
@@ -557,8 +566,13 @@ def api_tasks_timeline():
         if s2 in ('completed', 'approved') and not show_completed:
             continue
         all_categories[t.category] = all_categories.get(t.category, 0) + 1
+    # 安全上限: 防止极端数据量下响应过大(has_more 提示被截断)
+    TL_MAX = 2000
+    has_more = len(out) > TL_MAX
+    if has_more:
+        out = out[:TL_MAX]
     return jsonify({'ok': True, 'tasks': out, 'today': today.strftime('%Y-%m-%d'),
-                    'categories': all_categories})
+                    'categories': all_categories, 'has_more': has_more})
 
 
 @app.route('/api/tasks/calendar')
@@ -584,23 +598,35 @@ def api_tasks_calendar():
     a_statuses = ['pending', 'rejected']
     if show_completed:
         a_statuses += ['completed', 'approved']
-    # 全量状态表(与时间轴同构): 创建的任务若自身分配已完成,
-    # 未勾选"显示已完成"时同样排除, 保证日历圆点/悬浮框与时间轴一致
-    all_rows = TaskAssignment.query.filter(
-        TaskAssignment.user_id == current_user.id).all()
-    status_by_task = {a.task_id: a.status for a in all_rows}
-    visible_ids = {a.task_id for a in all_rows if a.status in a_statuses}
-    done_at_by_task = {a.task_id: a.completed_at for a in all_rows
-                       if a.completed_at}
+    # SQL 层先按"归档时间落在当月"过滤分配行(未完成按任务 end_time,
+    # 已完成按 completed_at), 只取命中行, 不再把该用户全部历史分配载入内存;
+    # 状态表随后仅对最终命中的少量任务批量补查, 保证与时间轴同构口径
     from sqlalchemy import or_, and_
-    done_in_range = [tid for tid, at in done_at_by_task.items()
-                     if start <= at <= end]
+    assigned_rows = TaskAssignment.query.join(
+        Task, Task.id == TaskAssignment.task_id).filter(
+        TaskAssignment.user_id == current_user.id,
+        TaskAssignment.status.in_(a_statuses),
+        or_(and_(Task.end_time >= start, Task.end_time <= end),
+            and_(TaskAssignment.completed_at.isnot(None),
+                 TaskAssignment.completed_at >= start,
+                 TaskAssignment.completed_at <= end))).all()
+    visible_ids = {a.task_id for a in assigned_rows}
+    done_in_range = [a.task_id for a in assigned_rows if a.completed_at]
     tasks = Task.query.filter(
         or_(Task.creator_id == current_user.id,
             Task.id.in_(visible_ids)),
         or_(and_(Task.end_time >= start, Task.end_time <= end),
             Task.id.in_(done_in_range))
     ).order_by(Task.end_time).all()
+    status_by_task = {}
+    done_at_by_task = {}
+    if tasks:
+        srows = TaskAssignment.query.filter(
+            TaskAssignment.user_id == current_user.id,
+            TaskAssignment.task_id.in_([t.id for t in tasks])).all()
+        status_by_task = {a.task_id: a.status for a in srows}
+        done_at_by_task = {a.task_id: a.completed_at for a in srows
+                           if a.completed_at and start <= a.completed_at <= end}
     density = {}
     items = {}
     for t in tasks:

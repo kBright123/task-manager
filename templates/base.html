@@ -70,6 +70,52 @@
       };
     }
   })();
+ </script>
+<script>
+  /* 全局共享助手: esc/escapeHtml(HTML转义), fetchJSON(带超时与GET单次重试) */
+  window.esc = window.escapeHtml = function (s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  };
+  window.fetchJSON = function (url, opts, _retries) {
+    opts = opts || {};
+    var method = (opts.method || 'GET').toUpperCase();
+    var retries = (_retries === undefined) ? (method === 'GET' ? 1 : 0) : _retries;
+    var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = null;
+    if (ctl && !opts.signal) {
+      opts.signal = ctl.signal;
+      timer = setTimeout(function () { ctl.abort(); }, opts.timeoutMs || 10000);
+    }
+    return fetch(url, opts).then(function (r) {
+      if (timer) clearTimeout(timer);
+      var parse = r.json().then(function (d) { d.__status = r.status; return d; });
+      if (!r.ok && r.status >= 500 && retries > 0) {
+        return new Promise(function (res) { setTimeout(res, 600); }).then(function () {
+          return window.fetchJSON(url, opts, retries - 1);
+        });
+      }
+      return parse;
+    }).catch(function (e) {
+      if (timer) clearTimeout(timer);
+      if (retries > 0) {  // 网络错误/超时: 幂等请求自动重试一次
+        return new Promise(function (res) { setTimeout(res, 600); }).then(function () {
+          return window.fetchJSON(url, opts, retries - 1);
+        });
+      }
+      throw e;
+    });
+  };
+  /* 全局 Esc: 关闭当前页面已打开的抽屉/弹层(各页面自行暴露关闭函数) */
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    ['closeTaskDrawer', 'closeTaskDetail', 'modalHide'].forEach(function (name) {
+      if (typeof window[name] === 'function') {
+        try { window[name](); } catch (err) { /* 函数签名不符时忽略 */ }
+      }
+    });
+  });
 </script>
   {% block extra_css %}{% endblock %}
 </head>

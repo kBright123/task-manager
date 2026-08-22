@@ -653,19 +653,17 @@ function tlfAccordion(force){
   if(!cur.classList.contains('open'))cur.classList.add('open');
   if(compensate)el.scrollTop+=el.scrollHeight-before;
 }
-// 初始级联展开: 今天始终展开; 今天少于3条时沿未来方向展开分区, 直到可见约3-5条
+// 初始级联展开: 今天始终展开; 今天不足3条时沿未来方向展开分区, 直到可见约3-5条(今天无待办也能继续展开)
 function tlfCascadeExpand(){
   var el=document.getElementById('taskTimelineView');if(!el)return;
-  var order=['today','tomorrow','future_week','future_month','later'];
+  var order=['tomorrow','future_week','future_month','later'];
   var count=function(k){var s=el.querySelector('.tl-section.'+k);return s?s.querySelectorAll('.tl-card').length:0;};
   var today=el.querySelector('.tl-section.today');
-  if(!today)return;
-  today.classList.add('open');
-  window._tlfCurEl=today;
-  var visible=count('today');
+  var visible=today?count('today'):0;
+  var last=today||null;
+  if(today){today.classList.add('open');window._tlfCurEl=today;}
   if(visible>=3)return;
-  var last=today;
-  for(var i=1;i<order.length;i++){
+  for(var i=0;i<order.length;i++){
     if(visible>=4)break;
     var c=count(order[i]);
     if(c===0)continue;
@@ -675,7 +673,7 @@ function tlfCascadeExpand(){
     last=s;
     if(visible>=5)break;
   }
-  window._tlfCurEl=last;
+  if(last)window._tlfCurEl=last;
 }
 // 分区步进(滚轮/触摸兜底): 折叠态内容不足一屏无滚动量, 在边界继续滑动即切换分区
 function tlfStep(dir){

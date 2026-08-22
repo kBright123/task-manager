@@ -555,20 +555,18 @@ function dashAccordion(force){
   if(compensate)wrap.scrollTop+=wrap.scrollHeight-before;
 }
 // 分区步进(滚轮/触摸兜底, 首页): 折叠态内容不足一屏无滚动量, 在边界继续滑动即切换分区
-// 初始级联展开(首页): 今天始终展开; 今天少于3条时沿未来方向展开分区, 直到可见约3-5条
+// 初始级联展开(首页): 今天始终展开; 今天不足3条时沿未来方向展开分区, 直到可见约3-5条(今天无待办也能继续展开)
 function dashCascadeExpand(){
   var el=document.getElementById('dashTimeline');if(!el)return;
   var wrap=el.querySelector('.tl-wrap')||el;
-  var order=['today','tomorrow','future_week','future_month','later'];
+  var order=['tomorrow','future_week','future_month','later'];
   var count=function(k){var s=wrap.querySelector('.tl-section.'+k);return s?s.querySelectorAll('.tl-card').length:0;};
   var today=wrap.querySelector('.tl-section.today');
-  if(!today)return;
-  today.classList.add('open');
-  window._dtlCurEl=today;
-  var visible=count('today');
+  var visible=today?count('today'):0;
+  var last=today||null;
+  if(today){today.classList.add('open');window._dtlCurEl=today;}
   if(visible>=3)return;
-  var last=today;
-  for(var i=1;i<order.length;i++){
+  for(var i=0;i<order.length;i++){
     if(visible>=4)break;
     var c=count(order[i]);
     if(c===0)continue;
@@ -578,7 +576,7 @@ function dashCascadeExpand(){
     last=s;
     if(visible>=5)break;
   }
-  window._dtlCurEl=last;
+  if(last)window._dtlCurEl=last;
 }
 function dashTlStep(dir){
   var el=document.getElementById('dashTimeline');if(!el)return;

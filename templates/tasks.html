@@ -143,17 +143,19 @@
       </div>
       {% endfor %}
       {% if is_admin and assignment_counts %}
-      <hr style="margin:10px 0;border-color:var(--gray-100);">
-      <div class="px-2" style="font-size:.78rem;font-weight:600;color:var(--gray-700);margin-bottom:8px;"><i class="bi bi-pie-chart" style="color:var(--primary);"></i> 分配概览</div>
-      {% set user_task_counts = assignment_counts or {} %}
-      {% set max_count = user_task_counts.values()|max or 1 %}
-      {% for uname, count in (user_task_counts.items()|list)[:8] %}
-      <div class="d-flex align-items-center gap-2 mb-1" style="padding:0 4px;">
-        <span style="font-size:.68rem;min-width:50px;" class="text-truncate">{{ uname }}</span>
-        <div class="flex-grow-1"><div class="progress-custom" style="height:4px;"><div class="progress-custom-bar" style="width:{{ (count / max_count * 100)|round }}%;background:var(--primary);"></div></div></div>
-        <small style="font-size:.62rem;min-width:1.5em;text-align:right;">{{ count }}</small>
+      <div class="assign-overview">
+        <hr style="margin:10px 0;border-color:var(--gray-100);">
+        <div class="px-2" style="font-size:.78rem;font-weight:600;color:var(--gray-700);margin-bottom:8px;"><i class="bi bi-pie-chart" style="color:var(--primary);"></i> 分配概览</div>
+        {% set user_task_counts = assignment_counts or {} %}
+        {% set max_count = user_task_counts.values()|max or 1 %}
+        {% for uname, count in (user_task_counts.items()|list)[:8] %}
+        <div class="d-flex align-items-center gap-2 mb-1" style="padding:0 4px;">
+          <span style="font-size:.68rem;min-width:50px;" class="text-truncate">{{ uname }}</span>
+          <div class="flex-grow-1"><div class="progress-custom" style="height:4px;"><div class="progress-custom-bar" style="width:{{ (count / max_count * 100)|round }}%;background:var(--primary);"></div></div></div>
+          <small style="font-size:.62rem;min-width:1.5em;text-align:right;">{{ count }}</small>
+        </div>
+        {% endfor %}
       </div>
-      {% endfor %}
       {% endif %}
     </div>
   </div>
@@ -1385,8 +1387,8 @@ document.addEventListener('DOMContentLoaded', function () {
   .tasks-layout>.tasks-panel:first-child .card-body{flex-direction:row;align-items:center;gap:6px;overflow-x:auto;overflow-y:hidden;padding:8px 10px;-webkit-overflow-scrolling:touch;}
   .tasks-layout>.tasks-panel:first-child .cat-item{flex-shrink:0;margin:0;padding:6px 13px;border-radius:100px;background:var(--gray-50);border:1px solid var(--gray-100);white-space:nowrap;}
   .tasks-layout>.tasks-panel:first-child .cat-item.active{background:var(--primary-light);border-color:var(--primary);}
-  .tasks-layout>.tasks-panel:first-child hr,
-  .tasks-layout>.tasks-panel:first-child .card-body>div.px-2{display:none;}
+  /* 移动端隐藏整个分配概览(含标题与数据行) */
+  .tasks-layout>.tasks-panel:first-child .assign-overview{display:none;}
   /* 创建输入栏吸底(bottom-nav之上) */
   .tasks-layout>.tasks-panel:nth-child(2) .card-footer{
     position:sticky;z-index:60;background:#fff;

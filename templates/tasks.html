@@ -582,7 +582,7 @@ function renderTimeline(el,jump){
       var isCompleted=t.display==='completed';
       html+='<div class="tl-card '+t.display+'" id="tl-'+t.id+'">';
       html+='<div style="display:flex;align-items:flex-start;gap:6px;">';
-      html+='<input type="checkbox" class="form-check-input tl-check" style="flex-shrink:0;" '+(isCompleted?'checked':'')+' data-aid="'+t.assignment_id+'" aria-label="标记完成:'+esc(t.title)+'">';
+      html+='<input type="checkbox" class="form-check-input tl-check" style="flex-shrink:0;" '+(isCompleted?'checked disabled':'')+' data-aid="'+t.assignment_id+'" aria-label="标记完成:'+esc(t.title)+'">';
       html+='<div style="flex:1;min-width:0;">';
       html+='<div class="tl-card-time">'+esc(t.start_time.substring(5,16))+' - '+esc(t.end_time.substring(5,16))+'</div>';
       html+='<div class="tl-card-title" data-id="'+t.id+'" role="button" tabindex="0" aria-label="编辑任务:'+esc(t.title)+'" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">'+esc(t.title)+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';

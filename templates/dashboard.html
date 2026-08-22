@@ -313,7 +313,7 @@
           <div id="calTooltipTitle" class="cal-tooltip-title"></div>
           <div id="calTooltipList" class="cal-tooltip-list"></div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:0;text-align:center;margin-bottom:0;">
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:0;text-align:center;margin-bottom:0;margin-top:8px;">
           <span style="font-size:.6rem;color:#999;font-weight:600;">一</span>
           <span style="font-size:.6rem;color:#999;font-weight:600;">二</span>
           <span style="font-size:.6rem;color:#999;font-weight:600;">三</span>
@@ -498,7 +498,7 @@ function dashRenderTimeline(jump){
   order.forEach(function(s){var g=groups[s];if(!g||!g.items||!g.items.length)return;html+='<div class="tl-section '+s+'" data-s="'+s+'"><div class="tl-section-hd" role="button" tabindex="0" aria-label="展开'+esc(g.label)+'的待办" onclick="tlSecDashJump(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}"><div class="tl-section-dot"></div><span class="tl-section-label">'+esc(g.label)+'</span><span class="tl-section-count">'+g.items.length+'</span></div><div class="tl-items">';
   g.items.forEach(function(t){var color=catColors[t.category]||'var(--primary)';var isCompleted=t.display==='completed';var desc=t.description||'';var hasDesc=desc.length>0;var taskDate=t.start_time?t.start_time.substring(0,10):'';
   html+='<div class="tl-card '+t.display+'" id="dtl-'+t.id+'" data-date="'+taskDate+'"><div style="display:flex;align-items:flex-start;gap:6px;">';
-  html+='<input type="checkbox" class="form-check-input tl-check" style="flex-shrink:0;" '+(isCompleted?'checked':'')+' data-aid="'+t.assignment_id+'" aria-label="标记完成:'+esc(t.title)+'">';
+  html+='<input type="checkbox" class="form-check-input tl-check" style="flex-shrink:0;" '+(isCompleted?'checked disabled':'')+' data-aid="'+t.assignment_id+'" aria-label="标记完成:'+esc(t.title)+'">';
   html+='<div style="flex:1;min-width:0;"><div class="tl-card-time">'+esc(t.start_time.substring(5,16))+' - '+esc(t.end_time.substring(5,16))+'</div>';
   html+='<div class="tl-card-title" data-id="'+t.id+'" role="button" tabindex="0" aria-label="查看任务:'+esc(t.title)+'" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">'+esc(t.title)+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
   if(hasDesc){var shortDesc=desc.length>50?desc.substring(0,50)+'...':desc;html+='<div class="dash-card-desc" style="font-size:.72rem;color:var(--gray-500);margin-top:2px;cursor:pointer;" data-full="'+esc(desc)+'">'+esc(shortDesc)+'</div>';}

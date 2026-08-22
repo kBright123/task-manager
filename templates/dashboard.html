@@ -70,8 +70,8 @@
     /* 触屏点日期: 底部弹层展示当日待办 */
     #calSheetMask{display:block;position:fixed;inset:0;background:rgba(20,20,30,.4);opacity:0;pointer-events:none;transition:opacity .25s ease;z-index:1290;}
     #calSheetMask.show{opacity:1;pointer-events:auto;}
-    #calSheet{display:flex;flex-direction:column;position:fixed;left:0;right:0;bottom:var(--bottom-nav-height,0px);max-height:min(60vh,480px);z-index:1300;background:#fff;border-radius:16px 16px 0 0;box-shadow:0 -10px 34px rgba(0,0,0,.22);transform:translateY(110%);transition:transform .28s cubic-bezier(.22,.61,.36,1);border:1px solid var(--gray-200);border-bottom:none;}
-    #calSheet.open{transform:translateY(0);}
+    #calSheet{display:flex;flex-direction:column;position:fixed;left:0;right:0;bottom:var(--bottom-nav-height,0px);max-height:min(60vh,480px);z-index:1300;background:#fff;border-radius:16px 16px 0 0;box-shadow:0 -10px 34px rgba(0,0,0,.22);transform:translateY(110%);visibility:hidden;pointer-events:none;transition:transform .28s cubic-bezier(.22,.61,.36,1),visibility .28s;border:1px solid var(--gray-200);border-bottom:none;}
+    #calSheet.open{transform:translateY(0);visibility:visible;pointer-events:auto;}
     .cal-sheet-grip{flex-shrink:0;width:44px;height:5px;border-radius:3px;background:var(--gray-300);margin:8px auto 2px;}
     .cal-sheet-hd{flex-shrink:0;display:flex;align-items:center;gap:8px;padding:4px 14px 6px;}
     #calSheetList{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:2px 14px;font-size:.78rem;}

@@ -59,12 +59,13 @@
     .dash-col>.card{display:flex;flex-direction:column;margin-bottom:0!important;min-height:0;height:100%;}
     #calCard{flex:1;min-height:0;overflow:hidden;}
     #calCard>.card-body{flex:1 1 0;display:flex;flex-direction:column;min-height:0;padding-bottom:10px;overflow-y:auto;}
-    /* 日历格子紧凑自然高, 余量留卡底, 不随列拉伸变形 */
-    #calGrid{flex:0 0 auto;grid-auto-rows:minmax(30px,auto);align-content:start;}
+    /* 日历与时间轴等高: 格子均分剩余高度(一屏锁定下不再变形) */
+    #calGrid{flex:1 1 0;min-height:0;grid-auto-rows:minmax(30px,1fr);align-content:stretch;}
     #calGrid .cal-cell{aspect-ratio:auto;height:auto;min-height:30px;}
     /* 时间轴内部滚动(滚动条细化) */
     #dashTimeline{max-height:none!important;height:auto!important;min-height:60px!important;flex:1 1 0;display:flex;flex-direction:column;overflow:hidden;}
-    #dashTimeline .tl-wrap{flex:1 1 0;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+    #dashTimeline .tl-wrap{flex:1 1 0;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:28px;}
+    .tl-wrap .tl-section:last-child{margin-bottom:10px;}
     .tl-wrap,#calCard>.card-body{scrollbar-width:thin;scrollbar-color:var(--gray-300) transparent;}
     .tl-wrap::-webkit-scrollbar,#calCard>.card-body::-webkit-scrollbar{width:6px;height:6px;}
     .tl-wrap::-webkit-scrollbar-thumb,#calCard>.card-body::-webkit-scrollbar-thumb{background:var(--gray-300);border-radius:3px;}

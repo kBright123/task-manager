@@ -63,6 +63,9 @@
    .task-bubble .bbl.expanded{-webkit-line-clamp:unset;overflow:visible;}
    .task-bubble .bbl-more{font-size:.72rem;color:var(--primary);margin-top:3px;cursor:pointer;user-select:none;}
     .task-bubble .bbl-more:hover{text-decoration:underline;}
+    /* 桌面端发布栏微调: 略收底边距, 示例文字缩小一号 */
+    .tasks-layout>.tasks-panel:nth-child(2) .card-footer{padding:9px 14px 10px;}
+    .tasks-layout>.tasks-panel:nth-child(2) .form-control::placeholder{font-size:.7rem;}
     .tasks-layout > .tasks-panel .card-footer{border-top:1px solid var(--gray-100);}
     /* 时间轴视图 - 分段式 */
     .tl-wrap{position:relative;overflow-y:auto;flex:1;padding:12px 12px 12px 16px;}

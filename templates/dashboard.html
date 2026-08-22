@@ -496,8 +496,7 @@ function openEditTaskDrawer(){
 }
 
 var _dashShowCompleted=false;var _tlFilter=null;
-var _tlCache=[];var _tlStage=0;var _tlBusy=false;
-var TL_STAGE_DAYS=[7,31,0];
+var _tlCache=[];
 function tlDateStr(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function tlJumpToday(el){
   var wrap=el.querySelector('.tl-wrap')||el;
@@ -508,12 +507,9 @@ function tlJumpToday(el){
 function dashRenderTimeline(jump){
   var el=document.getElementById('dashTimeline');if(!el)return;
   var tasks=_tlCache;
-  var cut=(!_tlFilter)?TL_STAGE_DAYS[_tlStage]:0;
-  if(cut){var lim=tlDateStr(new Date(Date.now()-cut*86400000));tasks=tasks.filter(function(t){return !t.ref_date||t.ref_date>=lim;});}
-  var hidden=_tlCache.length-tasks.length;
   if(!tasks.length){
     el.innerHTML='<div class="tl-empty"><i class="bi bi-calendar-x"></i>'+
-      (hidden>0?'暂无近期待办 · 向上滚动加载更早的 '+hidden+' 条':(_tlFilter?'该日暂无待办任务':'暂无待办任务'))+'</div>';
+      (_tlFilter?'该日暂无待办任务':'暂无待办任务')+'</div>';
     return;
   }
   var catColors={'工作':'var(--primary)','个人':'var(--success)','会议':'var(--meeting)','培训':'var(--training)','考试':'var(--exam)'};
@@ -530,9 +526,12 @@ function dashRenderTimeline(jump){
   html+='</div></div></div>';});html+='</div></div>';});html+='</div>';
   el.innerHTML=html;
   var wrap=el.querySelector('.tl-wrap')||el;
-  if(jump)tlJumpToday(el);
+  if(jump){
+    dashCascadeExpand();
+    tlJumpToday(el);
+  }
   dashAccordion(true);
-  wrap.onscroll=function(){if(!_tlBusy&&_tlStage<TL_STAGE_DAYS.length-1&&!_tlFilter&&wrap.scrollTop<=2)dashTlExpand();dashAccordion(false);};
+  wrap.onscroll=function(){dashAccordion(false);};
   if(!wrap._tlGestureBound){
     wrap._tlGestureBound=true;
     var accY=null;
@@ -579,28 +578,32 @@ function dashAccordion(force){
   // 目标分区头在视口上方时补偿展开高度, 防视图跳动
   var compensate=cur.offsetTop<wrap.scrollTop;
   var before=wrap.scrollHeight;
-  secs.forEach(function(s){s.classList.toggle('open',s===cur);});
+  if(!cur.classList.contains('open'))cur.classList.add('open');
   if(compensate)wrap.scrollTop+=wrap.scrollHeight-before;
 }
 // 分区步进(滚轮/触摸兜底, 首页): 折叠态内容不足一屏无滚动量, 在边界继续滑动即切换分区
-// 分区→所需数据窗口(天): 过去侧分区被访问时自动升级阶段, 数据本已全量在缓存
-var DASH_SEC_NEED={past_month:31,past:0};
-function dashEnsureData(secKey){
-  if(!(secKey in DASH_SEC_NEED))return false;
-  var curCut=TL_STAGE_DAYS[_tlStage];
-  if(curCut===0||curCut>DASH_SEC_NEED[secKey])return false;
-  var i=_tlStage;
-  while(i<TL_STAGE_DAYS.length-1&&TL_STAGE_DAYS[i]!==0&&TL_STAGE_DAYS[i]<DASH_SEC_NEED[secKey])i++;
-  if(TL_STAGE_DAYS[i]!==0&&TL_STAGE_DAYS[i]<DASH_SEC_NEED[secKey])return false;
-  var el=document.getElementById('dashTimeline');if(!el)return false;
+// 初始级联展开(首页): 今天少于3条时沿未来方向展开分区, 直到可见约3-5条
+function dashCascadeExpand(){
+  var el=document.getElementById('dashTimeline');if(!el)return;
   var wrap=el.querySelector('.tl-wrap')||el;
-  var keepSec=window._dtlCurEl?window._dtlCurEl.getAttribute('data-s'):null;
-  var prevTop=wrap.scrollTop;
-  _tlBusy=true;_tlStage=i;dashRenderTimeline(false);_tlBusy=false;
-  wrap=el.querySelector('.tl-wrap')||el;
-  if(keepSec){var s2=wrap.querySelector('.tl-section[data-s="'+keepSec+'"]');if(s2){window._dtlCurEl=s2;s2.classList.add('open');}}
-  wrap.scrollTop=Math.min(prevTop,wrap.scrollHeight);
-  return true;
+  var order=['today','tomorrow','future_week','future_month','later'];
+  var count=function(k){var s=wrap.querySelector('.tl-section.'+k);return s?s.querySelectorAll('.tl-card').length:0;};
+  var first=wrap.querySelector('.tl-section.today');
+  var visible=count('today');
+  if(!first||visible===0)return;
+  if(visible>=3){window._dtlCurEl=first;return;}
+  var last=first;
+  for(var i=1;i<order.length;i++){
+    if(visible>=4)break;
+    var c=count(order[i]);
+    if(c===0)continue;
+    var s=wrap.querySelector('.tl-section.'+order[i]);
+    s.classList.add('open');
+    visible+=c;
+    last=s;
+    if(visible>=5)break;
+  }
+  window._dtlCurEl=last;
 }
 function dashTlStep(dir){
   var el=document.getElementById('dashTimeline');if(!el)return;
@@ -610,42 +613,24 @@ function dashTlStep(dir){
   var idx=secs.indexOf(window._dtlCurEl);
   var nxt=secs[Math.min(Math.max((idx<0?0:idx)+dir,0),secs.length-1)];
   if(nxt===window._dtlCurEl)return;
-  if(dashEnsureData(nxt.getAttribute('data-s'))){
-    wrap=el.querySelector('.tl-wrap')||el;
-    nxt=wrap.querySelector('.tl-section[data-s="'+nxt.getAttribute('data-s')+'"]')||nxt;
-    secs=[].slice.call(wrap.querySelectorAll('.tl-section'));
-  }
   var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
   window._dtlCurEl=nxt;
   window._dtlStepping=true;
-  secs.forEach(function(s){s.classList.toggle('open',s===nxt);});
+  if(!nxt.classList.contains('open'))nxt.classList.add('open');
   wrap.scrollTo({top:Math.max(nxt.offsetTop-6,0),behavior:reduce?'auto':'smooth'});
   setTimeout(function(){window._dtlStepping=false;},400);
 }
-// 点击时间点标题(首页): 立即展开并平滑滚到该分区
+// 点击时间点标题(首页): 已展开则折叠, 未展开则展开并平滑滚到该分区
 function tlSecDashJump(hd){
   var sec=hd.closest('.tl-section');
   if(!sec)return;
   var el=document.getElementById('dashTimeline');if(!el)return;
   var wrap=el.querySelector('.tl-wrap')||el;
-  if(dashEnsureData(sec.getAttribute('data-s'))){
-    wrap=el.querySelector('.tl-wrap')||el;
-    sec=wrap.querySelector('.tl-section[data-s="'+sec.getAttribute('data-s')+'"]')||sec;
-    window._dtlCurEl=sec;sec.classList.add('open');
-  }
+  var wasOpen=sec.classList.contains('open');
+  sec.classList.toggle('open',!wasOpen);
+  window._dtlCurEl=sec;
   var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
   wrap.scrollTo({top:Math.max(sec.offsetTop-6,0),behavior:reduce?'auto':'smooth'});
-}
-function dashTlExpand(){
-  if(_tlBusy||_tlStage>=TL_STAGE_DAYS.length-1)return;
-  var el=document.getElementById('dashTimeline');
-  var wrap=el.querySelector('.tl-wrap')||el;
-  var keep=wrap.scrollHeight-wrap.scrollTop;
-  _tlBusy=true;_tlStage++;
-  dashRenderTimeline(false);
-  var w2=el.querySelector('.tl-wrap')||el;
-  w2.scrollTop=w2.scrollHeight-keep;
-  _tlBusy=false;
 }
 function dashLoadTimeline(keepView){
   _dashShowCompleted=document.getElementById('dashShowCompleted')?.checked||false;

@@ -423,8 +423,16 @@ def _task_display_and_section(t, status, now, ref=None):
     diff_days = (ref_date - today_date).days
     if display == 'abandoned':
         section, section_label = 'abandoned', '已废弃'
-    elif diff_days < -31:
+    elif diff_days < -365:
         section, section_label = 'past', '更早'
+    elif diff_days < -180:
+        section, section_label = 'past_year', '过去一年'
+    elif diff_days < -90:
+        section, section_label = 'past_half_year', '过去半年'
+    elif diff_days < -60:
+        section, section_label = 'past_three_months', '过去三个月'
+    elif diff_days < -31:
+        section, section_label = 'past_two_months', '过去两个月'
     elif diff_days < -7:
         section, section_label = 'past_month', '过去一个月'
     elif diff_days < 0:

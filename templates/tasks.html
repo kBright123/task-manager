@@ -570,7 +570,7 @@ function tlfExpand(){
 }
 function renderTimeline(el,jump){
   var catColors={'工作':'var(--primary)','个人':'var(--success)','会议':'var(--meeting)','培训':'var(--training)','考试':'var(--exam)'};
-  var sectionOrder=['past','past_month','past_week','today','tomorrow','this_week','next_week','this_month','later'];
+   var sectionOrder=['past','past_year','past_half_year','past_three_months','past_two_months','past_month','past_week','today','tomorrow','this_week','next_week','this_month','later'];
   var tasks=_tlfCache;
   var cut=TLF_STAGE_DAYS[_tlfStage];
   if(cut){var lim=tlfDateStr(new Date(Date.now()-cut*86400000));tasks=tasks.filter(function(t){return !t.ref_date||t.ref_date>=lim;});}

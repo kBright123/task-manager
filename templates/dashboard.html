@@ -517,7 +517,7 @@ function dashRenderTimeline(jump){
     return;
   }
   var catColors={'工作':'var(--primary)','个人':'var(--success)','会议':'var(--meeting)','培训':'var(--training)','考试':'var(--exam)'};
-  var order=['past','past_month','past_week','today','tomorrow','this_week','next_week','this_month','later'];var groups={};
+   var order=['past','past_year','past_half_year','past_three_months','past_two_months','past_month','past_week','today','tomorrow','this_week','next_week','this_month','later'];var groups={};
   tasks.forEach(function(t){if(t.display==='abandoned')return;var s=t.section||'later';if(!groups[s])groups[s]={label:t.section_label,items:[]};groups[s].items.push(t);});
   var html='<div class="tl-wrap"><div class="tl-axis"></div>';
   order.forEach(function(s){var g=groups[s];if(!g||!g.items||!g.items.length)return;html+='<div class="tl-section '+s+'"><div class="tl-section-hd" role="button" tabindex="0" aria-label="展开'+esc(g.label)+'的待办" onclick="tlSecDashJump(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}"><div class="tl-section-dot"></div><span class="tl-section-label">'+esc(g.label)+'</span><span class="tl-section-count">'+g.items.length+'</span></div><div class="tl-items">';

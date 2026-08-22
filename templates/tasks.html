@@ -378,7 +378,7 @@
       <form method="POST" class="d-flex gap-2" onsubmit="return false;">
         <input type="hidden" name="action" value="preview">
         <div style="position:relative;flex:1;min-width:0;">
-          <textarea name="text" class="form-control form-control-sm" rows="1" id="adminTaskText" placeholder="例：开发登录功能 从明天上午9点开始 到下周五下午6点结束 发给张三、李四（输入 @ 选择人员，自动解析标题、时间、分配，支持每周/每月/每年周期待办）" style="font-size:.78rem;resize:none;overflow-y:auto;">{% if original_text %}{{ original_text }}{% endif %}</textarea>
+          <textarea name="text" class="form-control form-control-sm" rows="1" id="adminTaskText" placeholder="例：开发登录功能从明天上午9点开始到下周五下午6点结束 发给张三、李四（自动解析标题、时间、分配人，支持周月年周期待办）" style="font-size:.78rem;resize:none;overflow-y:auto;">{% if original_text %}{{ original_text }}{% endif %}</textarea>
           <div id="mentionDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:180px;overflow-y:auto;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:1000;margin-top:2px;"></div>
         </div>
         <button type="button" class="btn btn-sm btn-primary" id="taskParseBtn" onclick="taskParse(this)" style="white-space:nowrap;flex-shrink:0;padding:4px 14px;font-size:.8rem;"><i class="bi bi-send"></i> 发布</button>

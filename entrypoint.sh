@@ -39,6 +39,45 @@ install_deps() {
 
 install_deps &
 
+# ===== jionlp 启动预装(阻塞至完成/超时, 以root运行可写site-packages; 失败不阻断启动) =====
+# KB_PREINSTALL=0 关闭; KB_AUTOPIP_TIMEOUT 秒数(默认600); KB_PIP_MIRROR 镜像(默认清华, 置空用官方源)
+if [ "${KB_PREINSTALL:-1}" = "1" ]; then
+  if python -c "import jionlp" >/dev/null 2>&1; then
+    echo "[entrypoint][jionlp] 已安装, 跳过预装"
+  else
+    PIP_TIMEOUT="${KB_AUTOPIP_TIMEOUT:-600}"
+    MIRROR="${KB_PIP_MIRROR-https://pypi.tuna.tsinghua.edu.cn/simple}"
+    LOG=/app/instance/jionlp_pip.log
+    mkdir -p /app/instance 2>/dev/null || true
+    echo "== $(date '+%F %T') pip install jionlp (timeout=${PIP_TIMEOUT}s mirror=${MIRROR:-pypi官方}) ==" > "$LOG" 2>/dev/null || LOG=/tmp/jionlp_pip.log
+    echo "[entrypoint][jionlp] 开始预装(超时${PIP_TIMEOUT}s, 源:${MIRROR:-pypi官方})..."
+    START=$(date +%s)
+    set +e
+    if [ -n "$MIRROR" ]; then
+      timeout "$PIP_TIMEOUT" python -m pip install --no-cache-dir \
+        -i "$MIRROR" --trusted-host pypi.tuna.tsinghua.edu.cn \
+        'jionlp>=1.5.29' >> "$LOG" 2>&1
+    else
+      timeout "$PIP_TIMEOUT" python -m pip install --no-cache-dir \
+        'jionlp>=1.5.29' >> "$LOG" 2>&1
+    fi
+    RC=$?
+    set -e
+    ELAPSED=$(( $(date +%s) - START ))
+    echo "[entrypoint][jionlp] 结束 rc=${RC} 耗时${ELAPSED}s (完整日志: ${LOG})"
+    if [ "$RC" -eq 0 ]; then
+      echo "[entrypoint][jionlp] 预装成功"
+    elif [ "$RC" -eq 124 ]; then
+      echo "[entrypoint][jionlp] 判定: 超时=网络过慢/被墙, 日志尾部:" >&2
+      tail -n 15 "$LOG" >&2 || true
+    else
+      echo "[entrypoint][jionlp] 判定: 无法下载(DNS/源不可达/权限), rc=${RC}, 日志尾部:" >&2
+      tail -n 25 "$LOG" >&2 || true
+    fi
+    chown appuser:appuser "$LOG" 2>/dev/null || true
+  fi
+fi
+
 # ===== 权限修复（针对挂载文件） =====
 # bind mount 的文件保留宿主属主/权限。若容器内以 root 运行仍不可读, 通常是
 # rootless/podman 或 userns-remap(容器 root ≠ 宿主 root), 容器内 chown/chmod

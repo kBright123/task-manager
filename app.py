@@ -1750,24 +1750,48 @@ def _pip_install_cmd():
 
 
 def _try_install_jionlp(timeout_s):
-    """同步安装 jionlp(供懒加载与后台预装共用); 成功返回 True。"""
+    """同步安装 jionlp(供懒加载与后台预装共用); 成功返回 True。
+
+    完整 pip 输出追加到 instance/jionlp_pip.log; 日志区分 超时(网络慢) 与 失败(无法下载)。
+    """
     import subprocess
     log = logging.getLogger(__name__)
-    log.warning('jionlp 未安装, 尝试自动 pip 安装(超时 %ss)...', timeout_s)
+    cmd = _pip_install_cmd()
+    log.warning('[jionlp] 未安装, 开始自动安装(超时%.0fs): %s', timeout_s, ' '.join(cmd))
+    logf = None
     try:
-        subprocess.run(_pip_install_cmd(), timeout=timeout_s, check=False)
-    except Exception as e:
-        log.warning('jionlp 自动安装失败(%s), 时间字段回退旧正则解析; '
-                    '建议重建镜像内置依赖或配置 KB_PIP_MIRROR', e)
-        return False
-    try:
-        import jionlp as jio_mod
-        if jio_mod:
-            log.warning('jionlp 自动安装完成, 时间语义解析已启用')
-            return True
+        _inst = os.path.join(os.getcwd(), 'instance')
+        os.makedirs(_inst, exist_ok=True)
+        logf = open(os.path.join(_inst, 'jionlp_pip.log'), 'a', encoding='utf-8')
+        logf.write('\n== %s %s ==\n' % (
+            datetime.now().strftime('%Y-%m-%d %H:%M:%S'), ' '.join(cmd)))
     except Exception:
-        pass
-    return False
+        logf = None
+    t0 = time.time()
+    try:
+        r = subprocess.run(cmd, timeout=timeout_s, check=False,
+                           stdout=(logf or subprocess.DEVNULL),
+                           stderr=subprocess.STDOUT)
+        dt = time.time() - t0
+        if r.returncode == 0:
+            log.warning('[jionlp] 安装成功, 耗时%.1fs', dt)
+            return True
+        log.warning('[jionlp] 安装失败 rc=%s 耗时%.1fs → 无法下载(DNS/源/权限), '
+                    '详见 instance/jionlp_pip.log', r.returncode, dt)
+        return False
+    except subprocess.TimeoutExpired:
+        log.warning('[jionlp] 安装超时(上限%.0fs) → 网络过慢, '
+                    '详见 instance/jionlp_pip.log', timeout_s)
+        return False
+    except Exception as e:
+        log.warning('[jionlp] 安装异常(%s)', e)
+        return False
+    finally:
+        if logf:
+            try:
+                logf.close()
+            except Exception:
+                pass
 
 
 def _get_jionlp():

@@ -70,16 +70,18 @@
   @media (max-width:991px){
     /* 手机/平板: 解除时间轴内联限高, 取消双滚动 */
     #dashTimeline{max-height:none!important;height:auto!important;overflow:visible!important;}
-    /* 触屏点日期: 底部弹层展示当日待办 */
+    /* 底部弹层样式(实际仅 JS 在 <768 手机触发; Pad/PC 点日期直接筛选时间轴) */
     #calSheetMask{display:block;position:fixed;inset:0;background:rgba(20,20,30,.4);opacity:0;pointer-events:none;transition:opacity .25s ease;z-index:1290;}
     #calSheetMask.show{opacity:1;pointer-events:auto;}
-    #calSheet{display:flex;flex-direction:column;position:fixed;left:0;right:0;bottom:var(--bottom-nav-height,0px);max-width:520px;margin:0 auto;max-height:min(60vh,480px);z-index:1300;background:#fff;border-radius:16px 16px 0 0;box-shadow:0 -10px 34px rgba(0,0,0,.22);transform:translateY(110%);visibility:hidden;pointer-events:none;transition:transform .28s cubic-bezier(.22,.61,.36,1),visibility .28s;border:1px solid var(--gray-200);border-bottom:none;}
+    #calSheet{display:flex;flex-direction:column;position:fixed;left:0;right:0;bottom:var(--bottom-nav-height,0px);max-height:min(60vh,480px);z-index:1300;background:#fff;border-radius:16px 16px 0 0;box-shadow:0 -10px 34px rgba(0,0,0,.22);transform:translateY(110%);visibility:hidden;pointer-events:none;transition:transform .28s cubic-bezier(.22,.61,.36,1),visibility .28s;border:1px solid var(--gray-200);border-bottom:none;}
     #calSheet.open{transform:translateY(0);visibility:visible;pointer-events:auto;}
     .cal-sheet-btn{align-self:center;margin:8px 14px calc(10px + env(safe-area-inset-bottom,0px));padding:6px 18px;font-size:.78rem;}
     .cal-sheet-grip{flex-shrink:0;width:44px;height:5px;border-radius:3px;background:var(--gray-300);margin:8px auto 2px;}
     .cal-sheet-hd{flex-shrink:0;display:flex;align-items:center;gap:8px;padding:4px 14px 6px;}
     #calSheetList{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:2px 14px;font-size:.78rem;}
-    /* 日历格子移动端: 高度自适应, 节日名可读 */
+  }
+  @media (max-width:991px){
+    /* 日历格子移动端: 高度自适应, 节日名可读(Pad/PC不弹层但保留格子优化) */
     #calGrid{grid-auto-rows:minmax(44px,auto);}
     #calGrid .cal-cell{aspect-ratio:auto;height:auto;min-height:44px;padding:4px 0 16px;}
     .cal-hn{font-size:.56rem;}
@@ -783,7 +785,7 @@ function calDots(cnt){if(!cnt)return '';var c=cnt>=5?'#E06B6B':(cnt>=3?'#4A90D9'
     for(var day=1;day<=totalDays;day++){var ds=calYear+'-'+String(calMonth).padStart(2,'0')+'-'+String(day).padStart(2,'0');var isToday=ds===todayStr;var cnt=density[ds]||0;var tag=tags[ds]||null;var hn=(window._calHolidays||{})[ds];var cls='cal-cell';if(isToday)cls+=' today';if(hn)cls+=' holiday';html+='<div class="'+cls+'" data-date="'+ds+'" onclick="calSelect(this,\''+ds+'\')" onmouseenter="calShowTooltip(this,\''+ds+'\')" onmouseleave="calHideTooltip()"><span>'+day+'</span>';if(hn){html+='<span class="cal-hn">'+hn+'</span>';if(tag==='休')html+='<span class="cal-tag-rest">休</span>';}else if(tag==='休')html+='<span class="cal-tag-rest">休</span>';else if(tag==='班')html+='<span class="cal-tag-work">班</span>';html+=calDots(cnt);html+='</div>';}
     el.innerHTML=html;}).catch(function(e){el.innerHTML='<div style="grid-column:1/8;text-align:center;color:#999;font-size:.75rem;padding:20px;">'+(window.netErrMsg?netErrMsg(e):'加载失败')+'</div>';});}
 function calSelect(el,dateStr){
-  if(window.matchMedia('(hover: none)').matches){calSheetShow(el,dateStr);return;}
+  if(window.matchMedia('(hover: none)').matches&&window.innerWidth<768){calSheetShow(el,dateStr);return;}
   var was=el.classList.contains('selected');document.querySelectorAll('.cal-cell.selected').forEach(function(c){c.classList.remove('selected');});if(was||_tlFilter===dateStr){tlClearFilter();return;}el.classList.add('selected');_tlFilter=dateStr;dashLoadTimeline();}
 var _calSheetCell=null;
 function calSheetShow(el,dateStr){

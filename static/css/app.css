@@ -1173,6 +1173,23 @@
   .dropdown-item:hover, .dropdown-item:focus { background:var(--gray-100); color:var(--gray-700); }
   .btn-close { filter:invert(1) grayscale(1) brightness(1.6); }
   .email-reminder { background:linear-gradient(135deg,#16213f,#131c33) !important; border-color:#2c3a66 !important; }
+  /* --- 暗色补全第三轮: 工作台面板群/图谱与原文抽屉/认证卡/闪现条/状态徽章 --- */
+  .wb-panel,.graph-left,.kb-stat,.points-side,.points-detail,.kb-prev-frame,.preview-modal-sheet{background:#101a2d;}
+  .gd-drawer,.dd-drawer{background:#101a2d;border-color:var(--gray-200);}
+  .mention-box{background:#0d1524;border-color:var(--gray-300);}
+  .auth-card{background:#101a2d !important;}
+  .error-card{background:#101a2d;}
+  .flash-info{background:#12233f !important;color:#bcd3ff;}
+  .flash-warning{background:#33270f !important;color:#e7c66b;}
+  .flash-danger{background:#2a1114 !important;color:#f1b8bc;}
+  .status-pending{background:#3a2a10 !important;color:#f8b98a;}
+  .status-approved{background:#12233f !important;color:#9fc1ff;}
+  .status-rejected{background:#2a1114 !important;color:#f1b8bc;}
+  .badge-medium{background:#1b2547 !important;color:#a5b8ff;}
+  .badge-urgent{background:#3a1519 !important;color:#ffb3b8;}
+  .cal-picker-month:hover{background:#18233a;}
+  .pt-group-head:hover{background:var(--gray-100);}
+  .sys-bubble{background:#33270f;}
   .cal-cell.weekend { color:#7c8aa5; }
   .cal-hn { color:#e58b8b; }
   .text-muted { color: var(--gray-400) !important; }

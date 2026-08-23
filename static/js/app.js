@@ -125,7 +125,7 @@
                 '<div id="qtStepInput">' +
                   '<div class="modal-body">' +
                     '<div style="position:relative;">' +
-                      '<textarea id="qtText" class="form-control" rows="4" placeholder="例：开发登录功能 从明天上午9点开始 到下周五下午6点结束" style="font-size:.9rem;resize:none;"></textarea>' +
+                      '<textarea id="qtText" class="form-control" rows="4" placeholder="输入待办，@选择人员 · 自动解析标题/时间/分配，支持每周/每月/每年重复\n例：开发登录功能 明天9点到下周五18点 @张三 @李四" style="font-size:.84rem;resize:none;"></textarea>' +
                     '</div>' +
                     '<div class="mt-2"><small style="color:var(--gray-500);font-size:.72rem;"><i class="bi bi-info-circle"></i> 输入 @ 选择人员，自动解析标题、时间、分配</small></div>' +
                   '</div>' +

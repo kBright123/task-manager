@@ -49,7 +49,7 @@
   .cat-item.active { background: var(--primary-light); color: var(--primary); }
    .cat-item.overdue { color: var(--danger); }
    .cat-item.overdue .text-truncate { color: var(--danger); }
-   @keyframes flashTask { 0%,50% { background: #fff7c2; } 100% { background: transparent; } }
+   @keyframes flashTask { 0%,50% { background: rgba(255,183,77,.25); } 100% { background: transparent; } }
   /* --- 暗色模式补全(本页特有面) --- */
   [data-theme="dark"] .tasks-panel{background:#101a2d;}
   [data-theme="dark"] .task-bubble .bubble{background:#101a2d;}
@@ -389,7 +389,7 @@
     </div>
     {% endif %}
     <div class="tl-wrap" id="taskTimelineView"><div class="tl-axis"></div></div>
-    <div class="card-footer" style="background:#fafafa;padding:10px 14px 12px;">
+    <div class="card-footer" style="background:var(--gray-50);padding:10px 14px 12px;">
       <form method="POST" class="d-flex gap-2" onsubmit="return false;">
         <input type="hidden" name="action" value="preview">
         <div style="position:relative;flex:1;min-width:0;">

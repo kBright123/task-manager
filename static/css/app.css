@@ -1161,6 +1161,18 @@
   .cal-cell.today { background:#38202a; }
   .cal-cell.selected { background:#12293f; }
   .cal-cell.holiday { background:#2a1a22; }
+  /* --- 暗色补全第二轮: 抽屉/用户菜单/toast/表格/下拉项/关闭钮/邮箱横幅 --- */
+  .drawer { background:#101a2d; box-shadow:-8px 0 24px rgba(0,0,0,.5); }
+  .user-dropdown { background:#101a2d !important; border:1px solid var(--gray-200); }
+  #globalToast > div { background:#101a2d !important; border-color:var(--gray-200) !important; color:var(--gray-700) !important; }
+  .table { --bs-table-bg:#101a2d; --bs-table-color:var(--gray-700); border-color:var(--gray-200); }
+  .table > :not(caption) > * > * { background-color:#101a2d; color:var(--gray-700); border-color:var(--gray-200); }
+  .table-striped > tbody > tr:nth-of-type(odd) > * { --bs-table-accent-bg:#0d1524; }
+  .table-hover > tbody > tr:hover > * { --bs-table-accent-bg:#18233a; }
+  .dropdown-item { color:var(--gray-600); }
+  .dropdown-item:hover, .dropdown-item:focus { background:var(--gray-100); color:var(--gray-700); }
+  .btn-close { filter:invert(1) grayscale(1) brightness(1.6); }
+  .email-reminder { background:linear-gradient(135deg,#16213f,#131c33) !important; border-color:#2c3a66 !important; }
   .cal-cell.weekend { color:#7c8aa5; }
   .cal-hn { color:#e58b8b; }
   .text-muted { color: var(--gray-400) !important; }

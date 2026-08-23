@@ -22,10 +22,8 @@
 <style>
   .auth-logo { background: #fff; border: 1px solid var(--gray-200); transition: background .15s, border-color .15s; --auth-bg-color: #fff; --auth-stroke-url: url(#loginGradLight); }
   .auth-logo .auth-logo-stroke { stroke: var(--auth-stroke-url); }
-  @media (prefers-color-scheme: dark) {
-    .auth-logo { background: #1C1C1E; border-color: rgba(148, 163, 184, .25); --auth-bg-color: #1C1C1E; --auth-stroke-url: url(#loginGradDark); }
-    .auth-logo .auth-logo-stroke { stroke: var(--auth-stroke-url); }
-  }
+  [data-theme="dark"] .auth-logo { background: #1C1C1E; border-color: rgba(148, 163, 184, .25); --auth-bg-color: #1C1C1E; --auth-stroke-url: url(#loginGradDark); }
+  [data-theme="dark"] .auth-logo .auth-logo-stroke { stroke: var(--auth-stroke-url); }
 </style>
 {% endblock %}
 {% block full_content %}

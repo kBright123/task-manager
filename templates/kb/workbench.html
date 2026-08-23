@@ -1662,8 +1662,13 @@ function closeFrame() {
         n.symbolSize = Math.max(14, Math.min(46, (n.word_count || 200) / 40));
       });
       statusEl.textContent = nodes.length + ' 个知识点 · ' + edges.length + ' 条相似关联';
+      var _dk = document.documentElement.getAttribute('data-theme') === 'dark';
+      var _lab = _dk ? '#ccd6e8' : '#334155';
       chart.setOption({
         tooltip: {
+          backgroundColor: _dk ? '#101a2d' : '#fff',
+          borderColor: _dk ? '#26334d' : '#e2e8f0',
+          textStyle: { color: _dk ? '#ccd6e8' : '#334155' },
           formatter: function (p) {
             if (p.dataType === 'node') {
               return '<b>' + p.data.name + '</b><br/>' + (p.data.doc_title || '') + ' · ' + (p.data.word_count || 0) + ' 字';
@@ -1671,7 +1676,7 @@ function closeFrame() {
             return '相似度 ' + Math.round((p.data.value || 0) / 4 * 100) + '%';
           }
         },
-        legend: [{ type: 'scroll', orient: 'vertical', right: 10, top: 10, data: cats, textStyle: { fontSize: 11 } }],
+        legend: [{ type: 'scroll', orient: 'vertical', right: 10, top: 10, data: cats, textStyle: { fontSize: 11, color: _lab } }],
         series: [{
           type: 'graph',
           layout: 'force',
@@ -1681,9 +1686,9 @@ function closeFrame() {
           roam: true,
           draggable: true,
           force: { repulsion: 320, edgeLength: [60, 140], gravity: 0.08 },
-          label: { show: true, position: 'right', fontSize: 10, formatter: function (p) { var t = p.data.name || ''; return t.length > 10 ? t.slice(0, 10) + '…' : t; } },
+          label: { show: true, position: 'right', fontSize: 10, color: _lab, formatter: function (p) { var t = p.data.name || ''; return t.length > 10 ? t.slice(0, 10) + '…' : t; } },
           emphasis: { focus: 'adjacency', label: { show: true, fontSize: 13, fontWeight: 'bold' } },
-          lineStyle: { color: '#c7d2fe', width: 1, curveness: 0.15, opacity: 0.7 },
+          lineStyle: { color: _dk ? '#3a4a68' : '#c7d2fe', width: 1, curveness: 0.15, opacity: 0.7 },
           edgeSymbol: ['none', 'arrow'],
           edgeSymbolSize: 6
         }]

@@ -219,7 +219,7 @@ def restore_backup(name):
                 _replace_dir(soch, os.path.join(INSTANCE, 'kb_data',
                                                 'kb.soch'))
         try:
-            from knowledge import _bump_data_version
+            from kb.knowledge import _bump_data_version
             _bump_data_version()
         except Exception:
             pass

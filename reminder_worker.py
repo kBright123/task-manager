@@ -217,7 +217,7 @@ def _send_daily_summary(now):
         tasks_delta = new_tasks_yesterday - new_tasks_prev
         note_count = new_notes_yesterday = new_notes_prev = 0
         try:
-            from notes import Note
+            from routes.notes import Note
             if Note is not None:
                 note_count = Note.query.filter_by(
                     user_id=user.id).count()
@@ -234,7 +234,7 @@ def _send_daily_summary(now):
         notes_delta = new_notes_yesterday - new_notes_prev
         kb_count = new_docs_yesterday = new_docs_prev = 0
         try:
-            from knowledge import KbDocument
+            from kb.knowledge import KbDocument
             if KbDocument is not None:
                 kb_count = KbDocument.query.filter_by(
                     uploaded_by=user.id).count()

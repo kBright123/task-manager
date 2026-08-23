@@ -16,7 +16,14 @@
 
 # -*- coding: utf-8 -*-
 """admin 路由, 自 app.py 单文件拆分, 保持原 endpoint 名称不变。"""
-from app import app, login_required, init_db
+from app import (app, login_required, init_db, EmailRecord, Group,
+                 JOB_SCHEDULE_DEFAULTS, Notification, OperationLog, Task,
+                 TaskAssignment, User, _clear_cached_notifications,
+                 _count_kb, _count_notes,
+                 cn_now,
+                 create_notification, db, get_job_setting,
+                 get_same_group_users, log_operation, logger,
+                 seed_demo_data, set_job_setting, task_group, user_group)
 
 def admin_required(f):
     from functools import wraps
@@ -69,12 +76,22 @@ def get_overall_stats():
 
 
 
+from flask import flash, jsonify, redirect, render_template, request, url_for
+from flask_login import current_user
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
+import os
+from kb.knowledge import _log_op
+import re
+from datetime import datetime, timedelta
+
 @app.route('/admin/dashboard')
 @login_required
 @admin_required
 def admin_dashboard():
     stats = get_overall_stats()
     uid = current_user.id
+    now = cn_now()
     total = TaskAssignment.query.filter_by(user_id=uid).count()
     completed = TaskAssignment.query.filter_by(user_id=uid, status='completed').count()
     pending = TaskAssignment.query.filter_by(user_id=uid, status='pending').count()
@@ -97,7 +114,7 @@ def admin_dashboard():
     ).order_by(TaskAssignment.completed_at.desc()).limit(5).all()
     recent_tasks = Task.query.order_by(Task.created_at.desc()).limit(10).all()
 
-    now_dt = cn_now()
+    now_dt = now
     week_start = now_dt - timedelta(days=now_dt.weekday())
     week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
     today_start = now_dt.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -127,7 +144,7 @@ def admin_dashboard():
     new_docs_yesterday = 0
     new_docs_prev = 0
     try:
-        from notes import Note
+        from routes.notes import Note
         if Note is not None:
             new_notes_yesterday = Note.query.filter(
                 Note.created_at >= yesterday_start,
@@ -138,7 +155,7 @@ def admin_dashboard():
     except Exception:
         pass
     try:
-        from knowledge import KbDocument
+        from kb.knowledge import KbDocument
         if KbDocument is not None:
             new_docs_yesterday = KbDocument.query.filter(
                 KbDocument.created_at >= yesterday_start,
@@ -637,7 +654,7 @@ def admin_edit_task(task_id):
             task.start_time = datetime.strptime(start_str.replace('T', ' '), '%Y-%m-%d %H:%M')
         if end_str:
             task.end_time = datetime.strptime(end_str.replace('T', ' '), '%Y-%m-%d %H:%M')
-        from routes_tasks import _sync_task_assignees_from_form
+        from routes.tasks_pages import _sync_task_assignees_from_form
         _sync_task_assignees_from_form(task)
         db.session.commit()
         flash(f'待办 "{title}" 已更新', 'success')
@@ -706,7 +723,7 @@ def admin_approve_assignment(task_id, assignment_id):
 @login_required
 def api_jobs():
     """组织待办列表(管理页用,返回最近 job)。"""
-    from notes import NoteJob
+    from routes.notes import NoteJob
     jobs = NoteJob.query.order_by(NoteJob.created_at.desc()).limit(100).all()
     return jsonify({'ok': True, 'jobs': [_job_dict(j) for j in jobs]})
 
@@ -733,7 +750,7 @@ def _job_dict(j):
 @admin_required
 def admin_jobs_trigger():
     """后台手动触发整理待办(入队后由 job_worker 执行)。"""
-    from notes import NoteJob
+    from routes.notes import NoteJob
     scope = request.form.get('scope', 'all')
     if scope not in ('all', 'notes', 'kb', 'refine', 'cleanup', 'backup'):
         scope = 'all'
@@ -792,7 +809,7 @@ def admin_jobs_schedule():
 @admin_required
 def admin_jobs():
     """后台管理:定时任务/整理记录(执行记录分页显示)。"""
-    from notes import NoteJob
+    from routes.notes import NoteJob
     from backup import list_backups
     scope = request.args.get('scope', '')
     status = request.args.get('status', '')
@@ -882,7 +899,7 @@ def admin_backup_delete(name):
 @app.route('/admin/jobs/<int:job_id>/retry', methods=['POST'])
 @admin_required
 def admin_jobs_retry(job_id):
-    from notes import NoteJob
+    from routes.notes import NoteJob
     job = db.session.get(NoteJob, job_id)
     if not job:
         flash('待办不存在', 'danger')
@@ -903,7 +920,7 @@ def admin_jobs_retry(job_id):
 @app.route('/admin/jobs/<int:job_id>/stop', methods=['POST'])
 @admin_required
 def admin_jobs_stop(job_id):
-    from notes import NoteJob
+    from routes.notes import NoteJob
     job = db.session.get(NoteJob, job_id)
     if not job:
         flash('待办不存在', 'danger')

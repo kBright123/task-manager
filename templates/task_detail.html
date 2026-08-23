@@ -43,7 +43,7 @@
     <span class="badge bg-info d-none d-sm-inline" style="font-size:.7rem;">完成率 {{ rate }}%</span>
     {% if task.creator_id == current_user.id or task.is_all %}
     <button type="button" class="btn btn-sm btn-outline-secondary" style="padding:3px 8px;font-size:.75rem;" onclick="openEditModal()" title="编辑"><i class="bi bi-pencil"></i></button>
-    <form method="POST" action="{{ url_for('admin_delete_task', task_id=task.id) }}" style="display:inline;" onsubmit="return confirm('确定删除待办「{{ task.title }}」吗？')">
+    <form method="POST" action="{{ url_for('admin_delete_task', task_id=task.id) }}" style="display:inline;" onsubmit="uiConfirmSubmit(event,'确定删除待办「{{ task.title }}」吗？')">
       <button type="submit" class="btn btn-sm btn-outline-danger" style="padding:3px 8px;font-size:.75rem;" title="删除"><i class="bi bi-trash"></i></button>
     </form>
     {% endif %}

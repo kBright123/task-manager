@@ -16,7 +16,7 @@
 
 # -*- coding: utf-8 -*-
 """search 路由, 自 app.py 单文件拆分, 保持原 endpoint 名称不变。"""
-from app import app, login_required
+from app import (app, login_required, Task, TaskAssignment, cn_now, db)
 
 def _kb_path(name):
     """集合名(可能形如 '一级·二级')转展示路径: '/一级/二级'。"""
@@ -66,11 +66,11 @@ def _unified_search_data(q):
             'end_time': end.strftime('%Y-%m-%d %H:%M'),
             'priority': pri,
             'end_date': end.strftime('%m-%d'),
-            'detail_url': url_for('user_task_detail', task_id=a.task.id),
+            'detail_url': url_for('user_tasks') + '?highlight=' + str(a.task.id),
         })
 
     # 笔记(个人)
-    from notes import Note, parse_tags_json
+    from routes.notes import Note, parse_tags_json
     notes = Note.query.filter(Note.user_id == current_user.id).filter(
         db.or_(Note.title.like(pat), Note.content.like(pat))
     ).order_by(Note.created_at.desc()).limit(20).all()
@@ -89,7 +89,7 @@ def _unified_search_data(q):
     # 知识库(优先知识点,再补文档页;按当前用户可见范围过滤)
     kb = []
     try:
-        import knowledge as _kb
+        import kb.knowledge as _kb
         visible = _kb._visible_doc_ids()  # None=全部(管理员)
         visible_points = _kb._visible_point_ids()
         vp_set = set(visible_points) if visible_points is not None else None
@@ -97,8 +97,8 @@ def _unified_search_data(q):
 
         def _load_coll_names(ids):
             try:
-                from knowledge import KbCollection as _KbCollection
-                from knowledge import KbDocument as _KbDoc
+                from kb.knowledge import KbCollection as _KbCollection
+                from kb.knowledge import KbDocument as _KbDoc
                 return dict(
                     db.session.query(_KbDoc.id, _KbCollection.name)
                     .join(_KbCollection,
@@ -173,13 +173,18 @@ def _unified_search_data(q):
     total = len(tasks) + len(notes) + len(kb)
     if total > 0:
         try:
-            from knowledge import record_history
+            from kb.knowledge import record_history
             record_history('unified', q)
         except Exception as _e:
             app.logger.warning('record unified history failed: %s', _e)
     return {'q': q, 'tasks': tasks, 'notes': note_rows, 'kb': kb,
             'total': total}
 
+
+from flask import jsonify, render_template, request, url_for
+from flask_login import current_user
+import os
+from datetime import timedelta
 
 @app.route('/api/unified-search')
 @login_required
@@ -203,7 +208,7 @@ def unified_search_page():
 def api_unified_search_history():
     """首页统一检索的历史(当前用户最近 top5) + 热门标签。"""
     try:
-        from knowledge import get_recent_unified
+        from kb.knowledge import get_recent_unified
         items = get_recent_unified(current_user.id, 5)
     except Exception as _e:
         app.logger.warning('load unified history failed: %s', _e)
@@ -214,7 +219,7 @@ def api_unified_search_history():
 def _hot_tags(limit=6):
     """当前用户笔记中使用最多的标签(热门标签,供检索输入前推荐)。"""
     from collections import Counter
-    from notes import Note, parse_tags_json
+    from routes.notes import Note, parse_tags_json
     cnt = Counter()
     try:
         notes = Note.query.filter_by(user_id=current_user.id).order_by(
@@ -235,7 +240,7 @@ def _previews_map(doc_ids):
 
     替代逐条 _has_preview(每条一次 db.session.get + os.path.exists),
     一次 IN 查询 + 批量路径检查,消除检索结果渲染时的 N+1。"""
-    from knowledge import KbDocument, _resolve_stored_path
+    from kb.knowledge import KbDocument, _resolve_stored_path
     ids = sorted({int(i) for i in (doc_ids or []) if i})
     if not ids:
         return {}

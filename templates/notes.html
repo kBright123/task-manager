@@ -505,8 +505,8 @@ function saveEditInline(){
       else{alert(d.error||'保存失败');}
     });
 }
-function delNote(id){
-  if(!confirm('确认删除该笔记?'))return;
+async function delNote(id){
+  if(!(await uiConfirm('确认删除该笔记？')))return;
   fetch('/notes/api/notes/'+id,{method:'DELETE'}).then(r=>r.json()).then(function(d){
     if(d.ok){ if(curMeta&&curMeta.id===id){setMetaEmpty();} loadNotes(); }
   });

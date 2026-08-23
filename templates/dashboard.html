@@ -47,7 +47,7 @@
   .stat-card .stat-trend .trend-pill.down { color: #fee2e2; background: rgba(255,255,255,.18); }
   .stat-card .stat-trend .trend-pill.flat { color: rgba(255,255,255,.92); background: rgba(255,255,255,.12); }
   /* 时间轴 */
-  .tl-wrap{position:relative;overflow-y:auto;flex:1;padding:12px 12px 12px 16px;}
+  .tl-wrap{position:relative;overflow-y:auto;flex:1;padding:12px 12px 28px 16px;}
   /* 桌面端双栏铺满一屏: 时间轴与日历拉伸至视口剩余高度 */
   @media (min-width:768px){
     /* 纯CSS一屏(不依赖JS测量): 容器锁定视口高, 行弹性填充, 全链显式min-height:0 */
@@ -58,13 +58,13 @@
     .dash-col{height:100%;min-height:0;display:flex;flex-direction:column;}
     .dash-col>.card{display:flex;flex-direction:column;margin-bottom:0!important;min-height:0;height:100%;}
     #calCard{flex:1;min-height:0;overflow:hidden;}
-    #calCard>.card-body{flex:1 1 0;display:flex;flex-direction:column;min-height:0;padding-bottom:10px;overflow-y:auto;}
-    /* 日历与时间轴等高: 格子均分剩余高度(一屏锁定下不再变形) */
-    #calGrid{flex:1 1 0;min-height:0;grid-auto-rows:minmax(30px,1fr);align-content:stretch;}
-    #calGrid .cal-cell{aspect-ratio:auto;height:auto;min-height:30px;}
+    #calCard>.card-body{flex:1 1 0;display:flex;flex-direction:column;min-height:0;padding-bottom:max(14px,env(safe-area-inset-bottom));overflow-y:auto;}
+    /* 日历与时间轴等高: 格子均分剩余高度, 行高下限34px, 6行月份/矮视口时卡片体滚动而不是压扁末行 */
+    #calGrid{flex:1 1 0;min-height:0;grid-auto-rows:minmax(34px,1fr);align-content:stretch;}
+    #calGrid .cal-cell{aspect-ratio:auto;height:auto;min-height:34px;padding-bottom:12px;}
     /* 时间轴内部滚动(滚动条细化) */
     #dashTimeline{max-height:none!important;height:auto!important;min-height:60px!important;flex:1 1 0;display:flex;flex-direction:column;overflow:hidden;}
-    #dashTimeline .tl-wrap{flex:1 1 0;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:28px;}
+    #dashTimeline .tl-wrap{flex:1 1 0;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:max(34px,env(safe-area-inset-bottom));}
     .tl-wrap .tl-section:last-child{margin-bottom:10px;}
     .tl-wrap,#calCard>.card-body{scrollbar-width:thin;scrollbar-color:var(--gray-300) transparent;}
     .tl-wrap::-webkit-scrollbar,#calCard>.card-body::-webkit-scrollbar{width:6px;height:6px;}
@@ -142,7 +142,7 @@
   .cal-cell.today{box-shadow:inset 0 0 0 1.5px #E06B6B;background:#FFF5F5;}
   .cal-cell.selected{background:#EBF5FF;box-shadow:inset 0 0 0 2px #4A90D9;}
   .cal-cell.cal-other{color:#ccc;background:transparent;}
-  .cal-dots{display:flex;gap:2px;justify-content:center;margin-top:0;}
+  .cal-dots{display:flex;gap:2px;justify-content:center;position:absolute;left:0;right:0;bottom:4px;margin-top:0;}
   .cal-dot{border-radius:50%;}
   .cal-tag-work{position:absolute;top:1px;right:1px;width:18px;height:15px;background:#FFF3E0;color:#E65100;border-radius:2px;font-size:.48rem;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1;}
   .cal-hn{position:absolute;bottom:2px;left:0;right:0;font-size:.5rem;line-height:1.1;color:#E06B6B;font-weight:600;padding:0 1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -208,11 +208,11 @@
       <div id="qtStepInput">
         <div class="modal-body">
           <div style="position:relative;">
-            <textarea id="qtText" class="form-control" rows="4" placeholder="例：开发登录功能 从明天上午9点开始 到下周五下午6点结束 发给张三、李四" style="font-size:.9rem;resize:none;"></textarea>
+            <textarea id="qtText" class="form-control" rows="3" placeholder="输入待办，@选择人员&#10;例：开发登录功能 明天9点到下周五18点 @张三 @李四" style="font-size:.84rem;resize:none;"></textarea>
             <div id="qtMentionDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:180px;overflow-y:auto;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:1000;margin-top:2px;"></div>
           </div>
-          <div class="mt-2">
-            <small style="color:var(--gray-500);font-size:.72rem;"><i class="bi bi-info-circle"></i> 输入 @ 选择人员，自动解析标题、时间、分配，支持每周/每月/每年周期待办</small>
+          <div class="mt-1">
+            <small style="color:var(--gray-500);font-size:.66rem;"><i class="bi bi-info-circle"></i> 自动解析标题/时间/分配 · 支持每周、每月、每年重复</small>
           </div>
         </div>
         <div class="modal-footer py-2">
@@ -222,7 +222,7 @@
       </div>
       <div id="qtStepReview" style="display:none;">
         <div class="modal-body" style="font-size:.85rem;max-height:68vh;overflow-y:auto;">
-          <div id="qtDupWarn" class="mb-2"></div>
+          <div id="qtParserWarn" class="d-none" style="background:#FFF7E0;border:1px solid #F0D48A;color:#8A6D1A;border-radius:8px;padding:6px 10px;font-size:.72rem;margin-bottom:8px;"><i class="bi bi-exclamation-triangle"></i> 时间未能智能识别（已按旧规则解析），请手动核对开始/截止时间。</div><div id="qtDupWarn" class="mb-2"></div>
           <div class="mb-2">
             <label class="form-label" style="font-size:.8rem;">标题</label>
             <input type="text" id="qtTitle" class="form-control form-control-sm" maxlength="200" style="font-size:.85rem;">
@@ -296,11 +296,12 @@
 
 <!-- 随手记 -->
 <div class="modal fade" id="quickNoteModal" tabindex="-1">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header py-2"><span style="font-weight:600;"><i class="bi bi-pencil-square" style="color:var(--success);"></i> 随手记</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
         <textarea id="qnContent" class="form-control" rows="4" placeholder="记录点什么... 支持 Markdown"></textarea>
+        <input type="text" id="qnTags" class="form-control form-control-sm mt-2" placeholder="标签（逗号分隔，可留空）" style="font-size:.78rem;">
         <small class="text-muted" style="font-size:.7rem;" id="qnHint"></small>
       </div>
       <div class="modal-footer py-2"><button class="btn btn-sm btn-primary" onclick="quickNote()"><i class="bi bi-check"></i> 保存</button></div>
@@ -345,7 +346,6 @@
       </div>
       <div class="card-body py-0 px-2" style="background:transparent;position:relative;padding-top:14px;padding-bottom:10px;">
         <div id="calPicker" class="cal-picker d-none"></div>
-        </div>
         <div id="calSheetMask" onclick="calSheetClose()"></div>
         <div id="calSheet">
           <div class="cal-sheet-grip"></div>
@@ -371,9 +371,6 @@
   </div>
 </div>
 
-  </div>
-</div>
-
 <!-- Task Detail Drawer -->
 <div class="drawer-overlay d-none" id="drawerOverlay" onclick="closeTaskDrawer()"></div>
 <div class="drawer d-none" id="taskDrawer">
@@ -384,23 +381,31 @@
     <button class="btn btn-sm btn-outline-secondary" style="border:none;font-size:1.2rem;" onclick="closeTaskDrawer()"><i class="bi bi-x"></i></button>
   </div>
   <div class="p-3" id="drawerBody">
+    <div class="d-flex flex-wrap gap-2 mb-2">
+      <form id="drawerCompleteForm" method="POST">
+        <button class="btn btn-sm btn-success" id="drawerCompleteBtn" style="padding:2px 10px;font-size:.7rem;"><i class="bi bi-check-lg"></i> 完成</button>
+      </form>
+      <form id="drawerReopenForm" method="POST" style="display:none;">
+        <button class="btn btn-sm btn-outline-warning" style="padding:2px 10px;font-size:.7rem;"><i class="bi bi-arrow-repeat"></i> 重新打开</button>
+      </form>
+      <button class="btn btn-sm btn-outline-primary" style="padding:2px 10px;font-size:.7rem;" onclick="openEditTaskDrawer()"><i class="bi bi-pencil"></i> 编辑</button>
+      <form id="drawerAbandonForm" method="POST" onsubmit="uiConfirmSubmit(event,'确认废弃此待办？')">
+        <button class="btn btn-sm btn-outline-danger" style="padding:2px 10px;font-size:.7rem;"><i class="bi bi-x-circle"></i> 废弃</button>
+      </form>
+      <form id="drawerDeleteForm" onsubmit="return dashDeleteSubmit(event)">
+        <button class="btn btn-sm btn-outline-danger" style="padding:2px 10px;font-size:.7rem;"><i class="bi bi-trash"></i> 删除</button>
+      </form>
+    </div>
     <p id="drawerDesc" style="font-size:.84rem;color:var(--gray-600);margin-bottom:12px;display:none;"></p>
     <div class="d-flex justify-content-between mb-2" style="font-size:.8rem;">
       <span><span class="text-muted">开始</span> <strong id="drawerStart"></strong></span>
       <span><span class="text-muted">截止</span> <strong id="drawerEnd"></strong></span>
     </div>
-    <div class="d-flex align-items-center gap-2 mb-2">
-      <div class="flex-grow-1">
-        <div class="progress-custom" style="height:6px;">
-          <div class="progress-custom-bar bg-primary" id="drawerProgressBar" style="width:0%"></div>
-        </div>
-      </div>
-      <strong id="drawerProgressText" style="font-size:.8rem;color:var(--primary);min-width:2.5em;">0%</strong>
-    </div>
     <form id="drawerProgressForm" method="POST" enctype="multipart/form-data" class="mb-2">
       <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
         <label class="text-muted" style="font-size:.7rem;white-space:nowrap;">进度</label>
-        <input type="range" name="progress" id="drawerProgressSlider" value="0" min="0" max="100" style="flex:1;min-width:90px;height:4px;" oninput="document.getElementById('drawerProgressText').textContent=this.value+'%';document.getElementById('drawerProgressBar').style.width=this.value+'%'">
+        <input type="range" name="progress" id="drawerProgressSlider" value="0" min="0" max="100" style="flex:1;min-width:90px;height:4px;" oninput="document.getElementById('drawerProgressText').textContent=this.value+'%'">
+        <strong id="drawerProgressText" style="font-size:.75rem;color:var(--primary);min-width:2.2em;">0%</strong>
         <input type="text" name="note" id="drawerNoteInput" class="form-control form-control-sm" placeholder="备注" style="font-size:.73rem;max-width:100px;min-width:90px;">
         <button class="btn btn-sm btn-primary" style="padding:2px 8px;font-size:.7rem;">更新</button>
       </div>
@@ -437,21 +442,6 @@
       });
     })();
     </script>
-    <div class="d-flex gap-2 mb-2">
-      <form id="drawerCompleteForm" method="POST">
-        <button class="btn btn-sm btn-success" id="drawerCompleteBtn" style="padding:2px 10px;font-size:.7rem;"><i class="bi bi-check-lg"></i> 完成</button>
-      </form>
-      <form id="drawerReopenForm" method="POST" style="display:none;">
-        <button class="btn btn-sm btn-outline-warning" style="padding:2px 10px;font-size:.7rem;"><i class="bi bi-arrow-repeat"></i> 重新打开</button>
-      </form>
-      <form id="drawerAbandonForm" method="POST" onsubmit="return confirm('确认废弃此待办？')">
-        <button class="btn btn-sm btn-outline-danger" style="padding:2px 10px;font-size:.7rem;"><i class="bi bi-x-circle"></i> 废弃</button>
-      </form>
-      <button class="btn btn-sm btn-outline-primary" style="padding:2px 10px;font-size:.7rem;" onclick="openEditTaskDrawer()"><i class="bi bi-pencil"></i> 编辑</button>
-      <form id="drawerDeleteForm" onsubmit="return dashDeleteSubmit(event)">
-        <button class="btn btn-sm btn-outline-danger" style="padding:2px 10px;font-size:.7rem;"><i class="bi bi-trash"></i> 删除</button>
-      </form>
-    </div>
     <div id="drawerNote" class="p-2 rounded mb-2 d-none" style="background:var(--gray-50);font-size:.75rem;">
       <span class="text-muted">备注：</span><span id="drawerNoteText"></span>
     </div>
@@ -482,8 +472,8 @@ function openTaskDrawer(d){
   document.getElementById('drawerTitle').textContent=title;
   var descEl=document.getElementById('drawerDesc');
   if(desc&&desc!==title){descEl.innerHTML=linkifyText(escapeHtml(desc)).replace(/\n/g,'<br>');descEl.style.display='block';}else{descEl.style.display='none';}
-  document.getElementById('drawerStart').textContent=start;document.getElementById('drawerEnd').textContent=end;
-  document.getElementById('drawerProgressSlider').value=progress;document.getElementById('drawerProgressText').textContent=progress+'%';document.getElementById('drawerProgressBar').style.width=progress+'%';
+  document.getElementById('drawerStart').textContent=_nz(start);document.getElementById('drawerEnd').textContent=_nz(end);
+  var _pg=parseInt(progress,10)||0;document.getElementById('drawerProgressSlider').value=_pg;document.getElementById('drawerProgressText').textContent=_pg+'%';
   document.getElementById('drawerProgressForm').action='/user/assignments/'+id+'/update_progress';
   document.getElementById('drawerCompleteForm').action='/user/tasks/'+id+'/complete';
   document.getElementById('drawerAbandonForm').action='/user/tasks/'+id+'/abandon';
@@ -501,13 +491,14 @@ function openTaskDrawer(d){
   document.getElementById('drawerFileLabel').textContent='附件';var fileInput=document.querySelector('#drawerProgressForm input[type=file]');if(fileInput)fileInput.value='';
   document.getElementById('taskDrawer').classList.remove('d-none');document.getElementById('drawerOverlay').classList.remove('d-none');
 }
+function _nz(v){return (v===null||v===undefined||v==='null')?'':v;}
+function _setDT(inp,v){if(!inp)return;v=_nz(v);if(inp.type==='datetime-local'){inp.value=v.replace(' ','T');}else{inp.value=v.replace('T',' ');}}
 function closeTaskDrawer(){document.getElementById('taskDrawer').classList.add('d-none');document.getElementById('drawerOverlay').classList.add('d-none');}
 function openEditTaskDrawer(){
   if(!_drawerEdit)return;
   document.getElementById('editTaskId').value=_drawerEdit.taskId;document.getElementById('editTaskTitle').value=_drawerEdit.title||'';
   document.getElementById('editTaskCategory').value=_drawerEdit.category||'工作';document.getElementById('editTaskStatus').value=_drawerEdit.status||'pending';
-  function dt(v){return v?String(v).replace(' ','T'):'';}
-  document.getElementById('editTaskStart').value=dt(_drawerEdit.start);document.getElementById('editTaskEnd').value=dt(_drawerEdit.end);
+  _setDT(document.getElementById('editTaskStart'),_drawerEdit.start);_setDT(document.getElementById('editTaskEnd'),_drawerEdit.end);
   document.getElementById('editTaskDesc').value=_drawerEdit.desc||'';autoGrowDesc(document.getElementById('editTaskDesc'));
   var assignBox=document.getElementById('editAssignList');
   if(assignBox&&window.qtUsers){var assigned={};(_drawerEdit.assigneeIds||[]).forEach(function(uid){assigned['u'+uid]=true;});var curUser={{ current_user.id }};
@@ -523,7 +514,7 @@ function tlDateStr(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart
 function tlJumpToday(el){
   var wrap=el.querySelector('.tl-wrap')||el;
   var sec=wrap.querySelector('.tl-section.today');
-  if(!sec){var future=['tomorrow','future_week','future_month','later'];for(var i=0;i<future.length;i++){sec=wrap.querySelector('.tl-section.'+future[i]);if(sec)break;}}
+  if(!sec){var future=window.KB_TL_FUTURE;for(var i=0;i<future.length;i++){sec=wrap.querySelector('.tl-section.'+future[i]);if(sec)break;}}
   wrap.scrollTop=sec?(sec.offsetTop-6):0;
 }
 function dashRenderTimeline(jump){
@@ -531,11 +522,11 @@ function dashRenderTimeline(jump){
   var tasks=_tlCache;
   if(!tasks.length){
     el.innerHTML='<div class="tl-empty"><i class="bi bi-calendar-x"></i>'+
-      (_tlFilter?'该日暂无待办任务':'暂无待办任务')+'</div>';
+      (_tlFilter?'该日暂无待办':'暂无待办任务')+'</div>';
     return;
   }
-  var catColors={'工作':'var(--primary)','个人':'var(--success)','会议':'var(--meeting)','培训':'var(--training)','考试':'var(--exam)'};
-   var order=['past','past_month','past_week','today','tomorrow','future_week','future_month','later'];var groups={};
+  var catColors=window.KB_CAT_COLORS;
+   var order=window.KB_TL_ORDER;var groups={};
   tasks.forEach(function(t){if(t.display==='abandoned')return;var s=t.section||'later';if(!groups[s])groups[s]={label:t.section_label,items:[]};groups[s].items.push(t);});
   var html='<div class="tl-wrap"><div class="tl-axis"></div>';
   order.forEach(function(s){var g=groups[s];if(!g||!g.items||!g.items.length)return;html+='<div class="tl-section '+s+'" data-s="'+s+'"><div class="tl-section-hd" role="button" tabindex="0" aria-label="展开'+esc(g.label)+'的待办" onclick="tlSecDashJump(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}"><div class="tl-section-dot"></div><span class="tl-section-label">'+esc(g.label)+'</span><span class="tl-section-count">'+g.items.length+'</span></div><div class="tl-items">';
@@ -604,8 +595,8 @@ function dashAccordion(force){
 function dashCascadeExpand(){
   var el=document.getElementById('dashTimeline');if(!el)return;
   var wrap=el.querySelector('.tl-wrap')||el;
-  var order=['tomorrow','future_week','future_month','later'];
-  var back=['past_week','past_month','past'];
+  var order=window.KB_TL_FUTURE;
+  var back=window.KB_TL_PAST;
   var count=function(k){var s=wrap.querySelector('.tl-section.'+k);return s?s.querySelectorAll('.tl-card').length:0;};
   var today=wrap.querySelector('.tl-section.today');
   var visible=today?count('today'):0;
@@ -676,7 +667,7 @@ function dashLoadTimeline(keepView){
     if(!d.ok||!d.tasks||!d.tasks.length){_tlCache=[];dashRenderTimeline(false);if(cnt)cnt.textContent='';return;}
     _tlCache=d.tasks;if(cnt)cnt.textContent='共 '+d.tasks.length+' 条';
     dashRenderTimeline(!keepView);
-  }).catch(function(e){el.innerHTML='<div class="tl-empty"><i class="bi bi-exclamation-circle"></i>'+(window.netErrMsg?netErrMsg(e):'加载失败')+'</div>';});
+  }).catch(function(e){el.innerHTML='<div class="tl-empty"><i class="bi bi-exclamation-circle"></i><div style="margin-bottom:12px;">'+(window.netErrMsg?netErrMsg(e):'加载失败')+'</div><button class="btn btn-sm btn-outline-primary" onclick="dashLoadTimeline()">重试</button></div>';});
 }
 // 勾选乐观更新(首页): 即时反馈, 失败回滚, 成功后静默对账刷新
 function dashOptToggle(cb){
@@ -743,7 +734,7 @@ document.addEventListener('keydown',function(e){
 // 删除待办(fetch+可撤销): 10s 内可通过 toast 撤销, 以原字段重新创建
 function dashDeleteSubmit(ev){
   ev.preventDefault();
-  if(!confirm('确认删除此待办？删除后不可恢复。'))return false;
+  if(!confirm('确认删除此待办？将移入回收站，可在回收站恢复。'))return false;
   var data=_dashDrawerData;
   var id=(ev.target.action.match(/\/(\d+)\/delete/)||[])[1];
   fetchJSON('/api/task/'+id+'/delete',{method:'POST'}).then(function(d){
@@ -751,8 +742,8 @@ function dashDeleteSubmit(ev){
     closeTaskDrawer();
     dashLoadTimeline();
     if(data&&data.title){
-      toast('已删除「'+data.title+'」',{actionLabel:'撤销',duration:8000,onAction:function(){
-        fetchJSON('/api/quick-task',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:data.title,start_time:data.start_time,end_time:data.end_time,category:data.category,description:data.full_description||'',assignee_ids:data.assignee_ids||[],group_ids:data.group_ids||[],is_all:false})}).then(function(rd){
+      toast('已移入回收站「'+data.title+'」',{actionLabel:'撤销',duration:8000,onAction:function(){
+        fetchJSON('/api/task/'+id+'/restore',{method:'POST'}).then(function(rd){
           if(rd.ok){toast('已恢复','success');}else{toast(rd.error||'恢复失败','error');}
           dashLoadTimeline();
         }).catch(function(e){toast(netErrMsg(e),'error');});
@@ -761,12 +752,14 @@ function dashDeleteSubmit(ev){
   }).catch(function(e){toast(netErrMsg(e),'error');});
   return false;
 }
+
+
 function dashOpenTaskDrawer(t){_dashDrawerData=t;var d=t;
   _drawerEdit={taskId:d.id,title:d.title,category:d.category||'工作',status:d.status||'pending',start:d.start_time||'',end:d.end_time||'',desc:d.full_description||'',assigneeIds:d.assignee_ids||[],groupIds:d.group_ids||[]};
   document.getElementById('drawerTitle').textContent=d.title;
   var descEl=document.getElementById('drawerDesc');if(d.full_description&&d.full_description!==d.title){descEl.innerHTML=escapeHtml(d.full_description).replace(/\n/g,'<br>');descEl.style.display='block';}else{descEl.style.display='none';}
-  document.getElementById('drawerStart').textContent=d.start_time;document.getElementById('drawerEnd').textContent=d.end_time;
-  document.getElementById('drawerProgressSlider').value=d.progress||0;document.getElementById('drawerProgressText').textContent=(d.progress||0)+'%';document.getElementById('drawerProgressBar').style.width=(d.progress||0)+'%';
+  document.getElementById('drawerStart').textContent=_nz(d.start_time);document.getElementById('drawerEnd').textContent=_nz(d.end_time);
+  var _pg=parseInt(d.progress,10)||0;document.getElementById('drawerProgressSlider').value=_pg;document.getElementById('drawerProgressText').textContent=_pg+'%';
   document.getElementById('drawerProgressForm').action='/user/assignments/'+d.assignment_id+'/update_progress';
   document.getElementById('drawerCompleteForm').action='/user/tasks/'+d.assignment_id+'/complete';
   document.getElementById('drawerAbandonForm').action='/user/tasks/'+d.assignment_id+'/abandon';
@@ -806,7 +799,7 @@ function calDots(cnt){if(!cnt)return '';var c=cnt>=5?'#E06B6B':(cnt>=3?'#4A90D9'
     var density=d.ok?d.density:{};var tags=d.ok?(d.tags||{}):{};window._calItems=d.ok?(d.items||{}):{};window._calHolidays=d.ok?(d.holidays||{}):{};window._calDensity=density;_calAllTasks=[];Object.keys(density).forEach(function(k){for(var i=0;i<density[k];i++)_calAllTasks.push({date:k,count:density[k]});});
     var html='';var firstDay=new Date(calYear,calMonth-1,1);var lastDay=new Date(calYear,calMonth,0);var startDow=firstDay.getDay()||7;var totalDays=lastDay.getDate();for(var i=1;i<startDow;i++)html+='<div class="cal-cell cal-other"></div>';
     for(var day=1;day<=totalDays;day++){var ds=calYear+'-'+String(calMonth).padStart(2,'0')+'-'+String(day).padStart(2,'0');var isToday=ds===todayStr;var cnt=density[ds]||0;var tag=tags[ds]||null;var hn=(window._calHolidays||{})[ds];var cls='cal-cell';if(isToday)cls+=' today';if(hn)cls+=' holiday';html+='<div class="'+cls+'" data-date="'+ds+'" onclick="calSelect(this,\''+ds+'\')"><span>'+day+'</span>';if(hn){html+='<span class="cal-hn">'+hn+'</span>';if(tag==='休')html+='<span class="cal-tag-rest">休</span>';}else if(tag==='休')html+='<span class="cal-tag-rest">休</span>';else if(tag==='班')html+='<span class="cal-tag-work">班</span>';html+=calDots(cnt);html+='</div>';}
-    el.innerHTML=html;}).catch(function(e){el.innerHTML='<div style="grid-column:1/8;text-align:center;color:#999;font-size:.75rem;padding:20px;">'+(window.netErrMsg?netErrMsg(e):'加载失败')+'</div>';});}
+    el.innerHTML=html;}).catch(function(e){el.innerHTML='<div style="grid-column:1/8;text-align:center;color:#999;font-size:.75rem;padding:20px;"><div style="margin-bottom:8px;">'+(window.netErrMsg?netErrMsg(e):'加载失败')+'</div><button class="btn btn-sm btn-outline-secondary" onclick="calRender()">重试</button></div>';});}
 function calSelect(el,dateStr){
   if(window.matchMedia('(hover: none)').matches&&window.innerWidth<768){calSheetShow(el,dateStr);return;}
   var was=el.classList.contains('selected');document.querySelectorAll('.cal-cell.selected').forEach(function(c){c.classList.remove('selected');});if(was||_tlFilter===dateStr){tlClearFilter();return;}el.classList.add('selected');_tlFilter=dateStr;dashLoadTimeline();}
@@ -820,7 +813,7 @@ function calSheetShow(el,dateStr){
   document.getElementById('calSheetTitle').textContent=dateStr+' 周'+wd+(hn?' · '+hn:'');
   var items=(window._calItems||{})[dateStr]||[];
   var total=(window._calDensity||{})[dateStr]||items.length;
-  var cc={'工作':'var(--primary)','个人':'var(--success)','会议':'var(--meeting)','培训':'var(--training)','考试':'var(--exam)'};
+  var cc=window.KB_CAT_COLORS;
   var html=items.map(function(t){return'<div class="cal-tooltip-item" style="padding:6px 0;border-bottom:1px solid var(--gray-100);"><span style="color:'+(cc[t.category]||'var(--primary)')+';font-weight:600;margin-right:4px;">'+esc(t.category)+'</span> <span style="'+(t.done?'text-decoration:line-through;color:#aaa;':'')+'">'+esc(t.title)+'</span><small style="color:#999;margin-left:4px;">'+(t.done?'完成 ':'截止 ')+t.time+'</small></div>';}).join('');
   if(!html)html='<div style="color:#999;text-align:center;padding:18px 0;font-size:.75rem;">当天暂无待办</div>';
   if(total>items.length)html+='<div style="color:#999;font-size:.72rem;text-align:center;padding:6px 0;">…还有'+(total-items.length)+'条</div>';
@@ -844,11 +837,6 @@ function calSheetClose(){
 function tlClearFilter(){_tlFilter=null;document.querySelectorAll('.cal-cell.selected').forEach(function(c){c.classList.remove('selected');});dashLoadTimeline();}
 calRender();
 // 一屏自适应: 按行顶部实际位置精确锁定高度, 兼容不同导航/边距高度(预留6px舍入容差)
-function dashFit(){var row=document.querySelector('.dash-row');if(!row)return;row.style.height='';}
-</script>
-<script>
-// 布局引导独立于主脚本: 主脚本任何运行时错误都不影响一屏锁定
-window.addEventListener('resize',dashFit);window.addEventListener('load',dashFit);setTimeout(dashFit,400);dashFit();
 </script>
 <script>
 function kbSearch(){var input=document.getElementById('kbAskInput');var q=input.value.trim();if(!q){input.focus();return;}window.location.href='{{ url_for("kb.workbench") }}?q='+encodeURIComponent(q);}
@@ -864,14 +852,14 @@ function autoGrowDesc(el){if(!el)return;el.style.height='auto';el.style.height=M
 function quickTask(){var title=document.getElementById('qtTitle').value.trim();if(title.length<2){document.getElementById('qtErr2').textContent='待办标题至少2个字';return;}if(!document.getElementById('qtStart').value){document.getElementById('qtErr2').textContent='请填写开始时间';return;}if(!document.getElementById('qtEnd').value){document.getElementById('qtErr2').textContent='请填写结束时间';return;}var is_all=document.getElementById('qtAll')?document.getElementById('qtAll').checked:false;var ids=[];if(!is_all){document.querySelectorAll('.qt-assignee:checked').forEach(function(c){ids.push(parseInt(c.value));});}var gids=[];document.querySelectorAll('.qt-group:checked').forEach(function(c){gids.push(parseInt(c.value));});if(!is_all&&ids.length===0&&gids.length===0){document.getElementById('qtErr2').textContent='请至少选择一位负责人';return;}var re=(window.qtRec&&window.qtRec.interval)||0;var rc=(window.qtRec&&window.qtRec.count)||0;var btn=event.target.closest('button');var body={title:title,start_time:document.getElementById('qtStart').value,end_time:document.getElementById('qtEnd').value,category:document.getElementById('qtCategory').value,description:document.getElementById('qtDesc').value,assignee_ids:ids,group_ids:gids,is_all:is_all,recurrence_interval_days:re,recurrence_count:rc};var err2=document.getElementById('qtErr2');if(btn){btn.disabled=true;}fetch('/api/quick-task',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json();}).then(function(d){if(d.ok){location.href='/user/tasks?new='+d.task_id;}else{err2.textContent=d.error||'创建失败';}}).catch(function(){err2.textContent='创建失败';}).finally(function(){if(btn)btn.disabled=false;});}
 function qtUpdateRecurrence(){var sel=document.getElementById('qtRecurrenceSelect');var opt=sel.options[sel.selectedIndex];var custom=document.getElementById('qtRecurrenceCustom');var hint=document.getElementById('qtRecurrenceHint');var rec=window.qtRec;if(opt.value==='custom'){custom.classList.remove('d-none');if(rec){rec.mode='';rec.interval=0;rec.count=0;hint.textContent='';}return;}custom.classList.add('d-none');if(!rec)rec=window.qtRec={};rec.mode=opt.value;rec.interval=parseInt(opt.dataset.interval)||0;rec.count=parseInt(opt.dataset.count)||0;hint.innerHTML=opt.value?('<i class="bi bi-arrow-repeat"></i> '+opt.text):'';}
 function qtApplyCustomRecurrence(){var interval=parseInt(document.getElementById('qtCustomInterval').value)||7;var count=parseInt(document.getElementById('qtCustomCount').value)||3;if(count<1)count=1;window.qtRec.mode='custom';window.qtRec.interval=interval;window.qtRec.count=count;document.getElementById('qtRecurrenceHint').innerHTML='<i class="bi bi-arrow-repeat"></i> 每'+interval+'天，共'+count+'期';}
-function quickTaskParse(){var text=document.getElementById('qtText').value.trim();if(text.length<2){document.getElementById('qtErr').textContent='请至少输入2个字';return;}var errEl=document.getElementById('qtErr');errEl.textContent='解析中...';fetch('/api/quick-task/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text})}).then(function(r){return r.json();}).then(function(d){if(!d.ok){errEl.textContent=d.error||'解析失败';return;}document.getElementById('qtTitle').value=d.title;document.getElementById('qtStart').value=d.start_time;document.getElementById('qtEnd').value=d.end_time;document.getElementById('qtCategory').value=d.category;document.getElementById('qtDesc').value=d.description;autoGrowDesc(document.getElementById('qtDesc'));window.qtRec={mode:'',interval:d.recurrence_interval_days||0,count:d.recurrence_count||0};var sel=document.getElementById('qtRecurrenceSelect');var hint=document.getElementById('qtRecurrenceHint');var matched=false;if(sel&&hint&&sel.options){for(var i=0;i<sel.options.length;i++){var o=sel.options[i];if(o.value&&o.value!=='custom'&&parseInt(o.dataset.interval)===window.qtRec.interval&&parseInt(o.dataset.count)===window.qtRec.count){sel.selectedIndex=i;hint.innerHTML='<i class="bi bi-arrow-repeat"></i> '+o.text;matched=true;break;}}if(!matched){if(window.qtRec.interval&&window.qtRec.count>0){sel.value='custom';var cint=document.getElementById('qtCustomInterval'),ccnt=document.getElementById('qtCustomCount'),cwrap=document.getElementById('qtRecurrenceCustom');if(cint)cint.value=window.qtRec.interval;if(ccnt)ccnt.value=window.qtRec.count;if(cwrap)cwrap.classList.remove('d-none');hint.innerHTML='<i class="bi bi-arrow-repeat"></i> 每'+window.qtRec.interval+'天，共'+window.qtRec.count+'期';}else{sel.value='';hint.textContent='';}}}document.getElementById('qtDupWarn').innerHTML='';var a=document.getElementById('qtAll');if(a){a.checked=!!d.is_all;}qtBuildAssignees(d.assignee_ids);document.getElementById('qtStepInput').style.display='none';document.getElementById('qtStepReview').style.display='';}).catch(function(){errEl.textContent='解析失败';});}
-function quickTaskBack(){document.getElementById('qtStepReview').style.display='none';document.getElementById('qtStepInput').style.display='';document.getElementById('qtErr').textContent='';}
+function quickTaskParse(){var text=document.getElementById('qtText').value.trim();if(text.length<2){document.getElementById('qtErr').textContent='请至少输入2个字';return;}var errEl=document.getElementById('qtErr');errEl.textContent='解析中...';fetchJSON('/api/quick-task/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text})}).then(function(d){if(!d.ok){errEl.textContent=(d.not_ready?'⏳ ':'')+(d.error||'解析失败');return;}document.getElementById('qtTitle').value=d.title;var pw=document.getElementById('qtParserWarn');if(pw){if(d.time_parser==='legacy'){pw.classList.remove('d-none');}else{pw.classList.add('d-none');}}document.getElementById('qtStart').value=d.start_time;document.getElementById('qtEnd').value=d.end_time;document.getElementById('qtCategory').value=d.category;document.getElementById('qtDesc').value=d.description;autoGrowDesc(document.getElementById('qtDesc'));window.qtRec={mode:'',interval:d.recurrence_interval_days||0,count:d.recurrence_count||0};var sel=document.getElementById('qtRecurrenceSelect');var hint=document.getElementById('qtRecurrenceHint');var matched=false;if(sel&&hint&&sel.options){for(var i=0;i<sel.options.length;i++){var o=sel.options[i];if(o.value&&o.value!=='custom'&&parseInt(o.dataset.interval)===window.qtRec.interval&&parseInt(o.dataset.count)===window.qtRec.count){sel.selectedIndex=i;hint.innerHTML='<i class="bi bi-arrow-repeat"></i> '+o.text;matched=true;break;}}if(!matched){if(window.qtRec.interval&&window.qtRec.count>0){sel.value='custom';var cint=document.getElementById('qtCustomInterval'),ccnt=document.getElementById('qtCustomCount'),cwrap=document.getElementById('qtRecurrenceCustom');if(cint)cint.value=window.qtRec.interval;if(ccnt)ccnt.value=window.qtRec.count;if(cwrap)cwrap.classList.remove('d-none');hint.innerHTML='<i class="bi bi-arrow-repeat"></i> 每'+window.qtRec.interval+'天，共'+window.qtRec.count+'期';}else{sel.value='';hint.textContent='';}}}document.getElementById('qtDupWarn').innerHTML='';var a=document.getElementById('qtAll');if(a){a.checked=!!d.is_all;}qtBuildAssignees(d.assignee_ids);document.getElementById('qtStepInput').style.display='none';document.getElementById('qtStepReview').style.display='';}).catch(function(){errEl.textContent='解析失败';});}
+function quickTaskBack(){var pw=document.getElementById('qtParserWarn');if(pw)pw.classList.add('d-none');document.getElementById('qtStepReview').style.display='none';document.getElementById('qtStepInput').style.display='';document.getElementById('qtErr').textContent='';}
 (function(){window.qtUsers=[{id:0,name:'所有人',keyword:'@所有人'},{id:{{ current_user.id }},name:'{{ current_user.name or current_user.username }}',keyword:'{{ current_user.name or current_user.username }}'{% if current_user.name %},uname:'{{ current_user.username }}'{% endif %}},{% for u in users %}{id:{{ u.id }},name:'{{ u.name or u.username }}',keyword:'{{ u.name or u.username }}'{% if u.name %},uname:'{{ u.username }}'{% endif %}},{% endfor %}];window.qtSelfId={{ current_user.id }};var ta=document.getElementById('qtText');if(!ta)return;var dd=document.getElementById('qtMentionDropdown');if(!dd)return;var atPos=-1,filter='';function updateDropdown(){if(atPos<0){dd.style.display='none';return;}var f=filter.toLowerCase();var items=users.filter(function(u){return u.keyword.toLowerCase().includes(f)||(u.uname&&u.uname.includes(f));});if(!items.length){dd.style.display='none';return;}dd.innerHTML=items.map(function(u,i){var label=u.name;if(u.uname)label+=' <small style="color:var(--gray-400)">@'+u.uname+'</small>';return'<div class="qt-mention-item" data-idx="'+i+'" style="padding:6px 12px;cursor:pointer;font-size:.82rem;'+(i===0?'background:var(--gray-50);':'')+'">'+label+'</div>';}).join('');dd.style.display='block';var rect=ta.getBoundingClientRect();var spaceBelow=window.innerHeight-rect.bottom;var ddHeight=Math.min(180,items.length*32+10);dd.style.top=spaceBelow<ddHeight+10?'auto':'100%';dd.style.bottom=spaceBelow<ddHeight+10?(rect.height+4+'px'):'auto';dd.style.marginTop=spaceBelow<ddHeight+10?'0':'2px';dd.querySelectorAll('.qt-mention-item').forEach(function(el){el.onclick=function(){var idx=parseInt(el.dataset.idx);insertMention(items[idx]);};el.onmouseenter=function(){dd.querySelectorAll('.qt-mention-item').forEach(function(e){e.style.background=''});el.style.background='var(--gray-50)';};});}
 function insertMention(u){var before=ta.value.substring(0,atPos);var after=ta.value.substring(ta.selectionEnd);var insert=u.id===0?'@所有人 ':'@'+u.keyword+' ';ta.value=before+insert+after;ta.focus();ta.selectionStart=ta.selectionEnd=atPos+insert.length;atPos=-1;filter='';dd.style.display='none';document.getElementById('qtErr').textContent='';}
 ta.addEventListener('input',function(){var pos=ta.selectionStart;var val=ta.value;var searchStart=Math.max(0,pos-20);var textBefore=val.substring(searchStart,pos);var idx=textBefore.lastIndexOf('@');if(idx>=0){var afterAt=textBefore.substring(idx+1);if(!afterAt.includes(' ')&&!afterAt.includes('\n')){atPos=searchStart+idx;filter=afterAt;updateDropdown();return;}}atPos=-1;dd.style.display='none';});
 ta.addEventListener('keydown',function(e){if(dd.style.display!=='block')return;if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();var items=dd.querySelectorAll('.qt-mention-item');var cur=dd.querySelector('.qt-mention-item[style*="var(--gray-50)"]');var idx=-1;if(cur)idx=Array.from(items).indexOf(cur);if(e.key==='ArrowDown')idx=Math.min(idx+1,items.length-1);else idx=Math.max(idx-1,0);items.forEach(function(el){el.style.background=''});items[idx].style.background='var(--gray-50)';}else if(e.key==='Enter'&&atPos>=0){e.preventDefault();var items=dd.querySelectorAll('.qt-mention-item');var cur=dd.querySelector('.qt-mention-item[style*="var(--gray-50)"]');if(cur){cur.click();}}else if(e.key==='Escape'){dd.style.display='none';atPos=-1;}});
 ta.addEventListener('blur',function(){setTimeout(function(){dd.style.display='none';},200);});})();
-function quickNote(){var content=document.getElementById('qnContent').value.trim();if(!content){return;}fetch('/api/quick-note',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:content})}).then(function(r){return r.json();}).then(function(d){if(d.ok){document.getElementById('qnContent').value='';document.getElementById('qnHint').textContent=(d.warnings&&d.warnings.length)?('疑似重复:'+d.warnings.map(function(w){return w.title;}).join(',')):'已保存';}else{document.getElementById('qnHint').textContent=d.error||'保存失败';}});}
+function quickNote(){var content=document.getElementById('qnContent').value.trim();if(!content){return;}var tagsRaw=document.getElementById('qnTags')?document.getElementById('qnTags').value:'';var tags=tagsRaw.split(/[,，;；\s]+/).map(function(t){return t.replace(/^#+/,'').trim();}).filter(Boolean).slice(0,8);fetch('/api/quick-note',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:content,tags:tags})}).then(function(r){return r.json();}).then(function(d){if(d.ok){document.getElementById('qnContent').value='';var qt=document.getElementById('qnTags');if(qt)qt.value='';bootstrap.Modal.getOrCreateInstance(document.getElementById('quickNoteModal')).hide();toast((d.warnings&&d.warnings.length)?('已保存 · 疑似重复:'+d.warnings.map(function(w){return w.title;}).join(',')):'随手记已保存',(d.warnings&&d.warnings.length)?'warning':'success');}else{document.getElementById('qnHint').textContent=d.error||'保存失败';}});}
 // 快速创建: 开始/结束时间失焦即时校验, 减少提交后返工
 (function(){
   var s=document.getElementById('qtStart'),e=document.getElementById('qtEnd'),err=document.getElementById('qtErr2');

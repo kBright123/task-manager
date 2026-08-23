@@ -184,7 +184,7 @@
           errEl.textContent = '发布中...';
           fetch('/api/quick-task/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text }) })
             .then(function (r) { return r.json(); }).then(function (d) {
-              if (!d.ok) { errEl.textContent = d.error || '解析失败'; return; }
+              if (!d.ok) { errEl.textContent = (d.not_ready ? '⏳ ' : '') + (d.error || '解析失败'); return; }
               document.getElementById('qtTitle').value = d.title;
               document.getElementById('qtStart').value = d.start_time;
               document.getElementById('qtEnd').value = d.end_time;
@@ -299,7 +299,7 @@
           if (btn) btn.disabled = true;
           fetch('/api/quick-task', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
             .then(function (r) { return r.json(); }).then(function (d) {
-              if (d.ok) { window.location.href = '/user/tasks?new=' + d.task_id; } else { err2.textContent = d.error || '创建失败'; }
+              if (d.ok) { window.location.href = '/user/tasks?new=' + d.task_id; } else if (d.not_ready) { err2.textContent = '⏳ ' + (d.error || '智能解析准备中，请稍候再试'); } else { err2.textContent = d.error || '创建失败'; }
             }).catch(function () { err2.textContent = '创建失败，请重试'; }).finally(function () { if (btn) btn.disabled = false; });
         };
       }
@@ -310,7 +310,7 @@
       if (typeof kbUploadOpen === 'function') { kbUploadOpen(); return; }
       var dynamicKbModal = document.getElementById('kbUploadModal');
       if (!dynamicKbModal) {
-        var kbModalHtml = '<div id="kbUploadModal" class="modal fade" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header py-2"><span style="font-weight:600;"><i class="bi bi-cloud-arrow-up" style="color:var(--warning);"></i> 上传知识</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">上传知识功能</div><div class="modal-footer py-2"><button class="btn btn-sm btn-primary">开始上传</button></div></div></div></div>';
+        var kbModalHtml = '<div id="kbUploadModal" class="modal fade" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header py-2"><span style="font-weight:600;"><i class="bi bi-cloud-arrow-up" style="color:var(--warning);"></i> 上传知识</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">上传知识功能</div><div class="modal-footer py-2"><button class="btn btn-sm btn-primary">开始上传</button></div></div></div></div>';
         document.body.insertAdjacentHTML('beforeEnd', kbModalHtml);
       }
       bootstrap.Modal.getOrCreateInstance(document.getElementById('kbUploadModal')).show();
@@ -330,18 +330,22 @@
     function showQuickNoteModal() {
       var m = document.getElementById('quickNoteModal');
       if (m) { bootstrap.Modal.getOrCreateInstance(m).show(); return; }
-      var newModalHtml = '<div id="quickNoteModal" class="modal fade" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header py-2"><span style="font-weight:600;"><i class="bi bi-pencil-square" style="color:var(--success);"></i> 随手记</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><textarea id="qnContent" class="form-control" rows="4" placeholder="记录点什么... 支持 Markdown" style="font-size:.9rem;resize:none;"></textarea><small class="text-muted" style="font-size:.7rem;" id="qnHint"></small></div><div class="modal-footer py-2"><button class="btn btn-sm btn-primary" onclick="quickNote()"><i class="bi bi-check"></i> 保存</button></div></div></div></div>';
+      var newModalHtml = '<div id="quickNoteModal" class="modal fade" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header py-2"><span style="font-weight:600;"><i class="bi bi-pencil-square" style="color:var(--success);"></i> 随手记</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><textarea id="qnContent" class="form-control" rows="4" placeholder="记录点什么... 支持 Markdown" style="font-size:.9rem;resize:none;"></textarea><input type="text" id="qnTags" class="form-control form-control-sm mt-2" placeholder="标签（逗号分隔，可留空）" style="font-size:.78rem;"><small class="text-muted" style="font-size:.7rem;" id="qnHint"></small></div><div class="modal-footer py-2"><button class="btn btn-sm btn-primary" onclick="quickNote()"><i class="bi bi-check"></i> 保存</button></div></div></div></div>';
       document.body.insertAdjacentHTML('beforeEnd', newModalHtml);
       if (typeof window.quickNote !== 'function') {
         window.quickNote = function () {
           var content = document.getElementById('qnContent').value.trim();
           var hint = document.getElementById('qnHint');
+          var tagsRaw = document.getElementById('qnTags') ? document.getElementById('qnTags').value : '';
+          var tags = tagsRaw.split(/[,，;；\s]+/).map(function (t) { return t.replace(/^#+/, '').trim(); }).filter(Boolean).slice(0, 8);
           if (!content) return;
-          fetch('/api/quick-note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: content }) })
+          fetch('/api/quick-note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: content, tags: tags }) })
             .then(function (r) { return r.json(); }).then(function (d) {
               if (d.ok) {
                 document.getElementById('qnContent').value = '';
-                hint.textContent = (d.warnings && d.warnings.length) ? ('⚠️ 疑似重复:' + d.warnings.map(function (w) { return w.title; }).join(',')) : '已保存';
+                var qt = document.getElementById('qnTags'); if (qt) qt.value = '';
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('quickNoteModal')).hide();
+                toast((d.warnings && d.warnings.length) ? ('已保存 · ⚠️ 疑似重复:' + d.warnings.map(function (w) { return w.title; }).join(',')) : '随手记已保存', (d.warnings && d.warnings.length) ? 'warning' : 'success');
               } else { hint.textContent = d.error || '保存失败'; }
             }).catch(function () { hint.textContent = '保存失败'; });
         };

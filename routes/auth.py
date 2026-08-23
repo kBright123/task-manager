@@ -16,7 +16,16 @@
 
 # -*- coding: utf-8 -*-
 """auth 路由, 自 app.py 单文件拆分, 保持原 endpoint 名称不变。"""
-from app import app, login_required
+from app import (app, login_required, User, client_ip, cn_now,
+                 create_notification, db, generate_verify_code,
+                 log_operation, logger, normalize_email, send_email,
+                 send_verify_code)
+
+from flask import (flash, jsonify, redirect, render_template, request,
+                   session, url_for)
+from flask_login import current_user, login_user, logout_user
+import secrets
+from datetime import timedelta
 
 @app.route('/')
 def index():

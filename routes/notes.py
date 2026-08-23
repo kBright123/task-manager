@@ -47,7 +47,7 @@ from sqlalchemy import or_
 logger = logging.getLogger(__name__)
 
 _NOTES_ROOT = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), 'instance', 'notes')
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'instance', 'notes')
 
 _NOTE_ATTACH_DIR = os.path.join(_NOTES_ROOT, 'attachments')
 _NOTE_IMAGE_EXT = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp')

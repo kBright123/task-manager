@@ -1,4 +1,4 @@
-var CACHE = 'tx-static-v1';
+var CACHE = 'tx-static-v3';
 self.addEventListener('install', function (e) { self.skipWaiting(); });
 self.addEventListener('activate', function (e) {
   e.waitUntil(

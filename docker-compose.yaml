@@ -4,59 +4,23 @@ services:
     container_name: task-manager
     ports:
       - "5000:5000"
+    # 全部业务开关/密钥统一在 .env 维护(模板见 .env.example)
+    env_file:
+      - .env
+    environment:
+      - TZ=Asia/Shanghai
+      - FLASK_ENV=production
+      - PYTHONOPTIMIZE=1
     volumes:
-      - ./app.py:/app/app.py
-      - ./knowledge.py:/app/knowledge.py
-      - ./classifier.py:/app/classifier.py
-      - ./reminder_worker.py:/app/reminder_worker.py
-      - ./notes.py:/app/notes.py
-      - ./pet.py:/app/pet.py
-      - ./job_worker.py:/app/job_worker.py
-      - ./backup.py:/app/backup.py
-      - ./routes_admin.py:/app/routes_admin.py
-      - ./routes_auth.py:/app/routes_auth.py
-      - ./routes_tasks.py:/app/routes_tasks.py
-      - ./routes_search.py:/app/routes_search.py
-      - ./routes_notify.py:/app/routes_notify.py
-      - ./entrypoint.sh:/app/entrypoint.sh
-      - ./templates:/app/templates
-      - ./static:/app/static
-      - ./backups:/app/backups
+      # 整仓挂载: 新增/删除源码文件无需再改本文件(Dockerfile 为系统级 pip, 无 venv 遮蔽问题)
+      - ./:/app
+      # 持久化数据用命名卷, 不随仓库走
       - task-data:/app/instance
       - task-uploads:/app/instance/uploads
     restart: unless-stopped
     mem_limit: 2g
     memswap_limit: 2g
     cpus: '2'
-    environment:
-      - TZ=Asia/Shanghai
-      - FLASK_ENV=production
-      - PYTHONOPTIMIZE=1
-      - KB_OPENCODE_BASE_URL=http://opencode:3000
-      - KB_AUTO_RELOAD=1
-      # ---- 低资源优化(1核/512MB~1GB) ----
-      # 默认禁用 LLM 问答:分身问答/整理降级为关键词检索+FAQ,不再调用大模型
-      - KB_LLM_DISABLED=${KB_LLM_DISABLED:-1}
-      # fastText 自动分类(无模型时自动降级为内置关键词规则)
-      - KB_CLASSIFIER_ENABLED=${KB_CLASSIFIER_ENABLED:-1}
-      # 默认禁用向量检索(fastembed+SochDB):检索降级为 SQLite 关键词匹配,省内存大头
-      - KB_VECTOR_DISABLED=${KB_VECTOR_DISABLED:-1}
-      # 邮件提醒扫描间隔(秒),从 60 提至 300 减少数据库/CPU 空转
-      - REMINDER_INTERVAL=${REMINDER_INTERVAL:-300}
-      # 后台 worker 按需开关(关闭可省约 20-200MB 内存)
-      - KB_WORKER_ENABLED=${KB_WORKER_ENABLED:-1}
-      - REMINDER_WORKER_ENABLED=${REMINDER_WORKER_ENABLED:-1}
-      - JOB_WORKER_ENABLED=${JOB_WORKER_ENABLED:-1}
-      # 邮箱绑定 SMTP 配置(可选,未配置时校验码仅写入服务器日志)
-      - MAIL_SERVER=${MAIL_SERVER:-}
-      - MAIL_PORT=${MAIL_PORT:-465}
-      - MAIL_USE_SSL=${MAIL_USE_SSL:-1}
-      - MAIL_USE_TLS=${MAIL_USE_TLS:-0}
-      - MAIL_USERNAME=${MAIL_USERNAME:-}
-      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
-      - MAIL_FROM=${MAIL_FROM:-}
-      # 授权校验: born 需等于 base64("MAIL_PASSWORD="+MAIL_USERNAME)(见 .env), 否则演示版拦截业务写入
-      - born=${born:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

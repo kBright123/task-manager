@@ -288,7 +288,7 @@
             <div style="padding:12px 16px;font-weight:600;font-size:.85rem;color:var(--gray-800);border-bottom:1px solid var(--gray-100);display:flex;justify-content:space-between;align-items:center;">
               <span>通知</span>
               {% if unread_notifications > 0 %}
-              <form method="POST" action="{{ url_for('read_all_notifications') }}" style="display:inline;" onsubmit="return confirm('确定将全部 {{ unread_notifications }} 条未读通知标记为已读？');">
+              <form method="POST" action="{{ url_for('read_all_notifications') }}" style="display:inline;" onsubmit="uiConfirmSubmit(event,'确定将全部 {{ unread_notifications }} 条未读通知标记为已读？')">
                 <button class="btn btn-sm" style="font-size:.7rem;padding:2px 8px;color:var(--primary);background:var(--primary-light);border:none;border-radius:6px;">全部已读</button>
               </form>
               {% endif %}
@@ -502,6 +502,31 @@
     });
   })();
   </script>
+  <script src="{{ url_for('static', filename='js/shared.js', v=staticv('js/shared.js')) }}"></script>
+<div class="modal fade" id="kbConfirmModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content" style="border-radius:14px;max-width:300px;margin:auto;"><div class="modal-body text-center" style="padding:22px 20px 14px;"><div id="kbConfirmMsg" style="font-size:.9rem;line-height:1.5;"></div></div><div class="modal-footer border-0 justify-content-center gap-2 pt-0" style="padding:0 20px 18px;"><button type="button" class="btn btn-sm btn-secondary" id="kbConfirmNo" style="min-width:78px;">取消</button><button type="button" class="btn btn-sm btn-primary" id="kbConfirmYes" style="min-width:78px;">确定</button></div></div></div></div>
+<script>
+window.uiConfirm=function(msg,opt){
+  opt=opt||{};
+  return new Promise(function(res){
+    var m=document.getElementById('kbConfirmModal');
+    if(!m||!window.bootstrap){res(window.confirm(msg));return;}
+    document.getElementById('kbConfirmMsg').textContent=msg;
+    document.getElementById('kbConfirmYes').textContent=opt.okText||'确定';
+    document.getElementById('kbConfirmNo').textContent=opt.cancelText||'取消';
+    var inst=bootstrap.Modal.getOrCreateInstance(m);
+    var done=false;
+    function finish(v){if(done)return;done=true;res(v);}
+    m.addEventListener('hidden.bs.modal',function(){finish(false);},{once:true});
+    document.getElementById('kbConfirmYes').onclick=function(){finish(true);inst.hide();};
+    document.getElementById('kbConfirmNo').onclick=function(){inst.hide();};
+    inst.show();
+  });
+};
+window.uiConfirmSubmit=function(ev,msg){
+  ev.preventDefault();var f=ev.target;
+  return uiConfirm(msg).then(function(y){if(y)f.submit();});
+};
+</script>
   {% block extra_js %}{% endblock %}
 </body>
 </html>

@@ -198,8 +198,8 @@ function verifyEmail() {
   }).catch(function () { showResult('网络错误，请重试', true); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg"></i> 确认绑定'; } });
 }
 
-function unbindEmail() {
-  if (!confirm('确定要解除邮箱绑定吗？')) return;
+async function unbindEmail() {
+  if (!(await uiConfirm('确定要解除邮箱绑定吗？'))) return;
   fetch('{{ url_for("profile_unbind_email") }}', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' }

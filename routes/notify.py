@@ -16,7 +16,12 @@
 
 # -*- coding: utf-8 -*-
 """notify 路由, 自 app.py 单文件拆分, 保持原 endpoint 名称不变。"""
-from app import app, login_required
+from app import (app, login_required, Notification,
+                 _clear_cached_notifications, db)
+
+from flask import (flash, jsonify, redirect, render_template, request,
+                   send_from_directory, url_for)
+from flask_login import current_user
 
 @app.route('/notifications')
 @login_required

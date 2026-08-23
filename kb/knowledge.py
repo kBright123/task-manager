@@ -64,7 +64,7 @@ logger = logging.getLogger(__name__)
 # 配置
 # ---------------------------------------------------------------------------
 
-_PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 KB_ROOT = os.path.join(_PROJECT_ROOT, 'instance', 'kb_data')
 KB_SOCHDB_PATH = os.environ.get('KB_SOCHDB_PATH', os.path.join(KB_ROOT, 'kb.soch'))
@@ -3156,7 +3156,7 @@ def _collection_groups(collections, active_cid, active_group='',
     primary 取「一级·二级」名称的首段;无分隔的集合归入「未分类」组。
     二级展示名经 classifier.short_subject 清理无效字符(JR∕T 0323— 等)
     并缩减长度。active_cid/active_group 用于展开并高亮当前所在组。"""
-    from classifier import short_subject
+    from kb.classifier import short_subject
     doc_counts = doc_counts or {}
     groups = {}
     for c in collections:
@@ -4061,7 +4061,7 @@ def api_refine_all():
     """管理员手动入队全量提炼任务(scope='refine'),由 job_worker 执行。"""
     if current_user.role != 'admin':
         return jsonify({'ok': False, 'error': '仅管理员可操作'}), 403
-    from notes import NoteJob
+    from routes.notes import NoteJob
     now = datetime.cn_now()
     recent = NoteJob.query.filter(
         NoteJob.scope == 'refine',
@@ -4700,7 +4700,7 @@ def bulk():
         db.session.commit()
         return jsonify({'ok': True, 'requeued': len(docs)})
     if action == 'auto_archive':
-        from classifier import classify, _pick_color
+        from kb.classifier import classify, _pick_color
         archived, created_names, skipped, rebuilt = [], [], 0, 0
         processed_ids = []
         for doc in docs:
@@ -4988,7 +4988,7 @@ def _auto_archive_document(conn, doc_id, pages):
         (doc_id,)).fetchone()
     if not row:
         return
-    from classifier import auto_archive
+    from kb.classifier import auto_archive
     result = auto_archive(conn, doc_id, row[0], row[1] or '', text)
     if result:
         created, label, conf = result
@@ -5089,7 +5089,7 @@ def main():
             time.sleep(KB_POLL_INTERVAL)
         try:
             if time.time() - last_retrain_check >= 60:
-                from classifier import maybe_retrain
+                from kb.classifier import maybe_retrain
                 maybe_retrain(conn)
                 last_retrain_check = time.time()
         except Exception as e:

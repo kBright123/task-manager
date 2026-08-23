@@ -81,7 +81,7 @@
       '</div></a>';
   }
   function taskItem(idx, t, q) {
-    return '<a href="' + t.detail_url + '" target="_blank" rel="noopener" data-idx="' + idx + '" class="us-r-item">' +
+    return '<a href="' + t.detail_url + '" data-idx="' + idx + '" class="us-r-item">' +
       '<span class="us-item-ico">✅</span>' +
       '<div class="us-item-main">' +
       '<div class="us-item-title">' + highlight(t.title, q) + '</div>' +

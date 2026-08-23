@@ -7,3 +7,4 @@ backups/
 *.db
 .env
 
+deps_install.log

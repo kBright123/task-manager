@@ -172,3 +172,28 @@ function filterEditAssignees(q){
   });
 }
 </script>
+
+<script>
+(function(){
+  var m=document.getElementById('editTaskModal');if(!m)return;
+  var f=document.getElementById('editTaskForm');if(!f)return;
+  function snap(){
+    return Array.prototype.slice.call(f.elements)
+      .filter(function(e){return e.name&&e.type!=='submit'&&e.type!=='button'&&e.type!=='reset'&&e.type!=='file';})
+      .map(function(e){return e.name+'='+e.value;}).join('&');
+  }
+  var clean=null;
+  m.addEventListener('show.bs.modal',function(){setTimeout(function(){clean=snap();f.dataset.forceClose='';},80);});
+  m.addEventListener('hide.bs.modal',function(ev){
+    if(clean===null||f.dataset.forceClose==='1')return;
+    if(snap()===clean)return;
+    ev.preventDefault();
+    window.uiConfirm('有未保存的修改，确定关闭？').then(function(yes){
+      if(yes){f.dataset.forceClose='1';
+        var inst=window.bootstrap&&bootstrap.Modal.getInstance(m);
+        if(inst)inst.hide();else f.dataset.forceClose='';
+      }
+    });
+  });
+})();
+</script>

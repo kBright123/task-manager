@@ -54,7 +54,7 @@
 
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
   <div>
-    <h4 style="font-weight:700;color:var(--gray-900);margin:0;">{{ doc.title }}
+    <h4 style="font-weight:700;color:var(--gray-900);margin:0;font-size:1.05rem;">{{ doc.title }}
       {% if doc.collection %}
       <span class="badge" style="background:{{ doc.collection.color }}22;color:{{ doc.collection.color }};font-size:.65rem;vertical-align:middle;">{{ doc.collection.name }}{% if doc.auto_classified %} · 自动分类{% endif %}</span>
       {% endif %}
@@ -65,11 +65,11 @@
   <div class="d-flex gap-2">
     {% if can_manage %}
     <form method="POST" action="{{ url_for('kb.doc_reprocess', doc_id=doc.id) }}">
-      <button class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-repeat"></i> 重新识别</button>
+      <button class="btn btn-outline-primary btn-xs-custom" style="padding:2px 8px;font-size:.7rem;"><i class="bi bi-arrow-repeat"></i> 重新识别</button>
     </form>
     <form method="POST" action="{{ url_for('kb.doc_delete', doc_id=doc.id) }}"
           onsubmit="return confirm('确认删除该文档?')">
-      <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i> 删除</button>
+      <button class="btn btn-outline-danger btn-xs-custom" style="padding:2px 8px;font-size:.7rem;"><i class="bi bi-trash"></i> 删除</button>
     </form>
     {% endif %}
   </div>

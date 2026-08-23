@@ -99,6 +99,8 @@
     /* 任务卡片 */
     .tl-items{margin-left:16px;padding-left:10px;}
     .tl-card{position:relative;margin-bottom:4px;padding:5px 8px;background:#fff;border:1px solid var(--gray-200);border-radius:8px;cursor:pointer;transition:all .15s;font-size:.82rem;}
+    .tl-card.tl-flash{animation:tlFlash 2.4s ease 1;}
+    @keyframes tlFlash{0%,55%{background:rgba(255,183,77,.28);border-color:var(--warning);}100%{background:#fff;border-color:var(--gray-200);}}
     .tl-card:hover{border-color:var(--primary);box-shadow:var(--shadow-sm);}
     .tl-card::before{content:'';position:absolute;left:-27px;top:10px;width:8px;height:8px;border-radius:50%;border:2px solid var(--primary);background:#fff;}
     .tl-card.overdue::before{border-color:var(--danger);background:var(--danger);}
@@ -177,10 +179,12 @@
           <input type="checkbox" id="tlShowCompleted" checked onchange="loadTaskFeed()" style="margin:0;width:12px;height:12px;">
           <span>已完成</span>
         </label>
-        <span id="taskFeedCount" style="font-size:.68rem;color:var(--gray-400);"></span>
+        <button class="btn btn-sm btn-outline-secondary" style="font-size:.68rem;padding:1px 8px;" onclick="openTrashModal()"><i class="bi bi-trash3"></i> 回收站</button>
+          <span id="taskFeedCount" style="font-size:.68rem;color:var(--gray-400);"></span>
       </div>
     </div>
     {% if preview %}
+    {% if preview.time_parser == 'legacy' %}<div style="background:#FFF7E0;border:1px solid #F0D48A;color:#8A6D1A;border-radius:8px;padding:6px 10px;font-size:.75rem;margin-bottom:10px;"><i class="bi bi-exclamation-triangle"></i> 时间未能智能识别（旧规则解析），请核对下方时间字段。</div>{% endif %}
     <div style="overflow-y:auto;flex:1;">
       {% if duplicate_tasks %}
       <div class="alert {% if duplicate_blocked %}alert-danger{% else %}alert-warning{% endif %} py-2 px-3 mb-3" style="font-size:.82rem;border-left:4px solid {% if duplicate_blocked %}#ef4444{% else %}#f59e0b{% endif %};border-radius:0;">
@@ -562,12 +566,12 @@ function loadTaskFeed(keepView){
     if(cnt) cnt.textContent='共 '+d.tasks.length+' 条';
     renderTimeline(el,!keepView);
   }).catch(function(e){
-    el.innerHTML='<div class="tl-axis"></div><div class="tl-empty"><i class="bi bi-exclamation-circle"></i>'+(window.netErrMsg?netErrMsg(e):'加载失败')+'</div>';
+    el.innerHTML='<div class="tl-axis"></div><div class="tl-empty"><i class="bi bi-exclamation-circle"></i><div style="margin-bottom:12px;">'+(window.netErrMsg?netErrMsg(e):'加载失败')+'</div><button class="btn btn-sm btn-outline-primary" onclick="loadTaskFeed()">重试</button></div>';
   });
 }
 function renderTimeline(el,jump){
-  var catColors={'工作':'var(--primary)','个人':'var(--success)','会议':'var(--meeting)','培训':'var(--training)','考试':'var(--exam)'};
-   var sectionOrder=['past','past_month','past_week','today','tomorrow','future_week','future_month','later'];
+  var catColors=window.KB_CAT_COLORS;
+   var sectionOrder=window.KB_TL_ORDER;
   var tasks=_tlfCache;
   var groups={};
   tasks.forEach(function(t){
@@ -878,12 +882,12 @@ function renderTaskDetail(t, body){
   if (t.can_delete) {
     headBtns += '<button type="button" class="btn btn-xs-custom btn-outline-danger" style="font-size:.72rem;flex-shrink:0;" onclick="deleteTask(' + t.id + ')" title="删除待办"><i class="bi bi-trash"></i> 删除</button>';
   }
-  head.innerHTML = '<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;">' +
-      '<div style="font-size:.9rem;font-weight:700;color:var(--gray-900);flex:1;min-width:0;word-break:break-word;">' + esc(t.title) + '</div>' +
-      headBtns + '</div>' +
-    '<div class="d-flex flex-wrap gap-2 align-items-center">' +
+  head.innerHTML = '<div style="font-size:.9rem;font-weight:700;color:var(--gray-900);word-break:break-word;margin-bottom:8px;">' + esc(t.title) + '</div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">' +
       '<span class="badge" style="background:var(--primary);font-size:.65rem;">' + esc(t.category) + '</span>' +
-      fmtStatus(t.status) + '</div>';
+      fmtStatus(t.status) +
+      (headBtns ? '<div style="margin-left:auto;display:flex;gap:6px;flex-shrink:0;">' + headBtns + '</div>' : '') +
+    '</div>';
   card.appendChild(head);
   if (t.description && t.description !== t.title) {
     var d = document.createElement('div');
@@ -1039,8 +1043,8 @@ function saveTaskEdit(){
       }
     }).catch(function(e){ alert('保存失败: ' + e.message); });
 }
-function deleteTask(id){
-  if(!confirm('确定删除该待办？删除后 10 秒内可撤销。')) return;
+async function deleteTask(id){
+  if(!(await uiConfirm('确定删除该待办？将移入回收站，可在回收站恢复或彻底删除。')))return;
   var data=_tlfCache.find(function(x){return x.id===id;});
   fetchJSON('{{ url_for('api_task_delete', task_id=0) }}'.replace('/0','/' + id), {method:'POST'})
     .then(function(d){
@@ -1051,16 +1055,16 @@ function deleteTask(id){
       var cnt=document.getElementById('taskFeedCount');
       if(cnt)cnt.textContent='共 '+_tlfCache.length+' 条';
       if(el)renderTimeline(el,false);
-      toast('已删除「'+((data&&data.title)||'待办')+'」',{actionLabel:'撤销',duration:8000,onAction:function(){
-        fetchJSON('/api/quick-task',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:data.title,start_time:data.start_time,end_time:data.end_time,category:data.category,description:data.full_description||'',assignee_ids:data.assignee_ids||[],group_ids:data.group_ids||[],is_all:false})}).then(function(rd){
+      toast('已移入回收站「'+((data&&data.title)||'待办')+'」',{actionLabel:'撤销',duration:8000,onAction:function(){
+        fetchJSON('/api/task/'+id+'/restore',{method:'POST'}).then(function(rd){
           if(rd.ok){toast('已恢复','success');}else{toast(rd.error||'恢复失败','error');}
           loadTaskFeed();
         }).catch(function(e){toast(netErrMsg(e),'error');});
       }});
     }).catch(function(e){toast(netErrMsg(e),'error');});
 }
-function reopenTask(id){
-  if(!confirm('重新打开待办并将所有已完成状态重置为进行中？')) return;
+async function reopenTask(id){
+  if(!(await uiConfirm('重新打开待办并将所有已完成状态重置为进行中？')))return;
   fetch('{{ url_for('api_task_reopen', task_id=0) }}'.replace('/0','/' + id), {method:'POST'})
     .then(function(r){return r.json();}).then(function(d){
       if(d.ok){ loadTaskDetail(parseInt(id, 10)); }
@@ -1177,6 +1181,8 @@ function taskParse(btn){
       if(!d.ok){
         if(d.sensitive_words&&d.sensitive_words.length){
           if(window.toast)toast('输入内容包含敏感词：'+d.sensitive_words.join('、'),'danger');
+        }else if(d.not_ready){
+          if(window.toast)toast('⏳ '+(d.error||'智能解析准备中，请稍候再试'),'warning');
         }else{
           if(window.toast)toast(d.error||'解析失败','danger');
         }
@@ -1362,8 +1368,23 @@ document.addEventListener('DOMContentLoaded', function () {
   loadTaskFeed();
   var params = new URLSearchParams(window.location.search);
   var newId = params.get('new');
+  var hlId = params.get('highlight');
   // 手机端详情为滑出抽屉(带全屏遮罩), 不自动打开, 避免刷新后整页变灰
   var isMobile = window.matchMedia('(max-width: 1100px)').matches;
+  if (hlId) {
+    var _tries = 0;
+    (function _pollHl() {
+      var el = document.getElementById('tl-' + parseInt(hlId, 10));
+      if (!el) { if (++_tries < 40) return setTimeout(_pollHl, 120); return; }
+      var sec = el.closest('.tl-section');
+      if (sec && !sec.classList.contains('open')) { sec.classList.add('open'); if (window._dtlCurEl !== undefined && window._tlfAccordionCur) { /* noop */ } }
+      setTimeout(function () {
+        try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { el.scrollIntoView(); }
+        el.classList.add('tl-flash');
+        setTimeout(function () { el.classList.remove('tl-flash'); }, 2600);
+      }, 120);
+    })();
+  }
   if (newId) {
     if (!isMobile) loadTaskDetail(parseInt(newId, 10));
     return;
@@ -1403,4 +1424,53 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 }
 </style>
+<div class="modal fade" id="trashModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content" style="border-radius:14px;">
+      <div class="modal-header py-2" style="border-bottom:1px solid var(--gray-200);">
+        <h6 class="modal-title" style="font-size:.85rem;"><i class="bi bi-trash3"></i> 回收站</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" style="max-height:60vh;overflow-y:auto;">
+        <div id="trashList" style="font-size:.78rem;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+function openTrashModal(){
+  var el=document.getElementById('trashList');
+  el.innerHTML='<div class="text-center py-4"><div class="spinner-border spinner-border-sm text-secondary"></div></div>';
+  var m=window.bootstrap?bootstrap.Modal.getOrCreateInstance(document.getElementById('trashModal')):null;
+  if(m)m.show();
+  fetchJSON('/api/tasks/trash').then(function(d){
+    if(!d||!d.ok){el.innerHTML='<div class="tl-empty">加载失败</div>';return;}
+    if(!d.items.length){el.innerHTML='<div class="tl-empty"><i class="bi bi-trash3"></i><div>回收站是空的</div></div>';return;}
+    var h='';
+    d.items.forEach(function(t){
+      h+='<div class="d-flex align-items-center justify-content-between" style="padding:8px 2px;border-bottom:1px dashed var(--gray-200);">';
+      h+='<div style="min-width:0;"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46vw;">'+(t.title||'(无标题)')+'</div>';
+      h+='<div style="font-size:.66rem;color:var(--gray-400);">删于 '+t.deleted_at+' · '+t.assignee_count+' 人</div></div>';
+      h+='<div class="d-flex gap-1 flex-shrink-0">';
+      h+='<button class="btn btn-sm btn-outline-primary" style="font-size:.7rem;padding:1px 8px;" onclick="restoreFromTrash('+t.id+')">恢复</button>';
+      h+='<button class="btn btn-sm btn-outline-danger" style="font-size:.7rem;padding:1px 8px;" onclick="purgeFromTrash('+t.id+', this)">彻底删除</button>';
+      h+='</div></div>';
+    });
+    el.innerHTML=h;
+  }).catch(function(e){el.innerHTML='<div class="tl-empty">'+netErrMsg(e)+'</div>';});
+}
+function restoreFromTrash(id){
+  fetchJSON('/api/task/'+id+'/restore',{method:'POST'}).then(function(d){
+    if(!d||!d.ok){toast((d&&d.error)||'恢复失败','error');return;}
+    toast('已恢复','success');loadTaskFeed();openTrashModal();
+  }).catch(function(e){toast(netErrMsg(e),'error');});
+}
+async function purgeFromTrash(id, btn){
+  if(!(await uiConfirm('彻底删除后不可恢复，确定继续？',{okText:'彻底删除',cancelText:'取消'})))return;
+  fetchJSON('/api/task/'+id+'/purge',{method:'POST'}).then(function(d){
+    if(!d||!d.ok){toast((d&&d.error)||'删除失败','error');return;}
+    toast('已彻底删除','success');openTrashModal();
+  }).catch(function(e){toast(netErrMsg(e),'error');});
+}
+</script>
 {% endblock %}

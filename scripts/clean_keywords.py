@@ -40,7 +40,7 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from knowledge import (DB_PATH, KB_CACHE_PATH, KB_TAG_BLACKLIST,
+from kb.knowledge import (DB_PATH, KB_CACHE_PATH, KB_TAG_BLACKLIST,
                        clean_blacklist_keywords)
 
 DEFAULT_DB = DB_PATH

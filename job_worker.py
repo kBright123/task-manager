@@ -47,8 +47,8 @@ if os.environ.get('TZ'):
         pass
 
 from app import app, db, get_job_setting, apply_sensitive_log_filter
-from notes import Note, NoteJob, merge_duplicate_notes
-from knowledge import (KbDocument, KbPage, KB_LLM_DISABLED, _session_create,
+from routes.notes import Note, NoteJob, merge_duplicate_notes
+from kb.knowledge import (KbDocument, KbPage, KB_LLM_DISABLED, _session_create,
                        _send,
                        KB_OPENCODE_BASE_URL,
                        tag_points_untagged, merge_duplicate_points,

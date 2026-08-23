@@ -82,7 +82,7 @@ fi
 # bind mount 的文件保留宿主属主/权限。若容器内以 root 运行仍不可读, 通常是
 # rootless/podman 或 userns-remap(容器 root ≠ 宿主 root), 容器内 chown/chmod
 # 对宿主文件无效, 必须回到宿主机处理。
-for f in /app/app.py /app/knowledge.py /app/classifier.py /app/reminder_worker.py /app/notes.py /app/job_worker.py /app/backup.py /app/routes_admin.py /app/routes_auth.py /app/routes_tasks.py /app/routes_search.py /app/routes_notify.py; do
+for f in /app/app.py /app/kb/knowledge.py /app/kb/classifier.py /app/kb/nlp_parser.py /app/reminder_worker.py /app/job_worker.py /app/backup.py /app/routes/*.py /app/core/*.py; do
   if [ ! -r "$f" ]; then
     chown appuser:appuser "$f" 2>/dev/null || true
     chmod 644 "$f" 2>/dev/null || true
@@ -156,9 +156,9 @@ import subprocess
 import sys
 import time
 
-WATCHED = ('/app/app.py', '/app/knowledge.py', '/app/classifier.py', '/app/reminder_worker.py', '/app/notes.py', '/app/job_worker.py', '/app/routes_admin.py', '/app/routes_auth.py', '/app/routes_tasks.py', '/app/routes_search.py', '/app/routes_notify.py')
+WATCHED = ('/app/app.py', '/app/kb/knowledge.py', '/app/kb/classifier.py', '/app/kb/nlp_parser.py', '/app/reminder_worker.py', '/app/job_worker.py', '/app/routes/admin.py', '/app/routes/auth.py', '/app/routes/tasks_api.py', '/app/routes/tasks_pages.py', '/app/routes/search.py', '/app/routes/notify.py', '/app/routes/notes.py', '/app/routes/pet.py')
 SCRIPTS = {k: v for k, v in {
-    'kb': ('knowledge.py', 'KB_WORKER_ENABLED'),
+    'kb': ('-m kb.knowledge', 'KB_WORKER_ENABLED'),
     'reminder': ('reminder_worker.py', 'REMINDER_WORKER_ENABLED'),
     'job': ('job_worker.py', 'JOB_WORKER_ENABLED'),
 }.items() if os.environ.get(v[1], '1') == '1'}
@@ -177,7 +177,7 @@ signal.signal(signal.SIGINT, _sig)
 
 
 def _spawn(name):
-    return subprocess.Popen([sys.executable, '-u', SCRIPTS[name]], cwd='/app')
+    return subprocess.Popen([sys.executable, '-u'] + SCRIPTS[name].split(), cwd='/app')
 
 
 procs = {name: _spawn(name) for name in SCRIPTS}
@@ -219,7 +219,7 @@ else
   echo "[entrypoint] starting background workers (kb=${KB_WORKER_ENABLED} reminder=${REMINDER_WORKER_ENABLED} job=${JOB_WORKER_ENABLED})"
   WORKER_PIDS=()
   if [ "${KB_WORKER_ENABLED:-1}" = "1" ]; then
-    su appuser -c "python knowledge.py" &
+    su appuser -c "python -m kb.knowledge" &
     WORKER_PIDS+=("$!")
   fi
   if [ "${REMINDER_WORKER_ENABLED:-1}" = "1" ]; then

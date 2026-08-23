@@ -50,9 +50,8 @@
   .tl-wrap{position:relative;overflow-y:auto;flex:1;padding:12px 12px 28px 16px;}
   /* 桌面端双栏铺满一屏: 时间轴与日历拉伸至视口剩余高度 */
   @media (min-width:768px){
-    /* 纯CSS一屏(不依赖JS测量): 容器锁定视口高, 行弹性填充, 全链显式min-height:0 */
-    html,body{overflow:hidden;}
-    .app-container{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;padding-bottom:14px!important;}
+    /* 纯CSS一屏(不依赖JS测量): 容器锁定视口剩余高(扣除固定导航64px), 行弹性填充 */
+    .app-container{height:calc(100vh - var(--nav-height));height:calc(100dvh - var(--nav-height));display:flex;flex-direction:column;overflow:hidden;padding-bottom:14px!important;}
     .stat-grid{flex:0 0 auto;}
     .dash-row{flex:1 1 0;min-height:0;height:auto!important;max-height:none!important;}
     .dash-col{height:100%;min-height:0;display:flex;flex-direction:column;}
@@ -135,6 +134,13 @@
   [data-theme="dark"] .cal-picker{background:#101a2d;}
   [data-theme="dark"] .tl-section-dot,[data-theme="dark"] .tl-card::before{background:#16233b;}
   [data-theme="dark"] .cal-cell{color:#dbe3ee;}
+  [data-theme="dark"] .cal-cell{background:#111c30;box-shadow:inset 0 0 0 .5px #223052;}
+  [data-theme="dark"] .cal-cell.cal-other{color:#4b5a75;background:transparent;}
+  [data-theme="dark"] .cal-cell.holiday{background:#241a20;}
+  [data-theme="dark"] .cal-cell.today{background:#2b1c22;box-shadow:inset 0 0 0 1.5px #E06B6B;}
+  [data-theme="dark"] .cal-cell.selected{background:#17335a;box-shadow:inset 0 0 0 2px #4A90D9;}
+  [data-theme="dark"] .cal-tag-rest{background:rgba(46,125,50,.28);color:#8fd6a3;border-color:rgba(143,214,163,.35);}
+  [data-theme="dark"] .cal-tag-work{background:rgba(230,129,0,.22);color:#f0b077;border-color:rgba(240,176,119,.3);}
   [data-theme="dark"] .cal-cell:hover{background:#12293f;transform:none;}
   /* 日历 */
   .cal-cell{position:relative;width:100%;aspect-ratio:1;border-radius:0;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:background .15s;font-size:.68rem;color:#333;background:#fff;box-shadow:inset 0 0 0 .5px var(--gray-200);}

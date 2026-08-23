@@ -13,8 +13,8 @@ def test_dashboard_basic(client):
     d = _get(client, '/user/dashboard')
     assert 'id="calGrid"' in d
     assert 'dashTimeline' in d
-    # 一屏纯CSS布局
-    assert 'height:100dvh' in d
+    # 一屏纯CSS布局(扣除固定导航高度, 否则容器底部被视口裁切)
+    assert 'calc(100dvh - var(--nav-height))' in d
     # 日历悬浮框已移除
     assert 'calTooltipTitle' not in d
     assert 'onmouseenter="calShowTooltip' not in d

@@ -58,9 +58,9 @@
     .dash-col{height:100%;min-height:0;display:flex;flex-direction:column;}
     .dash-col>.card{display:flex;flex-direction:column;margin-bottom:0!important;min-height:0;height:100%;}
     #calCard{flex:1;min-height:0;overflow:hidden;}
-    #calCard>.card-body{flex:1 1 0;display:flex;flex-direction:column;min-height:0;padding-bottom:max(14px,env(safe-area-inset-bottom));overflow-y:auto;}
+    #calCard>.card-body{flex:1 1 0;display:flex;flex-direction:column;min-height:0;padding-bottom:max(16px,env(safe-area-inset-bottom));overflow-y:auto;}
     /* 日历与时间轴等高: 格子均分剩余高度, 行高下限34px, 6行月份/矮视口时卡片体滚动而不是压扁末行 */
-    #calGrid{flex:1 1 0;min-height:0;grid-auto-rows:minmax(34px,1fr);align-content:stretch;}
+    #calGrid{flex:1 1 0;min-height:0;grid-auto-rows:minmax(38px,1fr);align-content:stretch;padding-bottom:3px;}
     #calGrid .cal-cell{aspect-ratio:auto;height:auto;min-height:34px;padding-bottom:12px;}
     /* 时间轴内部滚动(滚动条细化) */
     #dashTimeline{max-height:none!important;height:auto!important;min-height:60px!important;flex:1 1 0;display:flex;flex-direction:column;overflow:hidden;}
@@ -94,7 +94,8 @@
     /* 日历格子手机端: 高度自适应, 节日名可读(Pad/PC不弹层但保留格子优化) */
     #calGrid{grid-auto-rows:minmax(44px,auto);}
     #calGrid .cal-cell{aspect-ratio:auto;height:auto;min-height:44px;padding:4px 0 16px;}
-    .cal-hn{font-size:.56rem;}
+    .cal-hn{font-size:.72rem;}
+    .cal-num{font-size:.84rem;}
   }
   .tl-axis{position:absolute;left:28px;top:0;bottom:0;width:2px;background:var(--gray-200);}
   .tl-section{margin-bottom:4px;}
@@ -142,12 +143,14 @@
   .cal-cell.today{box-shadow:inset 0 0 0 1.5px #E06B6B;background:#FFF5F5;}
   .cal-cell.selected{background:#EBF5FF;box-shadow:inset 0 0 0 2px #4A90D9;}
   .cal-cell.cal-other{color:#ccc;background:transparent;}
+  .cal-num{font-size:.78rem;font-weight:600;line-height:1.1;}
+  .cal-cell.holiday .cal-num{transform:translateY(-6px);}
   .cal-dots{display:flex;gap:2px;justify-content:center;position:absolute;left:0;right:0;bottom:4px;margin-top:0;}
   .cal-dot{border-radius:50%;}
-  .cal-tag-work{position:absolute;top:1px;right:1px;width:18px;height:15px;background:#FFF3E0;color:#E65100;border-radius:2px;font-size:.48rem;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1;}
-  .cal-hn{position:absolute;bottom:2px;left:0;right:0;font-size:.5rem;line-height:1.1;color:#E06B6B;font-weight:600;padding:0 1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .cal-tag-work{position:absolute;top:2px;right:2px;min-width:20px;height:16px;padding:0 5px;background:#FFF3E0;color:#E65100;border-radius:8px;font-size:.62rem;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1;border:1px solid rgba(230,81,0,.18);box-sizing:border-box;}
+  .cal-hn{position:absolute;bottom:15px;left:0;right:0;font-size:.64rem;line-height:1;color:#E06B6B;font-weight:600;text-align:center;padding:0 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none;}
   .cal-cell.holiday{background:#FFF5F5;}
-  .cal-tag-rest{position:absolute;top:1px;right:1px;width:18px;height:15px;background:#E8F5E9;color:#2E7D32;border-radius:2px;font-size:.48rem;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1;}
+  .cal-tag-rest{position:absolute;top:2px;right:2px;min-width:20px;height:16px;padding:0 5px;background:#E8F5E9;color:#2E7D32;border-radius:8px;font-size:.62rem;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1;border:1px solid rgba(46,125,50,.18);box-sizing:border-box;}
   .cal-week-num{font-size:.5rem;color:#bbb;text-align:right;padding-right:3px;line-height:1;}
   .cal-picker{position:absolute;top:34px;left:0;right:0;background:#fff;border:1px solid var(--gray-200);border-radius:8px;padding:10px;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,.1);}
   .cal-picker-month{font-size:.72rem;padding:4px 0;border-radius:4px;cursor:pointer;text-align:center;transition:all .15s;}
@@ -162,7 +165,7 @@
     <div class="d-flex justify-content-between align-items-center">
       <div>
         <div class="stat-num" style="font-size:1.5rem;">{{ all_pending|length }}</div>
-        <div class="stat-label">待处理任务</div>
+        <div class="stat-label">待办</div>
         <div class="stat-trend">较前日{% if tasks_delta > 0 %}<span class="trend-pill up">↑ {{ tasks_delta }}</span>{% elif tasks_delta < 0 %}<span class="trend-pill down">↓ {{ -tasks_delta }}</span>{% else %}<span class="trend-pill flat">—</span>{% endif %}</div>
       </div>
       <i class="bi bi-check2-square" style="font-size:1.5rem;opacity:.85;"></i>
@@ -798,7 +801,7 @@ function calDots(cnt){if(!cnt)return '';var c=cnt>=5?'#E06B6B':(cnt>=3?'#4A90D9'
   fetchJSON('/api/tasks/calendar?year='+calYear+'&month='+calMonth+(document.getElementById('dashShowCompleted')?.checked?'&show_completed=1':'')).then(function(d){
     var density=d.ok?d.density:{};var tags=d.ok?(d.tags||{}):{};window._calItems=d.ok?(d.items||{}):{};window._calHolidays=d.ok?(d.holidays||{}):{};window._calDensity=density;_calAllTasks=[];Object.keys(density).forEach(function(k){for(var i=0;i<density[k];i++)_calAllTasks.push({date:k,count:density[k]});});
     var html='';var firstDay=new Date(calYear,calMonth-1,1);var lastDay=new Date(calYear,calMonth,0);var startDow=firstDay.getDay()||7;var totalDays=lastDay.getDate();for(var i=1;i<startDow;i++)html+='<div class="cal-cell cal-other"></div>';
-    for(var day=1;day<=totalDays;day++){var ds=calYear+'-'+String(calMonth).padStart(2,'0')+'-'+String(day).padStart(2,'0');var isToday=ds===todayStr;var cnt=density[ds]||0;var tag=tags[ds]||null;var hn=(window._calHolidays||{})[ds];var cls='cal-cell';if(isToday)cls+=' today';if(hn)cls+=' holiday';html+='<div class="'+cls+'" data-date="'+ds+'" onclick="calSelect(this,\''+ds+'\')"><span>'+day+'</span>';if(hn){html+='<span class="cal-hn">'+hn+'</span>';if(tag==='休')html+='<span class="cal-tag-rest">休</span>';}else if(tag==='休')html+='<span class="cal-tag-rest">休</span>';else if(tag==='班')html+='<span class="cal-tag-work">班</span>';html+=calDots(cnt);html+='</div>';}
+    for(var day=1;day<=totalDays;day++){var ds=calYear+'-'+String(calMonth).padStart(2,'0')+'-'+String(day).padStart(2,'0');var isToday=ds===todayStr;var cnt=density[ds]||0;var tag=tags[ds]||null;var hn=(window._calHolidays||{})[ds];var cls='cal-cell';if(isToday)cls+=' today';if(hn)cls+=' holiday';html+='<div class="'+cls+'" data-date="'+ds+'" onclick="calSelect(this,\''+ds+'\')"><span class="cal-num">'+day+'</span>';if(hn){html+='<span class="cal-hn">'+hn+'</span>';if(tag==='休')html+='<span class="cal-tag-rest">休</span>';}else if(tag==='休')html+='<span class="cal-tag-rest">休</span>';else if(tag==='班')html+='<span class="cal-tag-work">班</span>';html+=calDots(cnt);html+='</div>';}
     el.innerHTML=html;}).catch(function(e){el.innerHTML='<div style="grid-column:1/8;text-align:center;color:#999;font-size:.75rem;padding:20px;"><div style="margin-bottom:8px;">'+(window.netErrMsg?netErrMsg(e):'加载失败')+'</div><button class="btn btn-sm btn-outline-secondary" onclick="calRender()">重试</button></div>';});}
 function calSelect(el,dateStr){
   if(window.matchMedia('(hover: none)').matches&&window.innerWidth<768){calSheetShow(el,dateStr);return;}

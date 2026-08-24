@@ -1078,13 +1078,16 @@ def _rebuild_points_for_doc(conn, doc_id, pages):
     conn.execute('DELETE FROM kb_point WHERE doc_id=?', (doc_id,))
     points = _split_knowledge_points(pages)
     ids = []
+    # created_at 显式传北京时间(cn_now): SQLite CURRENT_TIMESTAMP 是 UTC,
+    # 与全项目统一时间源相差8小时, 曾致首页知识点"较前日"统计错位
+    now_str = cn_now().strftime('%Y-%m-%d %H:%M:%S')
     for pt in points:
         cur = conn.execute(
             'INSERT INTO kb_point (doc_id, title, content, page_start, '
             'page_end, word_count, sort_order, created_at) '
-            'VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)',
+            'VALUES (?,?,?,?,?,?,?,?)',
             (doc_id, pt['title'], pt['content'], pt['page_start'],
-             pt['page_end'], pt['word_count'], pt['sort_order']))
+             pt['page_end'], pt['word_count'], pt['sort_order'], now_str))
         ids.append(cur.lastrowid)
     conn.commit()
     try:
@@ -1147,6 +1150,46 @@ _KB_POINT_DDL = [
      'value INTEGER DEFAULT 0)'),
 ]
 
+# kb_point.created_at 历史值由 SQLite CURRENT_TIMESTAMP(UTC) 写入, 与全项目
+# 统一时间源 cn_now(北京时间) 相差 8 小时, 曾致首页"知识点较前日"统计错位。
+# 此处一次性整体 +8h 校正, 并用 kb_merge_state 标记防重复执行。
+_POINT_TZ_FIX_KEY = 'point_created_at_tz_fix'
+
+
+def _fix_point_created_at_tz(conn):
+    try:
+        conn.commit()  # 收尾调用方可能遗留的隐式事务, 保证 BEGIN IMMEDIATE 可用
+        row = conn.execute('SELECT value FROM kb_merge_state WHERE key=?',
+                           (_POINT_TZ_FIX_KEY,)).fetchone()
+        if row:
+            return
+        # BEGIN IMMEDIATE 串行化 web/worker 双进程并发触发, 防二次偏移
+        orig = conn.isolation_level
+        conn.isolation_level = None
+        try:
+            conn.execute('BEGIN IMMEDIATE')
+            row = conn.execute(
+                'SELECT value FROM kb_merge_state WHERE key=?',
+                (_POINT_TZ_FIX_KEY,)).fetchone()
+            if not row:
+                conn.execute("UPDATE kb_point SET created_at="
+                             "datetime(created_at,'+8 hours') "
+                             'WHERE created_at IS NOT NULL')
+                conn.execute('INSERT INTO kb_merge_state(key, value) '
+                             'VALUES (?,1)', (_POINT_TZ_FIX_KEY,))
+                logger.info('kb_point.created_at UTC->CN(+8h) one-time fix applied')
+            conn.execute('COMMIT')
+        except Exception:
+            try:
+                conn.execute('ROLLBACK')
+            except Exception:
+                pass
+            raise
+        finally:
+            conn.isolation_level = orig
+    except Exception as e:
+        logger.warning('kb_point.created_at tz fix skipped: %s', e)
+
 
 def _ensure_point_tables(conn):
     """确保知识点相关表存在(worker 进程在 Flask create_all 之前也可运行)。"""
@@ -1165,10 +1208,12 @@ def _ensure_point_tables(conn):
             pass
     if 'created_at' in cols:
         try:
-            conn.execute('UPDATE kb_point SET created_at=CURRENT_TIMESTAMP '
-                         'WHERE created_at IS NULL')
-        except Exception:
-            pass
+            conn.execute('UPDATE kb_point SET created_at=? '
+                         'WHERE created_at IS NULL',
+                         (cn_now().strftime('%Y-%m-%d %H:%M:%S'),))
+            _fix_point_created_at_tz(conn)
+        except Exception as e:
+            logger.warning('kb_point.created_at maintenance failed: %s', e)
     if 'tags' not in cols:
         try:
             conn.execute('ALTER TABLE kb_point ADD COLUMN '

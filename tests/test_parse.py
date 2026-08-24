@@ -31,6 +31,28 @@ def test_category_voting():
     assert r['category'] == '考试'
 
 
+def test_category_course_is_training():
+    """含"课程"字样的待办应识别为培训类型."""
+    for text in ('参加新员工入职课程 明天上午9点',
+                 '完成线上Python课程学习 下周五前',
+                 '数据结构课程作业提交 下周一下午5点'):
+        assert parse_task_from_text(text)['category'] == '培训', text
+
+
+def test_blur_timespan_not_override_explicit_date():
+    """模糊时段词(中期/年底)不得覆盖明确日期(回归: 中期检查通知截止误析为9-30)."""
+    NOTICE = ('各位领导、同事：2026年度“一处一课题”工作现开展中期检查，'
+              '请各课题组根据当前工作进展，如实总结当前进度和成果，'
+              '认真分析存在的问题和改进措施，科学拟定下阶段研究计划，'
+              '填写《工作进度汇总表》并于8月28日下班前反馈。')
+    span = np._parse_timespan_jionlp(NOTICE)
+    assert span and span['end'] is not None
+    assert span['end'].strftime('%m-%d') == '08-28'
+    # 仅模糊词时仍兜底可用
+    r = parse_task_from_text('系统升级年底前完成上线')
+    assert r['end_time'] is not None
+
+
 def test_jionlp_span_future_start():
     if parse_task_from_text._last_time_parser != 'jionlp':
         r = None

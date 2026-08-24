@@ -90,11 +90,16 @@
     #calSheetList{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:2px 14px;font-size:.78rem;}
   }
   @media (max-width:767px){
-    /* 日历格子手机端: 高度自适应, 节日名可读(Pad/PC不弹层但保留格子优化) */
-    #calGrid{grid-auto-rows:minmax(44px,auto);}
-    #calGrid .cal-cell{aspect-ratio:auto;height:auto;min-height:44px;padding:4px 0 16px;}
-    .cal-hn{font-size:.72rem;}
-    .cal-num{font-size:.84rem;}
+    /* 日历格子手机端: 行高加大; 节日名与休/班徽章改为数字下方顺序排列,
+       从结构上避免绝对定位互相遮挡(此前"休"字胶囊盖住日期数字)。
+       选择器带 #calGrid 前缀: 本块位于基础样式之前, 同权重会被后者覆盖 */
+    #calGrid{grid-auto-rows:minmax(56px,auto);}
+    #calGrid .cal-cell{aspect-ratio:auto;height:auto;min-height:56px;padding:6px 2px 18px;}
+    #calGrid .cal-num{font-size:.84rem;}
+    /* 节日名已在流内位于数字下方, 取消桌面上移6px为节日名让位的变换 */
+    #calGrid .cal-cell.holiday .cal-num{transform:none;}
+    #calGrid .cal-hn{position:static;font-size:.72rem;margin-top:1px;max-width:100%;}
+    #calGrid .cal-tag-rest,#calGrid .cal-tag-work{position:static;margin:2px 0 0;min-width:24px;height:15px;font-size:.58rem;}
   }
   .tl-axis{position:absolute;left:28px;top:0;bottom:0;width:2px;background:var(--gray-200);}
   .tl-section{margin-bottom:4px;}
@@ -765,7 +770,7 @@ function dashDeleteSubmit(ev){
 function dashOpenTaskDrawer(t){_dashDrawerData=t;var d=t;
   _drawerEdit={taskId:d.id,title:d.title,category:d.category||'工作',status:d.status||'pending',start:d.start_time||'',end:d.end_time||'',desc:d.full_description||'',assigneeIds:d.assignee_ids||[],groupIds:d.group_ids||[]};
   document.getElementById('drawerTitle').textContent=d.title;
-  var descEl=document.getElementById('drawerDesc');if(d.full_description&&d.full_description!==d.title){descEl.innerHTML=escapeHtml(d.full_description).replace(/\n/g,'<br>');descEl.style.display='block';}else{descEl.style.display='none';}
+  var descEl=document.getElementById('drawerDesc');if(d.full_description&&d.full_description!==d.title){descEl.innerHTML=linkifyText(escapeHtml(d.full_description)).replace(/\n/g,'<br>');descEl.style.display='block';}else{descEl.style.display='none';}
   document.getElementById('drawerStart').textContent=_nz(d.start_time);document.getElementById('drawerEnd').textContent=_nz(d.end_time);
   var _pg=parseInt(d.progress,10)||0;document.getElementById('drawerProgressSlider').value=_pg;document.getElementById('drawerProgressText').textContent=_pg+'%';
   document.getElementById('drawerProgressForm').action='/user/assignments/'+d.assignment_id+'/update_progress';
@@ -778,7 +783,7 @@ function dashOpenTaskDrawer(t){_dashDrawerData=t;var d=t;
   document.getElementById('drawerReopenForm').style.display=isCompleted?'':'none';
   document.getElementById('drawerReopenForm').action='/user/tasks/'+d.assignment_id+'/toggle';
   document.getElementById('drawerNoteInput').value=d.note||'';
-  var noteEl=document.getElementById('drawerNote');if(d.note){document.getElementById('drawerNoteText').textContent=d.note;noteEl.classList.remove('d-none');}else{noteEl.classList.add('d-none');}
+  var noteEl=document.getElementById('drawerNote');if(d.note){document.getElementById('drawerNoteText').innerHTML=linkifyText(escapeHtml(d.note));noteEl.classList.remove('d-none');}else{noteEl.classList.add('d-none');}
   var attEl=document.getElementById('drawerAttachment');if(d.attachment){var displayName=d.attachment.indexOf('_')>-1?d.attachment.split('_').slice(2).join('_'):d.attachment;document.getElementById('drawerAttachmentText').textContent=displayName;document.getElementById('drawerAttachmentLink').href='/uploads/'+d.attachment;attEl.classList.remove('d-none');}else{attEl.classList.add('d-none');}
   document.getElementById('drawerFileLabel').textContent='附件';var fileInput=document.querySelector('#drawerProgressForm input[type=file]');if(fileInput)fileInput.value='';
   document.getElementById('taskDrawer').classList.remove('d-none');document.getElementById('drawerOverlay').classList.remove('d-none');

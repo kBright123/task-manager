@@ -481,6 +481,7 @@ def _parse_timespan_jionlp(text):
         e = _dt(t[1]) if isinstance(t, list) and len(t) > 1 else None
         if not s:
             continue
+        is_blur = d.get('definition') == 'blur'
         # 时间线索: 显式「X点/X:XX」或时段词(上午/下午/晚上等); 全天单独判断
         has_tod = bool(re.search(r'\d{1,2}[点时：:]', txt)) or \
             bool(re.search(r'上午|早上|早晨|凌晨|中午|下午|晚上|晚间|傍晚', txt))
@@ -503,9 +504,16 @@ def _parse_timespan_jionlp(text):
                 if e and e > s - timedelta(days=7):
                     e += timedelta(days=7)
         cands.append({'txt': txt, 's': s, 'e': e, 'kind': kind,
-                      'allday': is_allday_tok})
+                      'allday': is_allday_tok, 'blur': is_blur})
     if not cands:
         return None
+    # 模糊时段词(中期/年底/年初等): jionlp 标记 definition=blur,
+    # 其宽泛跨度(如"中期"=本季度末)会在合并时用 max() 覆盖明确日期
+    # (回归: 通知含"8月28日前反馈"+"中期检查"误得截止9-30)。存在
+    # 准确实体时剔除模糊实体; 仅模糊时保留兜底。
+    _acc = [c for c in cands if not c.get('blur')]
+    if _acc and len(_acc) < len(cands):
+        cands = _acc
     # 独立「全天」实体(jio 会给它挂当前日期): 并入日期最近的实体并扩为全天
     _allday = [c for c in cands if c['allday']]
     if _allday and len(cands) > len(_allday):

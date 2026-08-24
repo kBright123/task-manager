@@ -873,7 +873,7 @@ def seed_demo_data(force=False):
          'start': today_start + timedelta(days=3), 'end': today_start + timedelta(days=4, hours=6)},
         {'title': '数据库备份脚本优化', 'category': '工作', 'assign': 'sunqi',
          'start': today_start - timedelta(days=1), 'end': today_start + timedelta(days=2)},
-        {'title': '在线课程-数据结构', 'category': '个人', 'assign': 'zhangsan',
+        {'title': '在线课程-数据结构', 'category': '培训', 'assign': 'zhangsan',
          'start': today_start, 'end': today_start + timedelta(days=30)},
         {'title': '客户需求评审会议', 'category': '工作', 'assign': 'all',
          'start': today_start + timedelta(hours=2), 'end': today_start + timedelta(hours=4)},

@@ -582,7 +582,7 @@
       }
 
       function _matchKeywords(text) {
-        if (!text || text.length < 4) return false;
+        if (!text || text.length < 6) return false;
         for (var i = 0; i < KEYWORDS.length; i++) {
           if (text.indexOf(KEYWORDS[i]) !== -1) return true;
         }
@@ -667,7 +667,7 @@
         navigator.clipboard.readText().then(function (text) {
           if (!text) return;
           var trimmed = text.trim();
-          if (!trimmed || trimmed.length < 4) return;
+          if (!trimmed || trimmed.length < 6) return; // 少于6个字自动过滤
           if (_isShown(trimmed)) return;        // 已提示过,跳过
           showClipConfirm(trimmed);
         }).catch(function () { /* 无权限或页面失焦,静默跳过 */ });

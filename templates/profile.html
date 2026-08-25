@@ -129,9 +129,10 @@
       <div class="card-header py-2 px-3"><i class="bi bi-calendar-week"></i> 日历订阅（同步到手机日历）</div>
       <div class="card-body py-3 px-3">
         {% if current_user.api_token %}
+        {% set feed_url = request.url_root.rstrip('/') ~ url_for('user_todo_ics', token=current_user.api_token) %}
         <div class="input-group mb-1">
           <input type="text" id="calFeedUrl" class="form-control"
-                 value="{{ request.url_root.rstrip('/') }}{{ url_for('user_todo_ics', token=current_user.api_token) }}"
+                 value="{{ feed_url }}"
                  style="font-size:.78rem;" onclick="this.select()">
           <button type="button" class="btn btn-outline-primary" style="white-space:nowrap;font-size:.8rem;" onclick="copyFeedUrl(this)">
             <i class="bi bi-clipboard"></i> 复制
@@ -139,7 +140,8 @@
         </div>
         <div class="d-flex gap-2 align-items-center mb-2 flex-wrap">
           <a id="calWebcalLink" class="btn btn-outline-success" style="font-size:.8rem;"
-             href="#" onclick="return webcalAdd(this)">
+             href="webcal://{{ feed_url.split('://', 1)[1] }}"
+             onclick="return webcalAdd(this)">
             <i class="bi bi-calendar-plus"></i> 手机一键添加
           </a>
           <button type="button" class="btn btn-outline-danger" style="white-space:nowrap;font-size:.8rem;" onclick="rotateCalToken(this)">
@@ -170,7 +172,8 @@
               ① 先用<b>手机浏览器</b>直接打开这个链接——能看到一堆 BEGIN:VCALENDAR 文本说明网络通，再去日历里订阅；打不开就是地址/网络问题（换局域网 IP、确认同一 Wi-Fi）。<br>
               ② 复制的地址若是 localhost 或 127.0.0.1，手机上必然失败，必须改成服务器实际 IP。<br>
               ③ 小米日历对格式严格且失败时不报原因：更新系统后重试；仍不行可用开源 App <b>DAVx⁵</b>（添加「Webcal 订阅」）中转。<br>
-              ④ 部分机型仅支持 https 订阅，内网 http 部署时建议用上面的一键添加或 DAVx⁵ 方案。
+              ④ 部分机型仅支持 https 订阅，内网 http 部署时建议用上面的一键添加或 DAVx⁵ 方案。<br>
+              ⑤ iPhone 点「手机一键添加」没反应：多半是从主屏幕图标(App)里打开的——App 内会拦截 webcal 协议，此时链接已自动复制，去 Safari 粘贴打开即可弹出订阅确认。
             </div>
           </div>
         </details>
@@ -289,11 +292,25 @@ function copyFeedUrl(btn) {
 }
 
 function webcalAdd(link) {
-  var input = document.getElementById('calFeedUrl');
-  if (!input || !input.value.trim()) { return false; }
-  link.href = 'webcal://' + input.value.trim().replace(/^https?:\/\//, '');
-  window.location.href = link.href;
-  return false;
+  // iOS「添加到主屏幕」的独立窗口(PWA)与微信内置浏览器会静默拦截
+  // webcal:// 自定义协议 → 自动复制链接并引导用 Safari 打开;
+  // 正常浏览器放行真实 webcal 链接, 由系统弹出日历订阅确认
+  var standalone = (window.navigator.standalone === true) ||
+                   (window.matchMedia &&
+                    window.matchMedia('(display-mode: standalone)').matches);
+  var inWeChat = /MicroMessenger/i.test(navigator.userAgent || '');
+  if (standalone || inWeChat) {
+    var input = document.getElementById('calFeedUrl');
+    var url = input ? input.value.trim() : '';
+    if (url && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).catch(function () {});
+    }
+    toast((standalone ? 'App 内无法直接唤起日历' : '微信内无法直接唤起日历') +
+          '，订阅链接已复制：请在 Safari 中粘贴打开，或到 设置→日历→账户→添加已订阅的日历 手动添加',
+          'warning');
+    return false;
+  }
+  return true;
 }
 </script>
 {% endblock %}

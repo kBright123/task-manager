@@ -101,7 +101,8 @@ def test_feed_content_and_rotation(client):
     bd = client.get('/user/todo.ics').get_data(as_text=True)
     assert title in bd and tmr_title in bd
     assert '未来3日待办' in bd
-    assert 'TRIGGER;RELATED=END:-PT60M' in bd
+    # 非今天开始的→截止前60分钟(绝对时间格式,避免小米RELATED=END兼容问题)
+    assert 'TRIGGER;VALUE=DATE-TIME:' in bd
 
     # 第4天(窗口外)默认不出现, ?days=N 可扩大时间窗
     far = _cn_now() + timedelta(days=3)
@@ -179,7 +180,9 @@ def test_ics_fold_and_allday():
                                                    second=0,
                                                    microsecond=0)})()
     bf = _build_todo_ics(u2, [t_tmr], feed_label='未来3日待办')
-    assert 'TRIGGER;RELATED=END:-PT60M' in bf and '待办即将截止' in bf
+    # 小米兼容: 截止前提醒改绝对时间(RELATED=END → VALUE=DATE-TIME)
+    # 预期值: DTEND(12:00) - 60分钟 = 11:00 UTC
+    assert 'TRIGGER;VALUE=DATE-TIME:' in bf and '待办即将截止' in bf
     assert 'TRIGGER:-PT30M' not in bf, '非今日开始的提醒应锚定截止时间'
     assert 'VALARM' not in body, '全天事件不附提醒'
 

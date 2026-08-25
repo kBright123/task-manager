@@ -1236,13 +1236,16 @@ def _build_todo_ics(user, tasks, feed_label='今日待办'):
                   'SEQUENCE:0',
                   'TRANSP:OPAQUE']
         if not allday:
-            # 手机本地通知: 开始在今天→开始前30分钟;
-            # 开始不在今天(未来几天)→截止前60分钟
             if s.date() == today:
+                # 开始在今天: 开始前30分钟(Relative)
                 alarm_desc, trigger = '待办即将开始', 'TRIGGER:-PT30M'
             else:
+                # 开始不在今天: 截止前60分钟
+                # 使用绝对时间而非 RELATED=END: 小米日历(ical4j)不支持
+                # RELATED=END 会把闹钟时间算成异常值(如-10268分钟)且无法关闭
                 alarm_desc = '待办即将截止，请尽快完成'
-                trigger = 'TRIGGER;RELATED=END:-PT60M'
+                abs_alarm = _ics_utc(e - timedelta(minutes=60))
+                trigger = f'TRIGGER;VALUE=DATE-TIME:{abs_alarm}'
             lines += ['BEGIN:VALARM',
                       'ACTION:DISPLAY',
                       'DESCRIPTION:' + _ics_escape(alarm_desc),

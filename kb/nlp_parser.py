@@ -496,9 +496,11 @@ def _parse_timespan_jionlp(text):
             s = s.replace(hour=9, minute=0)
             if e:
                 e = e.replace(hour=17, minute=0)
-        # 「周X/星期X」指向已过去的时间且无"上周"等回看词 → 顺延到下一个未来
+        # 「周X/星期X」指向已过去的时间且无"上周"等回看词 → 顺延到下一个未来;
+        # 但「8月25日（周二）」这类显式日期中的星期仅为注释, 以日期为准不顺延
         _WD = re.search(r'(上?周|星期|礼拜)[一二三四五六日天末]', txt)
-        if (_WD and not re.search(r'上周|上星期|上礼拜|之前|以前', txt)):
+        if (_WD and not re.search(r'\d{4}年|\d{1,2}月\d{1,2}[日号]|\d{1,2}[日号]', txt)
+                and not re.search(r'上周|上星期|上礼拜|之前|以前', txt)):
             while s <= now:
                 s += timedelta(days=7)
                 if e and e > s - timedelta(days=7):
@@ -530,6 +532,9 @@ def _parse_timespan_jionlp(text):
         r0 = min(rngs, key=lambda c: c['s'])
         out['start'] = r0['s']
         out['end'] = max((c['e'] or c['s']) for c in rngs)
+        # 显式起止区间(如「8月25日08:40-10:00」)为权威时间,
+        # 即使会议已开始/已结束也原样保留, 不得置空或顺延
+        out['explicit'] = True
     elif dls:
         out['end'] = max((c['e'] or c['s']) for c in dls)
         pts = [c for c in cands if c['kind'] == 'point']
@@ -541,7 +546,8 @@ def _parse_timespan_jionlp(text):
         fs = [c['s'] for c in cands if c['s'] > now]
         if fs:
             out['start'] = min(fs)
-    if out['end'] and out['end'] < now:
+    explicit_rng = bool(out.get('explicit'))
+    if out.get('end') and out['end'] < now and not explicit_rng:
         out['end'] = None
     return out if (out['start'] or out['end']) else None
 
@@ -574,7 +580,23 @@ TITLE_BLOCK_WORDS = ['反馈', '链接', '腾讯文档', 'https', 'http',
 
 TITLE_CLEAN_PREFIX = re.compile(r'^请[各全].{1,10}[，,。]')
 
+# 会议通知中的「主题」行, 如「会议主题：xx学习」→ xx学习
+THEME_LINE_PAT = re.compile(r'^(?:会议)?主题[：:][ \t]*(\S.*)$', re.M)
+
+
 def extract_title_from_text(text):
+    """标题兜底规则: 解析出的标题不足 6 字时, 回退取「主题:」后的文字."""
+    title = _extract_title_base(text)
+    if len(title) < 6:
+        m = THEME_LINE_PAT.search(text)
+        if m:
+            theme = m.group(1).strip()
+            if theme:
+                return theme[:80]
+    return title
+
+
+def _extract_title_base(text):
     lines = [l.strip() for l in text.split('\n') if l.strip()]
     if not lines:
         lines = [text]
@@ -706,7 +728,8 @@ def parse_task_from_text(text):
     if span:
         if span.get('end'):
             best = span['end']
-        if span.get('start') and span['start'] > now:
+        # 显式区间(explicit)即使已开始/已结束也保留原始时刻
+        if span.get('start') and (span['start'] > now or span.get('explicit')):
             result['start_time'] = span['start']
 
     # end_time: JioNLP 未命中时回退旧候选链

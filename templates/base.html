@@ -341,29 +341,6 @@
   </nav>
   {% endif %}
 
-  <div class="app-container">
-    {% if current_user.is_authenticated and current_user.email_verified == false %}
-    <div class="email-reminder" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1px solid #c7d2fe;border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:16px;font-size:.85rem;">
-      <i class="bi bi-envelope-exclamation" style="color:var(--primary);font-size:1.1rem;"></i>
-      <div style="flex:1;">
-        <span style="font-weight:600;color:var(--gray-800);">
-          {% if current_user.email %}
-            邮箱 {{ current_user.email }} 尚未完成校验
-          {% else %}
-            您尚未绑定邮箱
-          {% endif %}
-        </span>
-        <span style="color:var(--gray-500);margin-left:6px;">绑定后可接收待办通知与重要提醒</span>
-      </div>
-      <a href="{{ url_for('profile') }}" class="btn btn-sm" style="font-size:.78rem;padding:4px 14px;background:var(--primary);color:#fff;border:none;border-radius:6px;white-space:nowrap;">
-        <i class="bi bi-link-45deg"></i> 去绑定
-      </a>
-      <button type="button" class="btn-close" onclick="this.parentElement.remove()" style="font-size:.7rem;" aria-label="关闭"></button>
-    </div>
-    {% endif %}
-    {% block content %}{% endblock %}
-  </div>
-
   <!-- Mobile Bottom Nav -->
   {% if request.args.get('frame') != '1' %}
   <nav class="bottom-nav">
@@ -401,6 +378,10 @@
       <button type="button" class="quick-fab-item" data-url="{{ url_for('kb.workbench') }}" onclick="fabKb(this)">
         <span class="quick-fab-item-icon" style="background:var(--warning);color:#fff;"><i class="bi bi-cloud-arrow-up"></i></span>
         <span>上传知识</span>
+      </button>
+      <button type="button" class="quick-fab-item" data-url="/astro/" onclick="location.href=this.dataset.url">
+        <span class="quick-fab-item-icon" style="background:linear-gradient(135deg,#e8c476,#b18cff);color:#1a2244;"><i class="bi bi-stars"></i></span>
+        <span>星运排盘</span>
       </button>
     </div>
     <button type="button" id="quickFabToggle" class="quick-fab-toggle" aria-label="快速创建" aria-expanded="false"><i class="bi bi-plus-lg"></i></button>
@@ -442,6 +423,30 @@
   </div>
   {% endif %}
   {% endif %}
+
+  <!-- 内容区: 独立于登录态(星运等公开页游客可见); 导航/悬浮球仍仅登录用户渲染 -->
+  <div class="app-container">
+    {% if current_user.is_authenticated and current_user.email_verified == false %}
+    <div class="email-reminder" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1px solid #c7d2fe;border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:16px;font-size:.85rem;">
+      <i class="bi bi-envelope-exclamation" style="color:var(--primary);font-size:1.1rem;"></i>
+      <div style="flex:1;">
+        <span style="font-weight:600;color:var(--gray-800);">
+          {% if current_user.email %}
+            邮箱 {{ current_user.email }} 尚未完成校验
+          {% else %}
+            您尚未绑定邮箱
+          {% endif %}
+        </span>
+        <span style="color:var(--gray-500);margin-left:6px;">绑定后可接收待办通知与重要提醒</span>
+      </div>
+      <a href="{{ url_for('profile') }}" class="btn btn-sm" style="font-size:.78rem;padding:4px 14px;background:var(--primary);color:#fff;border:none;border-radius:6px;white-space:nowrap;">
+        <i class="bi bi-link-45deg"></i> 去绑定
+      </a>
+      <button type="button" class="btn-close" onclick="this.parentElement.remove()" style="font-size:.7rem;" aria-label="关闭"></button>
+    </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </div>
 
   {% block full_content %}{% endblock %}
   <script src="{{ url_for('static', filename='vendor/bootstrap.bundle.min.js', v=staticv('vendor/bootstrap.bundle.min.js')) }}"></script>

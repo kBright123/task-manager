@@ -1,0 +1,1221 @@
+{% extends 'base.html' %}
+{% block title %}星运{% endblock %}
+{% block body_class %}astro-page{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ===== 星运工作台: 深空图书馆风格(整页沉浸暗色, 与站点主题解耦避免黑白拼接) ===== */
+body.astro-page{
+  --gray-900:#dbe3f7; --gray-800:#c9d2ee; --gray-700:#aab6dd; --gray-600:#98a5cf;
+  --gray-500:#8b97c2; --gray-400:#67739b; --gray-300:#4a5578;
+  --gray-200:#232f52; --gray-100:#182347;
+  background:#070c1a!important; color-scheme:dark;
+  background-image:
+    radial-gradient(1100px 480px at 50% -120px, rgba(110,168,255,.13), transparent 62%),
+    radial-gradient(900px 420px at 88% 108%, rgba(177,140,255,.09), transparent 60%);
+}
+body.astro-page .top-nav{background:rgba(8,13,28,.96);border-bottom-color:#1c2748;}
+body.astro-page .top-nav-logo{color:#e8c476;}
+body.astro-page .bottom-nav{background:#0a1024;border-top-color:#1c2748;}
+body.astro-page .bottom-nav a{color:#7f8bb4;}
+body.astro-page .bottom-nav a.active{color:#e8c476;}
+body.astro-page .email-reminder{background:rgba(232,196,118,.08)!important;
+  border-color:rgba(232,196,118,.32)!important;}
+body.astro-page .flash-container .flash-item{background:#141d3d;color:#dbe3f7;
+  border:1px solid rgba(140,160,220,.2);}
+.astro-root{
+  --as-bg:#0a0f21; --as-bg2:#101833; --as-card:#111a36; --as-card2:#0d1428;
+  --as-line:rgba(140,160,220,.16); --as-txt:#dbe3f7; --as-dim:#8b97c2;
+  --as-gold:#e8c476; --as-blue:#6ea8ff; --as-green:#5fd0a0;
+  --as-red:#ff8a80; --as-purple:#b18cff;
+  color:var(--as-txt); max-width:1180px; margin:0 auto; padding:18px 14px 60px;
+}
+.astro-root h1,.astro-root h2,.astro-root h3{color:var(--as-txt);}
+.as-hero{text-align:center;padding:26px 10px 10px;}
+.as-hero h1{font-size:1.9rem;font-weight:800;letter-spacing:.06em;margin-bottom:6px;}
+.as-hero h1 .bi{color:var(--as-gold);}
+.as-slogan{color:var(--as-dim);font-size:.92rem;}
+.as-tabs{display:flex;gap:6px;justify-content:center;margin:20px 0 18px;flex-wrap:wrap;}
+.as-tab{border:1px solid var(--as-line);background:transparent;color:var(--as-dim);
+  padding:8px 22px;border-radius:999px;cursor:pointer;font-size:.95rem;transition:.15s;}
+.as-tab:hover{color:var(--as-txt);}
+.as-tab.active{background:linear-gradient(135deg,#24345f,#1a2547);color:#fff;border-color:#3c5490;}
+.as-panel{display:none;}
+.as-panel.active{display:block;animation:asFadeIn .25s ease;}
+@keyframes asFadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;}}
+.as-card{background:var(--as-card);border:1px solid var(--as-line);border-radius:14px;
+  padding:18px;margin-bottom:16px;}
+.as-card>h3{font-size:1.02rem;font-weight:700;color:var(--as-gold);margin-bottom:12px;
+  display:flex;align-items:center;gap:8px;}
+.as-grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.as-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+@media(max-width:860px){.as-grid2,.as-grid3{grid-template-columns:1fr;}}
+.as-label{font-size:.82rem;color:var(--as-dim);margin-bottom:4px;display:block;}
+.astro-root .form-control,.astro-root .form-select{
+  background:var(--as-bg2);border:1px solid var(--as-line);color:var(--as-txt);border-radius:10px;}
+.astro-root .form-control:focus,.astro-root .form-select:focus{
+  background:var(--as-bg2);color:var(--as-txt);border-color:var(--as-blue);box-shadow:0 0 0 .2rem rgba(110,168,255,.15);}
+.astro-root .form-control::placeholder{color:#5a6893;}
+.as-btn{background:linear-gradient(135deg,#33509b,#24366b);color:#fff;border:none;
+  border-radius:10px;padding:9px 26px;font-weight:600;cursor:pointer;transition:.15s;}
+.as-btn:hover{filter:brightness(1.15);color:#fff;}
+.as-btn.ghost{background:transparent;border:1px solid var(--as-line);color:var(--as-dim);}
+.as-btn.ghost:hover{color:var(--as-txt);border-color:var(--as-blue);}
+.as-btn.sm{padding:5px 14px;font-size:.83rem;border-radius:8px;}
+.as-btn:disabled{opacity:.5;cursor:not-allowed;}
+.term{cursor:pointer;border-bottom:1px dashed rgba(232,196,118,.55);padding-bottom:1px;}
+.term:hover{color:var(--as-gold);border-bottom-style:solid;}
+.big-three{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;}
+.bt-item{text-align:center;background:var(--as-card2);border:1px solid var(--as-line);
+  border-radius:14px;padding:14px 26px;min-width:150px;}
+.bt-item .bt-k{font-size:.78rem;color:var(--as-dim);letter-spacing:.15em;}
+.bt-item .bt-sign{font-size:1.25rem;font-weight:700;color:var(--as-gold);margin-top:4px;cursor:pointer;}
+.wheel-box{display:flex;justify-content:center;}
+#wheelSvg{max-width:100%;height:auto;}
+.pl-table{width:100%;border-collapse:collapse;font-size:.88rem;}
+.pl-table th{color:var(--as-dim);font-weight:600;text-align:left;padding:7px 8px;
+  border-bottom:1px solid var(--as-line);white-space:nowrap;}
+.pl-table td{padding:7px 8px;border-bottom:1px solid rgba(140,160,220,.07);}
+.pl-table tr:last-child td{border-bottom:none;}
+.retro-tag{font-size:.72rem;color:var(--as-red);border:1px solid var(--as-red);
+  border-radius:6px;padding:0 6px;margin-left:6px;}
+.direct-tag{font-size:.72rem;color:var(--as-green);border:1px solid var(--as-green);
+  border-radius:6px;padding:0 6px;margin-left:6px;}
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:9px;}
+.bar-name{width:64px;font-size:.85rem;color:var(--as-dim);text-align:right;flex-shrink:0;}
+.bar-track{flex:1;height:10px;border-radius:999px;background:var(--as-bg2);overflow:hidden;}
+.bar-fill{height:100%;border-radius:999px;transition:width .6s ease;}
+.bar-val{width:52px;font-size:.8rem;color:var(--as-dim);flex-shrink:0;}
+.asp-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--as-line);
+  border-radius:999px;padding:4px 12px;margin:4px;font-size:.84rem;background:var(--as-card2);}
+.asp-dot{width:8px;height:8px;border-radius:50%;}
+.bazi-col{text-align:center;}
+.bazi-pillar{background:var(--as-card2);border:1px solid var(--as-line);border-radius:12px;
+  padding:14px 6px;}
+.bazi-pillar .bp-title{font-size:.75rem;color:var(--as-dim);}
+.bazi-pillar .bp-gan{font-size:1.7rem;font-weight:700;color:var(--as-gold);line-height:1.3;}
+.bazi-pillar .bp-zhi{font-size:1.7rem;font-weight:700;color:var(--as-blue);line-height:1.3;}
+.bazi-pillar .bp-ten{font-size:.72rem;color:var(--as-purple);}
+.sign-chip{display:inline-flex;flex-direction:column;align-items:center;gap:2px;width:76px;
+  padding:8px 4px;border:1px solid var(--as-line);border-radius:12px;cursor:pointer;
+  background:var(--as-card2);transition:.15s;margin:3px;}
+.sign-chip .sc-glyph{font-size:1.3rem;}
+.sign-chip .sc-name{font-size:.74rem;color:var(--as-dim);}
+.sign-chip:hover{border-color:var(--as-blue);}
+.sign-chip.active{background:linear-gradient(135deg,#2b3e73,#1d2a52);border-color:var(--as-gold);}
+.sign-chip.active .sc-name{color:var(--as-txt);}
+.score-ring{--p:0;width:132px;height:132px;border-radius:50%;
+  background:conic-gradient(var(--as-gold) calc(var(--p)*1%),rgba(140,160,220,.12) 0);
+  display:flex;align-items:center;justify-content:center;margin:0 auto;}
+.score-ring>div{width:104px;height:104px;border-radius:50%;background:var(--as-card);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.score-ring .sr-num{font-size:2rem;font-weight:800;color:var(--as-gold);line-height:1;}
+.score-ring .sr-cap{font-size:.72rem;color:var(--as-dim);margin-top:4px;}
+.yi-ji{display:flex;gap:12px;flex-wrap:wrap;}
+.yi-list,.ji-list{flex:1;min-width:200px;border-radius:12px;padding:12px 14px;}
+.yi-list{background:rgba(95,208,160,.08);border:1px solid rgba(95,208,160,.3);}
+.ji-list{background:rgba(255,138,128,.07);border:1px solid rgba(255,138,128,.28);}
+.yi-list b{color:var(--as-green);} .ji-list b{color:var(--as-red);}
+.yi-list span,.ji-list span{display:inline-block;margin:3px 6px 3px 0;font-size:.9rem;}
+.dir-cell{background:var(--as-card2);border:1px solid var(--as-line);border-radius:10px;
+  padding:10px;text-align:center;}
+/* 报告内次级信息折叠区 */
+.sec-fold{border:1px dashed var(--as-line);border-radius:10px;padding:6px 12px;margin-top:10px;}
+.sec-fold summary{cursor:pointer;color:var(--as-dim);font-size:.82rem;font-weight:600;
+  user-select:none;list-style:none;display:flex;align-items:center;gap:8px;}
+.sec-fold summary::before{content:'▸';transition:.15s;color:var(--as-blue);}
+.sec-fold[open] summary::before{transform:rotate(90deg);}
+.sec-fold summary:hover{color:var(--as-txt);}
+.dir-cell .dc-k{font-size:.75rem;color:var(--as-dim);}
+.dir-cell .dc-v{font-size:1rem;font-weight:700;color:var(--as-gold);margin-top:2px;}
+.tarot-row{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;}
+.tarot-card{width:150px;background:linear-gradient(160deg,#1c2750,#131c3c);
+  border:1px solid #3c5490;border-radius:14px;padding:16px 12px;text-align:center;
+  transform:rotate(-2deg);}
+.tarot-card:nth-child(2){transform:rotate(1.5deg);}
+.tarot-card:nth-child(3){transform:rotate(-1deg);}
+.tarot-card.rev{outline:2px dashed rgba(255,138,128,.5);outline-offset:-6px;}
+.tarot-card .tc-pos{font-size:.72rem;color:var(--as-dim);}
+.tarot-card .tc-no{font-size:.72rem;color:var(--as-purple);margin-top:6px;}
+.tarot-card .tc-name{font-size:1.15rem;font-weight:700;color:var(--as-gold);}
+.tarot-card .tc-mean{font-size:.8rem;color:var(--as-txt);margin-top:6px;line-height:1.5;}
+.tarot-card .tc-revtag{display:inline-block;font-size:.68rem;color:var(--as-red);
+  border:1px solid var(--as-red);border-radius:6px;padding:0 5px;margin-top:6px;}
+.kb-group-title{font-size:.85rem;color:var(--as-dim);letter-spacing:.1em;margin:16px 0 8px;
+  border-bottom:1px solid var(--as-line);padding-bottom:5px;}
+.kb-item{display:flex;justify-content:space-between;align-items:center;gap:10px;
+  padding:10px 14px;border:1px solid var(--as-line);border-radius:10px;margin-bottom:8px;
+  cursor:pointer;background:var(--as-card2);transition:.15s;}
+.kb-item:hover{border-color:var(--as-blue);}
+.kb-item .kb-t{font-weight:600;}
+.kb-item .kb-s{font-size:.8rem;color:var(--as-dim);margin-top:2px;}
+.rec-item{display:flex;align-items:center;gap:12px;padding:12px 14px;
+  border:1px solid var(--as-line);border-radius:12px;margin-bottom:10px;background:var(--as-card2);}
+.rec-time{font-size:.75rem;color:var(--as-dim);min-width:112px;}
+.rec-kind{font-size:.72rem;border-radius:6px;padding:1px 8px;flex-shrink:0;
+  background:rgba(110,168,255,.12);color:var(--as-blue);border:1px solid rgba(110,168,255,.3);}
+.rec-title{flex:1;font-weight:600;cursor:pointer;}
+.rec-title:hover{color:var(--as-gold);}
+.as-note{font-size:.78rem;color:var(--as-dim);line-height:1.7;}
+.as-empty{text-align:center;color:var(--as-dim);padding:40px 10px;}
+.as-empty .bi{font-size:2.2rem;display:block;margin-bottom:10px;color:#41538a;}
+.as-flash{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:3000;
+  padding:9px 22px;border-radius:999px;font-size:.88rem;color:#fff;opacity:0;
+  transition:opacity .25s;pointer-events:none;max-width:86vw;}
+.as-flash.ok{background:rgba(46,125,50,.92);} .as-flash.err{background:rgba(183,28,28,.92);}
+.as-flash.show{opacity:1;}
+.as-mask{position:fixed;inset:0;background:rgba(4,8,20,.6);backdrop-filter:blur(2px);
+  z-index:2500;display:none;}
+.as-mask.show{display:block;}
+.as-drawer{position:fixed;top:0;right:-420px;width:min(400px,92vw);height:100vh;z-index:2600;
+  background:linear-gradient(180deg,#141d3d,#0d1428);border-left:1px solid var(--as-line);
+  transition:right .25s ease;padding:20px;overflow-y:auto;}
+.as-drawer.show{right:0;}
+.as-drawer .ad-close{position:absolute;top:12px;right:14px;background:none;border:none;
+  color:var(--as-dim);font-size:1.2rem;cursor:pointer;}
+.ad-cat{font-size:.75rem;color:var(--as-purple);letter-spacing:.12em;}
+.ad-title{font-size:1.3rem;font-weight:800;color:var(--as-gold);margin:6px 0 4px;}
+.ad-summary{color:var(--as-blue);font-size:.9rem;margin-bottom:12px;}
+.ad-detail{font-size:.92rem;line-height:1.9;color:var(--as-txt);}
+.as-banner{background:rgba(232,196,118,.08);border:1px solid rgba(232,196,118,.3);
+  color:var(--as-txt);border-radius:12px;padding:12px 16px;font-size:.87rem;margin-bottom:14px;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.as-banner a{color:var(--as-gold);font-weight:600;}
+.city-pick{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+.city-pick button{font-size:.75rem;background:var(--as-bg2);border:1px solid var(--as-line);
+  color:var(--as-dim);border-radius:8px;padding:3px 10px;cursor:pointer;}
+.city-pick button:hover{color:var(--as-txt);border-color:var(--as-blue);}
+.transparency{border:1px dashed var(--as-line);border-radius:10px;padding:10px 14px;
+  margin-top:12px;}
+/* 紫微十二宫格(传统布局: 巳午未申在上, 中央信息区) */
+.zw-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;
+  grid-template-areas:"si wu wei shen" "chen mid mid you" "mao mid mid xu" "yin chou zi hai";}
+.zw-cell{background:var(--as-bg2);border:1px solid rgba(140,160,220,.14);border-radius:10px;
+  padding:8px 10px;min-height:104px;}
+.zw-cell.ming{border-color:rgba(232,196,118,.5);box-shadow:inset 0 0 0 1px rgba(232,196,118,.18);}
+.zw-head{display:flex;justify-content:space-between;align-items:baseline;font-size:.72rem;color:var(--as-dim);}
+.zw-pname{color:#c9d2ee;font-weight:600;font-size:.78rem;}
+.zw-major{margin-top:5px;display:flex;gap:8px;flex-wrap:wrap;font-size:.88rem;color:var(--as-gold);}
+.zw-hua{font-size:.6rem;padding:1px 4px;border-radius:4px;margin-left:2px;vertical-align:2px;}
+.zw-hua.l{background:rgba(74,222,128,.16);color:#4ade80;} .zw-hua.q{background:rgba(251,146,60,.16);color:#fb923c;}
+.zw-hua.k{background:rgba(96,165,250,.16);color:#60a5fa;} .zw-hua.j{background:rgba(248,113,113,.16);color:#f87171;}
+.zw-minor{color:#7f8bb4;font-size:.68rem;line-height:1.55;margin-top:3px;}
+.zw-center{display:flex;flex-direction:column;justify-content:center;text-align:center;min-height:100px;}
+.adv-box{border:1px dashed var(--as-line);border-radius:10px;padding:8px 12px;}
+.adv-box summary{cursor:pointer;color:var(--as-dim);font-size:.78rem;user-select:none;}
+.adv-box summary:hover{color:var(--as-txt);}
+@media(max-width:640px){
+  body.astro-page .app-container{padding-left:6px;padding-right:6px;}
+  .astro-root{max-width:100%;padding:12px 4px 60px;}
+  .zw-grid{grid-template-columns:repeat(4,minmax(0,1fr));}
+  .as-card{padding:12px;margin-bottom:10px;border-radius:12px;}
+  .as-card>h3{font-size:.95rem;margin-bottom:8px;}
+  .as-grid2,.as-grid3{gap:10px;}
+  .astro-root .form-control,.astro-root .form-select{font-size:.85rem;padding:.32rem .5rem;}
+  .as-btn{padding:8px 18px;font-size:.88rem;}
+  .as-note{font-size:.72rem;line-height:1.55;}
+  /* 结果区密度: 表格/圆环/锦囊格收紧 */
+  .pl-table{font-size:.76rem;}
+  .pl-table th,.pl-table td{padding:4px 6px;}
+  .score-ring{width:100px;height:100px;}
+  .score-ring>div{width:80px;height:80px;}
+  .score-ring .sr-num{font-size:1.45rem;}
+  .score-ring .sr-cap{font-size:.62rem;margin-top:2px;}
+  .dir-cell{padding:7px 4px;}
+  .dir-cell .dc-v{font-size:.9rem;}
+  .bar-row{gap:6px;}
+  /* 人格三大支柱: 窄屏并排一行 */
+  .big-three{gap:6px;}
+  .bt-item{min-width:0;flex:1 1 0;padding:8px 4px;border-radius:10px;}
+  .bt-item .bt-sign{font-size:1rem;margin-top:2px;}
+  .bt-item .bt-k{font-size:.68rem;letter-spacing:.08em;}
+  .zw-cell{padding:6px;min-height:86px;}
+  .zw-major{font-size:.76rem;gap:5px;}
+  .zw-minor{font-size:.6rem;}
+  .zw-head{font-size:.64rem;} .zw-pname{font-size:.72rem;}
+  .transparency{padding:8px 10px;}
+}
+@media print{
+  body *{visibility:hidden!important;}
+  #printArea,#printArea *{visibility:visible!important;}
+  #printArea{position:absolute;left:0;top:0;width:100%;background:#fff!important;
+    color:#111!important;padding:20px!important;}
+  #printArea .as-card{background:#fff!important;border-color:#ccc!important;color:#111!important;}
+  #printArea h3{color:#7a5c00!important;} #printArea .as-note,#printArea .bar-name,
+  #printArea .bar-val{color:#444!important;} #printArea .bar-track{background:#eee!important;}
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="astro-root" id="astroRoot">
+  <div class="as-hero">
+    <h1><i class="bi bi-stars"></i> 星运</h1>
+    <div class="as-slogan">数据全透明 · 功能无限制 · 依托成熟开源生态</div>
+    <div id="guestRestoreBox" class="mt-2"></div>
+  </div>
+
+  <div class="as-tabs" role="tablist">
+    <button type="button" class="as-tab active" data-tab="natal"><i class="bi bi-diagram-3"></i> 本命排盘</button>
+    <button type="button" class="as-tab" data-tab="daily"><i class="bi bi-sunrise"></i> 每日运势</button>
+    <button type="button" class="as-tab" data-tab="kb"><i class="bi bi-book"></i> 命理知识库</button>
+    <button type="button" class="as-tab" data-tab="archive"><i class="bi bi-archive"></i> 我的存档</button>
+  </div>
+
+  <!-- ================= 排盘 ================= -->
+  <section class="as-panel active" id="panel-natal">
+    <div class="as-grid2">
+      <div class="as-card">
+        <h3><i class="bi bi-person-badge"></i> 出生信息</h3>
+        <div class="row g-3">
+          <div class="col-7">
+            <label class="as-label">姓名 / 标题</label>
+            <input type="text" class="form-control" id="ncName" placeholder="例：我的本命盘" maxlength="40">
+          </div>
+          <div class="col-5">
+            <label class="as-label">性别</label>
+            <select class="form-select" id="ncGender" title="决定紫微大限顺逆(阳男阴女顺行)">
+              <option>男</option><option>女</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="as-label">出生日期与时间 *</label>
+            <div class="d-flex gap-1">
+              <select class="form-select" id="ncYear" aria-label="出生年" style="flex:1.25;min-width:0;"></select>
+              <select class="form-select" id="ncMonth" aria-label="出生月" style="flex:.85;min-width:0;"></select>
+              <select class="form-select" id="ncDay" aria-label="出生日" style="flex:.85;min-width:0;"></select>
+              <input type="time" class="form-control" id="ncTime" value="12:00" required aria-label="出生时间" style="flex:1.2;min-width:0;">
+            </div>
+            <div class="as-note mt-1">下拉可键入首数字定位；时刻不确定可留默认正午。</div>
+          </div>
+          <div class="col-12">
+            <label class="as-label">出生地</label>
+            <div class="d-flex gap-2">
+              <input type="text" class="form-control" id="ncCityName" list="cityList"
+                     placeholder="输入城市名过滤，如：杭州" autocomplete="off" style="min-width:0;">
+              <button type="button" class="as-btn ghost sm" id="btnGeo" style="white-space:nowrap;"><i class="bi bi-geo-alt"></i> 定位</button>
+            </div>
+            <datalist id="cityList"></datalist>
+          </div>
+          <div class="col-12">
+            <div class="d-flex gap-2">
+              <div style="flex:1;min-width:0;">
+                <label class="as-label">北纬 °</label>
+                <input type="number" step="0.01" min="-85" max="85" class="form-control" id="ncLat" value="31.23">
+              </div>
+              <div style="flex:1;min-width:0;">
+                <label class="as-label">东经 °</label>
+                <input type="number" step="0.01" min="-180" max="180" class="form-control" id="ncLon" value="121.47">
+              </div>
+            </div>
+          </div>
+          <div class="col-12 d-flex gap-2 flex-wrap align-items-center">
+            <button type="button" class="as-btn" id="btnNatal"><i class="bi bi-stars"></i> 立即排盘</button>
+            {% if current_user.is_authenticated %}
+            <button type="button" class="as-btn ghost" id="btnSaveChart"><i class="bi bi-cloud-arrow-up"></i> 存入云端档案</button>
+            {% endif %}
+            <span class="as-note">所有参数完整展开，无折叠隐藏。</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="natalResult"></div>
+    <details class="adv-box mt-2">
+      <summary style="color:var(--as-blue);">数据透明声明</summary>
+      <div class="as-note mt-1" style="line-height:1.8;">
+        · 星历：Schlyter 低精度算法(行星黄经误差约±0.1°量级)，教学与日常参考级；<br>
+        · 宫位制：上升等宫制；八字节气换柱采用固定日期近似(±1日内)；<br>
+        · 运势类内容为传统文化推演参考，不构成任何现实决策依据。
+      </div>
+    </details>
+  </section>
+
+  <!-- ================= 每日运势 ================= -->
+  <section class="as-panel" id="panel-daily">
+    <div class="as-card">
+      <h3><i class="bi bi-moon-stars"></i> 选择星座与日期（历史任意日期均可回溯）</h3>
+      <div id="signPicker" class="mb-3"></div>
+      <div class="d-flex gap-2 flex-wrap align-items-center">
+        <input type="date" class="form-control" id="ftDate" style="max-width:170px;">
+        <button type="button" class="as-btn sm" id="btnFortune"><i class="bi bi-search"></i> 查询运势</button>
+        <button type="button" class="as-btn ghost sm" id="btnToday">回到今天</button>
+        <button type="button" class="as-btn ghost sm" id="btnTarot"><i class="bi bi-suit-spade"></i> 抽一组塔罗</button>
+      </div>
+    </div>
+    <div id="dailyResult"><div class="as-empty"><i class="bi bi-hourglass-split"></i>请先在上方选择星座，点击「查询运势」</div></div>
+    <div id="tarotResult" class="mt-2"></div>
+  </section>
+
+  <!-- ================= 知识库 ================= -->
+  <section class="as-panel" id="panel-kb">
+    <div class="as-card">
+      <h3><i class="bi bi-book-half"></i> 命理知识库 · <span id="kbCount" class="as-note"></span></h3>
+      <div class="d-flex gap-2 flex-wrap mb-2">
+        <input type="text" class="form-control" id="kbSearch" placeholder="检索术语，如：上升星座 / 三合 / 五行…" style="max-width:340px;">
+        <button type="button" class="as-btn ghost sm" id="kbSearchBtn"><i class="bi bi-search"></i> 检索</button>
+      </div>
+      <div class="as-note">阅读排盘/运势结果时，点击带虚线的任意术语即可侧边查阅，无需离开当前页面。知识库条目底部可直达对应工具试玩。</div>
+      <div id="kbList" class="mt-2"><div class="as-empty">加载中…</div></div>
+    </div>
+  </section>
+
+  <!-- ================= 我的存档 ================= -->
+  <section class="as-panel" id="panel-archive">
+    {% if current_user.is_authenticated %}
+    <div class="as-card">
+      <h3><i class="bi bi-archive"></i> 云端档案 <span class="as-note ms-2">数量不限 · 多设备同步 · 随时导出带走</span></h3>
+      <div class="d-flex gap-2 flex-wrap mb-3">
+        <a class="as-btn ghost sm" href="/astro/api/records/export"><i class="bi bi-download"></i> 导出全部档案(JSON)</a>
+        <button type="button" class="as-btn ghost sm" onclick="asPrint()"><i class="bi bi-printer"></i> 打印 / 导出PDF</button>
+      </div>
+      <div id="recList"><div class="as-empty">加载中…</div></div>
+    </div>
+    <div class="as-card">
+      <h3><i class="bi bi-bell"></i> 每日运势提醒订阅（站内通知）</h3>
+      <div class="d-flex gap-2 flex-wrap align-items-end">
+        <div>
+          <label class="as-label">提醒星座</label>
+          <select class="form-select" id="subSign"></select>
+        </div>
+        <div>
+          <label class="as-label">每日投递时刻</label>
+          <select class="form-select" id="subHour">
+            {% for h in range(0,24) %}<option value="{{ h }}">{{ '%02d'|format(h) }}:00</option>{% endfor %}
+          </select>
+        </div>
+        <button type="button" class="as-btn sm" id="btnSubSave">开启订阅</button>
+        <button type="button" class="as-btn ghost sm" id="btnSubOff">关闭订阅</button>
+      </div>
+      <div class="as-note mt-2" id="subState"></div>
+    </div>
+    {% else %}
+    <div class="as-card">
+      <div class="as-empty">
+        <i class="bi bi-cloud-arrow-up"></i>
+        云端无限存档、多设备同步与每日运势提醒需要账号支持<br>
+        <a href="{{ url_for('login') }}" class="as-btn sm mt-3 d-inline-block" style="text-decoration:none;">登录</a>
+        <a href="{{ url_for('register') }}" class="as-btn ghost sm mt-3 d-inline-block" style="text-decoration:none;">注册账号</a>
+        <div class="as-note mt-3">访客的排盘结果会自动暂存在本机浏览器中，不会丢失。</div>
+      </div>
+    </div>
+    {% endif %}
+    <div id="recViewer"></div>
+  </section>
+
+  <div id="printArea"></div>
+</div>
+
+<!-- 术语侧边抽屉 -->
+<div class="as-mask" id="termMask"></div>
+<aside class="as-drawer" id="termDrawer" aria-label="术语解释">
+  <button type="button" class="ad-close" id="termClose" aria-label="关闭"><i class="bi bi-x-lg"></i></button>
+  <div id="termBody"><div class="as-empty">加载中…</div></div>
+</aside>
+<div class="as-flash" id="asFlash"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='vendor/echarts.min.js', v=staticv('vendor/echarts.min.js')) }}"></script>
+<script>
+(function(){
+'use strict';
+var $=function(s,r){return (r||document).querySelector(s);};
+var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s));};
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+
+window.asFlash=function(msg,type){
+  var el=$('#asFlash');el.textContent=msg;el.className='as-flash show '+((type==='err')?'err':'ok');
+  clearTimeout(el._t);el._t=setTimeout(function(){el.className='as-flash';},2600);
+};
+
+/* 打印/导出PDF: 先把当前报告内容克隆进打印区再唤起系统打印 */
+window.asPrint=function(){
+  var area=$('#printArea');
+  var src=$('.print-report')||$('#dailyResult');
+  if(!src||!src.innerHTML.trim()){asFlash('请先生成一份报告再打印','err');return;}
+  area.innerHTML='<div style="text-align:center;font-weight:800;font-size:18px;margin-bottom:10px;">星运 · 报告</div>'+
+    src.innerHTML;
+  $$('.no-print',area).forEach(function(x){x.remove();});
+  /* 打印版完整性: 展开全部折叠区(含紫微卡内的 details) */
+  $$('details',area).forEach(function(d){d.open=true;});
+  setTimeout(function(){window.print();},60);
+};
+
+/* ---------------- Tabs ---------------- */
+$$('.as-tab').forEach(function(b){
+  b.addEventListener('click',function(){switchTab(b.getAttribute('data-tab'));});
+});
+function switchTab(name){
+  $$('.as-tab').forEach(function(x){x.classList.toggle('active',x.getAttribute('data-tab')===name);});
+  $$('.as-panel').forEach(function(p){p.classList.toggle('active',p.id==='panel-'+name);});
+  location.hash='tab-'+name;
+  if(name==='archive'){loadRecords();}
+  if(name==='kb'&&!kbLoaded){loadKb();}
+}
+
+/* ---------------- 术语弹窗 ---------------- */
+var _termsIdx=null,_termKeys=[];
+function ensureTerms(cb){
+  if(_termsIdx){cb();return;}
+  fetch('/astro/api/terms').then(function(r){return r.json();}).then(function(d){
+    _termsIdx={};(d.items||[]).forEach(function(t){_termsIdx[t.key]=t;});
+    _termKeys=Object.keys(_termsIdx).sort(function(a,b){return b.length-a.length;});
+    cb();
+  }).catch(function(){cb();});
+}
+function openTerm(key){
+  ensureTerms(function(){
+    $('#termMask').classList.add('show');$('#termDrawer').classList.add('show');
+    $('#termBody').innerHTML='<div class="as-empty">加载中…</div>';
+    fetch('/astro/api/terms/'+encodeURIComponent(key)).then(function(r){return r.json();}).then(function(d){
+      if(!d.ok){$('#termBody').innerHTML='<div class="as-empty">'+esc(d.error||'词条不存在')+'</div>';return;}
+      var t=d.term;
+      $('#termBody').innerHTML=
+        '<div class="ad-cat">'+esc(t.cat)+'</div>'+
+        '<div class="ad-title">'+esc(t.title||key)+'</div>'+
+        (t.summary?'<div class="ad-summary">'+esc(t.summary)+'</div>':'')+
+        '<div class="ad-detail">'+esc(t.detail)+'</div>';
+    }).catch(function(){$('#termBody').innerHTML='<div class="as-empty">网络异常，请稍后再试</div>';});
+  });
+}
+$('#termClose').addEventListener('click',closeTerm);
+$('#termMask').addEventListener('click',closeTerm);
+function closeTerm(){$('#termMask').classList.remove('show');$('#termDrawer').classList.remove('show');}
+document.addEventListener('click',function(e){
+  var t=e.target.closest('.term');
+  if(t){openTerm(t.getAttribute('data-term'));}
+});
+/* 把容器文本中的已知术语包成可点击词 */
+function wrapTerms(root){
+  ensureTerms(function(){
+    var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null,false);
+    var hits=[];
+    while(walker.nextNode()){
+      var n=walker.currentNode;
+      if(!n.nodeValue||n.parentElement.closest('.term,a,script,style'))continue;
+      for(var i=0;i<_termKeys.length;i++){
+        var k=_termKeys[i];
+        if(k.length<2)continue;
+        if(n.nodeValue.indexOf(k)>=0&&n.parentElement&&!n.parentElement.classList.contains('term')){
+          if(n.parentElement.hasAttribute('data-term'))continue;
+          hits.push({node:n,key:k});break;
+        }
+      }
+    }
+    hits.forEach(function(h){
+      var parts=h.node.nodeValue.split(h.key);
+      if(parts.length<2)return;
+      var frag=document.createDocumentFragment();
+      parts.forEach(function(p,idx){
+        frag.appendChild(document.createTextNode(p));
+        if(idx<parts.length-1){
+          var sp=document.createElement('span');
+          sp.className='term';sp.setAttribute('data-term',h.key);sp.textContent=h.key;
+          frag.appendChild(sp);
+        }
+      });
+      h.node.parentNode.replaceChild(frag,h.node);
+    });
+  });
+}
+
+/* ---------------- 紫微斗数(本地引擎) ---------------- */
+var SHIXIANG=['子时 23-01','丑时 01-03','寅时 03-05','卯时 05-07','辰时 07-09','巳时 09-11',
+  '午时 11-13','未时 13-15','申时 15-17','酉时 17-19','戌时 19-21','亥时 21-23'];
+function huaBadge(h){
+  if(!h)return '';
+  var cls={禄:'l',权:'q',科:'k',忌:'j'}[h]||'';
+  return '<span class="zw-hua '+cls+'">'+h+'</span>';
+}
+var ZW_AREA={'巳':'si','午':'wu','未':'wei','申':'shen','辰':'chen','酉':'you',
+             '卯':'mao','戌':'xu','寅':'yin','丑':'chou','子':'zi','亥':'hai'};
+function renderZiwei(z){
+  var byBranch={};
+  (z.palaces||[]).forEach(function(p){byBranch[p.branch]=p;});
+  var order=[5,6,7,8,4,9,3,10,2,1,0,11];   /* 巳午未申 / 辰酉卯戌 / 寅丑子亥 */
+  var cells=order.map(function(b){
+    var p=byBranch[b];if(!p)return '';
+    var majors=p.majors.map(function(m){
+      return '<span class="term" data-term="'+m.name+'">'+m.name+'</span>'+huaBadge(m.hua);
+    }).join(' ');
+    return '<div class="zw-cell'+(p.is_ming?' ming':'')+'" style="grid-area:'+ZW_AREA[p.branch_cn]+'">'+
+      '<div class="zw-head"><span class="zw-pname">'+p.name+(p.is_shen?' · 身':'')+
+      '</span><span>'+p.dalimit+'</span></div>'+
+      '<div class="as-note" style="font-size:.68rem;">'+p.stem+p.branch_cn+'宫</div>'+
+      (majors?'<div class="zw-major">'+majors+'</div>':'')+
+      (p.minors.length?'<div class="zw-minor">'+p.minors.join(' · ')+'</div>':'')+
+      '</div>';
+  }).join('');
+  var fh=(z.four_hua||[]).map(function(h){return h.star+h.hua;}).join(' · ');
+  $('#zwResult').innerHTML=
+    '<div class="as-note mb-2">'+z.lunar_text+' · '+z.year_ganzhi+'年 · '+
+    z.wuxing_ju+' · 大限'+z.direction+(z.derived?' · 由公历自动换算':' · 手动指定')+'</div>'+
+    '<div class="zw-grid">'+cells+
+    '<div class="zw-center" style="grid-area:mid;">'+
+    '<div style="color:var(--as-gold);font-weight:700;font-size:.95rem;">'+z.wuxing_ju+'</div>'+
+    '<div class="as-note mt-1">命宫 '+z.ming_gong+' · 身宫 '+z.shen_gong+'</div>'+
+    '<div class="as-note mt-1" style="font-size:.68rem;">四化：'+fh+'</div>'+
+    '</div></div>';
+  wrapTerms($('#zwResult'));
+}
+/* 手动重排走事件委托(卡片每次渲染都会重建) */
+document.addEventListener('click',function(e){
+  var b=e.target.closest('#btnZiwei');
+  if(!b)return;
+  var body={year:+$('#zwYear').value,month:+$('#zwMonth').value,day:+$('#zwDay').value,
+            hour_idx:+$('#zwHour').value,gender:$('#zwGender').value,
+            leap:$('#zwLeap').checked,save:true};
+  fetch('/astro/api/ziwei',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)})
+    .then(function(r){return r.json();})
+    .then(function(j){
+      if(!j.ok){asFlash(j.error||'重排失败','err');return;}
+      renderZiwei(j.result.ziwei);
+      asFlash('紫微盘已按手动农历重排','ok');
+      loadRecords();
+    })
+    .catch(function(){asFlash('网络异常，请重试','err');});
+});
+
+/* ---------------- 城市(分组数据, 经纬度为市中心参考值) ---------------- */
+var CITY_GROUPS=[
+ ['直辖市 / 特别行政区',[['北京',39.90,116.41],['上海',31.23,121.47],['天津',39.13,117.20],
+   ['重庆',29.56,106.55],['香港',22.32,114.17],['澳门',22.20,113.55]]],
+ ['华北 · 东北',[['石家庄',38.04,114.51],['保定',38.87,115.48],['唐山',39.63,118.18],
+   ['太原',37.87,112.55],['大同',40.09,113.30],['呼和浩特',40.84,111.75],['包头',40.66,109.84],
+   ['沈阳',41.80,123.43],['大连',38.91,121.61],['长春',43.82,125.32],['吉林市',43.84,126.55],
+   ['哈尔滨',45.80,126.53],['齐齐哈尔',47.35,123.92],['大庆',46.59,125.10]]],
+ ['华东',[['南京',32.06,118.80],['苏州',31.30,120.58],['无锡',31.49,120.31],['常州',31.81,119.97],
+   ['南通',31.98,120.89],['徐州',34.26,117.19],['杭州',30.27,120.15],['宁波',29.87,121.54],
+   ['温州',28.00,120.70],['嘉兴',30.75,120.76],['绍兴',30.03,120.58],['金华',29.08,119.65],
+   ['台州',28.66,121.42],['合肥',31.82,117.23],['芜湖',31.33,118.38],['福州',26.07,119.30],
+   ['厦门',24.48,118.09],['泉州',24.87,118.68],['漳州',24.51,117.65],['南昌',28.68,115.86],
+   ['赣州',25.83,114.93],['济南',36.65,117.12],['青岛',36.07,120.38],['烟台',37.46,121.45],
+   ['威海',37.51,122.12],['潍坊',36.71,119.16],['淄博',36.81,118.05],['临沂',35.10,118.36],
+   ['台北',25.03,121.57],['台中',24.15,120.67],['高雄',22.62,120.31]]],
+ ['中南',[['郑州',34.75,113.63],['洛阳',34.62,112.45],['开封',34.80,114.31],['武汉',30.59,114.31],
+   ['宜昌',30.69,111.29],['襄阳',32.01,112.14],['长沙',28.23,112.94],['株洲',27.83,113.13],
+   ['衡阳',26.89,112.57],['常德',29.04,111.70],['广州',23.13,113.26],['深圳',22.54,114.06],
+   ['珠海',22.27,113.58],['佛山',23.02,113.12],['东莞',23.02,113.75],['中山',22.52,113.39],
+   ['惠州',23.11,114.42],['汕头',23.35,116.68],['南宁',22.82,108.32],['柳州',24.33,109.42],
+   ['桂林',25.28,110.29],['海口',20.04,110.35],['三亚',18.25,109.51]]],
+ ['西南 · 西北',[['成都',30.57,104.07],['绵阳',31.47,104.68],['乐山',29.55,103.77],
+   ['贵阳',26.65,106.63],['遵义',27.73,106.93],['昆明',24.88,102.83],['大理',25.61,100.27],
+   ['拉萨',29.65,91.14],['日喀则',29.27,88.88],['西安',34.34,108.94],['咸阳',34.33,108.71],
+   ['兰州',36.06,103.83],['天水',34.58,105.72],['西宁',36.62,101.78],['银川',38.49,106.23],
+   ['乌鲁木齐',43.83,87.62],['克拉玛依',45.58,84.89]]],
+ ['海外',[['东京',35.68,139.69],['首尔',37.57,126.98],['新加坡',1.35,103.82],['曼谷',13.76,100.50],
+   ['吉隆坡',3.14,101.69],['雅加达',-6.21,106.85],['马尼拉',14.60,120.98],['新德里',28.61,77.21],
+   ['迪拜',25.20,55.27],['伦敦',51.51,-0.13],['巴黎',48.86,2.35],['柏林',52.52,13.40],
+   ['莫斯科',55.76,37.62],['纽约',40.71,-74.01],['洛杉矶',34.05,-118.24],['旧金山',37.77,-122.42],
+   ['多伦多',43.65,-79.38],['温哥华',49.28,-123.12],['悉尼',-33.87,151.21],['墨尔本',-37.81,144.96],
+   ['奥克兰',-36.85,174.76]]]
+];
+var CITIES=[];
+CITY_GROUPS.forEach(function(g){g[1].forEach(function(c){CITIES.push(c);});});
+function cityByName(nm){
+  nm=(nm||'').trim();
+  for(var i=0;i<CITIES.length;i++){if(CITIES[i][0]===nm)return CITIES[i];}
+  return null;
+}
+(function initCity(){
+  var inp=$('#ncCityName'),dl=$('#cityList');
+  if(!inp||!dl)return;
+  CITIES.forEach(function(c){
+    var o=document.createElement('option');o.value=c[0];dl.appendChild(o);
+  });
+  /* 输入或选择城市名 → 自动回填坐标; 手动改坐标不受影响 */
+  ['change','blur'].forEach(function(ev){
+    inp.addEventListener(ev,function(){
+      var c=cityByName(inp.value);
+      if(c){$('#ncLat').value=c[1];$('#ncLon').value=c[2];}
+    });
+  });
+})();
+
+/* ---------------- 日期三段选择 + 自动定位 ---------------- */
+var _DAYS_M=[31,28,31,30,31,30,31,31,30,31,30,31];
+function _isLeapYear(y){return (y%4===0&&y%100!==0)||y%400===0;}
+function fillDays(){
+  var y=+$('#ncYear').value,m=+$('#ncMonth').value,dsel=$('#ncDay'),cur=+dsel.value||15;
+  var dim=_DAYS_M[m-1];
+  if(m===2&&_isLeapYear(y))dim=29;
+  dsel.innerHTML='';
+  for(var i=1;i<=dim;i++){
+    var o=document.createElement('option');o.value=i;o.textContent=i+'日';dsel.appendChild(o);
+  }
+  dsel.value=Math.min(cur,dim);
+}
+function ncBirthISO(){
+  var p=function(n){return (n<10?'0':'')+n;};
+  return $('#ncYear').value+'-'+p(+$('#ncMonth').value)+'-'+p(+$('#ncDay').value);
+}
+(function initDateSel(){
+  var ys=$('#ncYear'),ms=$('#ncMonth');
+  if(!ys)return;
+  var nowY=new Date().getFullYear();
+  for(var y=nowY;y>=1900;y--){
+    var o=document.createElement('option');o.value=y;o.textContent=y+'年';ys.appendChild(o);
+  }
+  for(var m=1;m<=12;m++){
+    var o2=document.createElement('option');o2.value=m;o2.textContent=m+'月';ms.appendChild(o2);
+  }
+  ys.value='1990';ms.value='6';
+  fillDays();
+  $('#ncDay').value='15';
+  ys.addEventListener('change',fillDays);
+  ms.addEventListener('change',fillDays);
+})();
+$('#btnGeo').addEventListener('click',function(){
+  if(!navigator.geolocation){asFlash('当前浏览器不支持定位','err');return;}
+  asFlash('正在获取定位…');
+  navigator.geolocation.getCurrentPosition(function(pos){
+    var lat=pos.coords.latitude,lon=pos.coords.longitude;
+    $('#ncLat').value=lat.toFixed(2);
+    $('#ncLon').value=lon.toFixed(2);
+    var best=-1,bd=1e9;                 /* 就近匹配已知城市便于回显 */
+    CITIES.forEach(function(c,i){
+      var d=Math.pow(c[1]-lat,2)+Math.pow(c[2]-lon,2);
+      if(d<bd){bd=d;best=i;}
+    });
+    var near=best>=0&&bd<0.25;
+    if(near)$('#ncCityName').value=CITIES[best][0];
+    asFlash('已填入定位坐标'+(near?'（就近城市：'+CITIES[best][0]+'）':''),'ok');
+  },function(err){
+    var msg={1:'已拒绝定位权限',2:'位置不可用',3:'定位超时'}[err.code]||'定位失败';
+    asFlash(msg+'，请手动输入城市或填写经纬度','err');
+  },{timeout:8000,maximumAge:60000});
+});
+
+/* ---------------- 星盘渲染 ---------------- */
+var SIGN_GLYPHS=['♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓'];
+var SIGN_CNS=['白羊座','金牛座','双子座','巨蟹座','狮子座','处女座','天秤座','天蝎座','射手座','摩羯座','水瓶座','双鱼座'];
+var ASP_COLORS={soft:'var(--as-green)',hard:'var(--as-red)',neutral:'var(--as-blue)'};
+
+function buildWheel(chart){
+  var S=520,cx=S/2,cy=S/2,R1=246,R2=216,R3=186,R4=120;
+  var svg=['<svg id="wheelSvg" viewBox="0 0 '+S+' '+S+'" xmlns="http://www.w3.org/2000/svg">'];
+  svg.push('<circle cx="'+cx+'" cy="'+cy+'" r="'+R1+'" fill="#0d1428" stroke="#3c5490" stroke-width="1.5"/>');
+  svg.push('<circle cx="'+cx+'" cy="'+cy+'" r="'+R2+'" fill="none" stroke="#3c5490"/>');
+  svg.push('<circle cx="'+cx+'" cy="'+cy+'" r="'+R3+'" fill="none" stroke="rgba(140,160,220,.25)" stroke-dasharray="3 4"/>');
+  svg.push('<circle cx="'+cx+'" cy="'+cy+'" r="'+R4+'" fill="none" stroke="rgba(140,160,220,.18)"/>');
+  var ELEM_COLORS={'火':'#ff8a5c','土':'#8fd07a','风':'#7ab8ff','水':'#b18cff'};
+  var elemOf={'白羊座':'火','狮子座':'火','射手座':'火','金牛座':'土','处女座':'土','摩羯座':'土',
+              '双子座':'风','天秤座':'风','水瓶座':'风','巨蟹座':'水','天蝎座':'水','双鱼座':'水'};
+  for(var i=0;i<12;i++){
+    var a0=(180-(i*30))*Math.PI/180,a1=(180-((i+1)*30))*Math.PI/180;
+    var am=(a0+a1)/2;
+    svg.push('<line x1="'+(cx+R2*Math.cos(a0))+'" y1="'+(cy-R2*Math.sin(a0))+
+      '" x2="'+(cx+R1*Math.cos(a0))+'" y2="'+(cy-R1*Math.sin(a0))+'" stroke="#3c5490"/>');
+    svg.push('<path d="M'+cx+' '+cy+' L'+(cx+R2*Math.cos(a0))+' '+(cy-R2*Math.sin(a0))+
+      ' A'+R2+' '+R2+' 0 0 1 '+(cx+R2*Math.cos(a1))+' '+(cy-R2*Math.sin(a1))+' Z" fill="none"/>');
+    var gx=cx+(R1+R2)/2*Math.cos(am),gy=cy-(R1+R2)/2*Math.sin(am);
+    svg.push('<g transform="translate('+gx.toFixed(1)+','+gy.toFixed(1)+')" style="cursor:pointer">'+
+      '<text text-anchor="middle" dy="-4" font-size="19" fill="'+ELEM_COLORS[elemOf[SIGN_CNS[i]]]+'">'+SIGN_GLYPHS[i]+'</text>'+
+      '<text class="term" data-term="'+SIGN_CNS[i]+'" text-anchor="middle" dy="13" font-size="9" fill="#8b97c2">'+SIGN_CNS[i]+'</text></g>');
+  }
+  /* 宫位分隔线与编号 */
+  chart.houses.forEach(function(h,idx){
+    var a=(180-h.cusp)*Math.PI/180;
+    if(idx>0){svg.push('<line x1="'+cx+'" y1="'+cy+'" x2="'+(cx+R3*Math.cos(a))+'" y2="'+(cy-R3*Math.sin(a))+'" stroke="rgba(140,160,220,.2)"/>');}
+    var ha=(180-(h.cusp+15))*Math.PI/180;
+    svg.push('<text x="'+(cx+R4*0.62*Math.cos(ha))+'" y="'+(cy-R4*0.62*Math.sin(ha))+'" text-anchor="middle" font-size="10" fill="#5a6893">'+h.no+'</text>');
+  });
+  /* ASC/MC 轴 */
+  [['asc','#e8c476'],['mc','#b18cff']].forEach(function(kv){
+    var pt=null;chart.angles.forEach(function(a2){if(a2.key===kv[0])pt=a2;});
+    if(pt){var aa=(180-pt.lon)*Math.PI/180;
+      svg.push('<line x1="'+(cx-R4*Math.cos(aa))+'" y1="'+(cy+R4*Math.sin(aa))+
+        '" x2="'+(cx+R3*Math.cos(aa))+'" y2="'+(cy-R3*Math.sin(aa))+'" stroke="'+kv[1]+'" stroke-width="2"/>');
+      svg.push('<text x="'+(cx+(R3+12)*Math.cos(aa))+'" y="'+(cy-(R3+12)*Math.sin(aa))+
+        '" font-size="11" fill="'+kv[1]+'" text-anchor="middle">'+pt.cn+'</text>');}
+  });
+  /* 相位弦线 */
+  chart.aspects.forEach(function(sp){
+    var pa=(180-sp.a.lon)*Math.PI/180,pb=(180-sp.b.lon)*Math.PI/180;
+    svg.push('<line x1="'+(cx+R4*Math.cos(pa)*0.98)+'" y1="'+(cy-R4*Math.sin(pa)*0.98)+
+      '" x2="'+(cx+R4*Math.cos(pb)*0.98)+'" y2="'+(cy-R4*Math.sin(pb)*0.98)+
+      '" stroke="'+ASP_COLORS[sp.nature]+'" stroke-width="1" opacity=".55"/>');
+  });
+  /* 行星 */
+  chart.points.forEach(function(p){
+    var a=(180-p.lon)*Math.PI/180;
+    var px=cx+(R4+34)*Math.cos(a),py=cy-(R4+34)*Math.sin(a);
+    var tx=cx+(R3+22)*Math.cos(a),ty=cy-(R3+22)*Math.sin(a);
+    svg.push('<circle cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="13" fill="#16204a" stroke="#3c5490"/>');
+    svg.push('<text x="'+px.toFixed(1)+'" y="'+(py+5).toFixed(1)+'" text-anchor="middle" font-size="13" fill="#ffe9b8">'+p.glyph+'</text>');
+    var degTxt=p.deg.toFixed(0)+'°';
+    svg.push('<text x="'+tx.toFixed(1)+'" y="'+ty.toFixed(1)+'" text-anchor="middle" font-size="8.5" fill="#8b97c2">'+degTxt+(p.retro?' ℞':'')+'</text>');
+  });
+  svg.push('</svg>');
+  return svg.join('');
+}
+
+var _lastChartResult=null;
+function renderNatal(res){
+  _lastChartResult=res;
+  var w=res.western,b=w.big_three;
+  var html='';
+  html+='<div class="as-card print-report">';
+  html+='<h3><i class="bi bi-person-lines-fill"></i> 人格三大支柱</h3><div class="big-three">';
+  [['太阳',b.sun,'核心自我 · 意志 · 生命力'],['月亮',b.moon,'情绪 · 安全感'],['上升星座',b.asc,'应世姿态 · 第一印象']]
+    .forEach(function(t){
+      html+='<div class="bt-item"><div class="bt-k">'+t[0]+'</div>'+
+        '<div class="bt-sign term" data-term="'+esc(t[1])+'">'+esc(t[1])+'</div>'+
+        '<div class="as-note">'+t[2]+'</div></div>';
+    });
+  html+='</div>';
+  html+='<div class="wheel-box mt-3">'+buildWheel(w)+'</div>';
+  /* 行星落点全参数表(次级信息, 默认折叠) */
+  html+='<details class="sec-fold"><summary><i class="bi bi-table"></i> 行星落点 · 完整参数（'+(w.points.length+w.angles.length)+'行）</summary>'+
+    '<div style="overflow-x:auto;" class="mt-2"><table class="pl-table"><thead><tr>'+
+    '<th>行星</th><th>黄经</th><th>星座 · 度数</th><th>宫位</th><th>状态</th></tr></thead><tbody>';
+  w.points.forEach(function(p){
+    html+='<tr><td><span class="term" data-term="'+esc(p.cn)+'">'+p.glyph+' '+esc(p.cn)+'</span></td>'+
+      '<td>'+p.lon.toFixed(2)+'°</td>'+
+      '<td><span class="term" data-term="'+esc(p.sign)+'">'+esc(p.sign)+'</span> '+p.deg.toFixed(2)+'°</td>'+
+      '<td>第'+p.house+'宫</td>'+
+      '<td>'+(p.retro?'<span class="retro-tag">逆行</span>':'<span class="direct-tag">顺行</span>')+'</td></tr>';
+  });
+  w.angles.forEach(function(a2){
+    html+='<tr><td>'+esc(a2.cn)+'</td><td>'+a2.lon.toFixed(2)+'°</td>'+
+      '<td><span class="term" data-term="'+esc(a2.sign)+'">'+esc(a2.sign)+'</span> '+a2.deg.toFixed(2)+'°</td><td>—</td><td>四轴</td></tr>';
+  });
+  html+='</tbody></table></div></details>';
+  /* 相位 */
+  html+='<details class="sec-fold"><summary><i class="bi bi-bezier2"></i> 主要相位（'+w.aspects.length+'组）</summary><div class="mt-2">';
+  if(!w.aspects.length){html+='<span class="as-note">本盘主要相位少于容许阈值，星体间呈松散关系。</span>';}
+  w.aspects.forEach(function(sp){
+    html+='<span class="asp-chip"><span class="asp-dot" style="background:'+ASP_COLORS[sp.nature]+'"></span>'+
+      '<span class="term" data-term="'+esc(sp.a.cn)+'">'+esc(sp.a.cn)+'</span> '+
+      '<span class="term" data-term="'+esc(sp.aspect_cn)+'" style="color:'+ASP_COLORS[sp.nature]+'">'+esc(sp.aspect_cn)+'</span> '+
+      '<span class="term" data-term="'+esc(sp.b.cn)+'">'+esc(sp.b.cn)+'</span>'+
+      '<span class="as-note">(差'+sp.exact.toFixed(1)+'°)</span></span>';
+  });
+  html+='</div></details>';
+  /* 元素模态 */
+  html+='<details class="sec-fold"><summary><i class="bi bi-fire"></i> 元素与模态分布</summary><div class="as-grid2 mt-2">';
+  html+='<div><h3><i class="bi bi-fire"></i> 四元素分布</h3>';
+  Object.keys(w.elements).forEach(function(k){
+    var e=w.elements[k],pct=Math.round(e.count/w.points.length*100);
+    html+='<div class="bar-row"><span class="bar-name">'+esc(e.cn)+'</span>'+
+      '<div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+e.color+'"></div></div>'+
+      '<span class="bar-val">'+e.count+'颗·'+pct+'%</span></div>';
+  });
+  html+='</div><div><h3><i class="bi bi-three-dots"></i> 三模态分布</h3>';
+  var modeCn={cardinal:'开创',fixed:'固定',mutable:'变动'},mc2=['cardinal','fixed','mutable'];
+  mc2.forEach(function(mk){
+    var c=w.modes[mk]||0,pct=Math.round(c/w.points.length*100);
+    html+='<div class="bar-row"><span class="bar-name">'+modeCn[mk]+'</span>'+
+      '<div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:#6ea8ff"></div></div>'+
+      '<span class="bar-val">'+c+'颗·'+pct+'%</span></div>';
+  });
+  html+='</div></div></details>';
+  /* 宫位 */
+  html+='<details class="sec-fold"><summary><i class="bi bi-grid-3x3"></i> 十二宫位起点（等宫制）</summary><table class="pl-table mt-2"><tbody><tr>';
+  w.houses.forEach(function(h,i){
+    html+='<td style="text-align:center;">第'+h.no+'宫<br><span class="term" data-term="'+esc(h.sign)+'" style="font-size:.8rem;">'+esc(h.sign)+'</span><br><span class="as-note">'+h.cusp.toFixed(1)+'°</span></td>';
+    if(i===5||i===11)html+='</tr><tr>';
+  });
+  html+='</tr></tbody></table></details>';
+  /* 八字 */
+  var bz=res.bazi;
+  html+='<h3 class="mt-4"><i class="bi bi-brush"></i> 八字四柱（中国命理体系并排对照）</h3>';
+  html+='<div class="as-grid2"><div><div class="d-flex justify-content-center gap-3 mb-3">';
+  ['年柱','月柱','日柱','时柱'].forEach(function(cn,i){
+    html+='<div class="bazi-col"><div class="as-note mb-1">'+cn+'</div><div class="bazi-pillar">'+
+      '<div class="bp-ten">'+esc(bz.ten_gods[i])+'</div>'+
+      '<div class="bp-gan term" data-term="天干">'+esc(bz.pillars[i][0])+'</div>'+
+      '<div class="bp-zhi term" data-term="地支">'+esc(bz.pillars[i][1])+'</div></div></div>';
+  });
+  html+='</div><div class="as-note">生肖：<b style="color:var(--as-gold)">'+esc(bz.animal)+'</b> · 日主：'+esc(bz.day_master)+
+    '('+esc(bz.day_element)+') · 十神以日干为基准</div></div>';
+  html+='<div><h3><i class="bi bi-bar-chart-line"></i> 五行比例</h3>';
+  var WX_COLORS={'木':'#5fd0a0','火':'#ff8a5c','土':'#e8c476','金':'#cfd8ea','水':'#6ea8ff'};
+  var wxTotal=Object.keys(bz.wuxing).reduce(function(s,k){return s+bz.wuxing[k];},0)||1;
+  Object.keys(bz.wuxing).forEach(function(k){
+    var v=bz.wuxing[k],pct=Math.round(v/wxTotal*100);
+    html+='<div class="bar-row"><span class="bar-name term" data-term="五行">'+k+'</span>'+
+      '<div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+WX_COLORS[k]+'"></div></div>'+
+      '<span class="bar-val">'+v+'字·'+pct+'%</span></div>';
+  });
+  html+='<div class="transparency as-note">喜神方位：'+esc(bz.xishen)+' · 财神方位：'+esc(bz.caishen)+
+    ' · 日支冲'+esc(bz.chong)+'('+esc(bz.sha_dir)+'方煞)</div></div></div>';
+  /* 透明声明 */
+  html+='<div class="transparency as-note mt-3"><i class="bi bi-eye"></i> 引擎：'+esc(res.engine)+
+    ' · 生成于 '+esc(res.generated_at)+' · 全部计算参数如上完整公开，可复现可验证。</div>';
+  html+='<div class="d-flex gap-2 mt-3 flex-wrap no-print">';
+  html+='<button type="button" class="as-btn ghost sm" onclick="asPrint()"><i class="bi bi-printer"></i> 打印 / 导出 PDF</button>';
+  html+='<button type="button" class="as-btn ghost sm" id="btnCopyReport"><i class="bi bi-clipboard"></i> 复制文本报告</button>';
+  {% if current_user.is_authenticated %}
+  html+='<button type="button" class="as-btn ghost sm" id="btnArchiveNow"><i class="bi bi-cloud-arrow-up"></i> 存入云端档案</button>';
+  {% endif %}
+  html+='</div></div>';
+
+  /* 紫微命盘卡(结果由 showZiwei 填充) */
+  var mo='';for(var m2=1;m2<=12;m2++)mo+='<option value="'+m2+'">'+m2+'月</option>';
+  var ho='';SHIXIANG.forEach(function(t,i){ho+='<option value="'+i+'">'+t+'</option>';});
+  html+='<div class="as-card"><h3><i class="bi bi-grid-3x3"></i> 紫微斗数命盘</h3>'+
+    '<div id="zwResult"><div class="as-note">正在生成紫微盘…</div></div>'+
+    '<details class="adv-box mt-2"><summary>已知确切农历生辰？手动微调后重排</summary>'+
+    '<div class="zw-form d-flex gap-2 flex-wrap align-items-end mt-2">'+
+    '<label class="d-flex flex-column gap-1"><span class="as-note">农历年</span>'+
+    '<input type="number" id="zwYear" class="form-control" min="1900" max="2100" value="1990" style="width:96px;"></label>'+
+    '<label class="d-flex flex-column gap-1"><span class="as-note">月</span>'+
+    '<select id="zwMonth" class="form-select" style="width:76px;">'+mo+'</select></label>'+
+    '<label class="d-flex align-items-center gap-1 as-note" style="padding-bottom:.5rem;">'+
+    '<input type="checkbox" id="zwLeap"> 闰月</label>'+
+    '<label class="d-flex flex-column gap-1"><span class="as-note">日</span>'+
+    '<input type="number" id="zwDay" class="form-control" min="1" max="30" value="5" style="width:76px;"></label>'+
+    '<label class="d-flex flex-column gap-1"><span class="as-note">时辰</span>'+
+    '<select id="zwHour" class="form-select" style="width:130px;">'+ho+'</select></label>'+
+    '<label class="d-flex flex-column gap-1"><span class="as-note">性别</span>'+
+    '<select id="zwGender" class="form-select" style="width:80px;"><option>男</option><option>女</option></select></label>'+
+    '<button type="button" class="as-btn ghost sm" id="btnZiwei"><i class="bi bi-arrow-repeat"></i> 重排紫微盘</button>'+
+    '</div></details>'+
+    '<details class="adv-box mt-2"><summary>安星规则与深度数据说明</summary>'+
+    '<div class="as-note mt-1">《紫微斗数全书》通行安星表（五虎遁定宫干 · 纳音定局 · 寅申轴紫府对称 · 年干四化）；亮度层与流曜待扩展。需要六层运限等深度数据时可另接自托管 FateStar 免费端点（env ASTRO_ZIWEI_URL）。</div></details>'+
+    '</div>';
+
+  var box=$('#natalResult');box.innerHTML=html;
+  bindReportActions();
+  wrapTerms(box);
+  try{localStorage.setItem('astro_last_chart',JSON.stringify(res));}catch(e){}
+  switchTab('natal');
+}
+
+function reportText(){
+  if(!_lastChartResult)return '';
+  var w=_lastChartResult.western,bz=_lastChartResult.bazi,L=[];
+  L.push('【星运 · 本命盘报告】'+(w.name||''));
+  L.push('出生: '+w.birth_iso+'  北纬'+w.lat+'° 东经'+w.lon+'°');
+  L.push('人格三柱: 太阳'+b.sun+' / 月亮'+b.moon+' / 上升'+b.asc);
+  w.points.forEach(function(p){L.push('  '+p.glyph+p.cn+'  '+p.sign+' '+p.deg+'°  第'+p.house+'宫'+(p.retro?'(逆行)':''));});
+  w.aspects.forEach(function(s){L.push('  '+s.a.cn+s.aspect_cn+s.b.cn+' (差'+s.exact+'°)');});
+  L.push('八字: '+bz.pillars.join(' ')+'  生肖'+bz.animal+'  日主'+bz.day_master);
+  L.push('五行: '+Object.keys(bz.wuxing).map(function(k){return k+bz.wuxing[k];}).join(' '));
+  L.push('-- 由 TaskAstro 本地开源引擎生成 · 参数全透明 --');
+  return L.join('\n');
+}
+function bindReportActions(){
+  var cp=$('#btnCopyReport');
+  if(cp)cp.addEventListener('click',function(){
+    navigator.clipboard.writeText(reportText()).then(
+      function(){asFlash('文本报告已复制');},
+      function(){asFlash('复制失败，请手动选择文本','err');});
+  });
+  var ar=$('#btnArchiveNow');
+  if(ar)ar.addEventListener('click',saveCurrentChart);
+}
+
+/* ---------------- 排盘请求 ---------------- */
+function syncZw(li){
+  if(!li)return;
+  var set=function(id,v){var el=$(id);if(el&&v!==undefined&&v!==null&&el.value!==undefined)el.value=v;};
+  set('#zwYear',li.year);set('#zwMonth',li.month);set('#zwDay',li.day);
+  set('#zwHour',li.hour_idx);set('#zwGender',li.gender);
+  $('#zwLeap').checked=!!li.leap;
+}
+function showZiwei(result){
+  if(result.ziwei){
+    renderZiwei(result.ziwei);
+    syncZw(result.lunar_input);
+  }else{
+    $('#zwResult').innerHTML='<div class="as-note">紫微盘不可用：'+
+      (result.ziwei_error||'未知原因')+'</div>';
+  }
+}
+function askNatal(saveFlag){
+  var dt=ncBirthISO(),tm=$('#ncTime').value||'12:00';
+  if(!dt){asFlash('请选择出生日期','err');return;}
+  var body={name:($('#ncName').value||'我的本命盘'),
+    birth_date:dt,birth_time:tm,gender:$('#ncGender').value||'男',
+    lat:parseFloat($('#ncLat').value)||31.23,lon:parseFloat($('#ncLon').value)||121.47};
+  var btn=$('#btnNatal');btn.disabled=true;
+  fetch('/astro/api/chart',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)})
+    .then(function(r){return r.json().then(function(d){return{code:r.status,d:d};});})
+    .then(function(o){
+      btn.disabled=false;
+      if(!o.d.ok){asFlash(o.d.error||'排盘失败','err');return;}
+      renderNatal(o.d.result);
+      showZiwei(o.d.result);
+      asFlash(o.d.saved?'排盘完成，已存入云端档案':'排盘完成');
+      {% if current_user.is_authenticated %}
+      if(saveFlag&&!o.d.saved){saveCurrentChart();}
+      {% endif %}
+    })
+    .catch(function(){btn.disabled=false;asFlash('网络异常，请稍后再试','err');});
+}
+{% if current_user.is_authenticated %}
+function saveCurrentChart(){
+  if(!_lastChartResult){asFlash('请先生成一次排盘','err');return;}
+  var w=_lastChartResult.western;
+  fetch('/astro/api/records',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({kind:'natal',title:(w.name||'本命盘')+' · '+w.birth_iso,
+      input:{birth_date:w.birth_iso.slice(0,10),birth_time:w.birth_iso.slice(11),
+             lat:w.lat,lon:w.lon},
+      result:_lastChartResult})})
+    .then(function(r){return r.json();})
+    .then(function(d){asFlash(d.ok?'已存入云端档案':(d.error||'保存失败'),d.ok?'ok':'err');})
+    .catch(function(){asFlash('网络异常','err');});
+}
+{% endif %}
+
+/* ---------------- 每日运势 ---------------- */
+var _curSign='aries';
+var SIGN_KEYS=['aries','taurus','gemini','cancer','leo','virgo','libra','scorpio','sagittarius','capricorn','aquarius','pisces'];
+function initSignPicker(){
+  var box=$('#signPicker');
+  SIGN_KEYS.forEach(function(k,i){
+    var b=document.createElement('button');b.type='button';b.setAttribute('data-key',k);
+    b.className='sign-chip'+(k===_curSign?' active':'');
+    b.innerHTML='<span class="sc-glyph">'+SIGN_GLYPHS[i]+'</span><span class="sc-name">'+SIGN_CNS[i]+'</span>';
+    b.addEventListener('click',function(){
+      _curSign=k;$$('.sign-chip').forEach(function(x){x.classList.remove('active');});
+      b.classList.add('active');
+    });
+    box.appendChild(b);
+  });
+}
+function renderFortune(local,cal,aztro,note){
+  var pct=Math.max(4,local.overall);
+  var html='<div class="as-grid2">';
+  html+='<div class="as-card"><h3><i class="bi bi-speedometer2"></i> 综合运势 · '+esc(local.sign)+' · '+esc(local.date)+'</h3>';
+  html+='<div class="score-ring" style="--p:'+pct+'"><div><span class="sr-num">'+local.overall+'</span><span class="sr-cap">综合指数</span></div></div>';
+  html+='<div class="mt-3">';
+  local.dims.forEach(function(dd){
+    var col=dd.score>=80?'var(--as-green)':(dd.score>=60?'var(--as-gold)':'var(--as-red)');
+    html+='<div class="bar-row"><span class="bar-name">'+esc(dd.label)+'</span>'+
+      '<div class="bar-track"><div class="bar-fill" style="width:'+dd.score+'%;background:'+col+'"></div></div>'+
+      '<span class="bar-val">'+dd.score+'</span></div>';
+  });
+  html+='</div>';
+  /* 四维文字解读收进折叠区 */
+  html+='<details class="sec-fold mt-2"><summary><i class="bi bi-chat-square-text"></i> 四维简评</summary><div class="mt-1">';
+  local.dims.forEach(function(dd){
+    html+='<div class="as-note mb-1"><b style="color:var(--as-gold);">'+esc(dd.label)+'</b> · '+esc(dd.tip)+'</div>';
+  });
+  html+='</div></details></div>';
+  /* 锦囊 + 历法合并为一卡 */
+  html+='<div><div class="as-card"><h3><i class="bi bi-gift"></i> 今日锦囊 · 历法宜忌</h3>';
+  html+='<div class="as-note mb-2">干支纪日：<b style="color:var(--as-gold)">'+esc(cal.day_gz)+'</b>(日) · 五行属'+esc(cal.element)+
+    ' · 同频星座：'+local.compat.map(function(c){return '<span class="term" data-term="'+esc(c)+'">'+esc(c)+'</span>';}).join('、')+'</div>';
+  html+='<div class="as-grid3">';
+  html+='<div class="dir-cell"><div class="dc-k">幸运颜色</div><div class="dc-v">'+esc(local.lucky_color)+'</div></div>';
+  html+='<div class="dir-cell"><div class="dc-k">幸运数字</div><div class="dc-v">'+local.lucky_numbers.join(' · ')+'</div></div>';
+  html+='<div class="dir-cell"><div class="dc-k">今日心情</div><div class="dc-v">'+esc(local.mood)+'</div></div>';
+  html+='</div>';
+  html+='<div class="yi-ji mt-2"><div class="yi-list"><b>宜</b><br>';
+  cal.yi.forEach(function(y){html+='<span>'+esc(y)+'</span>';});
+  html+='</div><div class="ji-list"><b>忌</b><br>';
+  cal.ji.forEach(function(j){html+='<span>'+esc(j)+'</span>';});
+  html+='</div></div><div class="as-grid3 mt-2">';
+  html+='<div class="dir-cell"><div class="dc-k">喜神方位</div><div class="dc-v">'+esc(cal.xishen)+'</div></div>';
+  html+='<div class="dir-cell"><div class="dc-k">财神方位</div><div class="dc-v">'+esc(cal.caishen)+'</div></div>';
+  html+='<div class="dir-cell"><div class="dc-k">'+esc(cal.chong)+'</div><div class="dc-v">煞'+esc(cal.sha_dir)+'</div></div>';
+  html+='</div><div class="transparency as-note mt-2">本地确定性引擎 · 同日期同星座结果恒定可回溯；方位口诀源自古典歌诀简化推演。</div></div></div></div>';
+  if(aztro){
+    html+='<details class="sec-fold mt-1"><summary><i class="bi bi-globe"></i> 国际数据源 aztro 原文（免费开放接口，未经修改）</summary>'+
+      '<div class="as-note mt-2">mood: '+esc(aztro.mood||'-')+' · color: '+esc(aztro.color||'-')+
+      ' · number: '+esc(aztroNum(aztro))+' · compatibility: '+esc(aztro.compatibility||'-')+
+      '<br>date_range: '+esc(aztro.date_range||'-')+' · '+esc((aztro.description||'').slice(0,300))+'</div></details>';
+  }else{
+    html+='<div class="transparency as-note mt-1"><i class="bi bi-eye"></i> '+esc(note||'')+
+      ' —— 本地引擎已完整覆盖全部能力。</div>';
+  }
+  var box=$('#dailyResult');box.innerHTML=html;wrapTerms(box);
+}
+function aztroNum(a){return (a.current_date?a.current_date+' ':'')+(a.lucky_number!=null?a.lucky_number:'-');}
+function askFortune(){
+  var d=$('#ftDate').value||new Date().toISOString().slice(0,10);
+  var btn=$('#btnFortune');btn.disabled=true;
+  fetch('/astro/api/fortune?sign='+encodeURIComponent(_curSign)+'&date='+d)
+    .then(function(r){return r.json();}).then(function(dd){
+      btn.disabled=false;
+      if(!dd.ok){asFlash(dd.error||'查询失败','err');return;}
+      renderFortune(dd.local,dd.calendar,dd.aztro,dd.aztro_note);
+    }).catch(function(){btn.disabled=false;asFlash('网络异常','err');});
+}
+function askTarot(){
+  fetch('/astro/api/tarot',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
+    .then(function(r){return r.json();}).then(function(d){
+      if(!d.ok){asFlash('抽牌失败','err');return;}
+      var html='<div class="as-card"><h3><i class="bi bi-suit-spade"></i> 塔罗三牌 · 时间流阵型（牌义数据源自开源 tarot-json 社区中文摘编）</h3><div class="tarot-row">';
+      d.cards.forEach(function(c){
+        html+='<div class="tarot-card'+(c.reversed?' rev':'')+'"><div class="tc-pos">'+esc(c.position)+'</div>'+
+          '<div class="tc-no">第'+c.no+'号 · 大阿尔卡纳</div><div class="tc-name">'+esc(c.cn)+'</div>'+
+          '<div class="tc-mean">'+esc(c.meaning)+'</div>'+
+          (c.reversed?'<span class="tc-revtag">逆位</span>':'')+'</div>';
+      });
+      html+='</div><div class="as-note mt-2">随机源为系统安全随机数；如需可复现结果可在接口中传入 seed。</div></div>';
+      $('#tarotResult').innerHTML=html;
+    }).catch(function(){asFlash('网络异常','err');});
+}
+
+/* ---------------- 知识库 ---------------- */
+var kbLoaded=false,kbAll=[];
+function loadKb(q){
+  fetch('/astro/api/terms'+(q?('?q='+encodeURIComponent(q)):''))
+    .then(function(r){return r.json();}).then(function(d){
+      kbLoaded=true;kbAll=d.items||[];
+      $('#kbCount').textContent='共 '+d.count+' 条 · 持续扩充';
+      var groups={};
+      kbAll.forEach(function(t){(groups[t.cat]=groups[t.cat]||[]).push(t);});
+      var html='';
+      Object.keys(groups).forEach(function(cat){
+        html+='<div class="kb-group-title">'+esc(cat)+'</div>';
+        groups[cat].forEach(function(t){
+          html+='<div class="kb-item" data-key="'+esc(t.key)+'"><div><div class="kb-t">'+esc(t.title)+'</div>'+
+            (t.summary?'<div class="kb-s">'+esc(t.summary)+'</div>':'')+'</div>'+
+            '<i class="bi bi-chevron-right" style="color:var(--as-dim);"></i></div>';
+        });
+        var play=cat.indexOf('西方占星')>=0?'natal':(cat.indexOf('中国命理')>=0?'daily':null);
+        if(play){html+='<div class="as-note mb-2">读完概念？<a href="#" onclick="return asGoTab(\''+play+'\');" style="color:var(--as-gold);">直接试玩相关工具 →</a></div>';}
+      });
+      $('#kbList').innerHTML=html||'<div class="as-empty">没有匹配的词条</div>';
+      $$('.kb-item',$('#kbList')).forEach(function(el){
+        el.addEventListener('click',function(){openTerm(el.getAttribute('data-key'));});
+      });
+    }).catch(function(){$('#kbList').innerHTML='<div class="as-empty">加载失败</div>';});
+}
+window.asGoTab=function(n){switchTab(n);return false;};
+$('#kbSearchBtn').addEventListener('click',function(){loadKb($('#kbSearch').value.trim());});
+$('#kbSearch').addEventListener('keydown',function(e){if(e.key==='Enter')loadKb(this.value.trim());});
+
+/* ---------------- 我的存档 ---------------- */
+function loadRecords(){
+  var box=$('#recList');if(!box)return;
+  fetch('/astro/api/records').then(function(r){
+    if(r.status===401){box.innerHTML='<div class="as-empty"><i class="bi bi-lock"></i>请先登录后使用云端存档</div>';throw 0;}
+    return r.json();}).then(function(d){
+    if(!d.ok||!d.items.length){box.innerHTML='<div class="as-empty"><i class="bi bi-archive"></i>暂无存档记录<br><span class="as-note">完成一次排盘后点击「存入云端档案」即可收藏，数量不限。</span></div>';return;}
+    var html='<div class="as-note mb-2">共 '+d.count+' 条 · 上限 '+d.quota+' · 时间线倒序</div>';
+    d.items.forEach(function(it){
+      html+='<div class="rec-item"><span class="rec-time">'+esc(it.created_at)+'</span>'+
+        '<span class="rec-kind">'+(it.kind==='natal'?'本命盘':'记录')+'</span>'+
+        '<span class="rec-title" data-id="'+it.id+'">'+esc(it.title)+'</span>'+
+        '<button type="button" class="as-btn ghost sm rec-view" data-id="'+it.id+'">查看</button>'+
+        '<button type="button" class="as-btn ghost sm rec-del" data-id="'+it.id+'">删除</button></div>';
+    });
+    box.innerHTML=html;
+    $$('.rec-view',box).forEach(function(b){b.addEventListener('click',function(){viewRecord(b.getAttribute('data-id'));});});
+    $$('.rec-del',box).forEach(function(b){b.addEventListener('click',function(){delRecord(b.getAttribute('data-id'));});});
+    $$('.rec-title',box).forEach(function(el){el.addEventListener('click',function(){viewRecord(el.getAttribute('data-id'));});});
+  }).catch(function(){});
+}
+function viewRecord(id){
+  fetch('/astro/api/records/'+id).then(function(r){return r.json();}).then(function(d){
+    if(!d.ok){asFlash(d.error||'读取失败','err');return;}
+    renderNatal(d.item.result);
+    showZiwei(d.item.result);
+    asFlash('已从云端档案载入：'+d.item.title);
+  }).catch(function(){asFlash('网络异常','err');});
+}
+function delRecord(id){
+  if(!confirm('确认删除这条存档？此操作不可恢复。'))return;
+  fetch('/astro/api/records/'+id,{method:'DELETE'}).then(function(r){return r.json();})
+    .then(function(d){asFlash(d.ok?'已删除':'删除失败',d.ok?'ok':'err');loadRecords();});
+}
+{% if current_user.is_authenticated %}
+function initSubscribe(){
+  var sel=$('#subSign');
+  SIGN_KEYS.forEach(function(k,i){sel.insertAdjacentHTML('beforeend',
+    '<option value="'+k+'">'+SIGN_GLYPHS[i]+' '+SIGN_CNS[i]+'</option>');});
+  fetch('/astro/api/subscribe').then(function(r){return r.json();}).then(function(d){
+    if(d.sub){sel.value=d.sub.sign;$('#subHour').value=d.sub.hour;
+      $('#subState').textContent='订阅生效中：每日 '+String(d.sub.hour).padStart(2,'0')+':00 投递'+(d.sub.last_sent_date?('，最近送达 '+d.sub.last_sent_date):'')+'。';}
+  });
+  $('#btnSubSave').addEventListener('click',function(){
+    fetch('/astro/api/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({sign:$('#subSign').value,hour:parseInt($('#subHour').value,10)})})
+      .then(function(r){return r.json();}).then(function(d){
+        asFlash(d.ok?'订阅成功，首期内容即将送达站内通知':'订阅失败',d.ok?'ok':'err');
+        initSubscribe._r();
+      });
+  });
+  $('#btnSubOff').addEventListener('click',function(){
+    fetch('/astro/api/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({off:true})}).then(function(r){return r.json();}).then(function(){
+        $('#subState').textContent='订阅已关闭。';asFlash('已关闭订阅');});
+  });
+  initSubscribe._r=function(){fetch('/astro/api/subscribe').then(function(r){return r.json();}).then(function(d){
+    if(d.sub){$('#subState').textContent='订阅生效中：每日 '+String(d.sub.hour).padStart(2,'0')+':00 投递'+(d.sub.last_sent_date?('，最近送达 '+d.sub.last_sent_date):'')+'。';}});};
+}
+initSubscribe();
+{% endif %}
+
+/* ---------------- 访客单一横幅(模式说明 + 暂存恢复合并) ---------------- */
+function draftUsable(d){
+  return !!(d && d.western && d.western.big_three && d.bazi &&
+            d.engine && d.generated_at);
+}
+(function guestRestore(){
+  {% if not current_user.is_authenticated %}
+  var box=$('#guestRestoreBox');
+  if(!box)return;
+  var raw=null;
+  try{raw=localStorage.getItem('astro_last_chart');}catch(e){}
+  var reg='<a href="{{ url_for('register') }}">注册</a>/<a href="{{ url_for('login') }}">登录</a>';
+  function drawBanner(hasDraft){
+    box.innerHTML='<div class="as-banner"><i class="bi bi-info-circle" style="color:var(--as-gold);"></i>'+
+      '访客模式 · 功能不限 · '+reg+'后档案同步云端'+
+      (hasDraft?' · <a href="#" id="grRestore">载入上次排盘</a>':'')+'</div>';
+  }
+  var usable=false,d=null;
+  if(raw){
+    try{d=JSON.parse(raw);usable=draftUsable(d);}
+    catch(e){usable=false;}
+    if(!usable){try{localStorage.removeItem('astro_last_chart');}catch(e){}
+      raw=null;}
+  }
+  drawBanner(usable);
+  /* 容器级委托: 横幅重绘后链接依然有效 */
+  box.addEventListener('click',function(e){
+    var a=e.target.closest('#grRestore');
+    if(!a)return;
+    e.preventDefault();
+    var d2=null;
+    try{d2=JSON.parse(raw);}catch(err){d2=null;}
+    if(!draftUsable(d2)){
+      try{localStorage.removeItem('astro_last_chart');}catch(e2){}
+      drawBanner(false);
+      asFlash('暂存数据已过期，请重新排盘','err');
+      return;
+    }
+    try{renderNatal(d2);}
+    catch(err){
+      asFlash('报告渲染失败，请重新排盘','err');
+      return;
+    }
+    try{showZiwei(d2);}
+    catch(err){
+      var zr=$('#zwResult');
+      if(zr)zr.innerHTML='<div class="as-note">紫微盘数据缺失，重新排盘即可生成。</div>';
+    }
+    asFlash('已载入上次排盘','ok');
+  });
+  {% endif %}
+})();
+
+/* ---------------- 启动 ---------------- */
+initSignPicker();
+$('#btnNatal').addEventListener('click',function(){askNatal(false);});
+{% if current_user.is_authenticated %}
+$('#btnSaveChart').addEventListener('click',function(){
+  if(!_lastChartResult){askNatal(true);}else{saveCurrentChart();}
+});
+{% endif %}
+$('#btnFortune').addEventListener('click',askFortune);
+$('#btnToday').addEventListener('click',function(){$('#ftDate').value=new Date().toISOString().slice(0,10);askFortune();});
+$('#btnTarot').addEventListener('click',askTarot);
+(function(){
+  var today=new Date().toISOString().slice(0,10);
+  var fd=$('#ftDate');if(fd){fd.value=today;fd.max='2028-12-31';}
+})();
+var h=location.hash||'';
+if(h.indexOf('tab-')===0){switchTab(h.slice(4));}
+ensureTerms(function(){});
+})();
+</script>
+{% endblock %}

@@ -19,6 +19,21 @@ def test_title_colon_and_bracket():
     assert extract_title_from_text('【项目会】下周三2点 开会') == '项目会'
 
 
+def test_title_short_fallback_to_theme():
+    """标题不足6字(如【会议通知】)时回退取「会议主题:」后的文字."""
+    NOTICE = '''【会议通知】
+会议主题：青年理论小组第二党支部第2组7-8月学习
+会议时间：2026年8月25日（周二）08:40-10:00
+会议地点：五楼日耀间会议室（509）
+会议内容：
+1、学习重点
+【范超超】领读：《习近平在庆祝中国共产党成立105周年大会上发表重要讲话》、
+《全国党建工作座谈会在京召开》（见学习参考资料）'''
+    assert extract_title_from_text(NOTICE) == '青年理论小组第二党支部第2组7-8月学习'
+    # 标题本身够长时不回退
+    assert extract_title_from_text('【项目会】下周三2点 开会') == '项目会'
+
+
 def test_recurrence():
     r = parse_task_from_text('每天下班前提交日报')
     assert r['recurrence'] == 'daily' and r['recurrence_interval_days'] == 1
@@ -51,6 +66,46 @@ def test_blur_timespan_not_override_explicit_date():
     # 仅模糊词时仍兜底可用
     r = parse_task_from_text('系统升级年底前完成上线')
     assert r['end_time'] is not None
+
+
+def test_explicit_date_with_weekday_no_rollover():
+    """「8月25日（周二）08:40」类显式日期+括注星期, 时刻已过也不得顺延到下周."""
+    from datetime import timedelta
+    from core.timeutil import cn_now
+    now = cn_now()
+    hm = now - timedelta(minutes=1)  # 必已过去 → 触发旧顺延逻辑
+    wd = '一二三四五六日'[now.weekday()]
+    s_txt = f'{hm.hour:02d}:{hm.minute:02d}'
+    e_tot = (hm.hour * 60 + hm.minute + 30) % 1440
+    e_txt = f'{e_tot // 60:02d}:{e_tot % 60:02d}'
+    text = f'会议时间：{now.year}年{now.month}月{now.day}日（周{wd}）{s_txt}-{e_txt}'
+    span = np._parse_timespan_jionlp(text)
+    assert span and span['start'] is not None, text
+    s = span['start']
+    assert (s.year, s.month, s.day) == (now.year, now.month, now.day), (text, s)
+    assert (s.hour, s.minute) == (hm.hour, hm.minute), (text, s)
+    assert span['end'] and span['end'] > s, (text, span)
+
+
+def test_meeting_notice_theme_and_time():
+    """完整会议通知: 标题回退取「主题」行, 时间以明确日期区间为准且不被顺延."""
+    NOTICE = '''【会议通知】
+会议主题：青年理论小组第二党支部第2组7-8月学习
+会议时间：2026年8月25日（周二）08:40-10:00
+会议地点：五楼日耀间会议室（509）
+会议内容：
+1、学习重点
+【范超超】领读：《习近平在庆祝中国共产党成立105周年大会上发表重要讲话》、
+《全国党建工作座谈会在京召开》（见学习参考资料）'''
+    r = parse_task_from_text(NOTICE)
+    assert r['title'] == '青年理论小组第二党支部第2组7-8月学习'
+    assert r['category'] == '会议'
+    s, e = r['start_time'], r['end_time']
+    assert s and (s.year, s.month, s.day) == (2026, 8, 25), s
+    assert (s.hour, s.minute) == (8, 40), s
+    assert e and (e.year, e.month, e.day) == (2026, 8, 25), e
+    assert (e.hour, e.minute) == (10, 0), e
+
 
 
 def test_jionlp_span_future_start():

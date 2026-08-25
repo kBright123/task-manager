@@ -394,7 +394,7 @@ def _csrf_protect():
 @app.errorhandler(404)
 @app.errorhandler(413)
 def _http_error(e):
-    if request.path.startswith(('/api/', '/kb/api/', '/notes/api/')):
+    if request.path.startswith(('/api/', '/kb/api/', '/notes/api/', '/astro/api/')):
         return jsonify({'ok': False, 'error': getattr(e, 'description', '') or e.name}), e.code
     return render_template('error.html', code=getattr(e, 'code', 400),
                            message=getattr(e, 'description', '') or e.name), e.code
@@ -402,7 +402,7 @@ def _http_error(e):
 def _internal_error(e):
     db.session.rollback()
     logger.error('Internal error: %s %s -> %s', request.method, request.path, e)
-    if request.path.startswith(('/api/', '/kb/api/', '/notes/api/')):
+    if request.path.startswith(('/api/', '/kb/api/', '/notes/api/', '/astro/api/')):
         return jsonify({'ok': False, 'error': '服务器内部错误'}), 500
     return render_template('error.html', code=500, message='服务器内部错误'), 500
 
@@ -419,6 +419,10 @@ app.register_blueprint(notes_bp)
 from routes.pet import init_models as pet_init_models, pet_bp
 pet_init_models(db)
 app.register_blueprint(pet_bp)
+
+from routes.astro import init_models as astro_init_models, astro_bp
+astro_init_models(db)
+app.register_blueprint(astro_bp)
 
 # ---- ServiceWorker / 宠物页 / 静态版本号 / 模板注入 ----
 @app.route('/sw.js')

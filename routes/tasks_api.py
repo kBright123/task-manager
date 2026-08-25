@@ -26,14 +26,14 @@ from app import (app, login_required, Group, Notification, Task,
 
 
 
-from flask import flash, jsonify, redirect, render_template, request, url_for
+from flask import flash, jsonify, redirect, render_template, request, url_for, Response
 from services.task_service import purge_task, restore_task, soft_delete_task
 from flask_login import current_user
 from sqlalchemy import func
 from werkzeug.utils import secure_filename
 import json
 import os
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time as dtime, timedelta, timezone
 
 """tasks REST API 路由(/api/*), 自 routes_tasks.py 拆分, endpoint 名称不变。"""
 
@@ -1153,3 +1153,169 @@ def _sync_task_assignees_from_form(task):
             a.abandoned_at = now
 
 
+
+
+# ---- 日历订阅(iCal/.ics): 手机日历一次性订阅, 自动同步待办 ----
+_ICS_ESCAPES = str.maketrans({'\\': '\\\\', ';': '\\;', ',': '\\,',
+                              '\n': '\\n', '\r': ''})
+
+
+def _ics_escape(text):
+    """RFC5545 文本转义: 反斜杠/分号/逗号/换行。"""
+    return str(text or '').translate(_ICS_ESCAPES)
+
+
+def _ics_fold(line):
+    """RFC5545 行折叠: 每行不超过 75 字节(UTF-8), 续行以空格开头。"""
+    lines, cur, cur_len = [], '', 0
+    for ch in line:
+        l = len(ch.encode('utf-8'))
+        limit = 75 if not lines else 74
+        if cur_len + l > limit:
+            lines.append(cur)
+            cur, cur_len = ' ' + ch, 1 + l
+        else:
+            cur += ch
+            cur_len += l
+    if cur:
+        lines.append(cur)
+    return lines or ['']
+
+
+_CN_TZ = timezone(timedelta(hours=8))
+
+
+def _ics_utc(dt):
+    """库内 naive 北京时间 → UTC iCal 格式(YYYYMMDDTHHMMSSZ)。"""
+    return dt.replace(tzinfo=_CN_TZ).astimezone(timezone.utc)\
+        .strftime('%Y%m%dT%H%M%SZ')
+
+
+def _build_todo_ics(user, tasks, feed_label='今日待办'):
+    """生成 iCal 文本。提醒规则(VIEWER 手机本地通知):
+    开始时间在今天的待办 → 开始前 30 分钟;
+    开始时间不在今天的待办 → 截止前 60 分钟(RELATED=END);
+    全天事件不附提醒。"""
+    stamp = _ics_utc(cn_now())
+    today = cn_now().date()
+    cal_name = _ics_escape(
+        f'知行合一·{(user.name or user.username)}·{feed_label}')
+    lines = ['BEGIN:VCALENDAR',
+             'VERSION:2.0',
+             'METHOD:PUBLISH',
+             'PRODID:-//TaskManager//Todo Feed//CN',
+             'CALSCALE:GREGORIAN',
+             f'X-WR-CALNAME:{cal_name}',
+             'X-WR-TIMEZONE:Asia/Shanghai',
+             'REFRESH-INTERVAL;VALUE=DURATION:PT2H',
+             'X-PUBLISHED-TTL:PT2H']
+    for t in tasks:
+        s, e = t.start_time, t.end_time
+        # 解析器「全天」语义(00:00-23:59)输出为 VALUE=DATE 全天事件
+        allday = (s.time() == dtime.min and e.hour == 23 and e.minute == 59)
+        lines += ['BEGIN:VEVENT',
+                  f'UID:todo-{t.id}@taskmanager',
+                  f'DTSTAMP:{stamp}']
+        if allday:
+            lines += [f"DTSTART;VALUE=DATE:{s.strftime('%Y%m%d')}",
+                      f"DTEND;VALUE=DATE:{(e + timedelta(days=1)).strftime('%Y%m%d')}"]
+        else:
+            if not e or e <= s:
+                e = s + timedelta(minutes=30)
+            lines += [f'DTSTART:{_ics_utc(s)}', f'DTEND:{_ics_utc(e)}']
+        cat = (t.category or '').strip()
+        desc = (t.description or '')[:500]
+        # 空值属性行直接省略: 小米日历(ical4j)对个别空属性解析严格,
+        # 任何一行不合规范都会导致整个订阅静默失败
+        lines.append('SUMMARY:' + _ics_escape(f'[{cat}] {t.title}' if cat else t.title))
+        if desc:
+            lines.append('DESCRIPTION:' + _ics_escape(desc))
+        if cat:
+            lines.append('CATEGORIES:' + _ics_escape(cat))
+        lines += ['STATUS:CONFIRMED',
+                  'SEQUENCE:0',
+                  'TRANSP:OPAQUE']
+        if not allday:
+            # 手机本地通知: 开始在今天→开始前30分钟;
+            # 开始不在今天(未来几天)→截止前60分钟
+            if s.date() == today:
+                alarm_desc, trigger = '待办即将开始', 'TRIGGER:-PT30M'
+            else:
+                alarm_desc = '待办即将截止，请尽快完成'
+                trigger = 'TRIGGER;RELATED=END:-PT60M'
+            lines += ['BEGIN:VALARM',
+                      'ACTION:DISPLAY',
+                      'DESCRIPTION:' + _ics_escape(alarm_desc),
+                      trigger,
+                      'END:VALARM']
+        lines.append('END:VEVENT')
+    lines.append('END:VCALENDAR')
+    body = '\r\n'.join(f for line in lines for f in _ics_fold(line))
+    return body + '\r\n'
+
+
+def _feed_q_int(name, default, lo, hi):
+    """订阅 URL 整数参数解析: 非法/越界回退默认值。"""
+    raw = (request.args.get(name) or '').strip()
+    if not raw:
+        return default
+    try:
+        v = int(raw)
+    except ValueError:
+        return default
+    return max(lo, min(v, hi))
+
+
+@app.route('/user/todo.ics')
+def user_todo_ics():
+    """待办 iCal 订阅源: 手机日历添加一次 URL 即自动同步。
+
+    鉴权: ?token=<API令牌>(与 /api/token 同一令牌) 免 Cookie;
+    已登录会话亦可直接访问。仅输出**未完成**(创建的+被指派的,
+    全部负责人已完成的不输出)且截止时间落在时间窗内的待办;
+    软删除由全局查询过滤剔除。
+    参数: ?days=N  时间窗=今天起 N 天(默认 3, 即未来 3 天)
+    提醒: 开始在今天的待办开始前 30 分钟, 其余截止前 60 分钟。"""
+    token = (request.args.get('token') or '').strip()
+    user = None
+    if token:
+        u = User.query.filter_by(api_token=token).first()
+        if u is not None and not u.is_disabled and u.status == 'approved':
+            user = u
+    elif current_user.is_authenticated:
+        user = current_user._get_current_object()
+    if user is None:
+        return Response('Unauthorized\n', status=401, mimetype='text/plain')
+    days = _feed_q_int('days', 3, 1, 366)
+    day0 = cn_now().replace(hour=0, minute=0, second=0, microsecond=0)
+    ids = {r[0] for r in db.session.query(TaskAssignment.task_id).filter(
+        TaskAssignment.user_id == user.id,
+        TaskAssignment.status.in_(('pending', 'rejected'))).all()}
+    ids |= {r[0] for r in db.session.query(Task.id).filter(
+        Task.creator_id == user.id).all()}
+    tasks = []
+    if ids:
+        tasks = Task.query.filter(Task.id.in_(ids),
+                                  Task.end_time >= day0,
+                                  Task.end_time < day0 + timedelta(days=days))\
+            .order_by(Task.start_time).limit(1000).all()
+        # 已完成的不再同步/提醒: 存在非放弃的负责人且全部已完成/已验收;
+        # 无任何有效负责人的(纯自建待办)视为未完成, 保留
+        rows = db.session.query(
+            TaskAssignment.task_id, TaskAssignment.status).filter(
+            TaskAssignment.task_id.in_([t.id for t in tasks])).all()
+        by_task = {}
+        for tid, st in rows:
+            by_task.setdefault(tid, set()).add(st)
+
+        def _still_open(tid):
+            active = by_task.get(tid, set()) - {'abandoned'}
+            return not active or not active <= {'completed', 'approved'}
+
+        tasks = [t for t in tasks if _still_open(t.id)]
+    label = '今日待办' if days == 1 else f'未来{days}日待办'
+    resp = Response(_build_todo_ics(user, tasks, feed_label=label),
+                    mimetype='text/calendar')
+    resp.headers['Content-Disposition'] = 'inline; filename="todo.ics"'
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp

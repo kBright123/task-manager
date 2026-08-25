@@ -445,3 +445,17 @@ def profile_unbind_email():
     db.session.commit()
     log_operation('email_unbind', email, f'用户 {user.name or user.username} 解除邮箱绑定')
     return jsonify({'ok': True})
+
+
+@app.route('/profile/api-token/rotate', methods=['POST'])
+@login_required
+def profile_rotate_api_token():
+    """重新生成 API 令牌(日历订阅链接共用), 旧令牌立即失效。"""
+    user = current_user._get_current_object()
+    user.api_token = secrets.token_urlsafe(32)
+    user.api_token_created_at = cn_now()
+    db.session.commit()
+    log_operation('api_token_rotate', user.username,
+                  f'用户 {user.name or user.username} 重新生成日历订阅/API 令牌')
+    feed = url_for('user_todo_ics', token=user.api_token)
+    return jsonify({'ok': True, 'token': user.api_token, 'feed_path': feed})

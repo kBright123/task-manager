@@ -24,45 +24,42 @@
 </div>
 
 <div class="row g-4">
-  <div class="col-lg-5">
+  <div class="col-lg-6">
     <div class="card">
       <div class="card-header py-2 px-3"><i class="bi bi-person-badge"></i> 账号信息</div>
-      <div class="card-body py-3 px-3" style="font-size:.85rem;">
-        <div class="table-responsive">
-        <table class="table">
+      <div class="card-body pt-2 pb-3 px-3" style="font-size:.85rem;">
+        <style>
+          #acctTable td { padding: .18rem .3rem; border: none; white-space: nowrap; }
+          #acctTable td:nth-child(2n+1) { width: 62px; color: var(--gray-500); }
+          #bindForm label { font-size: .75rem; margin-bottom: 2px; }
+          #bindForm .form-control { padding: .26rem .6rem; }
+          #bindForm .btn { padding: .26rem .7rem; }
+        </style>
+        <table class="table table-sm mb-0" id="acctTable">
           <tbody>
             <tr>
-              <td style="width:120px;color:var(--gray-500);border:none;">用户名</td>
-              <td style="border:none;font-weight:600;">{{ current_user.username }}</td>
+              <td>用户名</td>
+              <td style="font-weight:600;">{{ current_user.username }}</td>
+              <td>昵称</td>
+              <td>{{ current_user.name or '—' }}</td>
             </tr>
             <tr>
-              <td style="color:var(--gray-500);border:none;">昵称</td>
-              <td style="border:none;">{{ current_user.name or '—' }}</td>
-            </tr>
-            <tr>
-              <td style="color:var(--gray-500);border:none;">角色</td>
-              <td style="border:none;">
+              <td>角色</td>
+              <td>
                 <span class="badge" style="background:{{ 'var(--primary-light)' if current_user.role == 'admin' else 'var(--gray-100)' }};color:{{ 'var(--primary)' if current_user.role == 'admin' else 'var(--gray-500)' }};">
                   {{ '管理员' if current_user.role == 'admin' else '普通用户' }}
                 </span>
               </td>
-            </tr>
-            <tr>
-              <td style="color:var(--gray-500);border:none;">注册时间</td>
-              <td style="border:none;">{{ current_user.created_at.strftime('%Y-%m-%d') }}</td>
+              <td>注册时间</td>
+              <td>{{ current_user.created_at.strftime('%Y-%m-%d') }}</td>
             </tr>
           </tbody>
         </table>
+        <div class="d-flex align-items-center gap-2 mb-2"
+             style="font-size:.82rem;font-weight:700;color:var(--gray-700);border-top:1px dashed var(--gray-300);margin-top:10px;padding-top:9px;">
+          <i class="bi bi-envelope-check"></i> 邮箱绑定
         </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-lg-7">
-    <div class="card">
-      <div class="card-header py-2 px-3"><i class="bi bi-envelope-check"></i> 邮箱绑定</div>
-      <div class="card-body py-3 px-3">
-        <div class="d-flex align-items-center gap-2 mb-3">
+        <div class="d-flex align-items-center gap-2 mb-2">
           <span class="badge" style="background:{% if current_user.email_verified %}var(--success);{% else %}var(--warning);{% endif %}color:#fff;font-size:.72rem;padding:4px 12px;">
             {% if current_user.email_verified %}
             <i class="bi bi-check-circle"></i> 已绑定
@@ -84,45 +81,99 @@
         </div>
 
         <div id="bindForm">
-          <div class="mb-2">
-            <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">
+          <div class="mb-1">
+            <label style="font-weight:600;color:var(--gray-600);display:block;">
               {% if current_user.email_verified %}更换邮箱{% else %}绑定邮箱{% endif %}
             </label>
-            <div class="input-group">
+            <div class="input-group input-group-sm">
               <span class="input-group-text"><i class="bi bi-envelope"></i></span>
               <input type="email" id="bindEmail" class="form-control" list="commonEmails"
                      placeholder="请输入邮箱地址" value="{{ current_user.pending_email or '' }}"
-                     style="font-size:.85rem;" autocomplete="email">
+                     style="font-size:.82rem;" autocomplete="email">
               <datalist id="commonEmails">
                 {% for s in ['qq.com','163.com','126.com','gmail.com','outlook.com','hotmail.com','foxmail.com','sina.com','sohu.com','139.com','189.cn','aliyun.com','icloud.com','yahoo.com'] %}
                 <option value="you@{{ s }}"></option>
                 {% endfor %}
               </datalist>
             </div>
-            <small style="color:var(--gray-400);font-size:.7rem;">支持常见邮箱（QQ、163、126、Gmail、Outlook 等）</small>
+            <small style="color:var(--gray-400);font-size:.68rem;">支持常见邮箱（QQ、163、126、Gmail、Outlook 等）</small>
           </div>
-          <div class="mb-2">
-            <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">校验码</label>
+          <div class="mb-1">
+            <label style="font-weight:600;color:var(--gray-600);display:block;">校验码</label>
             <div class="d-flex gap-2">
               <input type="text" id="bindCode" class="form-control" inputmode="numeric" maxlength="6"
-                     placeholder="6 位校验码" style="font-size:.85rem;letter-spacing:4px;">
-              <button type="button" id="sendCodeBtn" class="btn btn-outline-primary" style="white-space:nowrap;font-size:.82rem;" onclick="sendCode()">
+                     placeholder="6 位校验码" style="font-size:.82rem;letter-spacing:4px;">
+              <button type="button" id="sendCodeBtn" class="btn btn-outline-primary" style="white-space:nowrap;font-size:.8rem;" onclick="sendCode()">
                 <i class="bi bi-send"></i> 发送校验码
               </button>
             </div>
           </div>
-          <div id="codeResult" class="mb-2" style="font-size:.78rem;"></div>
+          <div id="codeResult" class="mb-1" style="font-size:.75rem;"></div>
           <div class="d-flex gap-2">
-            <button type="button" class="btn btn-primary" style="font-size:.84rem;" onclick="verifyEmail()">
+            <button type="button" class="btn btn-primary" style="font-size:.8rem;" onclick="verifyEmail()">
               <i class="bi bi-check-lg"></i> 确认绑定
             </button>
             {% if current_user.email_verified %}
-            <button type="button" class="btn btn-outline-danger" style="font-size:.84rem;" onclick="unbindEmail()">
+            <button type="button" class="btn btn-outline-danger" style="font-size:.8rem;" onclick="unbindEmail()">
               <i class="bi bi-unlink"></i> 解除绑定
             </button>
             {% endif %}
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header py-2 px-3"><i class="bi bi-calendar-week"></i> 日历订阅（同步到手机日历）</div>
+      <div class="card-body py-3 px-3">
+        {% if current_user.api_token %}
+        <div class="input-group mb-1">
+          <input type="text" id="calFeedUrl" class="form-control"
+                 value="{{ request.url_root.rstrip('/') }}{{ url_for('user_todo_ics', token=current_user.api_token) }}"
+                 style="font-size:.78rem;" onclick="this.select()">
+          <button type="button" class="btn btn-outline-primary" style="white-space:nowrap;font-size:.8rem;" onclick="copyFeedUrl(this)">
+            <i class="bi bi-clipboard"></i> 复制
+          </button>
+        </div>
+        <div class="d-flex gap-2 align-items-center mb-2 flex-wrap">
+          <a id="calWebcalLink" class="btn btn-outline-success" style="font-size:.8rem;"
+             href="#" onclick="return webcalAdd(this)">
+            <i class="bi bi-calendar-plus"></i> 手机一键添加
+          </a>
+          <button type="button" class="btn btn-outline-danger" style="white-space:nowrap;font-size:.8rem;" onclick="rotateCalToken(this)">
+            <i class="bi bi-arrow-repeat"></i> 重新生成
+          </button>
+        </div>
+        <div style="font-size:.72rem;color:var(--gray-400);margin-bottom:4px;">
+          默认同步<b>未来 3 天</b>未完成的待办（已完成的自动消失）；提醒规则：开始时间在今天的提前 <b>30 分钟</b>，其余在截止前 <b>1 小时</b>。
+          地址可编辑：想看更多天追加 <code>?days=N</code>、换成局域网 IP。
+        </div>
+        {% else %}
+        <div class="mb-2" style="font-size:.82rem;color:var(--gray-600);">
+          还未生成订阅链接。生成后把它添加到手机日历，新建/修改的待办会自动同步过去。
+        </div>
+        <button type="button" class="btn btn-primary" style="font-size:.84rem;" onclick="rotateCalToken(this)">
+          <i class="bi bi-link-45deg"></i> 生成订阅链接
+        </button>
+        {% endif %}
+        <details style="font-size:.78rem;color:var(--gray-500);margin-top:8px;">
+          <summary style="cursor:pointer;">如何添加到手机日历？订阅失败怎么办？</summary>
+          <div style="margin-top:6px;line-height:1.9;">
+            · iPhone：设置 → 日历 → 账户 → 添加账户 → 其他 → 添加已订阅的日历，粘贴链接。<br>
+            · 小米/红米：日历 App → 设置 → 日历账号管理（或右上角菜单）→ 从 URL 导入 / 订阅日历，粘贴链接。<br>
+            · 华为等安卓：日历 App → 设置（或「更多日历」）→ 添加订阅日历 / URL 订阅。<br>
+            · 订阅约每 1~2 小时自动刷新；链接含个人令牌请勿外传，「重新生成」后旧链接立即失效。
+            <div class="mt-2 p-2" style="background:var(--gray-100);border-radius:6px;">
+              <b>订阅失败排查：</b><br>
+              ① 先用<b>手机浏览器</b>直接打开这个链接——能看到一堆 BEGIN:VCALENDAR 文本说明网络通，再去日历里订阅；打不开就是地址/网络问题（换局域网 IP、确认同一 Wi-Fi）。<br>
+              ② 复制的地址若是 localhost 或 127.0.0.1，手机上必然失败，必须改成服务器实际 IP。<br>
+              ③ 小米日历对格式严格且失败时不报原因：更新系统后重试；仍不行可用开源 App <b>DAVx⁵</b>（添加「Webcal 订阅」）中转。<br>
+              ④ 部分机型仅支持 https 订阅，内网 http 部署时建议用上面的一键添加或 DAVx⁵ 方案。
+            </div>
+          </div>
+        </details>
       </div>
     </div>
   </div>
@@ -206,6 +257,43 @@ async function unbindEmail() {
   }).then(function (r) { return r.json(); }).then(function (d) {
     if (d.ok) { location.reload(); } else { showResult(d.error || '解除绑定失败', true); }
   }).catch(function () { showResult('网络错误，请重试', true); });
+}
+
+async function rotateCalToken(btn) {
+  if (document.getElementById('calFeedUrl') &&
+      !(await uiConfirm('重新生成后旧订阅链接立即失效，手机日历需要重新添加，确定吗？'))) return;
+  btn.disabled = true;
+  fetch('{{ url_for("profile_rotate_api_token") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }).then(function (r) { return r.json(); }).then(function (d) {
+    if (d.ok) { location.reload(); }
+    else { showResult(d.error || '操作失败', true); btn.disabled = false; }
+  }).catch(function () { showResult('网络错误，请重试', true); btn.disabled = false; });
+}
+
+function copyFeedUrl(btn) {
+  var input = document.getElementById('calFeedUrl');
+  if (!input) return;
+  input.select();
+  var done = function () {
+    var html = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-check-lg"></i> 已复制';
+    setTimeout(function () { btn.innerHTML = html; }, 1500);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(input.value).then(done);
+  } else {
+    document.execCommand('copy'); done();
+  }
+}
+
+function webcalAdd(link) {
+  var input = document.getElementById('calFeedUrl');
+  if (!input || !input.value.trim()) { return false; }
+  link.href = 'webcal://' + input.value.trim().replace(/^https?:\/\//, '');
+  window.location.href = link.href;
+  return false;
 }
 </script>
 {% endblock %}

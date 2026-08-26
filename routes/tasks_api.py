@@ -235,9 +235,10 @@ def api_tasks_timeline():
     show_completed = request.args.get('show_completed', '') == '1'
     # 查询当前用户的任务(创建的 + 被分配的)
     task_ids = set()
-    # 创建的任务
+    # 创建的任务(排除已入回收站)
     created = Task.query.filter(
-        Task.creator_id == current_user.id)
+        Task.creator_id == current_user.id,
+        Task.deleted_at.is_(None))
     if start:
         created = created.filter(Task.end_time >= start)
     if end:
@@ -266,7 +267,8 @@ def api_tasks_timeline():
     if extra_ids:
         # 不在此处过滤 end_time: 已完成任务由完成时间归档,越界项由下方 ref 校验剔除
         extra = Task.query.filter(
-            Task.id.in_(extra_ids))
+            Task.id.in_(extra_ids),
+            Task.deleted_at.is_(None))
         for t in extra.all():
             task_ids.add(t.id)
     if not task_ids:
@@ -274,7 +276,7 @@ def api_tasks_timeline():
     # 消除序列化循环 N+1: groups 预取; assignments 为 lazy='dynamic'
     # 不支持预加载, 改为一次性批量载入后按任务分组
     from sqlalchemy.orm import selectinload
-    tasks = Task.query.filter(Task.id.in_(task_ids)).options(
+    tasks = Task.query.filter(Task.id.in_(task_ids), Task.deleted_at.is_(None)).options(
         selectinload(Task.groups)).order_by(Task.end_time).all()
     # 获取当前用户在这些任务上的分配状态
     assigns = {}
@@ -382,6 +384,7 @@ def api_tasks_calendar():
     tasks = Task.query.filter(
         or_(Task.creator_id == current_user.id,
             Task.id.in_(visible_ids)),
+        Task.deleted_at.is_(None),
         or_(and_(Task.end_time >= start, Task.end_time <= end),
             Task.id.in_(done_in_range))
     ).order_by(Task.end_time).all()

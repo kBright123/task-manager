@@ -625,12 +625,21 @@ def _extract_title_base(text):
     QUOTE_PAT = re.compile(r'[' + QUOTE_CHARS + r']([^' + QUOTE_CHARS + r']{4,60})[' + QUOTE_CHARS + r']')
 
     # 优先取第一个【】中的内容,如【分中心项目委会议时间】→ 分中心项目委会议时间
+    # 若【】内容过短(如【通知】),取【】后正文作为标题
+    first_bracket_line = None
     for line in lines:
-        m = re.search(r'【([^】]+)】', line)
+        m = re.search(r'【([^】]+)】(.*)', line)
         if m:
-            name = m.group(1).strip()
-            if name:
-                return name[:80]
+            first_bracket_line = m
+            break
+    if first_bracket_line:
+        name = first_bracket_line.group(1).strip()
+        rest = re.sub(r'https?://\S+', '', first_bracket_line.group(2)).strip()
+        rest = re.sub(r'@\S+', '', rest).strip()
+        if len(name) >= 5 and name:
+            return name[:80]
+        if len(rest) >= 5 and not any(kw in rest for kw in TITLE_BLOCK_WORDS):
+            return rest[:80]
 
     considered = []
     for line in lines:

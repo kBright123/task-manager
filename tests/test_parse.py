@@ -16,7 +16,10 @@ def test_parse_time_24h():
 
 def test_title_colon_and_bracket():
     assert extract_title_from_text('提醒:明天交周报') == '明天交周报'
-    assert extract_title_from_text('【项目会】下周三2点 开会') == '项目会'
+    # 【】内容不足5字时取【】后正文
+    assert extract_title_from_text('【项目会】下周三2点 开会') == '下周三2点 开会'
+    # 【】内容≥5字时直接使用
+    assert extract_title_from_text('【分中心项目委会议时间】确定本周五开会') == '分中心项目委会议时间'
 
 
 def test_title_short_fallback_to_theme():
@@ -30,8 +33,9 @@ def test_title_short_fallback_to_theme():
 【范超超】领读：《习近平在庆祝中国共产党成立105周年大会上发表重要讲话》、
 《全国党建工作座谈会在京召开》（见学习参考资料）'''
     assert extract_title_from_text(NOTICE) == '青年理论小组第二党支部第2组7-8月学习'
-    # 标题本身够长时不回退
-    assert extract_title_from_text('【项目会】下周三2点 开会') == '项目会'
+    # 标题本身够长时不回退;【】内容<5字时取后文
+    assert extract_title_from_text('【项目会】下周三2点 开会') == '下周三2点 开会'
+    assert extract_title_from_text('【分中心项目委会议时间】确定开会') == '分中心项目委会议时间'
 
 
 def test_recurrence():

@@ -959,7 +959,7 @@ activeUsers.push({id: {{ u.id }}, name: '{{ u.name or u.username }}'{% if u.id =
 function autoGrowDesc(el){
   if(!el) return;
   el.style.height='auto';
-  el.style.height=Math.min(el.scrollHeight, 96)+'px';
+  el.style.height=Math.min(el.scrollHeight, 72)+'px';
 }
 function openTaskEditModal(id){
   fetch('{{ url_for('api_task_detail', task_id=0) }}'.replace('/0','/' + id))
@@ -1131,78 +1131,82 @@ async function reopenTask(id){
 }
 </script>
 
-<!-- 待办确认发布 -->
+ <!-- 待办确认发布 -->
 <div class="modal fade" id="taskModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:760px;">
     <div class="modal-content">
       <div class="modal-header py-2 px-3">
         <span style="font-size:.9rem;font-weight:600;"><i class="bi bi-list-task" style="color:var(--primary);"></i> 待办确认发布</span>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body" style="font-size:.85rem;max-height:68vh;overflow-y:auto;">
-        <div id="tmDupWarn" class="mb-2"></div>
-        <div class="mb-2">
-          <label class="form-label" style="font-size:.8rem;">标题</label>
-          <input type="text" id="tmTitle" class="form-control form-control-sm" maxlength="200" style="font-size:.85rem;">
-        </div>
-        <div class="mb-2">
-          <label class="form-label" style="font-size:.8rem;">分类</label>
-          <select id="tmCategory" class="form-select form-control-sm" style="max-width:200px;font-size:.85rem;">
-            <option value="工作">工作</option>
-            <option value="个人">个人</option>
-            <option value="会议">会议</option>
-            <option value="培训">培训</option>
-            <option value="考试">考试</option>
-          </select>
-        </div>
-        <div class="row g-2 mb-2">
-          <div class="col-6">
-            <label class="form-label" style="font-size:.8rem;">开始时间</label>
-            <input type="datetime-local" id="tmStart" class="form-control form-control-sm">
+      <div class="modal-body" style="font-size:.85rem;max-height:72vh;overflow-y:auto;padding:10px 14px;">
+        <div id="tmDupWarn" class="mb-1"></div>
+        <div class="row g-2 mb-1">
+          <div class="col">
+            <label class="form-label mb-0" style="font-size:.78rem;">标题</label>
+            <input type="text" id="tmTitle" class="form-control form-control-sm" maxlength="200" style="font-size:.85rem;padding:4px 8px;">
           </div>
-          <div class="col-6">
-            <label class="form-label" style="font-size:.8rem;">截止时间</label>
-            <input type="datetime-local" id="tmEnd" class="form-control form-control-sm">
-          </div>
-        </div>
-        <div class="row g-2 mb-2">
-          <div class="col-6">
-            <label class="form-label" style="font-size:.8rem;">周期</label>
-            <select id="tmRecurrenceSelect" class="form-select form-control-sm" style="font-size:.82rem;" onchange="tmUpdateRecurrence()">
-              <option value="" data-count="0" data-interval="0">不重复</option>
-              <option value="weekly" data-count="4" data-interval="7">每周（4期）</option>
-              <option value="monthly" data-count="3" data-interval="30">每月（3期）</option>
-              <option value="yearly" data-count="2" data-interval="365">每年（2期）</option>
-              <option value="custom" data-count="0" data-interval="0">自定义</option>
+          <div class="col-auto">
+            <label class="form-label mb-0" style="font-size:.78rem;">分类</label>
+            <select id="tmCategory" class="form-select form-control-sm" style="font-size:.85rem;width:100px;padding:4px 6px;">
+              <option value="工作">工作</option>
+              <option value="个人">个人</option>
+              <option value="会议">会议</option>
+              <option value="培训">培训</option>
+              <option value="考试">考试</option>
             </select>
-            <span id="tmRecurrenceCustom" class="d-none mt-1" style="display:flex;align-items:center;gap:2px;font-size:.78rem;color:var(--gray-600);">
-              每隔 <input type="number" id="tmCustomInterval" class="form-control form-control-sm" style="width:48px;text-align:center;" min="1" value="7"> 天，共 <input type="number" id="tmCustomCount" class="form-control form-control-sm" style="width:44px;text-align:center;" min="1" value="3"> 期
-              <button type="button" class="btn btn-sm btn-outline-primary ms-1" onclick="tmApplyCustomRecurrence()">应用</button>
-            </span>
-            <span id="tmRecurrenceHint" class="text-info" style="font-size:.75rem;"></span>
           </div>
-          {% if user_groups %}
+        </div>
+        <div class="row g-2 mb-1">
           <div class="col-6">
-            <label class="form-label" style="font-size:.8rem;">按群组分配</label>
-            <div class="d-flex flex-wrap gap-2 mt-1" id="tmGroupBox" style="border:1px solid var(--gray-200);border-radius:8px;padding:6px;background:var(--gray-50);">
-              {% for g in user_groups %}
-              <label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:4px;">
-                <input type="checkbox" class="form-check-input tm-group" value="{{ g.id }}"> {{ g.name }} <small style="color:var(--gray-400);font-size:.68rem;">({{ g.members|length }}人)</small>
-              </label>
-              {% endfor %}
+            <label class="form-label mb-0" style="font-size:.78rem;">开始时间</label>
+            <input type="datetime-local" id="tmStart" class="form-control form-control-sm" style="padding:4px 8px;">
+          </div>
+          <div class="col-6">
+            <label class="form-label mb-0" style="font-size:.78rem;">截止时间</label>
+            <input type="datetime-local" id="tmEnd" class="form-control form-control-sm" style="padding:4px 8px;">
+          </div>
+        </div>
+        <div class="row g-2 mb-1">
+          <div class="col">
+            <label class="form-label mb-0" style="font-size:.78rem;">周期</label>
+            <div class="d-flex align-items-center gap-2">
+              <select id="tmRecurrenceSelect" class="form-select form-control-sm" style="font-size:.82rem;width:130px;flex-shrink:0;padding:4px 6px;" onchange="tmUpdateRecurrence()">
+                <option value="" data-count="0" data-interval="0">不重复</option>
+                <option value="weekly" data-count="4" data-interval="7">每周（4期）</option>
+                <option value="monthly" data-count="3" data-interval="30">每月（3期）</option>
+                <option value="yearly" data-count="2" data-interval="365">每年（2期）</option>
+                <option value="custom" data-count="0" data-interval="0">自定义</option>
+              </select>
+              <span id="tmRecurrenceCustom" class="d-none align-items-center" style="gap:2px;font-size:.78rem;color:var(--gray-600);white-space:nowrap;display:inline-flex;">
+                每隔 <input type="number" id="tmCustomInterval" class="form-control form-control-sm" style="width:42px;text-align:center;padding:2px 4px;" min="1" value="7"> 天，共 <input type="number" id="tmCustomCount" class="form-control form-control-sm" style="width:38px;text-align:center;padding:2px 4px;" min="1" value="3"> 期
+                <button type="button" class="btn btn-sm btn-outline-primary ms-1" style="padding:1px 8px;font-size:.75rem;" onclick="tmApplyCustomRecurrence()">应用</button>
+              </span>
+              <span id="tmRecurrenceHint" class="text-info" style="font-size:.75rem;"></span>
             </div>
           </div>
-          {% endif %}
         </div>
-        <div class="mb-2">
-          <div class="d-flex justify-content-between align-items-center mb-1">
-            <label class="form-label" style="font-size:.8rem;margin:0;">分配人员{% if is_admin %}<span class="ms-2 form-check-label" style="font-size:.78rem;cursor:pointer;"><input type="checkbox" class="form-check-input" id="tmAll" style="margin-right:4px;"> @所有人</span>{% endif %}</label>
-          </div>
-          <div id="tmAssignBox" class="d-flex flex-wrap gap-1" style="border:1px solid var(--gray-200);border-radius:8px;padding:6px;background:var(--gray-50);"></div>
-        </div>
+        {% if user_groups %}
         <div class="mb-1">
-          <label class="form-label" style="font-size:.8rem;">待办描述</label>
-          <textarea id="tmDesc" class="form-control form-control-sm" rows="2" style="font-size:.8rem;resize:none;overflow-y:auto;" oninput="autoGrowDesc(this)" onfocus="autoGrowDesc(this)"></textarea>
+          <label class="form-label mb-0" style="font-size:.78rem;">按群组分配</label>
+          <div class="d-flex flex-wrap gap-2" style="border:1px solid var(--gray-200);border-radius:6px;padding:4px 6px;background:var(--gray-50);">
+            {% for g in user_groups %}
+            <label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:2px;">
+              <input type="checkbox" class="form-check-input tm-group" value="{{ g.id }}"> {{ g.name }} <small style="color:var(--gray-400);font-size:.68rem;">({{ g.members|length }}人)</small>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+        <div class="mb-1">
+          <div class="d-flex justify-content-between align-items-center mb-0">
+            <label class="form-label" style="font-size:.78rem;margin:0;">分配人员{% if is_admin %}<span class="ms-2 form-check-label" style="font-size:.78rem;cursor:pointer;"><input type="checkbox" class="form-check-input" id="tmAll" style="margin-right:4px;"> @所有人</span>{% endif %}</label>
+          </div>
+          <div id="tmAssignBox" class="d-flex flex-wrap gap-1" style="border:1px solid var(--gray-200);border-radius:6px;padding:4px 6px;background:var(--gray-50);"></div>
+        </div>
+        <div class="mb-0">
+          <label class="form-label mb-0" style="font-size:.78rem;">待办描述</label>
+          <textarea id="tmDesc" class="form-control form-control-sm" rows="2" style="font-size:.8rem;resize:none;overflow-y:auto;padding:4px 8px;" oninput="autoGrowDesc(this)" onfocus="autoGrowDesc(this)"></textarea>
         </div>
       </div>
       <div class="modal-footer py-2 px-3"><span class="text-muted" id="tmErr" style="font-size:.75rem;"></span><button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal"><i class="bi bi-x"></i> 取消</button><button type="button" class="btn btn-sm btn-primary" onclick="taskPublish(this)"><i class="bi bi-check"></i> 确认发布</button></div>

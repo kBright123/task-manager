@@ -172,6 +172,18 @@
   .cal-picker-month{font-size:.72rem;padding:4px 0;border-radius:4px;cursor:pointer;text-align:center;transition:all .15s;}
   .cal-picker-month:hover{background:#EBF5FF;}
   .cal-picker-month.active{background:#4A90D9;color:#fff;}
+  /* 今日甘特图（卡片内嵌） */
+  .dt-gantt{position:relative;}
+  .dt-gantt-axis{display:flex;position:relative;height:22px;border-bottom:1px solid var(--gray-200);margin-bottom:0;margin-left:30px;margin-right:20px;}
+  .dt-gantt-tick{position:absolute;bottom:4px;font-size:10px;color:var(--gray-500);transform:translateX(-50%);white-space:nowrap;}
+  .dt-gantt-tick::after{content:'';position:absolute;bottom:-6px;left:50%;width:1px;height:5px;background:var(--gray-300);}
+  .dt-gantt-scroll{overflow-y:auto;overflow-x:hidden;max-height:260px;margin-left:30px;margin-right:20px;}
+  .dt-gantt-rows{position:relative;}
+  .dt-gantt-bar{position:absolute;border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2px 6px;font-size:11px;color:#fff;font-weight:500;cursor:pointer;line-height:1.25;transition:opacity .12s;box-shadow:0 1px 2px rgba(0,0,0,.12);overflow:hidden;}
+  .dt-gantt-bar:hover{opacity:.82;}
+  .dt-gantt-bar-title{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+  .dt-gantt-bar-time{font-size:9px;opacity:.85;white-space:nowrap;}
+  .dt-gantt-bar-dur{font-size:9px;opacity:.7;white-space:nowrap;}
 </style>
 {% endblock %}
 {% block content %}
@@ -221,7 +233,7 @@
 
 <!-- 快速创建待办 -->
 <div class="modal fade" id="quickTaskModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:760px;">
     <div class="modal-content">
       <div class="modal-header py-2"><span style="font-weight:600;"><i class="bi bi-list-task" style="color:var(--primary);"></i> 快速创建待办</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div id="qtStepInput">
@@ -237,54 +249,58 @@
         </div>
       </div>
       <div id="qtStepReview" style="display:none;">
-        <div class="modal-body" style="font-size:.85rem;max-height:68vh;overflow-y:auto;">
-          <div id="qtParserWarn" class="d-none" style="background:#FFF7E0;border:1px solid #F0D48A;color:#8A6D1A;border-radius:8px;padding:6px 10px;font-size:.72rem;margin-bottom:8px;"><i class="bi bi-exclamation-triangle"></i> 时间未能智能识别（已按旧规则解析），请手动核对开始/截止时间。</div><div id="qtDupWarn" class="mb-2"></div>
-          <div class="mb-2">
-            <label class="form-label" style="font-size:.8rem;">标题</label>
-            <input type="text" id="qtTitle" class="form-control form-control-sm" maxlength="200" style="font-size:.85rem;">
-          </div>
-          <div class="mb-2">
-            <label class="form-label" style="font-size:.8rem;">分类</label>
-            <select id="qtCategory" class="form-select form-control-sm" style="max-width:200px;font-size:.85rem;">
-              <option value="工作">工作</option>
-              <option value="个人">个人</option>
-              <option value="会议">会议</option>
-              <option value="培训">培训</option>
-              <option value="考试">考试</option>
-            </select>
-          </div>
-          <div class="row g-2 mb-2">
-            <div class="col-6">
-              <label class="form-label" style="font-size:.8rem;">开始时间</label>
-              <input type="datetime-local" id="qtStart" class="form-control form-control-sm">
+        <div class="modal-body" style="font-size:.85rem;max-height:72vh;overflow-y:auto;padding:10px 14px;">
+          <div id="qtParserWarn" class="d-none" style="background:#FFF7E0;border:1px solid #F0D48A;color:#8A6D1A;border-radius:6px;padding:4px 8px;font-size:.72rem;margin-bottom:6px;"><i class="bi bi-exclamation-triangle"></i> 时间未能智能识别（已按旧规则解析），请手动核对开始/截止时间。</div><div id="qtDupWarn" class="mb-1"></div>
+          <div class="row g-2 mb-1">
+            <div class="col">
+              <label class="form-label mb-0" style="font-size:.78rem;">标题</label>
+              <input type="text" id="qtTitle" class="form-control form-control-sm" maxlength="200" style="font-size:.85rem;padding:4px 8px;">
             </div>
-            <div class="col-6">
-              <label class="form-label" style="font-size:.8rem;">截止时间</label>
-              <input type="datetime-local" id="qtEnd" class="form-control form-control-sm">
-            </div>
-          </div>
-          <div class="row g-2 mb-2">
-            <div class="col-6">
-              <label class="form-label" style="font-size:.8rem;">周期</label>
-              <select id="qtRecurrenceSelect" class="form-select form-control-sm" style="font-size:.82rem;" onchange="qtUpdateRecurrence()">
-                <option value="" data-count="0" data-interval="0">不重复</option>
-                <option value="weekly" data-count="4" data-interval="7">每周（4期）</option>
-                <option value="monthly" data-count="3" data-interval="30">每月（3期）</option>
-                <option value="yearly" data-count="2" data-interval="365">每年（2期）</option>
-                <option value="custom" data-count="0" data-interval="0">自定义</option>
+            <div class="col-auto">
+              <label class="form-label mb-0" style="font-size:.78rem;">分类</label>
+              <select id="qtCategory" class="form-select form-control-sm" style="font-size:.85rem;width:100px;padding:4px 6px;">
+                <option value="工作">工作</option>
+                <option value="个人">个人</option>
+                <option value="会议">会议</option>
+                <option value="培训">培训</option>
+                <option value="考试">考试</option>
               </select>
-              <span id="qtRecurrenceCustom" class="d-none mt-1" style="display:flex;align-items:center;gap:2px;font-size:.78rem;color:var(--gray-600);">
-                每隔 <input type="number" id="qtCustomInterval" class="form-control form-control-sm" style="width:48px;text-align:center;" min="1" value="7"> 天，共 <input type="number" id="qtCustomCount" class="form-control form-control-sm" style="width:44px;text-align:center;" min="1" value="3"> 期
-                <button type="button" class="btn btn-sm btn-outline-primary ms-1" onclick="qtApplyCustomRecurrence()">应用</button>
-              </span>
-              <span id="qtRecurrenceHint" class="text-info" style="font-size:.75rem;"></span>
+            </div>
+          </div>
+          <div class="row g-2 mb-1">
+            <div class="col-6">
+              <label class="form-label mb-0" style="font-size:.78rem;">开始时间</label>
+              <input type="datetime-local" id="qtStart" class="form-control form-control-sm" style="padding:4px 8px;">
+            </div>
+            <div class="col-6">
+              <label class="form-label mb-0" style="font-size:.78rem;">截止时间</label>
+              <input type="datetime-local" id="qtEnd" class="form-control form-control-sm" style="padding:4px 8px;">
+            </div>
+          </div>
+          <div class="row g-2 mb-1">
+            <div class="col">
+              <label class="form-label mb-0" style="font-size:.78rem;">周期</label>
+              <div class="d-flex align-items-center gap-2">
+                <select id="qtRecurrenceSelect" class="form-select form-control-sm" style="font-size:.82rem;width:130px;flex-shrink:0;padding:4px 6px;" onchange="qtUpdateRecurrence()">
+                  <option value="" data-count="0" data-interval="0">不重复</option>
+                  <option value="weekly" data-count="4" data-interval="7">每周（4期）</option>
+                  <option value="monthly" data-count="3" data-interval="30">每月（3期）</option>
+                  <option value="yearly" data-count="2" data-interval="365">每年（2期）</option>
+                  <option value="custom" data-count="0" data-interval="0">自定义</option>
+                </select>
+                <span id="qtRecurrenceCustom" class="d-none align-items-center" style="gap:2px;font-size:.78rem;color:var(--gray-600);white-space:nowrap;display:inline-flex;">
+                  每隔 <input type="number" id="qtCustomInterval" class="form-control form-control-sm" style="width:42px;text-align:center;padding:2px 4px;" min="1" value="7"> 天，共 <input type="number" id="qtCustomCount" class="form-control form-control-sm" style="width:38px;text-align:center;padding:2px 4px;" min="1" value="3"> 期
+                  <button type="button" class="btn btn-sm btn-outline-primary ms-1" style="padding:1px 8px;font-size:.75rem;" onclick="qtApplyCustomRecurrence()">应用</button>
+                </span>
+                <span id="qtRecurrenceHint" class="text-info" style="font-size:.75rem;"></span>
+              </div>
             </div>
             {% if user_groups %}
             <div class="col-6" id="qtGroupWrap">
-              <label class="form-label" style="font-size:.8rem;">按群组分配</label>
-              <div class="d-flex flex-wrap gap-2 mt-1" id="qtGroupBox" style="border:1px solid var(--gray-200);border-radius:8px;padding:6px;background:var(--gray-50);">
+              <label class="form-label mb-0" style="font-size:.78rem;">按群组分配</label>
+              <div class="d-flex flex-wrap gap-2" id="qtGroupBox" style="border:1px solid var(--gray-200);border-radius:6px;padding:4px 6px;background:var(--gray-50);">
                 {% for g in user_groups %}
-                <label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:4px;">
+                <label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:2px;">
                   <input type="checkbox" class="form-check-input qt-group" value="{{ g.id }}"> {{ g.name }} <small style="color:var(--gray-400);font-size:.68rem;">({{ g.members|length }}人)</small>
                 </label>
                 {% endfor %}
@@ -292,15 +308,15 @@
             </div>
             {% endif %}
           </div>
-          <div class="mb-2">
-            <div class="d-flex justify-content-between align-items-center mb-1">
-              <label class="form-label" style="font-size:.8rem;margin:0;">分配人员{% if is_admin %}<span class="ms-2 form-check-label" style="font-size:.78rem;cursor:pointer;"><input type="checkbox" class="form-check-input" id="qtAll" style="margin-right:4px;"> @所有人</span>{% endif %}</label>
-            </div>
-            <div id="qtAssignBox" class="d-flex flex-wrap gap-1" style="border:1px solid var(--gray-200);border-radius:8px;padding:6px;background:var(--gray-50);"></div>
-          </div>
           <div class="mb-1">
-            <label class="form-label" style="font-size:.8rem;">待办描述</label>
-            <textarea id="qtDesc" class="form-control form-control-sm" rows="2" style="font-size:.8rem;resize:none;overflow-y:auto;" oninput="autoGrowDesc(this)" onfocus="autoGrowDesc(this)"></textarea>
+            <div class="d-flex justify-content-between align-items-center mb-0">
+              <label class="form-label" style="font-size:.78rem;margin:0;">分配人员{% if is_admin %}<span class="ms-2 form-check-label" style="font-size:.78rem;cursor:pointer;"><input type="checkbox" class="form-check-input" id="qtAll" style="margin-right:4px;"> @所有人</span>{% endif %}</label>
+            </div>
+            <div id="qtAssignBox" class="d-flex flex-wrap gap-1" style="border:1px solid var(--gray-200);border-radius:6px;padding:4px 6px;background:var(--gray-50);"></div>
+          </div>
+          <div class="mb-0">
+            <label class="form-label mb-0" style="font-size:.78rem;">待办描述</label>
+            <textarea id="qtDesc" class="form-control form-control-sm" rows="2" style="font-size:.8rem;resize:none;overflow-y:auto;padding:4px 8px;" oninput="autoGrowDesc(this)" onfocus="autoGrowDesc(this)"></textarea>
           </div>
         </div>
         <div class="modal-footer py-2 px-3"><span class="text-muted" id="qtErr2" style="font-size:.75rem;"></span><button class="btn btn-sm btn-outline-secondary" onclick="quickTaskBack()"><i class="bi bi-arrow-left"></i> 返回</button><button class="btn btn-sm btn-primary" onclick="quickTask()"><i class="bi bi-check"></i> 确认发布</button></div>
@@ -355,8 +371,10 @@
           <span id="calTitle" style="font-size:.88rem;font-weight:700;color:#333;cursor:pointer;" onclick="calTogglePicker()"></span>
           <button class="btn btn-sm" aria-label="下一月" style="border:none;padding:4px 8px;font-size:.9rem;color:#666;" onclick="calNav(1)"><i class="bi bi-chevron-right"></i></button>
         </div>
-        <div class="d-flex align-items-center gap-1" style="flex-shrink:0;">
-          <button class="btn btn-sm btn-outline-secondary" style="padding:3px 10px;font-size:.7rem;border-radius:4px;line-height:1.3;flex-shrink:0;" onclick="calGoToday()">今天</button>
+         <div class="d-flex align-items-center gap-1" style="flex-shrink:0;">
+          <button class="btn btn-sm btn-outline-secondary" id="dtBackBtn" style="padding:3px 10px;font-size:.7rem;border-radius:4px;line-height:1.3;flex-shrink:0;display:none;" onclick="closeDayTimeline()"><i class="bi bi-arrow-left"></i> 返回</button>
+          <span id="dtDayTitle" class="d-none" style="font-size:.75rem;font-weight:600;color:var(--gray-700);white-space:nowrap;"></span>
+          <button class="btn btn-sm btn-outline-secondary" id="calTodayBtn" style="padding:3px 10px;font-size:.7rem;border-radius:4px;line-height:1.3;flex-shrink:0;" onclick="calGoToday()">今天</button>
         </div>
       </div>
       <div class="card-body py-0 px-2" style="background:transparent;position:relative;padding-top:14px;padding-bottom:10px;">
@@ -371,7 +389,7 @@
           <div id="calSheetList"></div>
           <button type="button" class="btn btn-sm btn-outline-primary cal-sheet-btn" id="calSheetFilterBtn">查看该日待办</button>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:0;text-align:center;margin-bottom:2px;">
+        <div id="calWeekHd" style="display:grid;grid-template-columns:repeat(7,1fr);gap:0;text-align:center;margin-bottom:2px;">
           <span style="font-size:.66rem;color:#8a8a8a;font-weight:600;">一</span>
           <span style="font-size:.66rem;color:#8a8a8a;font-weight:600;">二</span>
           <span style="font-size:.66rem;color:#8a8a8a;font-weight:600;">三</span>
@@ -381,6 +399,7 @@
           <span style="font-size:.66rem;color:#8a8a8a;font-weight:600;">日</span>
         </div>
         <div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:0;"></div>
+        <div id="dayTimelineBody" class="d-none" style="max-height:340px;overflow-y:auto;padding:4px 0;"></div>
       </div>
     </div>
   </div>
@@ -802,7 +821,14 @@ var sx=null,sy=null;
 g.addEventListener('touchstart',function(e){sx=e.touches[0].clientX;sy=e.touches[0].clientY;},{passive:true});
 g.addEventListener('touchend',function(e){if(sx==null)return;var dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5){calNav(dx<0?1:-1);}sx=null;},{passive:true});
 })();
-function calGoToday(){var today=new Date();calYear=today.getFullYear();calMonth=today.getMonth()+1;calRender();if(_tlFilter)tlClearFilter();}
+function calGoToday(){
+  var today=new Date();
+  calYear=today.getFullYear();
+  calMonth=today.getMonth()+1;
+  calRender();
+  if(_tlFilter)tlClearFilter();
+  openDayTimeline(today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0'));
+}
 var _calPickerYear=calYear;
 function calTogglePicker(){var el=document.getElementById('calPicker');el.classList.toggle('d-none');if(!el.classList.contains('d-none'))calRenderPicker();}
 function calPickerNav(delta){_calPickerYear+=delta;calRenderPicker();}
@@ -864,7 +890,7 @@ document.addEventListener('click',function(e){if(!e.target.closest('.position-re
 <script>
 function qtBuildAssignees(ids){var box=document.getElementById('qtAssignBox');var self=window.qtSelfId;if(!box)return;var isAll=document.getElementById('qtAll')?document.getElementById('qtAll').checked:false;box.innerHTML=window.qtUsers.filter(function(u){return u.id>0;}).map(function(u){var checked=isAll||ids.indexOf(u.id)>-1;var selfOnly=(u.id===self);return'<label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:4px;">'+'<input type="checkbox" class="form-check-input qt-assignee" value="'+u.id+'"'+(checked?' checked':'')+' style="margin-top:2px;"> '+(u.name)+(selfOnly?' <small style="color:var(--gray-400);font-size:.68rem;">(自己)</small>':'')+'</label>';}).join('');}
 (function(){var allBox=document.getElementById('qtAll');if(allBox){allBox.addEventListener('change',function(){qtBuildAssignees([]);});}var ab=document.getElementById('qtAssignBox');if(ab&&allBox){ab.addEventListener('change',function(e){if(e.target.classList.contains('qt-assignee')&&allBox.checked)allBox.checked=false;});}})();
-function autoGrowDesc(el){if(!el)return;el.style.height='auto';el.style.height=Math.min(el.scrollHeight,96)+'px';}
+function autoGrowDesc(el){if(!el)return;el.style.height='auto';el.style.height=Math.min(el.scrollHeight,72)+'px';}
 function quickTask(){var title=document.getElementById('qtTitle').value.trim();if(title.length<2){document.getElementById('qtErr2').textContent='待办标题至少2个字';return;}if(!document.getElementById('qtStart').value){document.getElementById('qtErr2').textContent='请填写开始时间';return;}if(!document.getElementById('qtEnd').value){document.getElementById('qtErr2').textContent='请填写结束时间';return;}var is_all=document.getElementById('qtAll')?document.getElementById('qtAll').checked:false;var ids=[];if(!is_all){document.querySelectorAll('.qt-assignee:checked').forEach(function(c){ids.push(parseInt(c.value));});}var gids=[];document.querySelectorAll('.qt-group:checked').forEach(function(c){gids.push(parseInt(c.value));});if(!is_all&&ids.length===0&&gids.length===0){document.getElementById('qtErr2').textContent='请至少选择一位负责人';return;}var re=(window.qtRec&&window.qtRec.interval)||0;var rc=(window.qtRec&&window.qtRec.count)||0;var btn=event.target.closest('button');var body={title:title,start_time:document.getElementById('qtStart').value,end_time:document.getElementById('qtEnd').value,category:document.getElementById('qtCategory').value,description:document.getElementById('qtDesc').value,assignee_ids:ids,group_ids:gids,is_all:is_all,recurrence_interval_days:re,recurrence_count:rc};var err2=document.getElementById('qtErr2');if(btn){btn.disabled=true;}fetch('/api/quick-task',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json();}).then(function(d){if(d.ok){location.href='/user/tasks?new='+d.task_id;}else{err2.textContent=d.error||'创建失败';}}).catch(function(){err2.textContent='创建失败';}).finally(function(){if(btn)btn.disabled=false;});}
 function qtUpdateRecurrence(){var sel=document.getElementById('qtRecurrenceSelect');var opt=sel.options[sel.selectedIndex];var custom=document.getElementById('qtRecurrenceCustom');var hint=document.getElementById('qtRecurrenceHint');var rec=window.qtRec;if(opt.value==='custom'){custom.classList.remove('d-none');if(rec){rec.mode='';rec.interval=0;rec.count=0;hint.textContent='';}return;}custom.classList.add('d-none');if(!rec)rec=window.qtRec={};rec.mode=opt.value;rec.interval=parseInt(opt.dataset.interval)||0;rec.count=parseInt(opt.dataset.count)||0;hint.innerHTML=opt.value?('<i class="bi bi-arrow-repeat"></i> '+opt.text):'';}
 function qtApplyCustomRecurrence(){var interval=parseInt(document.getElementById('qtCustomInterval').value)||7;var count=parseInt(document.getElementById('qtCustomCount').value)||3;if(count<1)count=1;window.qtRec.mode='custom';window.qtRec.interval=interval;window.qtRec.count=count;document.getElementById('qtRecurrenceHint').innerHTML='<i class="bi bi-arrow-repeat"></i> 每'+interval+'天，共'+count+'期';}
@@ -889,5 +915,121 @@ function quickNote(){var content=document.getElementById('qnContent').value.trim
   s.addEventListener('input',orderOk);
   e.addEventListener('input',orderOk);
 })();
+/* === 今日甘特图（卡片内嵌） === */
+var _dtColors=['#4A90D9','#E8853D','#4CAF50','#9C27B0','#E91E63','#00BCD4','#FF9800','#607D8B'];
+var _dtDayNames=['周日','周一','周二','周三','周四','周五','周六'];
+function openDayTimeline(dateStr){
+  var body=document.getElementById('dayTimelineBody');
+  var calG=document.getElementById('calGrid');
+  var weekH=document.getElementById('calWeekHd');
+  var backBtn=document.getElementById('dtBackBtn');
+  var dayTitle=document.getElementById('dtDayTitle');
+  var todayBtn=document.getElementById('calTodayBtn');
+  calG.classList.add('d-none');
+  weekH.classList.add('d-none');
+  backBtn.style.display='';
+  dayTitle.classList.remove('d-none');
+  todayBtn.style.display='none';
+  var d=new Date(dateStr+'T00:00:00');
+  dayTitle.textContent=dateStr+' '+_dtDayNames[d.getDay()];
+  body.classList.remove('d-none');
+  body.innerHTML='<div style="text-align:center;padding:20px;color:var(--gray-400);"><span class="spinner-border spinner-border-sm"></span></div>';
+  var sc=document.getElementById('dashShowCompleted');
+  var qs='?start='+dateStr+'&end='+dateStr;
+  if(sc&&sc.checked) qs+='&show_completed=1';
+  fetchJSON('/api/tasks/timeline'+qs).then(function(r){
+    if(!r||!r.ok){body.innerHTML='<div style="text-align:center;padding:20px;color:var(--danger);">加载失败</div>';return;}
+    var tasks=(r.tasks||[]).filter(function(t){return t.display!=='abandoned';});
+    if(!tasks.length){body.innerHTML='<div style="text-align:center;padding:30px 16px;color:var(--gray-400);"><i class="bi bi-calendar-check" style="font-size:1.5rem;display:block;margin-bottom:8px;"></i>今天没有待办</div>';return;}
+    _renderGantt(body,tasks);
+  }).catch(function(){body.innerHTML='<div style="text-align:center;padding:20px;color:var(--danger);">加载失败</div>';});
+}
+function closeDayTimeline(){
+  var body=document.getElementById('dayTimelineBody');
+  var calG=document.getElementById('calGrid');
+  var weekH=document.getElementById('calWeekHd');
+  var backBtn=document.getElementById('dtBackBtn');
+  var dayTitle=document.getElementById('dtDayTitle');
+  var todayBtn=document.getElementById('calTodayBtn');
+  body.classList.add('d-none');
+  body.innerHTML='';
+  calG.classList.remove('d-none');
+  weekH.classList.remove('d-none');
+  backBtn.style.display='none';
+  dayTitle.classList.add('d-none');
+  todayBtn.style.display='';
+}
+function _parseHM(s){var m=s.match(/(\d{2}):(\d{2})/);return m?parseInt(m[1])*60+parseInt(m[2]):480;}
+function _fmtHM(mins){var h=Math.floor(mins/60),mi=mins%60;return String(h).padStart(2,'0')+':'+String(mi).padStart(2,'0');}
+function _renderGantt(container,tasks){
+  var items=tasks.map(function(t,i){
+    var s=_parseHM(t.start_time),e=_parseHM(t.end_time);
+    if(e<=s)e=s+30;
+    return {id:t.id,title:t.title,category:t.category,start:s,end:e,color:_dtColors[i%_dtColors.length],status:t.status};
+  });
+  items.sort(function(a,b){return a.start-b.start||a.end-b.end;});
+  var now=new Date();
+  var nowM=now.getHours()*60+now.getMinutes();
+  var minT=Math.max(510,nowM-60);
+  var maxT=Math.min(1080,nowM+180);
+  if(maxT<=minT)maxT=minT+120;
+  var span=maxT-minT;
+  var lanes=[];
+  items.forEach(function(it){
+    var placed=false;
+    for(var L=0;L<lanes.length;L++){
+      var ok=true;
+      for(var k=0;k<lanes[L].length;k++){
+        if(it.start<lanes[L][k].end&&it.end>lanes[L][k].start){ok=false;break;}
+      }
+      if(ok){lanes[L].push(it);it._lane=L;placed=true;break;}
+    }
+    if(!placed){it._lane=lanes.length;lanes.push([it]);}
+  });
+  var ROW_H=52;
+  var h='<div class="dt-gantt">';
+  h+='<div class="dt-gantt-axis">';
+  for(var t=minT;t<=maxT;t+=60){
+    var pct=((t-minT)/span*100);
+    h+='<div class="dt-gantt-tick" style="left:'+pct+'%;">'+_fmtHM(t)+'</div>';
+  }
+  h+='</div>';
+  h+='<div class="dt-gantt-scroll"><div class="dt-gantt-rows" style="height:'+lanes.length*ROW_H+'px;">';
+  for(var t=minT;t<=maxT;t+=60){
+    var pct=((t-minT)/span*100);
+    h+='<div style="position:absolute;left:'+pct+'%;top:0;bottom:0;width:1px;background:var(--gray-100);"></div>';
+  }
+  /* 当前时间红线 */
+  if(nowM>=minT&&nowM<=maxT){
+    var np=((nowM-minT)/span*100);
+    h+='<div style="position:absolute;left:'+np+'%;top:0;bottom:0;width:2px;background:var(--danger);z-index:5;"></div>';
+  }
+  items.forEach(function(it){
+    var left=(it.start-minT)/span*100;
+    var width=(it.end-it.start)/span*100;
+    if(width<3)width=3;
+    var top=it._lane*ROW_H+4;
+    var dur=it.end-it.start;
+    var durText=dur>=60?Math.floor(dur/60)+'h'+(dur%60?' '+dur%60+'m':''):(dur+'m');
+    h+='<div class="dt-gantt-bar" style="left:'+left+'%;width:'+width+'%;top:'+top+'px;height:'+(ROW_H-8)+'px;background:'+it.color+';" onclick="closeDayTimeline();dashLoadTimeline();" onmouseenter="dtTipShow(event,this)" onmouseleave="dtTipHide()" data-tip="'+esc(it.title)+'|'+_fmtHM(it.start)+' – '+_fmtHM(it.end)+'|'+durText+'">';
+    h+='<div class="dt-gantt-bar-title">'+esc(it.title)+'</div>';
+    h+='<div class="dt-gantt-bar-time">'+_fmtHM(it.start)+' – '+_fmtHM(it.end)+'</div>';
+    h+='<div class="dt-gantt-bar-dur">'+durText+'</div>';
+    h+='</div>';
+  });
+  h+='</div></div></div>';
+  container.innerHTML=h;
+}
+var _dtTipEl=null;
+function dtTipShow(e,el){
+  if(!_dtTipEl){_dtTipEl=document.createElement('div');_dtTipEl.style.cssText='position:fixed;z-index:3000;background:#fff;border:1px solid var(--gray-200);border-radius:6px;padding:6px 10px;font-size:12px;color:var(--gray-700);box-shadow:0 4px 12px rgba(0,0,0,.12);pointer-events:none;white-space:nowrap;';}
+  var lines=el.getAttribute('data-tip').split('|');
+  _dtTipEl.innerHTML='<div style="font-weight:600;margin-bottom:2px;">'+esc(lines[0])+'</div>'+(lines[1]?'<div style="color:var(--gray-500);font-size:11px;">'+esc(lines[1])+'</div>':'')+(lines[2]?'<div style="color:var(--gray-500);font-size:11px;">时长 '+esc(lines[2])+'</div>':'');
+  document.body.appendChild(_dtTipEl);
+  var r=el.getBoundingClientRect();
+  _dtTipEl.style.left=r.left+'px';
+  _dtTipEl.style.top=(r.bottom+6)+'px';
+}
+function dtTipHide(){if(_dtTipEl&&_dtTipEl.parentNode)_dtTipEl.parentNode.removeChild(_dtTipEl);}
 </script>
 {% endblock %}

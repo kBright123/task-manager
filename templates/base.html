@@ -405,6 +405,7 @@
   </nav>
 
   <!-- 快捷悬浮球: 全站可用, 有弹窗则内联打开, 否则跳转对应页面 -->
+  {% include '_quick_task_modal.html' %}
   {% if current_user.is_authenticated %}
   <div id="quickFab" class="quick-fab">
     <div class="quick-fab-menu">

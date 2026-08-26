@@ -1,0 +1,109 @@
+<!-- 快速创建待办(全站共享, 由 FAB / 快捷键触发) -->
+<div class="modal fade" id="quickTaskModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:760px;">
+    <div class="modal-content">
+      <div class="modal-header py-2"><span style="font-weight:600;"><i class="bi bi-list-task" style="color:var(--primary);"></i> 快速创建待办</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div id="qtStepInput">
+        <div class="modal-body">
+          <div style="position:relative;">
+            <textarea id="qtText" class="form-control" rows="3" placeholder="输入待办，@选择人员 · 自动解析标题/时间/分配，支持每周/每月/每年重复&#10;例：开发登录功能 明天9点到下周五18点 @张三 @李四" style="font-size:.84rem;resize:none;"></textarea>
+            <div id="qtMentionDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:180px;overflow-y:auto;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:1000;margin-top:2px;"></div>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <span class="text-muted" id="qtErr" style="font-size:.75rem;"></span>
+          <button class="btn btn-sm btn-primary" onclick="quickTaskParse()"><i class="bi bi-send"></i> 发布</button>
+        </div>
+      </div>
+      <div id="qtStepReview" style="display:none;">
+        <div class="modal-body" style="font-size:.85rem;max-height:72vh;overflow-y:auto;padding:10px 14px;">
+          <div id="qtParserWarn" class="d-none" style="background:#FFF7E0;border:1px solid #F0D48A;color:#8A6D1A;border-radius:6px;padding:4px 8px;font-size:.72rem;margin-bottom:6px;"><i class="bi bi-exclamation-triangle"></i> 时间未能智能识别（已按旧规则解析），请手动核对开始/截止时间。</div><div id="qtDupWarn" class="mb-1"></div>
+          <div class="row g-2 mb-1">
+            <div class="col">
+              <label class="form-label mb-0" style="font-size:.78rem;">标题</label>
+              <input type="text" id="qtTitle" class="form-control form-control-sm" maxlength="200" style="font-size:.85rem;padding:4px 8px;">
+            </div>
+            <div class="col-auto">
+              <label class="form-label mb-0" style="font-size:.78rem;">分类</label>
+              <select id="qtCategory" class="form-select form-control-sm" style="font-size:.85rem;width:100px;padding:4px 6px;">
+                <option value="工作">工作</option>
+                <option value="个人">个人</option>
+                <option value="会议">会议</option>
+                <option value="培训">培训</option>
+                <option value="考试">考试</option>
+              </select>
+            </div>
+          </div>
+          <div class="row g-2 mb-1">
+            <div class="col-6">
+              <label class="form-label mb-0" style="font-size:.78rem;">开始时间</label>
+              <input type="datetime-local" id="qtStart" class="form-control form-control-sm" style="padding:4px 8px;">
+            </div>
+            <div class="col-6">
+              <label class="form-label mb-0" style="font-size:.78rem;">截止时间</label>
+              <input type="datetime-local" id="qtEnd" class="form-control form-control-sm" style="padding:4px 8px;">
+            </div>
+          </div>
+          <div class="row g-2 mb-1">
+            <div class="col">
+              <label class="form-label mb-0" style="font-size:.78rem;">周期</label>
+              <div class="d-flex align-items-center gap-2">
+                <select id="qtRecurrenceSelect" class="form-select form-control-sm" style="font-size:.82rem;width:130px;flex-shrink:0;padding:4px 6px;" onchange="qtUpdateRecurrence()">
+                  <option value="" data-count="0" data-interval="0">不重复</option>
+                  <option value="weekly" data-count="4" data-interval="7">每周（4期）</option>
+                  <option value="monthly" data-count="3" data-interval="30">每月（3期）</option>
+                  <option value="yearly" data-count="2" data-interval="365">每年（2期）</option>
+                  <option value="custom" data-count="0" data-interval="0">自定义</option>
+                </select>
+                <span id="qtRecurrenceCustom" class="d-none align-items-center" style="gap:2px;font-size:.78rem;color:var(--gray-600);white-space:nowrap;display:inline-flex;">
+                  每隔 <input type="number" id="qtCustomInterval" class="form-control form-control-sm" style="width:42px;text-align:center;padding:2px 4px;" min="1" value="7"> 天，共 <input type="number" id="qtCustomCount" class="form-control form-control-sm" style="width:38px;text-align:center;padding:2px 4px;" min="1" value="3"> 期
+                  <button type="button" class="btn btn-sm btn-outline-primary ms-1" style="padding:1px 8px;font-size:.75rem;" onclick="qtApplyCustomRecurrence()">应用</button>
+                </span>
+                <span id="qtRecurrenceHint" class="text-info" style="font-size:.75rem;"></span>
+              </div>
+            </div>
+            {% if user_groups %}
+            <div class="col-6" id="qtGroupWrap">
+              <label class="form-label mb-0" style="font-size:.78rem;">按群组分配</label>
+              <div class="d-flex flex-wrap gap-2" id="qtGroupBox" style="border:1px solid var(--gray-200);border-radius:6px;padding:4px 6px;background:var(--gray-50);">
+                {% for g in user_groups %}
+                <label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:2px;">
+                  <input type="checkbox" class="form-check-input qt-group" value="{{ g.id }}"> {{ g.name }} <small style="color:var(--gray-400);font-size:.68rem;">({{ g.members|length }}人)</small>
+                </label>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+          </div>
+          <div class="mb-1">
+            <div class="d-flex justify-content-between align-items-center mb-0">
+              <label class="form-label" style="font-size:.78rem;margin:0;">分配人员{% if is_admin %}<span class="ms-2 form-check-label" style="font-size:.78rem;cursor:pointer;"><input type="checkbox" class="form-check-input" id="qtAll" style="margin-right:4px;"> @所有人</span>{% endif %}</label>
+            </div>
+            <div id="qtAssignBox" class="d-flex flex-wrap gap-1" style="border:1px solid var(--gray-200);border-radius:6px;padding:4px 6px;background:var(--gray-50);"></div>
+          </div>
+          <div class="mb-0">
+            <label class="form-label mb-0" style="font-size:.78rem;">待办描述</label>
+            <textarea id="qtDesc" class="form-control form-control-sm" rows="2" style="font-size:.8rem;resize:none;overflow-y:auto;padding:4px 8px;" oninput="autoGrowDesc(this)" onfocus="autoGrowDesc(this)"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2 px-3"><span class="text-muted" id="qtErr2" style="font-size:.75rem;"></span><button class="btn btn-sm btn-outline-secondary" onclick="quickTaskBack()"><i class="bi bi-arrow-left"></i> 返回</button><button class="btn btn-sm btn-primary" onclick="quickTask()"><i class="bi bi-check"></i> 确认发布</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+function qtBuildAssignees(ids){var box=document.getElementById('qtAssignBox');var self=window.qtSelfId;if(!box)return;var isAll=document.getElementById('qtAll')?document.getElementById('qtAll').checked:false;box.innerHTML=window.qtUsers.filter(function(u){return u.id>0;}).map(function(u){var checked=isAll||ids.indexOf(u.id)>-1;var selfOnly=(u.id===self);return'<label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:4px;">'+'<input type="checkbox" class="form-check-input qt-assignee" value="'+u.id+'"'+(checked?' checked':'')+' style="margin-top:2px;"> '+(u.name)+(selfOnly?' <small style="color:var(--gray-400);font-size:.68rem;">(自己)</small>':'')+'</label>';}).join('');}
+(function(){var allBox=document.getElementById('qtAll');if(allBox){allBox.addEventListener('change',function(){qtBuildAssignees([]);});}var ab=document.getElementById('qtAssignBox');if(ab&&allBox){ab.addEventListener('change',function(e){if(e.target.classList.contains('qt-assignee')&&allBox.checked)allBox.checked=false;});}})();
+function autoGrowDesc(el){if(!el)return;el.style.height='auto';el.style.height=Math.min(el.scrollHeight,72)+'px';}
+function quickTask(){var title=document.getElementById('qtTitle').value.trim();if(title.length<2){document.getElementById('qtErr2').textContent='待办标题至少2个字';return;}if(!document.getElementById('qtStart').value){document.getElementById('qtErr2').textContent='请填写开始时间';return;}if(!document.getElementById('qtEnd').value){document.getElementById('qtErr2').textContent='请填写结束时间';return;}var is_all=document.getElementById('qtAll')?document.getElementById('qtAll').checked:false;var ids=[];if(!is_all){document.querySelectorAll('.qt-assignee:checked').forEach(function(c){ids.push(parseInt(c.value));});}var gids=[];document.querySelectorAll('.qt-group:checked').forEach(function(c){gids.push(parseInt(c.value));});if(!is_all&&ids.length===0&&gids.length===0){document.getElementById('qtErr2').textContent='请至少选择一位负责人';return;}var re=(window.qtRec&&window.qtRec.interval)||0;var rc=(window.qtRec&&window.qtRec.count)||0;var btn=event.target.closest('button');var body={title:title,start_time:document.getElementById('qtStart').value,end_time:document.getElementById('qtEnd').value,category:document.getElementById('qtCategory').value,description:document.getElementById('qtDesc').value,assignee_ids:ids,group_ids:gids,is_all:is_all,recurrence_interval_days:re,recurrence_count:rc};var err2=document.getElementById('qtErr2');if(btn){btn.disabled=true;}fetch('/api/quick-task',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json();}).then(function(d){if(d.ok){location.href='/user/tasks?new='+d.task_id;}else{err2.textContent=d.error||'创建失败';}}).catch(function(){err2.textContent='创建失败';}).finally(function(){if(btn)btn.disabled=false;});}
+function qtUpdateRecurrence(){var sel=document.getElementById('qtRecurrenceSelect');var opt=sel.options[sel.selectedIndex];var custom=document.getElementById('qtRecurrenceCustom');var hint=document.getElementById('qtRecurrenceHint');var rec=window.qtRec;if(opt.value==='custom'){custom.classList.remove('d-none');if(rec){rec.mode='';rec.interval=0;rec.count=0;hint.textContent='';}return;}custom.classList.add('d-none');if(!rec)rec=window.qtRec={};rec.mode=opt.value;rec.interval=parseInt(opt.dataset.interval)||0;rec.count=parseInt(opt.dataset.count)||0;hint.innerHTML=opt.value?('<i class="bi bi-arrow-repeat"></i> '+opt.text):'';}
+function qtApplyCustomRecurrence(){var interval=parseInt(document.getElementById('qtCustomInterval').value)||7;var count=parseInt(document.getElementById('qtCustomCount').value)||3;if(count<1)count=1;window.qtRec.mode='custom';window.qtRec.interval=interval;window.qtRec.count=count;document.getElementById('qtRecurrenceHint').innerHTML='<i class="bi bi-arrow-repeat"></i> 每'+interval+'天，共'+count+'期';}
+function quickTaskParse(){var text=document.getElementById('qtText').value.trim();if(text.length<2){document.getElementById('qtErr').textContent='请至少输入2个字';return;}var errEl=document.getElementById('qtErr');errEl.textContent='解析中...';fetchJSON('/api/quick-task/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text})}).then(function(d){if(!d.ok){errEl.textContent=(d.not_ready?'⏳ ':'')+(d.error||'解析失败');return;}document.getElementById('qtTitle').value=d.title;var pw=document.getElementById('qtParserWarn');if(pw){if(d.time_parser==='legacy'){pw.classList.remove('d-none');}else{pw.classList.add('d-none');}}document.getElementById('qtStart').value=d.start_time;document.getElementById('qtEnd').value=d.end_time;document.getElementById('qtCategory').value=d.category;document.getElementById('qtDesc').value=d.description;autoGrowDesc(document.getElementById('qtDesc'));window.qtRec={mode:'',interval:d.recurrence_interval_days||0,count:d.recurrence_count||0};var sel=document.getElementById('qtRecurrenceSelect');var hint=document.getElementById('qtRecurrenceHint');var matched=false;if(sel&&hint&&sel.options){for(var i=0;i<sel.options.length;i++){var o=sel.options[i];if(o.value&&o.value!=='custom'&&parseInt(o.dataset.interval)===window.qtRec.interval&&parseInt(o.dataset.count)===window.qtRec.count){sel.selectedIndex=i;hint.innerHTML='<i class="bi bi-arrow-repeat"></i> '+o.text;matched=true;break;}}if(!matched){if(window.qtRec.interval&&window.qtRec.count>0){sel.value='custom';var cint=document.getElementById('qtCustomInterval'),ccnt=document.getElementById('qtCustomCount'),cwrap=document.getElementById('qtRecurrenceCustom');if(cint)cint.value=window.qtRec.interval;if(ccnt)ccnt.value=window.qtRec.count;if(cwrap)cwrap.classList.remove('d-none');hint.innerHTML='<i class="bi bi-arrow-repeat"></i> 每'+window.qtRec.interval+'天，共'+window.qtRec.count+'期';}else{sel.value='';hint.textContent='';}}}document.getElementById('qtDupWarn').innerHTML='';var a=document.getElementById('qtAll');if(a){a.checked=!!d.is_all;}qtBuildAssignees(d.assignee_ids);document.getElementById('qtStepInput').style.display='none';document.getElementById('qtStepReview').style.display='';}).catch(function(){errEl.textContent='解析失败';});}
+function quickTaskBack(){var pw=document.getElementById('qtParserWarn');if(pw)pw.classList.add('d-none');document.getElementById('qtStepReview').style.display='none';document.getElementById('qtStepInput').style.display='';document.getElementById('qtErr').textContent='';}
+(function(){window.qtUsers=[{id:0,name:'所有人',keyword:'@所有人'},{id:{{ current_user.id }},name:'{{ current_user.name or current_user.username }}',keyword:'{{ current_user.name or current_user.username }}'{% if current_user.name %},uname:'{{ current_user.username }}'{% endif %}},{% for u in users %}{% if u.id != current_user.id %}{id:{{ u.id }},name:'{{ u.name or u.username }}',keyword:'{{ u.name or u.username }}'{% if u.name %},uname:'{{ u.username }}'{% endif %}},{% endif %}{% endfor %}];window.qtSelfId={{ current_user.id }};var ta=document.getElementById('qtText');if(!ta)return;var dd=document.getElementById('qtMentionDropdown');if(!dd)return;var atPos=-1,filter='';function updateDropdown(){if(atPos<0){dd.style.display='none';return;}var f=filter.toLowerCase();var items=window.qtUsers.filter(function(u){return u.keyword.toLowerCase().includes(f)||(u.uname&&u.uname.includes(f));});if(!items.length){dd.style.display='none';return;}dd.innerHTML=items.map(function(u,i){var label=u.name;if(u.uname)label+=' <small style="color:var(--gray-400)">@'+u.uname+'</small>';return'<div class="qt-mention-item" data-idx="'+i+'" style="padding:6px 12px;cursor:pointer;font-size:.82rem;'+(i===0?'background:var(--gray-50);':'')+'">'+label+'</div>';}).join('');dd.style.display='block';var rect=ta.getBoundingClientRect();var spaceBelow=window.innerHeight-rect.bottom;var ddHeight=Math.min(180,items.length*32+10);dd.style.top=spaceBelow<ddHeight+10?'auto':'100%';dd.style.bottom=spaceBelow<ddHeight+10?(rect.height+4+'px'):'auto';dd.style.marginTop=spaceBelow<ddHeight+10?'0':'2px';dd.querySelectorAll('.qt-mention-item').forEach(function(el){el.onclick=function(){var idx=parseInt(el.dataset.idx);insertMention(items[idx]);};el.onmouseenter=function(){dd.querySelectorAll('.qt-mention-item').forEach(function(e){e.style.background=''});el.style.background='var(--gray-50)';};});}
+function insertMention(u){var before=ta.value.substring(0,atPos);var after=ta.value.substring(ta.selectionEnd);var insert=u.id===0?'@所有人 ':'@'+u.keyword+' ';ta.value=before+insert+after;ta.focus();ta.selectionStart=ta.selectionEnd=atPos+insert.length;atPos=-1;filter='';dd.style.display='none';document.getElementById('qtErr').textContent='';}
+ta.addEventListener('input',function(){var pos=ta.selectionStart;var val=ta.value;var searchStart=Math.max(0,pos-20);var textBefore=val.substring(searchStart,pos);var idx=textBefore.lastIndexOf('@');if(idx>=0){var afterAt=textBefore.substring(idx+1);if(!afterAt.includes(' ')&&!afterAt.includes('\n')){atPos=searchStart+idx;filter=afterAt;updateDropdown();return;}}atPos=-1;dd.style.display='none';});
+ta.addEventListener('keydown',function(e){if(dd.style.display!=='block')return;if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();var items=dd.querySelectorAll('.qt-mention-item');var cur=dd.querySelector('.qt-mention-item[style*="var(--gray-50)"]');var idx=-1;if(cur)idx=Array.from(items).indexOf(cur);if(e.key==='ArrowDown')idx=Math.min(idx+1,items.length-1);else idx=Math.max(idx-1,0);items.forEach(function(el){el.style.background=''});items[idx].style.background='var(--gray-50)';}else if(e.key==='Enter'&&atPos>=0){e.preventDefault();var items=dd.querySelectorAll('.qt-mention-item');var cur=dd.querySelector('.qt-mention-item[style*="var(--gray-50)"]');if(cur){cur.click();}}else if(e.key==='Escape'){dd.style.display='none';atPos=-1;}});
+ta.addEventListener('blur',function(){setTimeout(function(){dd.style.display='none';},200);});})();
+(function(){var s=document.getElementById('qtStart'),e=document.getElementById('qtEnd'),err=document.getElementById('qtErr2');if(!s||!e||!err)return;function orderOk(){if(s.value&&e.value&&s.value>e.value){err.textContent='结束时间需晚于开始时间';return false;}return true;}s.addEventListener('blur',function(){if(!s.value){err.textContent='请填写开始时间';}else if(e.value){orderOk();}});e.addEventListener('blur',function(){if(!e.value){err.textContent='请填写结束时间';}else{orderOk();}});s.addEventListener('input',orderOk);e.addEventListener('input',orderOk);})();
+</script>

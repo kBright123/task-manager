@@ -480,7 +480,10 @@ def inject_globals():
                 'VERSION': VERSION,
                 'staticv': _static_mtime_version,
                 'unread_notifications': unread_count,
-                'recent_notifications': recent}
+                'recent_notifications': recent,
+                'users': User.query.filter(User.is_disabled == False).all(),
+                'user_groups': current_user.groups.all() if hasattr(current_user, 'groups') else [],
+                'is_admin': str(getattr(current_user, 'role', '')) == 'admin'}
     return {'now': cn_now, 'today_str': cn_now().strftime(
         '%Y年%m月%d日 %A'), 'timedelta': timedelta, 'VERSION': VERSION,
             'staticv': _static_mtime_version}

@@ -149,10 +149,9 @@
                         '<option value="yearly" data-count="2" data-interval="365">每年（2期）</option>' +
                         '<option value="custom" data-count="0" data-interval="0">自定义</option>' +
                       '</select>' +
-                      '<span id="qtRecurrenceCustom" class="d-none" style="display:none;">' +
-                        '<input type="number" id="qtCustomInterval" class="form-control form-control-sm" style="width:70px;" placeholder="天数" min="1" value="7">' +
-                        '<input type="number" id="qtCustomCount" class="form-control form-control-sm" style="width:60px;" placeholder="期数" min="1" value="3">' +
-                        '<button type="button" class="btn btn-sm btn-outline-primary" onclick="qtApplyCustomRecurrence()">应用</button>' +
+                      '<span id="qtRecurrenceCustom" class="d-none" style="display:none;font-size:.78rem;color:var(--gray-600);">' +
+                        '每隔 <input type="number" id="qtCustomInterval" class="form-control form-control-sm" style="width:48px;text-align:center;" min="1" value="7"> 天，共 <input type="number" id="qtCustomCount" class="form-control form-control-sm" style="width:44px;text-align:center;" min="1" value="3"> 期' +
+                        '<button type="button" class="btn btn-sm btn-outline-primary ms-1" onclick="qtApplyCustomRecurrence()">应用</button>' +
                       '</span>' +
                       '<span id="qtRecurrenceHint" class="text-info" style="font-size:.75rem;"></span>' +
                     '</div>' +

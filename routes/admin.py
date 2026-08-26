@@ -960,6 +960,39 @@ def admin_clear_data():
     return redirect(url_for('admin_dashboard'))
 
 
+@app.route('/admin/send-daily-summary', methods=['POST'])
+@login_required
+@admin_required
+def admin_send_daily_summary():
+    """管理员手动触发日报发送（可选指定用户id）。"""
+    from reminder_worker import _send_daily_summary
+    from datetime import datetime
+    user_id = request.form.get('user_id', type=int)
+    now = datetime.now()
+    try:
+        if user_id:
+            from models import User
+            user = User.query.get(user_id)
+            if not user:
+                flash('用户不存在', 'danger')
+                return redirect(url_for('admin_dashboard'))
+            from reminder_worker import _already_sent, _mark_sent, _sec, _mk, _summary_html, _weekday_cn, _delta_text, DONE_STATUS
+            from models import Task, TaskAssignment
+            from core.models import db
+            today = now.strftime('%Y-%m-%d')
+            key = 'summary:%s:%d' % (today, user.id)
+            if _already_sent(key):
+                flash('今日日报已发送过该用户，如需重发请先清除 EmailLog', 'warning')
+                return redirect(url_for('admin_dashboard'))
+            _send_daily_summary(now)
+        else:
+            _send_daily_summary(now)
+        flash('日报发送任务已触发', 'success')
+    except Exception as e:
+        flash('发送失败: %s' % str(e), 'danger')
+    return redirect(url_for('admin_dashboard'))
+
+
 with app.app_context():
     init_db()
 

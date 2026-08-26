@@ -23,7 +23,7 @@
 <style>
   body.tasks-full .app-container { padding-bottom: 0; }
   @media (max-width: 767px) { body.tasks-full .app-container { padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 8px); } }
-  .tasks-layout { display: grid; grid-template-columns: 220px 1fr 380px; gap: 12px; height: calc(100vh - var(--nav-height) - 24px); min-height: 480px; }
+  .tasks-layout { display: grid; grid-template-columns: 220px 1fr minmax(400px,480px); gap: 12px; height: calc(100vh - var(--nav-height) - 24px); min-height: 480px; }
    @media (max-width: 1100px) {
      .tasks-layout { grid-template-columns: 200px 1fr; }
      /* 平板/手机: 右侧详情面板变为滑出抽屉,修复点任务无反应 */
@@ -111,6 +111,9 @@
     .tl-card .tl-card-time{font-size:.68rem;color:var(--gray-400);margin-bottom:2px;}
     .tl-card .tl-card-title{font-weight:600;color:var(--gray-800);word-break:break-word;}
     .tl-card .tl-card-cat{font-size:.58rem;padding:1px 5px;border-radius:3px;color:#fff;margin-left:4px;vertical-align:middle;}
+    .tl-key-tag{display:inline-block;font-size:.6rem;padding:0 4px;border-radius:3px;background:var(--gray-100);color:var(--gray-600);margin-left:4px;vertical-align:middle;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.5;}
+    .tl-key-link{color:var(--primary);text-decoration:none;cursor:pointer;background:var(--primary-light);}
+    [data-theme="dark"] .tl-key-tag{background:rgba(255,255,255,.08);color:var(--gray-400);}
      .tl-empty{text-align:center;padding:60px 20px;color:var(--gray-400);}
      .tl-older{text-align:left;font-size:.72rem;color:var(--gray-500);background:var(--gray-100);border-radius:6px;margin:0 0 8px 28px;padding:5px 10px;cursor:pointer;user-select:none;width:fit-content;}
      .tl-older:hover{color:var(--primary);background:var(--primary-light);}
@@ -180,6 +183,7 @@
           <input type="checkbox" id="tlShowCompleted" checked onchange="loadTaskFeed()" style="margin:0;width:12px;height:12px;">
           <span>已完成</span>
         </label>
+        <button id="batchDeleteBtn" class="btn btn-sm btn-outline-danger d-none" style="font-size:.68rem;padding:1px 8px;" onclick="batchDeleteSelected()"><i class="bi bi-trash"></i> 批量删除</button>
         <button class="btn btn-sm btn-outline-secondary" style="font-size:.68rem;padding:1px 8px;" onclick="openTrashModal()"><i class="bi bi-trash3"></i> 回收站</button>
           <span id="taskFeedCount" style="font-size:.68rem;color:var(--gray-400);"></span>
       </div>
@@ -252,10 +256,9 @@
                 <option value="yearly" data-count="2" data-interval="365" {% if preview.recurrence == 'yearly' %}selected{% endif %}>每年（2期）</option>
                 <option value="custom" data-count="0" data-interval="0">自定义</option>
               </select>
-              <span id="recurrenceCustom" class="d-none mt-1" style="display:flex;gap:4px;">
-                <input type="number" id="customInterval" class="form-control form-control-sm" style="width:60px;" placeholder="天数" min="1" value="7">
-                <input type="number" id="customCount" class="form-control form-control-sm" style="width:52px;" placeholder="期数" min="1" value="3">
-                <button type="button" class="btn btn-sm btn-outline-primary" onclick="applyCustomRecurrence()">应用</button>
+              <span id="recurrenceCustom" class="d-none mt-1" style="display:flex;align-items:center;gap:2px;font-size:.78rem;color:var(--gray-600);">
+                每隔 <input type="number" id="customInterval" class="form-control form-control-sm" style="width:48px;text-align:center;" min="1" value="7"> 天，共 <input type="number" id="customCount" class="form-control form-control-sm" style="width:44px;text-align:center;" min="1" value="3"> 期
+                <button type="button" class="btn btn-sm btn-outline-primary ms-1" onclick="applyCustomRecurrence()">应用</button>
               </span>
               <span id="recurrenceHint" class="text-info" style="font-size:.75rem;">
                 {% if preview.recurrence %}<i class="bi bi-arrow-repeat"></i> {{ preview.recurrence_text }}，共 {{ preview.recurrence_count }} 期{% endif %}
@@ -585,6 +588,7 @@ function renderTimeline(el,jump){
   sectionOrder.forEach(function(s){
     var g=groups[s];
     if(!g||!g.items.length) return;
+    g.items.sort(function(a,b){return (a.start_time||'').localeCompare(b.start_time||'');});
     html+='<div class="tl-section '+s+'" data-s="'+s+'">';
     html+='<div class="tl-section-hd" role="button" tabindex="0" aria-label="展开'+esc(g.label)+'的任务" onclick="tlSecJump(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}"><div class="tl-section-dot"></div>';
     html+='<span class="tl-section-label">'+esc(g.label)+'</span>';
@@ -598,8 +602,13 @@ function renderTimeline(el,jump){
       html+='<input type="checkbox" class="form-check-input tl-check" style="flex-shrink:0;" '+(isCompleted?'checked disabled':'')+' data-aid="'+t.assignment_id+'" aria-label="标记完成:'+esc(t.title)+'">';
       html+='<div style="flex:1;min-width:0;">';
       html+='<div class="tl-card-time">'+esc(t.start_time.substring(5,16))+' - '+esc(t.end_time.substring(5,16))+'</div>';
-      html+='<div class="tl-card-title" data-id="'+t.id+'" role="button" tabindex="0" aria-label="编辑任务:'+esc(t.title)+'" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">'+esc(t.title)+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
-      html+='</div></div></div>';
+      var _ki=extractKeyInfo(t.full_description||t.description);
+      html+='<div class="tl-card-title" data-id="'+t.id+'" role="button" tabindex="0" aria-label="编辑任务:'+esc(t.title)+'" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">'+esc(t.title)+renderKeyTags(_ki)+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
+      html+='</div>';
+      if(!isCompleted){
+        html+='<input type="checkbox" class="form-check-input tl-batch-check" style="flex-shrink:0;width:13px;height:13px;margin-top:3px;" data-tid="'+t.id+'" aria-label="选择:'+esc(t.title)+'">';
+      }
+      html+='</div></div>';
     });
     html+='</div></div>';
   });
@@ -766,6 +775,7 @@ function jumpTodaySection(){
   var el=document.getElementById('taskTimelineView');if(!el)return;
   el.addEventListener('click',function(e){
     if(e.target.closest('.tl-check')){e.stopPropagation();return;}
+    if(e.target.closest('.tl-batch-check')){e.stopPropagation();updateBatchDeleteBtn();return;}
     var tt=e.target.closest('.tl-card-title');
     if(tt&&tt.getAttribute('data-id')){tlOpenEdit(parseInt(tt.getAttribute('data-id'),10));return;}
     var card=e.target.closest('.tl-card');
@@ -883,11 +893,14 @@ function renderTaskDetail(t, body){
   if (t.can_delete) {
     headBtns += '<button type="button" class="btn btn-xs-custom btn-outline-danger" style="font-size:.72rem;flex-shrink:0;" onclick="deleteTask(' + t.id + ')" title="删除待办"><i class="bi bi-trash"></i> 删除</button>';
   }
-  head.innerHTML = '<div style="font-size:.9rem;font-weight:700;color:var(--gray-900);word-break:break-word;margin-bottom:8px;">' + esc(t.title) + '</div>' +
-    '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">' +
-      '<span class="badge" style="background:var(--primary);font-size:.65rem;">' + esc(t.category) + '</span>' +
-      fmtStatus(t.status) +
-      (headBtns ? '<div style="margin-left:auto;display:flex;gap:6px;flex-shrink:0;">' + headBtns + '</div>' : '') +
+  head.innerHTML = '<div style="display:flex;align-items:flex-start;gap:8px;">' +
+    '<div style="flex:1;min-width:0;">' +
+      '<div style="font-size:.9rem;font-weight:700;color:var(--gray-900);word-break:break-word;">' + esc(t.title) +
+        '<span class="badge" style="background:var(--primary);font-size:.62rem;vertical-align:middle;margin-left:6px;">' + esc(t.category) + '</span>' +
+        fmtStatus(t.status) +
+      '</div>' +
+    '</div>' +
+    (headBtns ? '<div style="display:flex;gap:6px;flex-shrink:0;">' + headBtns + '</div>' : '') +
     '</div>';
   card.appendChild(head);
   if (t.description && t.description !== t.title) {
@@ -1045,8 +1058,29 @@ function saveTaskEdit(){
     }).catch(function(e){ alert('保存失败: ' + e.message); });
 }
 async function deleteTask(id){
-  if(!(await uiConfirm('确定删除该待办？将移入回收站，可在回收站恢复或彻底删除。')))return;
   var data=_tlfCache.find(function(x){return x.id===id;});
+  var title=(data&&data.title)||'';
+  var recPat=/^(.*?)\s*\(第(\d+)期\/共(\d+)期\)$/;
+  var m=title.match(recPat);
+  var cascadeCount=0;
+  if(m){var curNum=parseInt(m[2]),totalNum=parseInt(m[3]);cascadeCount=totalNum-curNum;}
+  var msg=cascadeCount>0?'该待办是周期任务（第'+m[2]+'期/共'+m[3]+'期），将移入回收站。':'确定删除该待办？将移入回收站，可在回收站恢复或彻底删除。';
+  var r=await uiDeleteConfirm(msg,cascadeCount);
+  if(!r.ok)return;
+  if(cascadeCount>0&&r.cascade){
+    fetchJSON('{{ url_for("api_tasks_batch_delete") }}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task_ids:[id],cascade:true})})
+      .then(function(d){
+        if(!d||!d.ok){alert((d&&d.error)||'删除失败');return;}
+        d.deleted&&d.deleted.forEach(function(tid){var i=_tlfCache.findIndex(function(x){return x.id===tid});if(i>-1)_tlfCache.splice(i,1);});
+        var el=document.getElementById('taskTimelineView');var cnt=document.getElementById('taskFeedCount');
+        if(cnt)cnt.textContent='共 '+_tlfCache.length+' 条';if(el)renderTimeline(el,false);
+        toast('已移入回收站（共'+d.count+'项）',{actionLabel:'撤销',duration:8000,onAction:function(){
+          d.deleted.forEach(function(tid){fetchJSON('/api/task/'+tid+'/restore',{method:'POST'});});
+          loadTaskFeed();
+        }});
+      }).catch(function(e){toast(netErrMsg(e),'error');});
+    return;
+  }
   fetchJSON('{{ url_for('api_task_delete', task_id=0) }}'.replace('/0','/' + id), {method:'POST'})
     .then(function(d){
       if(!d||!d.ok){alert((d&&d.error)||'删除失败');return;}
@@ -1056,11 +1090,34 @@ async function deleteTask(id){
       var cnt=document.getElementById('taskFeedCount');
       if(cnt)cnt.textContent='共 '+_tlfCache.length+' 条';
       if(el)renderTimeline(el,false);
-      toast('已移入回收站「'+((data&&data.title)||'待办')+'」',{actionLabel:'撤销',duration:8000,onAction:function(){
+      toast('已移入回收站「'+title+'」',{actionLabel:'撤销',duration:8000,onAction:function(){
         fetchJSON('/api/task/'+id+'/restore',{method:'POST'}).then(function(rd){
           if(rd.ok){toast('已恢复','success');}else{toast(rd.error||'恢复失败','error');}
           loadTaskFeed();
         }).catch(function(e){toast(netErrMsg(e),'error');});
+      }});
+    }).catch(function(e){toast(netErrMsg(e),'error');});
+}
+function updateBatchDeleteBtn(){
+  var sel=document.querySelectorAll('.tl-batch-check:checked').length;
+  var btn=document.getElementById('batchDeleteBtn');
+  if(btn){btn.classList.toggle('d-none',sel===0);btn.textContent='批量删除'+(sel?' ('+sel+')':'');}
+}
+async function batchDeleteSelected(){
+  var cbs=document.querySelectorAll('.tl-batch-check:checked');
+  if(!cbs.length)return;
+  var ids=[];cbs.forEach(function(cb){ids.push(parseInt(cb.dataset.tid));});
+  if(!(await uiConfirm('确定删除选中的 '+ids.length+' 个待办？')))return;
+  fetchJSON('{{ url_for("api_tasks_batch_delete") }}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task_ids:ids})})
+    .then(function(d){
+      if(!d||!d.ok){alert((d&&d.error)||'删除失败');return;}
+      d.deleted&&d.deleted.forEach(function(tid){var i=_tlfCache.findIndex(function(x){return x.id===tid});if(i>-1)_tlfCache.splice(i,1);});
+      var el=document.getElementById('taskTimelineView');var cnt=document.getElementById('taskFeedCount');
+      if(cnt)cnt.textContent='共 '+_tlfCache.length+' 条';if(el)renderTimeline(el,false);
+      updateBatchDeleteBtn();
+      toast('已移入回收站（共'+d.count+'项）',{actionLabel:'撤销',duration:8000,onAction:function(){
+        d.deleted.forEach(function(tid){fetchJSON('/api/task/'+tid+'/restore',{method:'POST'});});
+        loadTaskFeed();
       }});
     }).catch(function(e){toast(netErrMsg(e),'error');});
 }
@@ -1118,10 +1175,9 @@ async function reopenTask(id){
               <option value="yearly" data-count="2" data-interval="365">每年（2期）</option>
               <option value="custom" data-count="0" data-interval="0">自定义</option>
             </select>
-            <span id="tmRecurrenceCustom" class="d-none mt-1" style="display:flex;gap:4px;">
-              <input type="number" id="tmCustomInterval" class="form-control form-control-sm" style="width:70px;" placeholder="天数" min="1" value="7">
-              <input type="number" id="tmCustomCount" class="form-control form-control-sm" style="width:60px;" placeholder="期数" min="1" value="3">
-              <button type="button" class="btn btn-sm btn-outline-primary" onclick="tmApplyCustomRecurrence()">应用</button>
+            <span id="tmRecurrenceCustom" class="d-none mt-1" style="display:flex;align-items:center;gap:2px;font-size:.78rem;color:var(--gray-600);">
+              每隔 <input type="number" id="tmCustomInterval" class="form-control form-control-sm" style="width:48px;text-align:center;" min="1" value="7"> 天，共 <input type="number" id="tmCustomCount" class="form-control form-control-sm" style="width:44px;text-align:center;" min="1" value="3"> 期
+              <button type="button" class="btn btn-sm btn-outline-primary ms-1" onclick="tmApplyCustomRecurrence()">应用</button>
             </span>
             <span id="tmRecurrenceHint" class="text-info" style="font-size:.75rem;"></span>
           </div>
@@ -1430,7 +1486,10 @@ document.addEventListener('DOMContentLoaded', function () {
     <div class="modal-content" style="border-radius:14px;">
       <div class="modal-header py-2" style="border-bottom:1px solid var(--gray-200);">
         <h6 class="modal-title" style="font-size:.85rem;"><i class="bi bi-trash3"></i> 回收站</h6>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div class="d-flex gap-2">
+          <button id="trashRestoreAllBtn" class="btn btn-sm btn-outline-primary d-none" style="font-size:.72rem;padding:1px 10px;" onclick="restoreAllFromTrash()"><i class="bi bi-arrow-counterclockwise"></i> 全部恢复</button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
       </div>
       <div class="modal-body" style="max-height:60vh;overflow-y:auto;">
         <div id="trashList" style="font-size:.78rem;"></div>
@@ -1442,11 +1501,14 @@ document.addEventListener('DOMContentLoaded', function () {
 function openTrashModal(){
   var el=document.getElementById('trashList');
   el.innerHTML='<div class="text-center py-4"><div class="spinner-border spinner-border-sm text-secondary"></div></div>';
+  var rab=document.getElementById('trashRestoreAllBtn');
+  if(rab)rab.classList.add('d-none');
   var m=window.bootstrap?bootstrap.Modal.getOrCreateInstance(document.getElementById('trashModal')):null;
   if(m)m.show();
   fetchJSON('/api/tasks/trash').then(function(d){
     if(!d||!d.ok){el.innerHTML='<div class="tl-empty">加载失败</div>';return;}
     if(!d.items.length){el.innerHTML='<div class="tl-empty"><i class="bi bi-trash3"></i><div>回收站是空的</div></div>';return;}
+    if(rab&&d.items.length>0)rab.classList.remove('d-none');
     var h='';
     d.items.forEach(function(t){
       h+='<div class="d-flex align-items-center justify-content-between" style="padding:8px 2px;border-bottom:1px dashed var(--gray-200);">';
@@ -1460,6 +1522,12 @@ function openTrashModal(){
     el.innerHTML=h;
   }).catch(function(e){el.innerHTML='<div class="tl-empty">'+netErrMsg(e)+'</div>';});
 }
+function restoreAllFromTrash(){
+  fetchJSON('/api/tasks/batch_restore',{method:'POST'}).then(function(d){
+    if(!d||!d.ok){toast((d&&d.error)||'恢复失败','error');return;}
+    toast('已恢复全部 '+d.count+' 项','success');loadTaskFeed();openTrashModal();
+  }).catch(function(e){toast(netErrMsg(e),'error');});
+}
 function restoreFromTrash(id){
   fetchJSON('/api/task/'+id+'/restore',{method:'POST'}).then(function(d){
     if(!d||!d.ok){toast((d&&d.error)||'恢复失败','error');return;}
@@ -1472,6 +1540,51 @@ async function purgeFromTrash(id, btn){
     if(!d||!d.ok){toast((d&&d.error)||'删除失败','error');return;}
     toast('已彻底删除','success');openTrashModal();
   }).catch(function(e){toast(netErrMsg(e),'error');});
+}
+</script>
+<!-- 删除待办确认弹窗 -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;max-width:320px;margin:auto;">
+      <div class="modal-body" style="padding:20px 20px 10px;">
+        <div id="deleteConfirmMsg" style="font-size:.88rem;line-height:1.5;margin-bottom:10px;"></div>
+        <label id="deleteCascadeWrap" class="d-none" style="font-size:.82rem;color:var(--gray-600);cursor:pointer;display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" id="deleteCascadeCb" class="form-check-input" checked style="width:15px;height:15px;">
+          <span id="deleteCascadeLabel"></span>
+        </label>
+      </div>
+      <div class="modal-footer border-0 justify-content-center gap-2 pt-0" style="padding:0 20px 16px;">
+        <button type="button" class="btn btn-sm btn-secondary" id="deleteConfirmNo" style="min-width:78px;">取消</button>
+        <button type="button" class="btn btn-sm btn-danger" id="deleteConfirmYes" style="min-width:78px;">确定删除</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+function uiDeleteConfirm(msg, cascadeCount){
+  return new Promise(function(res){
+    var m=document.getElementById('deleteConfirmModal');
+    if(!m||!window.bootstrap){res({ok:window.confirm(msg),cascade:false});return;}
+    document.getElementById('deleteConfirmMsg').textContent=msg;
+    var wrap=document.getElementById('deleteCascadeWrap');
+    var cb=document.getElementById('deleteCascadeCb');
+    var label=document.getElementById('deleteCascadeLabel');
+    if(cascadeCount>0){
+      wrap.classList.remove('d-none');
+      cb.checked=true;
+      label.textContent='同时删除后续 '+cascadeCount+' 期任务';
+    }else{
+      wrap.classList.add('d-none');
+      cb.checked=false;
+    }
+    var inst=bootstrap.Modal.getOrCreateInstance(m);
+    var done=false;
+    function finish(v){if(done)return;done=true;res({ok:v,cascade:cb.checked});}
+    m.addEventListener('hidden.bs.modal',function(){finish(false);},{once:true});
+    document.getElementById('deleteConfirmYes').onclick=function(){finish(true);inst.hide();};
+    document.getElementById('deleteConfirmNo').onclick=function(){inst.hide();};
+    inst.show();
+  });
 }
 </script>
 {% endblock %}

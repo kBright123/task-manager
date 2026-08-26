@@ -105,14 +105,14 @@
   .tl-section{margin-bottom:4px;}
   .tl-section-hd{display:flex;align-items:center;gap:6px;padding:4px 0 2px 22px;position:relative;}
   .tl-section-dot{position:absolute;left:8px;top:50%;transform:translateY(-50%);width:10px;height:10px;border-radius:50%;flex-shrink:0;border:2px solid var(--gray-300);background:#fff;z-index:1;}
-  .tl-section-hd .tl-section-label{font-size:.75rem;font-weight:700;color:var(--gray-600);}
+  .tl-section-hd .tl-section-label{font-size:.78rem;font-weight:700;color:var(--gray-600);}
   .tl-section-hd .tl-section-count{font-size:.6rem;color:var(--gray-400);background:var(--gray-100);padding:0 5px;border-radius:8px;}
   .tl-section.overdue .tl-section-dot{border-color:var(--danger);background:var(--danger);}
   .tl-section.overdue .tl-section-label{color:var(--danger);}
   .tl-section.past .tl-section-dot,.tl-section.past_week .tl-section-dot{border-color:var(--gray-400);background:var(--gray-400);}
   .tl-section.past .tl-section-label,.tl-section.past_week .tl-section-label{color:var(--gray-500);}
   .tl-section.today .tl-section-dot{border-color:var(--warning);background:var(--warning);width:14px;height:14px;left:6px;}
-  .tl-section.today .tl-section-label{color:var(--warning);font-size:.88rem;}
+  .tl-section.today .tl-section-label{color:var(--warning);font-size:.9rem;}
   .tl-section.today{background:rgba(255,193,7,.06);border-radius:8px;padding:4px 8px;margin-left:-8px;margin-right:-8px;}
   .tl-section.tomorrow .tl-section-dot{border-color:var(--primary);}
   .tl-section.tomorrow .tl-section-label{color:var(--primary);}
@@ -120,16 +120,19 @@
   .tl-section.abandoned .tl-section-dot{border-color:var(--gray-400);background:var(--gray-400);}
   .tl-section.abandoned .tl-section-label{color:var(--gray-400);}
   .tl-items{margin-left:16px;padding-left:10px;}
-  .tl-card{position:relative;margin-bottom:4px;padding:5px 8px;background:#fff;border:1px solid var(--gray-200);border-radius:6px;cursor:pointer;transition:all .15s;font-size:.78rem;}
+  .tl-card{position:relative;margin-bottom:4px;padding:5px 8px;background:#fff;border:1px solid var(--gray-200);border-radius:6px;cursor:pointer;transition:all .15s;font-size:.8rem;}
   .tl-card:hover{border-color:var(--primary);box-shadow:var(--shadow-sm);}
   .tl-card::before{content:'';position:absolute;left:-18px;top:8px;width:7px;height:7px;border-radius:50%;border:2px solid var(--primary);background:#fff;}
   .tl-card.overdue::before{border-color:var(--danger);background:var(--danger);}
   .tl-card.today::before{border-color:var(--warning);background:var(--warning);}
   .tl-card.completed::before{border-color:var(--success);background:var(--success);}
   .tl-card.abandoned::before{border-color:var(--gray-400);background:var(--gray-400);}
-  .tl-card .tl-card-time{font-size:.62rem;color:var(--gray-400);margin-bottom:1px;}
-  .tl-card .tl-card-title{font-weight:600;color:var(--gray-800);word-break:break-word;font-size:.78rem;}
+  .tl-card .tl-card-time{font-size:.65rem;color:var(--gray-400);margin-bottom:1px;}
+  .tl-card .tl-card-title{font-weight:600;color:var(--gray-800);word-break:break-word;font-size:.8rem;}
   .tl-card .tl-card-cat{font-size:.5rem;padding:0 4px;border-radius:3px;color:#fff;margin-left:3px;vertical-align:middle;}
+  .tl-key-tag{display:inline-block;font-size:.55rem;padding:0 3px;border-radius:3px;background:var(--gray-100);color:var(--gray-600);margin-left:3px;vertical-align:middle;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.5;}
+  .tl-key-link{color:var(--primary);text-decoration:none;cursor:pointer;background:var(--primary-light);}
+  [data-theme="dark"] .tl-key-tag{background:rgba(255,255,255,.08);color:var(--gray-400);}
   .tl-empty{text-align:center;padding:60px 20px;color:var(--gray-400);}
   .tl-older{text-align:left;font-size:.72rem;color:var(--gray-500);background:var(--gray-100);border-radius:6px;margin:0 0 8px 28px;padding:5px 10px;cursor:pointer;user-select:none;width:fit-content;}
   .tl-older:hover{color:var(--primary);background:var(--primary-light);}
@@ -270,10 +273,9 @@
                 <option value="yearly" data-count="2" data-interval="365">每年（2期）</option>
                 <option value="custom" data-count="0" data-interval="0">自定义</option>
               </select>
-              <span id="qtRecurrenceCustom" class="d-none mt-1" style="display:flex;gap:4px;">
-                <input type="number" id="qtCustomInterval" class="form-control form-control-sm" style="width:70px;" placeholder="天数" min="1" value="7">
-                <input type="number" id="qtCustomCount" class="form-control form-control-sm" style="width:60px;" placeholder="期数" min="1" value="3">
-                <button type="button" class="btn btn-sm btn-outline-primary" onclick="qtApplyCustomRecurrence()">应用</button>
+              <span id="qtRecurrenceCustom" class="d-none mt-1" style="display:flex;align-items:center;gap:2px;font-size:.78rem;color:var(--gray-600);">
+                每隔 <input type="number" id="qtCustomInterval" class="form-control form-control-sm" style="width:48px;text-align:center;" min="1" value="7"> 天，共 <input type="number" id="qtCustomCount" class="form-control form-control-sm" style="width:44px;text-align:center;" min="1" value="3"> 期
+                <button type="button" class="btn btn-sm btn-outline-primary ms-1" onclick="qtApplyCustomRecurrence()">应用</button>
               </span>
               <span id="qtRecurrenceHint" class="text-info" style="font-size:.75rem;"></span>
             </div>
@@ -542,12 +544,13 @@ function dashRenderTimeline(jump){
    var order=window.KB_TL_ORDER;var groups={};
   tasks.forEach(function(t){if(t.display==='abandoned')return;var s=t.section||'later';if(!groups[s])groups[s]={label:t.section_label,items:[]};groups[s].items.push(t);});
   var html='<div class="tl-wrap"><div class="tl-axis"></div>';
-  order.forEach(function(s){var g=groups[s];if(!g||!g.items||!g.items.length)return;html+='<div class="tl-section '+s+'" data-s="'+s+'"><div class="tl-section-hd" role="button" tabindex="0" aria-label="展开'+esc(g.label)+'的待办" onclick="tlSecDashJump(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}"><div class="tl-section-dot"></div><span class="tl-section-label">'+esc(g.label)+'</span><span class="tl-section-count">'+g.items.length+'</span></div><div class="tl-items">';
+  order.forEach(function(s){var g=groups[s];if(!g||!g.items||!g.items.length)return;g.items.sort(function(a,b){return (a.start_time||'').localeCompare(b.start_time||'');});html+='<div class="tl-section '+s+'" data-s="'+s+'"><div class="tl-section-hd" role="button" tabindex="0" aria-label="展开'+esc(g.label)+'的待办" onclick="tlSecDashJump(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}"><div class="tl-section-dot"></div><span class="tl-section-label">'+esc(g.label)+'</span><span class="tl-section-count">'+g.items.length+'</span></div><div class="tl-items">';
   g.items.forEach(function(t){var color=catColors[t.category]||'var(--primary)';var isCompleted=t.display==='completed';var taskDate=t.start_time?t.start_time.substring(0,10):'';
   html+='<div class="tl-card '+t.display+'" id="dtl-'+t.id+'" data-date="'+taskDate+'"><div style="display:flex;align-items:flex-start;gap:6px;">';
   html+='<input type="checkbox" class="form-check-input tl-check" style="flex-shrink:0;" '+(isCompleted?'checked disabled':'')+' data-aid="'+t.assignment_id+'" aria-label="标记完成:'+esc(t.title)+'">';
   html+='<div style="flex:1;min-width:0;"><div class="tl-card-time">'+esc(t.start_time.substring(5,16))+' - '+esc(t.end_time.substring(5,16))+'</div>';
-  html+='<div class="tl-card-title" data-id="'+t.id+'" role="button" tabindex="0" aria-label="查看任务:'+esc(t.title)+'" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">'+esc(t.title)+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
+  var _ki=extractKeyInfo(t.full_description||t.description);
+  html+='<div class="tl-card-title" data-id="'+t.id+'" role="button" tabindex="0" aria-label="查看任务:'+esc(t.title)+'" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">'+esc(t.title)+renderKeyTags(_ki)+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
   html+='</div></div></div>';});html+='</div></div>';});html+='</div>';
   el.innerHTML=html;
   var wrap=el.querySelector('.tl-wrap')||el;

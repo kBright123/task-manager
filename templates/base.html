@@ -93,6 +93,47 @@
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   };
+  window.extractKeyInfo = function (text) {
+    if (!text) return [];
+    var tags = [];
+    var seen = {};
+    var patterns = [
+      {re: /会议(?:号|ID)[：:\s]+([^\s,，。、；！？）)】】\]]+)/gi, label: '会议号'},
+      {re: /会议室?[号]?[：:\s]+([^\s,，。、；！？）)】】\]]+)/gi, label: '会议室'},
+      {re: /(?:参会|出席)?密码[：:\s]+([^\s,，。、；！？）)】】\]]+)/gi, label: '密码'},
+      {re: /口令[：:\s]+([^\s,，。、；！？）)】】\]]+)/gi, label: '口令'},
+      {re: /(?:地点|地址|位置)[：:\s]+([^\s,，。、；！？）)】】\]]+)/gi, label: '地点'},
+      {re: /通行证[号码]*[：:\s]+([^\s,，。、；！？）)】】\]]+)/gi, label: '通行证'},
+    ];
+    for (var i = 0; i < patterns.length; i++) {
+      var p = patterns[i], m;
+      while ((m = p.re.exec(text)) !== null) {
+        var val = m[1].replace(/[)，。、；\]]+$/, '');
+        if (val && !seen[val]) { seen[val] = 1; tags.push({label: p.label, value: val}); }
+      }
+    }
+    var urlRe = /(https?:\/\/[^\s,，。、；！？）)】】\]]+)/g;
+    var um;
+    while ((um = urlRe.exec(text)) !== null) {
+      var u = um[1].replace(/[)，。、；\]]+$/, '');
+      if (u && !seen[u]) { seen[u] = 1; tags.push({label: '链接', value: u}); }
+    }
+    return tags;
+  };
+  window.renderKeyTags = function (tags) {
+    if (!tags || !tags.length) return '';
+    var h = '';
+    for (var i = 0; i < tags.length && i < 5; i++) {
+      var t = tags[i];
+      if (t.label === '链接') {
+        var display = t.value.length > 30 ? t.value.substring(0, 27) + '...' : t.value;
+        h += '<a class="tl-key-tag tl-key-link" href="'+esc(t.value)+'" target="_blank" rel="noopener" title="'+esc(t.value)+'" onclick="event.stopPropagation()">'+esc(display)+'</a>';
+      } else {
+        h += '<span class="tl-key-tag" title="'+esc(t.label+': '+t.value)+'">'+esc(t.value)+'</span>';
+      }
+    }
+    return h;
+  };
   window.fetchJSON = function (url, opts, _retries) {
     opts = opts || {};
     var method = (opts.method || 'GET').toUpperCase();

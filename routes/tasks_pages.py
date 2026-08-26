@@ -244,12 +244,15 @@ def user_dashboard():
                            points_count=points_count,
                            points_delta=points_delta,
                            collections=_collections)
-def _assignment_counts_by_user():
-    """{display name -> number of assigned tasks}, for the admin overview bar."""
+def _assignment_counts_by_user(creator_id):
+    """{display name -> number of assigned tasks}, 只统计当前用户创建(分配)的任务."""
     rows = db.session.query(
         func.coalesce(func.nullif(User.name, ''), User.username).label('uname'),
         func.count(TaskAssignment.id)
-    ).select_from(TaskAssignment).join(User, TaskAssignment.user_id == User.id) \
+    ).select_from(TaskAssignment) \
+     .join(User, TaskAssignment.user_id == User.id) \
+     .join(Task, TaskAssignment.task_id == Task.id) \
+     .filter(Task.creator_id == creator_id) \
      .group_by(User.id).order_by(func.count(TaskAssignment.id).desc()).all()
     return {uname: n for uname, n in rows}
 
@@ -289,7 +292,7 @@ def user_tasks():
         stats, mine = _build_task_stats(ids, current_user.id)
         ctx = {'task_stats': stats, 'my_assignments': mine}
         if current_user.role == 'admin':
-            ctx['assignment_counts'] = _assignment_counts_by_user()
+            ctx['assignment_counts'] = _assignment_counts_by_user(current_user.id)
         order = ['工作', '个人', '会议', '培训', '考试']
         seen = set()
         groups = {c: [] for c in order}

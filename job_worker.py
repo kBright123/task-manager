@@ -21,9 +21,9 @@
 
 职责:
 1. 消费 note_job 队列:手动触发(后台管理页)与自动定时任务均为入队,
-   本进程领取并执行"合并去重笔记、整理/合并/提炼知识库",以及
+   本进程领取并执行"整理/合并/提炼知识库文档"以及
    scope=cleanup 的黑名单字样清理 + 操作日志/邮件记录/任务执行记录清理。
-2. 每个周六 22:00 自动入队一周整理待办(仅当近 7 天有新增笔记或知识);
+2. 每个周六 22:00 自动入队一周整理待办(仅当近 7 天有新增知识库文档);
    每周日 03:00 自动入队清理(黑名单字样 或 有过期的日志/邮件/任务记录)。
 
 数据:结构化元数据在 tasks.db;大模型调用复用 knowledge 的 opencode
@@ -472,16 +472,14 @@ def _enqueue_auto(now):
             NoteJob.trigger == 'auto',
             NoteJob.created_at >= since).first():
         return
-    has_new_note = db.session.query(Note.id).filter(
-        Note.created_at >= since).first()
     has_kb = db.session.query(KbDocument.id).filter(
         KbDocument.created_at >= since).first()
-    if not has_new_note and not has_kb:
+    if not has_kb:
         return
-    db.session.add(NoteJob(scope='all', status='queued', trigger='auto',
+    db.session.add(NoteJob(scope='kb', status='queued', trigger='auto',
                            created_by=None, created_at=cn_now()))
     db.session.commit()
-    logger.info('入队本周自动整理待办')
+    logger.info('入队本周自动整理待办(知识+文档)')
 
 
 def _enqueue_auto_cleanup(now):

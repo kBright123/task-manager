@@ -864,6 +864,51 @@ def api_task_delete(task_id):
     return jsonify({'ok': True, 'task_id': task.id, 'undoable': True})
 
 
+@app.route('/api/tasks/batch_delete', methods=['POST'])
+@login_required
+def api_tasks_batch_delete():
+    """批量删除待办(仅创建者或管理员)。支持 ?cascade=1 级联删除同周期后续待办。"""
+    data = request.get_json(silent=True) or {}
+    task_ids = data.get('task_ids') or []
+    cascade = data.get('cascade', False)
+    if not task_ids:
+        return jsonify({'ok': False, 'error': '未选择待办'}), 400
+    tasks = Task.query.filter(Task.id.in_(task_ids)).all()
+    if not tasks:
+        return jsonify({'ok': False, 'error': '待办不存在'}), 404
+    mine = [t for t in tasks if t.creator_id == current_user.id or current_user.role == 'admin']
+    if not mine:
+        return jsonify({'ok': False, 'error': '只能删除自己创建的待办'}), 403
+    import re
+    pat = re.compile(r'^(.*?)\s*\(第(\d+)期/共(\d+)期\)$')
+    extra_ids = set()
+    if cascade:
+        for t in mine:
+            m = pat.match(t.title)
+            if m:
+                base_title = m.group(1)
+                cur_num = int(m.group(2))
+                all_of_series = Task.query.filter(
+                    Task.creator_id == t.creator_id,
+                    Task.deleted_at.is_(None),
+                    Task.title.like(base_title + ' (第%期/共' + m.group(3) + '期)')
+                ).all()
+                for s in all_of_series:
+                    sm = pat.match(s.title)
+                    if sm and int(sm.group(2)) > cur_num:
+                        extra_ids.add(s.id)
+    if extra_ids:
+        extra_tasks = Task.query.filter(Task.id.in_(extra_ids)).all()
+        mine.extend([t for t in extra_tasks if t not in mine])
+    now = cn_now()
+    deleted = []
+    for t in mine:
+        t.deleted_at = now
+        deleted.append(t.id)
+    db.session.commit()
+    return jsonify({'ok': True, 'deleted': deleted, 'count': len(deleted)})
+
+
 @app.route('/api/task/<int:task_id>/times', methods=['POST'])
 @login_required
 def api_task_update_times(task_id):
@@ -943,6 +988,23 @@ def api_task_restore(task_id):
         return jsonify({'ok': False, 'error': '无权恢复该待办'}), 403
     restore_task(task)
     return jsonify({'ok': True})
+
+
+@app.route('/api/tasks/batch_restore', methods=['POST'])
+@login_required
+def api_tasks_batch_restore():
+    """批量恢复回收站待办(创建者或管理员)。"""
+    tasks = Task.query.filter(
+        Task.deleted_at.isnot(None),
+        Task.creator_id == current_user.id,
+    ).all()
+    if current_user.role == 'admin':
+        tasks = Task.query.filter(Task.deleted_at.isnot(None)).all()
+    if not tasks:
+        return jsonify({'ok': False, 'error': '回收站为空'}), 404
+    for t in tasks:
+        restore_task(t)
+    return jsonify({'ok': True, 'count': len(tasks)})
 
 
 @app.route('/api/task/<int:task_id>/purge', methods=['POST'])

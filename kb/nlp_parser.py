@@ -509,6 +509,26 @@ def _parse_timespan_jionlp(text):
                       'allday': is_allday_tok, 'blur': is_blur})
     if not cands:
         return None
+    # 显式区间补救: jionlp 有时将「15:00 - 16:00」拆为两个独立点实体,
+    # 第二个被关联到错误日期(如昨天), 导致结束时间=开始时间。扫描原文补救
+    if not [c for c in cands if c['kind'] == 'range']:
+        _rm = re.search(
+            r'(\d{4}-\d{2}-\d{2})[^-\d]{0,20}'
+            r'(\d{1,2}[：:]\d{2})\s*[-—~至]\s*(\d{1,2}[：:]\d{2})', text)
+        if _rm:
+            _d = _rm.group(1)
+            _t1 = _rm.group(2).replace('：', ':')
+            _t2 = _rm.group(3).replace('：', ':')
+            _s = _dt(f'{_d} {_t1}:00')
+            _e = _dt(f'{_d} {_t2}:00')
+            if _s and _e and _e > _s:
+                cands = [c for c in cands
+                         if not (c['s'].date() == _s.date()
+                                 and c['s'].hour == _s.hour
+                                 and c['kind'] == 'point')]
+                cands.append({'txt': _rm.group(0), 's': _s, 'e': _e,
+                              'kind': 'range', 'allday': False,
+                              'blur': False})
     # 模糊时段词(中期/年底/年初等): jionlp 标记 definition=blur,
     # 其宽泛跨度(如"中期"=本季度末)会在合并时用 max() 覆盖明确日期
     # (回归: 通知含"8月28日前反馈"+"中期检查"误得截止9-30)。存在
@@ -692,18 +712,38 @@ def parse_task_from_text(text):
     category_keywords = {
         '考试': ['考试', '测验', '笔试', '月考', '中考', '高考', '期中考', '期末考', '考级', '考核', '答辩'],
         '培训': ['培训', '训练', '课程', '集训', '学习班', '研修班', '岗前培训', '入职培训', '技能提升', '培训会'],
-        '会议': ['会议', '开会', '例会', '晨会', '周会', '月会', '评审会', '研讨会', '复盘', '站会'],
+        '会议': ['会议', '开会', '例会', '晨会', '周会', '月会', '评审会', '研讨会', '复盘', '站会', '宣贯'],
         '工作': ['工作', '项目', '待办', '报告', '汇报', '方案', '开发', '测试', '上线', '需求', '周报', '月报'],
         '个人': ['个人', '学习', '读书', '运动', '健身', '购物', '家务', '休息', '娱乐', '游戏', '电影', '旅游'],
     }
-    # 分类: 关键词命中计数投票(平票按定义顺序优先), 替代首中即停
-    cat_scores = {}
-    for cat, keywords in category_keywords.items():
-        sc = sum(1 for kw in keywords if kw in text)
-        if sc:
-            cat_scores[cat] = sc
-    if cat_scores:
-        result['category'] = max(cat_scores.items(), key=lambda x: x[1])[0]
+    # 分类: 优先级 考试>培训>会议>工作>个人
+    # 1. 标题以「会」结尾(宣贯会/动员会/评审会等) → 会议
+    # 2. 正文含结构性会议标记(会议时间/会议地点/会议内容等) → 会议
+    # 3. 标题含关键词 → 按字典序首个命中(即优先级顺序)
+    # 4. 正文关键词计数投票, 平票取首匹配
+    _title = result['title']
+    _cat_hit = None
+    if _title.endswith('会'):
+        _cat_hit = '会议'
+    elif re.search(r'会议[时地内]', text):
+        _cat_hit = '会议'
+    else:
+        for cat, keywords in category_keywords.items():
+            if any(kw in _title for kw in keywords):
+                _cat_hit = cat
+                break
+    if _cat_hit:
+        result['category'] = _cat_hit
+    else:
+        cat_scores = {}
+        for cat, keywords in category_keywords.items():
+            sc = sum(1 for kw in keywords if kw in text)
+            if sc:
+                cat_scores[cat] = sc
+        if cat_scores:
+            best = max(cat_scores.values())
+            result['category'] = next(cat for cat, sc in cat_scores.items()
+                                      if sc == best)
 
     assign_info = extract_assignees_from_text(text)
     result['assignees'] = assign_info['assignees']

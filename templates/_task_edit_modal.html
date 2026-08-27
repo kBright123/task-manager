@@ -183,8 +183,12 @@ function filterEditAssignees(q){
       .map(function(e){return e.name+'='+e.value;}).join('&');
   }
   var clean=null;
-  m.addEventListener('show.bs.modal',function(){setTimeout(function(){clean=snap();f.dataset.forceClose='';},80);});
+  function updateClean(){clean=snap();f.dataset.cleanSnap=clean;}
+  f._snap=snap;
+  f._updateClean=updateClean;
+  m.addEventListener('show.bs.modal',function(){setTimeout(function(){updateClean();f.dataset.forceClose='';},80);});
   m.addEventListener('hide.bs.modal',function(ev){
+    clean=f.dataset.cleanSnap||null;
     if(clean===null||f.dataset.forceClose==='1')return;
     if(snap()===clean)return;
     ev.preventDefault();

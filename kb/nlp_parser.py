@@ -571,6 +571,68 @@ def _parse_timespan_jionlp(text):
         out['end'] = None
     return out if (out['start'] or out['end']) else None
 
+_CN_DIG = {'一': 1, '二': 2, '三': 3, '四': 4, '五': 5,
+           '六': 6, '七': 7, '八': 8, '九': 9}
+
+
+def _cn_to_int(s):
+    """中文数字(一~九十九)或阿拉伯数字转 int; 无法解析返回 None。"""
+    s = (s or '').strip()
+    if not s:
+        return None
+    if s.isdigit():
+        return int(s)
+    if s == '十':
+        return 10
+    m = re.fullmatch(r'([一二三四五六七八九]?)十([一二三四五六七八九])?', s)
+    if m:
+        tens = (_CN_DIG.get(m.group(1), 1) if m.group(1) else 1) * 10
+        ones = _CN_DIG.get(m.group(2), 0) if m.group(2) else 0
+        return tens + ones
+    return _CN_DIG.get(s)
+
+
+# 「第一期：2026年8月28日14:30-16:30」类多场次行(≥2 场视为拆分信号)
+_SESS_PAT = re.compile(
+    r'第\s*([一二三四五六七八九十百\d]{1,3})\s*([期届场次轮节讲])\s*[:：]?\s*'
+    r'(?:(\d{4})\s*年)?\s*(?:(\d{1,2})\s*月)?\s*(\d{1,2})\s*[日号]?'
+    r'\s*(\d{1,2})[：:时点]\s*(\d{1,2})?分?'
+    r'(?:\s*[-—–~至到]+\s*(\d{1,2})[：:时]\s*(\d{1,2})?分?)?')
+
+
+def _extract_sessions(text):
+    """提取「第X期/场/次: 日期 时间-时间」多场次列表。
+
+    返回 [{'label','index','start','end'}]; 少于 2 场或无法解析日期返回 []。
+    未写年份按当前年推算, 若已过则顺延一年; 缺结束时间默认 +1 小时。
+    """
+    now = cn_now()
+    out = []
+    for m in _SESS_PAT.finditer(text):
+        num_s, unit, yy, mo, dd, h1, mi1, h2, mi2 = m.groups()
+        idx = _cn_to_int(num_s)
+        if not idx or not mo or not dd:
+            continue
+        try:
+            year = int(yy) if yy else now.year
+            start = datetime(year, int(mo), int(dd),
+                             int(h1), int(mi1 or 0))
+            if not yy and start < now:
+                start = start.replace(year=year + 1)
+            if h2 is not None:
+                end = start.replace(hour=int(h2), minute=int(mi2 or 0))
+                if end <= start:
+                    end += timedelta(days=1)
+            else:
+                end = start + timedelta(hours=1)
+        except ValueError:
+            continue
+        out.append({'label': f'第{num_s}{unit}', 'index': idx,
+                    'start': start, 'end': end})
+    out.sort(key=lambda x: x['index'])
+    return out if len(out) >= 2 else []
+
+
 def extract_assignees_from_text(text):
     result = {'assignees': [], 'is_all': False}
 
@@ -582,7 +644,6 @@ def extract_assignees_from_text(text):
     at_mentions = re.findall(r'@([\w\u4e00-\u9fff]+)', text)
     if at_mentions:
         result['assignees'] = [n for n in at_mentions if n not in ['所有人', 'all', 'All', 'ALL']]
-
     assignee_match = re.search(
         r'(?:发给|分配给|给|指派给)[：:]?\s*'
         r'([\w\u4e00-\u9fff]+(?:[、,，\s]+[\w\u4e00-\u9fff]+)*)',
@@ -846,5 +907,16 @@ def parse_task_from_text(text):
                     result['recurrence_interval_days'] = num * 365
                     result['recurrence_count'] = 2
                     result['recurrence_text'] = f'每{num}年' if num > 1 else '每年'
+
+    # 多场次(第X期: 日期时间): 拆分为多个待办, 抑制周期重复
+    sessions = _extract_sessions(text)
+    if sessions:
+        result['sessions'] = sessions
+        result['recurrence'] = None
+        result['recurrence_text'] = ''
+        result['recurrence_count'] = 0
+        result['recurrence_interval_days'] = 0
+        result['start_time'] = sessions[0]['start']
+        result['end_time'] = sessions[0]['end']
 
     return result

@@ -1046,6 +1046,8 @@ function saveTaskEdit(){
       if(!d.ok){ alert(d.error || '保存失败'); return; }
       return doAssign();
     }).then(function(d){
+      var f=document.getElementById('editTaskForm');
+      if(f&&f._updateClean)f._updateClean();
       bootstrap.Modal.getInstance(document.getElementById('editTaskModal')).hide();
       loadTaskDetail(parseInt(id, 10));
       var msgs = [];

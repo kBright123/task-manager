@@ -527,6 +527,21 @@ def api_quick_task_preview():
     if end <= start:
         end = start + timedelta(hours=1)
 
+    # 多场次(第X期): 每场一个待办
+    sessions = []
+    for s in parsed.get('sessions') or []:
+        ss, ee = s['start'], s.get('end') or s['start']
+        if ee <= ss:
+            ee = ss + timedelta(hours=1)
+        sessions.append({'label': s['label'],
+                         'start_time': ss.strftime('%Y-%m-%dT%H:%M'),
+                         'end_time': ee.strftime('%Y-%m-%dT%H:%M')})
+    if sessions:
+        start = min(datetime.strptime(x['start_time'], '%Y-%m-%dT%H:%M')
+                    for x in sessions)
+        end = max(datetime.strptime(x['end_time'], '%Y-%m-%dT%H:%M')
+                  for x in sessions)
+
     assignee_ids = []
     assignee_names = []
     if current_user.role == 'admin' and parsed.get('is_all', False):
@@ -585,6 +600,7 @@ def api_quick_task_preview():
         'recurrence': parsed.get('recurrence') or '',
         'recurrence_interval_days': parsed.get('recurrence_interval_days') or 0,
         'recurrence_count': parsed.get('recurrence_count') or 0,
+        'sessions': sessions,
         'duplicate_tasks': duplicate_tasks,
         'user_groups': user_groups,
         'text': text,
@@ -622,6 +638,28 @@ def api_quick_task():
     recurrence_count = int(data.get('recurrence_count') or 0)
     total = recurrence_count if recurrence_interval_days and recurrence_count > 0 else 1
 
+    # 多场次(第X期): 每场独立时间拆分为多个待办, 优先于等间隔周期展开
+    sess_items = []
+    for s in (data.get('sessions') or [])[:20]:
+        if not isinstance(s, dict):
+            continue
+        lbl = str(s.get('label') or '').strip()[:20]
+        try:
+            ss = datetime.strptime(s.get('start_time') or '', dt_fmt)
+        except (ValueError, TypeError):
+            continue
+        try:
+            ee = datetime.strptime(s.get('end_time') or '', dt_fmt)
+        except (ValueError, TypeError):
+            ee = None
+        if ee is None or ee <= ss:
+            ee = ss + timedelta(hours=1)  # 缺结束/倒挂兜底
+        sess_items.append((lbl, ss, ee))
+    use_sessions = len(sess_items) >= 2
+    if use_sessions:
+        start = min(x[1] for x in sess_items)
+        end = max(x[2] for x in sess_items)
+
     assignee_ids = set()
     if not is_all:
         for uid in data.get('assignee_ids') or []:
@@ -652,11 +690,17 @@ def api_quick_task():
     try:
         db.session.rollback()  # 结束只读事务, 使 begin() 成为最外层事务
         with db.session.begin():
-            for i in range(total):
-                offset = timedelta(days=recurrence_interval_days * i)
-                t_start = start + offset
-                t_end = end + offset
-                t_title = f'{title} (第{i+1}期/共{total}期)' if total > 1 else title
+            if use_sessions:
+                plan = [(f'{title}（{lbl}）' if lbl else title, ss, ee)
+                        for lbl, ss, ee in sess_items]
+            else:
+                plan = []
+                for i in range(total):
+                    offset = timedelta(days=recurrence_interval_days * i)
+                    t_title = (f'{title} (第{i+1}期/共{total}期)'
+                               if total > 1 else title)
+                    plan.append((t_title, start + offset, end + offset))
+            for t_title, t_start, t_end in plan:
                 task = Task(title=t_title, description=description,
                             category=category, start_time=t_start,
                             end_time=t_end, creator_id=current_user.id,

@@ -134,6 +134,130 @@ def test_notice_full(notice=None):
     assert r['end_time'].replace(second=0, microsecond=0) == exp_e
 
 
+def test_multisession_training_notice():
+    """「第一期：…第二期：…」多场次通知: 拆分为多个待办并抑制周期重复."""
+    NOTICE = '''【关于举办软件研发中心合肥分中心2026年软件项目全方位精细化管理培训班的通知】 @所有人
+各位领导、同事：
+      大家好！为进一步夯实软件项目管理基础，拟举办软件项目全方位精细化管理培训班，分三期开展专题授课，现将有关事项通知如下：
+       培训时间：
+       第一期：2026年8月28日14:30-16:30
+       第二期：2026年9月3日14:00-18:00
+       第三期：2026年9月4日14:30-15:30'''
+    r = parse_task_from_text(NOTICE)
+    assert r['category'] == '培训'
+    assert r['is_all'] is True
+    sess = r.get('sessions') or []
+    assert len(sess) == 3, sess
+    labels = [s['label'] for s in sess]
+    assert labels == ['第一期', '第二期', '第三期'], labels
+    s0 = sess[0]['start']
+    assert (s0.year, s0.month, s0.day) == (2026, 8, 28), s0
+    assert (s0.hour, s0.minute) == (14, 30), s0
+    e0 = sess[0]['end']
+    assert (e0.hour, e0.minute) == (16, 30), e0
+    s1 = sess[1]['start']
+    assert (s1.month, s1.day, s1.hour, s1.minute) == (9, 3, 14, 0), s1
+    # 主时间取第一场; 周期字段被抑制(真实日期已知无需等间隔展开)
+    assert r['start_time'] == s0 and r['end_time'] == e0
+    assert not r['recurrence_interval_days'] and not r['recurrence_count']
+
+
+def test_multisession_requires_two():
+    """单场次不触发拆分模式."""
+    text = '第一期：2026年8月28日14:30-16:30'
+    r = parse_task_from_text(text)
+    assert 'sessions' not in r or not r['sessions']
+
+
+def test_cn_to_int():
+    f = np._cn_to_int
+    assert f('一') == 1 and f('九') == 9
+    assert f('十') == 10 and f('十一') == 11 and f('十九') == 19
+    assert f('二十') == 20 and f('二十三') == 23
+    assert f('5') == 5 and f('12') == 12
+    assert f('') is None and f(None) is None
+    assert f('abc') is None and f('百') is None
+
+
+def _fmt(d):
+    return d.strftime('%Y-%m-%d %H:%M')
+
+
+def test_extract_sessions_basic():
+    """多场次提取: 标签/时间/按期数排序/混合单位."""
+    text = ('第三期：2026年9月4日14:30-15:30\n'
+            '第一期：2026年8月28日14:30-16:30\n'
+            '第二场：2026年9月3日14:00-18:00')
+    out = np._extract_sessions(text)
+    assert len(out) == 3
+    assert [s['label'] for s in out] == ['第一期', '第二场', '第三期']
+    assert _fmt(out[0]['start']) == '2026-08-28 14:30'
+    assert _fmt(out[0]['end']) == '2026-08-28 16:30'
+    assert _fmt(out[1]['start']) == '2026-09-03 14:00'
+    assert _fmt(out[2]['end']) == '2026-09-04 15:30'
+    assert [s['index'] for s in out] == [1, 2, 3]
+
+
+def test_extract_sessions_year_inference():
+    """无年份: 未来日期取当年; 已过日期顺延一年(动态日期防日历漂移)."""
+    from datetime import timedelta
+    from core.timeutil import cn_now
+    now = cn_now()
+    fut = now + timedelta(days=45)
+    if fut.year == now.year:
+        t = (f'第一期：{fut.month}月{fut.day}日10:00-11:00\n'
+             f'第二期：{(fut + timedelta(days=1)).month}月'
+             f'{(fut + timedelta(days=1)).day}日10:00-11:00')
+        out = np._extract_sessions(t)
+        assert out and out[0]['start'].year == now.year, (t, out)
+    past = now - timedelta(days=45)
+    if past.year == now.year:
+        t = (f'第一期：{past.month}月{past.day}日10:00-11:00\n'
+             f'第二期：{(past + timedelta(days=1)).month}月'
+             f'{(past + timedelta(days=1)).day}日10:00-11:00')
+        out = np._extract_sessions(t)
+        assert out and out[0]['start'].year == now.year + 1, (t, out)
+
+
+def test_extract_sessions_end_defaults():
+    """缺结束时间默认+1小时; 结束≤开始视为跨午夜+1天."""
+    from datetime import timedelta
+    from core.timeutil import cn_now
+    base = cn_now() + timedelta(days=3)
+    d = f'{base.month}月{base.day}日'
+    out = np._extract_sessions(f'第一期：{d}09:00\n第二期：{d}10:00')
+    assert len(out) == 2
+    e0 = out[0]['end']
+    assert (e0 - out[0]['start']).total_seconds() == 3600
+    # 跨午夜: 23:00-01:00 → 次日01:00
+    out2 = np._extract_sessions(f'第一期：{d}23:00-01:00\n第二期：{d}10:00-11:00')
+    e = out2[0]['end']
+    assert e.day != out2[0]['start'].day and e.hour == 1
+
+
+def test_extract_sessions_invalid_or_single():
+    """非法日期被跳过; 少于2场返回[]; 空文本返回[]."""
+    # 非法月份被跳过后仅剩1场 → []
+    assert np._extract_sessions(
+        '第一期：2026年13月40日99:99\n第二期：2026年9月3日14:00-18:00') == []
+    assert np._extract_sessions('第一期：2026年9月3日14:00-18:00') == []
+    assert np._extract_sessions('没有任何时间信息') == []
+    assert np._extract_sessions('') == []
+
+
+def test_sessions_suppress_recurrence():
+    """显式多场次优先于周期词: 拆分模式下周期字段清零."""
+    text = ('培训班每周三例行汇报，培训时间如下：\n'
+            '第一期：2026年8月28日14:30-16:30\n'
+            '第二期：2026年9月3日14:00-18:00')
+    r = parse_task_from_text(text)
+    sess = r.get('sessions') or []
+    assert len(sess) == 2, r
+    assert not r['recurrence_interval_days'], r
+    assert not r['recurrence_count'] and not r['recurrence_text'], r
+    assert r['recurrence'] is None
+
+
 def test_timespan_future_weekday():
     """过去星期顺延 + 时段词保留 + 全天合并(回归: 首页解析日期不对)."""
     from core.timeutil import cn_now

@@ -15,11 +15,13 @@ def main():
     import test_parse
     import test_astro
     import test_calendar_feed
+    import test_quick_task
 
     ok = True
     client = conftest.make_client()
 
-    for mod in (test_parse, test_pages, test_astro, test_calendar_feed):
+    for mod in (test_parse, test_pages, test_astro, test_calendar_feed,
+                test_quick_task):
         for name in sorted(dir(mod)):
             if not name.startswith('test_'):
                 continue

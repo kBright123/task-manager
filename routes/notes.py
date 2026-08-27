@@ -574,6 +574,48 @@ def api_update_note(note_id):
     return jsonify({'ok': True, 'note': _note_dict(note)})
 
 
+@notes_bp.route('/api/tags/rename', methods=['POST'])
+@login_required
+def api_rename_tag():
+    """重命名标签: 遍历当前用户所有笔记, 将该标签替换为新标签。"""
+    data = request.get_json(silent=True) or {}
+    old = (data.get('old') or '').strip()
+    new = (data.get('new') or '').strip()
+    if not old:
+        return jsonify({'ok': False, 'error': '缺少旧标签'}), 400
+    if not new:
+        return jsonify({'ok': False, 'error': '新标签不能为空'}), 400
+    if old == new:
+        return jsonify({'ok': True, 'renamed': 0})
+
+    notes = Note.query.filter_by(user_id=current_user.id).all()
+    renamed = 0
+    affected = []
+    for n in notes:
+        tags = parse_tags_json(n.tags)
+        changed = False
+        new_tags = []
+        for t in tags:
+            if t == old:
+                if new not in new_tags:
+                    new_tags.append(new)
+                changed = True
+            else:
+                new_tags.append(t)
+        if changed and new_tags != tags:
+            n.tags = json.dumps(new_tags, ensure_ascii=False)
+            renamed += 1
+            affected.append(n)
+    db.session.commit()
+    # 同步落盘 .md 文件(frontmatter 中的标签)
+    for n in affected:
+        try:
+            persist_md(n)
+        except Exception:
+            pass
+    return jsonify({'ok': True, 'renamed': renamed})
+
+
 @notes_bp.route('/api/notes/<int:note_id>/dup')
 @login_required
 def api_note_dup(note_id):

@@ -73,6 +73,8 @@
           <th style="padding:10px 16px;">审批状态</th>
           <th style="padding:10px 16px;">群组</th>
           <th style="padding:10px 16px;">创建时间</th>
+          <th style="padding:10px 16px;">在线</th>
+          <th style="padding:10px 16px;">上次登录</th>
           <th style="padding:10px 16px;width:220px;">操作</th>
         </tr>
       </thead>
@@ -110,6 +112,25 @@
           </td>
           <td style="padding:8px 16px;">
             <small class="text-muted" style="font-size:.72rem;">{{ user.created_at.strftime('%Y-%m-%d %H:%M') if user.created_at else '-' }}</small>
+          </td>
+          <td style="padding:8px 16px;">
+            {% if user.is_online %}
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 4px #22c55e80;"></span>
+            <small style="font-size:.68rem;color:#16a34a;margin-left:4px;">在线</small>
+            {% elif user.last_seen %}
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#d1d5db;"></span>
+            <small class="text-muted" style="font-size:.68rem;margin-left:4px;">离线</small>
+            {% else %}
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f3f4f6;border:1px solid #d1d5db;"></span>
+            <small class="text-muted" style="font-size:.68rem;margin-left:4px;">从未</small>
+            {% endif %}
+          </td>
+          <td style="padding:8px 16px;">
+            {% if user.last_login %}
+            <small class="text-muted" style="font-size:.72rem;">{{ user.last_login.strftime('%Y-%m-%d %H:%M') }}</small>
+            {% else %}
+            <small class="text-muted" style="font-size:.72rem;">-</small>
+            {% endif %}
           </td>
           <td style="padding:8px 16px;">
             <div class="d-flex gap-1 align-items-center flex-wrap">
@@ -164,11 +185,15 @@
           {% endif %}
         </div>
         <div class="mb-1 d-flex align-items-center gap-1 flex-wrap">
+          <span style="display:inline-block;width:7px;height:7px;border-radius:50%;flex-shrink:0;{% if user.is_online %}background:#22c55e;box-shadow:0 0 3px #22c55e80;{% elif user.last_seen %}background:#d1d5db;{% else %}background:#f3f4f6;border:1px solid #d1d5db;{% endif %}"></span>
+          <small style="font-size:.62rem;{% if user.is_online %}color:#16a34a;{% else %}color:var(--gray-400);{% endif %}">{{ '在线' if user.is_online else ('离线' if user.last_seen else '从未登录') }}</small>
+          {% if user.last_login %}<small class="text-muted ms-auto" style="font-size:.6rem;">登录: {{ user.last_login.strftime('%m-%d %H:%M') }}</small>{% endif %}
+        </div>
+        <div class="mb-1 d-flex align-items-center gap-1 flex-wrap">
           {% for g in user.groups %}
           <span class="badge" style="background:#dbeafe;color:#1e40af;font-size:.58rem;margin:1px;">{{ g.name }}</span>
           {% endfor %}
           {% if not user.groups %}<small class="text-muted" style="font-size:.66rem;">未分配群组</small>{% endif %}
-          <small class="text-muted ms-auto" style="font-size:.62rem;">{{ user.created_at.strftime('%m-%d %Y') if user.created_at else '' }}</small>
         </div>
         <div class="d-flex justify-content-end align-items-center gap-1 flex-nowrap" style="overflow-x:auto;">
           {% if user.status == 'pending' %}

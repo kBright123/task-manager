@@ -389,6 +389,22 @@ def _csrf_protect():
         expected = session.get('_csrf_token', '')
         if not expected or not supplied or not hmac.compare_digest(supplied, expected):
             abort(400, description='CSRF 校验失败，请刷新页面后重试')
+
+@app.before_request
+def _touch_last_seen():
+    """每次请求更新 current_user.last_seen(限流 60 秒, 跳过静态/未登录)."""
+    if request.path.startswith('/static/') or not current_user.is_authenticated:
+        return
+    now = cn_now()
+    prev = getattr(current_user, 'last_seen', None)
+    if prev and (now - prev).total_seconds() < 60:
+        return
+    current_user.last_seen = now
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
 @app.errorhandler(400)
 @app.errorhandler(403)
 @app.errorhandler(404)
@@ -742,6 +758,13 @@ def _run_sqlite_migrations():
                 "ALTER TABLE kb_document ADD COLUMN visibility TEXT DEFAULT 'private'",
             ]:
                 c.execute(sql)
+        # 用户在线状态/登录时间
+        c.execute('PRAGMA table_info(user)')
+        cols = [r[1] for r in c.fetchall()]
+        if 'last_login' not in cols:
+            c.execute('ALTER TABLE user ADD COLUMN last_login DATETIME')
+        if 'last_seen' not in cols:
+            c.execute('ALTER TABLE user ADD COLUMN last_seen DATETIME')
         conn.commit()
         conn.close()
     except Exception as e:

@@ -177,7 +177,9 @@
   <!-- 中栏: 时间轴 -->
   <div class="tasks-panel">
     <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
-      <span style="font-size:.85rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-calendar-range" style="color:var(--primary);"></i> 时间轴</span>
+      <span style="font-size:.85rem;font-weight:600;color:var(--gray-700);"><i class="bi bi-calendar-range" style="color:var(--primary);"></i> 时间轴
+        <span data-bs-toggle="tooltip" data-bs-placement="right" title="点击右上角头像 → 个人中心，可生成日历订阅链接，将待办同步到手机日历（支持 iPhone / 小米 / 华为等），新建或修改任务后自动更新。" style="cursor:help;color:var(--gray-400);font-size:.72rem;vertical-align:super;margin-left:2px;"><i class="bi bi-question-circle-fill"></i></span>
+      </span>
       <div class="d-flex align-items-center gap-2">
         <label class="d-flex align-items-center gap-1 mb-0" style="font-size:.68rem;color:var(--gray-500);cursor:pointer;">
           <input type="checkbox" id="tlShowCompleted" checked onchange="loadTaskFeed()" style="margin:0;width:12px;height:12px;">
@@ -506,6 +508,7 @@
     <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
       <span style="font-size:.84rem;font-weight:600;"><i class="bi bi-info-circle" style="color:var(--primary);"></i> 待办详情</span>
       <div class="d-flex align-items-center gap-2">
+        <span id="taskDetailHeadBtns"></span>
         <button type="button" class="btn btn-sm btn-light task-detail-close" style="display:none;padding:2px 10px;font-size:.75rem;" onclick="closeTaskDetail()"><i class="bi bi-x-lg"></i> 收起</button>
       </div>
     </div>
@@ -860,6 +863,7 @@ function openTaskDetail(){
 function closeTaskDetail(){
   var p=document.getElementById('taskDetailPanel');if(p)p.classList.remove('open');
   var ov=document.getElementById('taskDetailOverlay');if(ov)ov.classList.add('d-none');
+  var hb=document.getElementById('taskDetailHeadBtns');if(hb)hb.innerHTML='';
 }
 function loadTaskDetail(taskId) {
   window.curTaskId=taskId;
@@ -886,23 +890,23 @@ function renderTaskDetail(t, body){
   var card = document.createElement('div');
   var head = document.createElement('div');
   head.style.cssText = 'border-bottom:1px solid var(--gray-100);padding-bottom:12px;margin-bottom:12px;';
-  var headBtns = '';
-  if (t.can_edit) {
-    headBtns = '<button type="button" class="btn btn-xs-custom btn-outline-secondary" style="font-size:.72rem;flex-shrink:0;" onclick="openTaskEditModal(' + t.id + ')" title="编辑待办"><i class="bi bi-pencil"></i> 编辑</button>';
-  }
-  if (t.can_delete) {
-    headBtns += '<button type="button" class="btn btn-xs-custom btn-outline-danger" style="font-size:.72rem;flex-shrink:0;" onclick="deleteTask(' + t.id + ')" title="删除待办"><i class="bi bi-trash"></i> 删除</button>';
-  }
-  head.innerHTML = '<div style="display:flex;align-items:flex-start;gap:8px;">' +
-    '<div style="flex:1;min-width:0;">' +
+  head.innerHTML =
       '<div style="font-size:.9rem;font-weight:700;color:var(--gray-900);word-break:break-word;">' + esc(t.title) +
         '<span class="badge" style="background:var(--primary);font-size:.62rem;vertical-align:middle;margin-left:6px;">' + esc(t.category) + '</span>' +
         fmtStatus(t.status) +
-      '</div>' +
-    '</div>' +
-    (headBtns ? '<div style="display:flex;gap:6px;flex-shrink:0;">' + headBtns + '</div>' : '') +
-    '</div>';
+      '</div>';
   card.appendChild(head);
+  var hdBtns = document.getElementById('taskDetailHeadBtns');
+  if (hdBtns) {
+    var btnHtml = '';
+    if (t.can_edit) {
+      btnHtml = '<button type="button" class="btn btn-xs-custom btn-outline-secondary" style="font-size:.72rem;flex-shrink:0;" onclick="openTaskEditModal(' + t.id + ')" title="编辑待办"><i class="bi bi-pencil"></i> 编辑</button>';
+    }
+    if (t.can_delete) {
+      btnHtml += '<button type="button" class="btn btn-xs-custom btn-outline-danger" style="font-size:.72rem;flex-shrink:0;" onclick="deleteTask(' + t.id + ')" title="删除待办"><i class="bi bi-trash"></i> 删除</button>';
+    }
+    hdBtns.innerHTML = btnHtml;
+  }
   if (t.description && t.description !== t.title) {
     var d = document.createElement('div');
     d.style.cssText = 'font-size:.82rem;color:var(--gray-700);background:var(--gray-50);border-radius:8px;padding:10px 12px;margin-bottom:12px;white-space:pre-wrap;word-break:break-word;';

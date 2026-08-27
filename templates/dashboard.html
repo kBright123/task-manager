@@ -253,7 +253,9 @@
   <div class="col-md-6 dash-col">
     <div class="card mb-3">
       <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
-        <span><i class="bi bi-calendar-range" style="color:var(--primary);"></i> 时间轴</span>
+        <span><i class="bi bi-calendar-range" style="color:var(--primary);"></i> 时间轴
+          <span data-bs-toggle="tooltip" data-bs-placement="right" title="点击右上角头像 → 个人中心，可生成日历订阅链接，将待办同步到手机日历（支持 iPhone / 小米 / 华为等），新建或修改任务后自动更新。" style="cursor:help;color:var(--gray-400);font-size:.72rem;vertical-align:super;margin-left:2px;"><i class="bi bi-question-circle-fill"></i></span>
+        </span>
         <div class="d-flex align-items-center gap-2">
           <span id="tlFilterChip" class="d-none" style="font-size:.68rem;background:var(--primary);color:#fff;border-radius:10px;padding:1px 8px;cursor:pointer;" onclick="tlClearFilter()" title="清除日期筛选"><span id="tlFilterText"></span> ×</span>
           <label class="d-flex align-items-center gap-1 mb-0" style="font-size:.68rem;color:var(--gray-500);cursor:pointer;">

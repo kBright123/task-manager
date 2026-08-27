@@ -150,6 +150,8 @@ def login():
             user.locked_until = None
             user.unlock_code = ''
             user.unlock_code_expires_at = None
+            user.last_login = cn_now()
+            user.last_seen = cn_now()
             login_user(user)
             session.permanent = True  # 会话 4 小时后自动过期退出登录
             log_operation('login', username,

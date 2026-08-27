@@ -32,6 +32,15 @@ class User(UserMixin, db.Model):
     api_token_created_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=cn_now)
     registration_ip = db.Column(db.String(64), default='', index=True)
+    last_login = db.Column(db.DateTime)
+    last_seen = db.Column(db.DateTime)
+
+    @property
+    def is_online(self):
+        ls = self.last_seen
+        if not ls:
+            return False
+        return (cn_now() - ls).total_seconds() < 300  # 5分钟内视为在线
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)

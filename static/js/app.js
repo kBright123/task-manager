@@ -594,6 +594,11 @@
         return d.innerHTML;
       }
 
+      function _qtResetAndParse() {
+        // 先回到输入步骤(若停留确认页), 再自动解析直接进入确认发布页
+        if (typeof quickTaskBack === 'function') { try { quickTaskBack(); } catch (e) {} }
+        if (typeof quickTaskParse === 'function') { try { quickTaskParse(); } catch (e) {} }
+      }
       function _openQuickTask(text) {
         var ta = document.getElementById('adminTaskText');
         if (ta) {
@@ -608,6 +613,7 @@
           var qt = document.getElementById('qtText');
           if (qt) { qt.value = text; qt.dispatchEvent(new Event('input')); }
           bootstrap.Modal.getOrCreateInstance(qm).show();
+          _qtResetAndParse();
           return;
         }
         if (typeof showQuickTaskModal === 'function') {
@@ -615,7 +621,8 @@
           setTimeout(function () {
             var qt2 = document.getElementById('qtText');
             if (qt2) { qt2.value = text; qt2.dispatchEvent(new Event('input')); }
-          }, 120);
+            _qtResetAndParse();
+          }, 150);
         }
       }
 

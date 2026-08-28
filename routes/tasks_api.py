@@ -212,6 +212,118 @@ def _task_display_and_section(t, status, now, ref=None):
     return display, section, section_label
 
 
+def _section_of_diff(diff_days):
+    """按与今天的天数差映射到时间轴分组(section/section_label)。"""
+    if diff_days < -31:
+        return 'past', '更早'
+    if diff_days < -7:
+        return 'past_month', '过去一个月'
+    if diff_days < 0:
+        return 'past_week', '过去一周'
+    if diff_days == 0:
+        return 'today', '今天'
+    if diff_days == 1:
+        return 'tomorrow', '明天'
+    if diff_days <= 7:
+        return 'future_week', '未来一周'
+    if diff_days <= 31:
+        return 'future_month', '未来一个月'
+    return 'later', '更远'
+
+
+def _count_remaining_workdays(today_date, end_date):
+    """统计从 today_date 的次日到 end_date(含)之间的上班日数量。
+
+    用于跨天任务的「剩余N天」标注: 只算上班日, 去除休息日(周末 & 法定假日&
+    不另计调休补班)。库缺失或某一年度未覆盖时退化为按周一~周五计算。
+    """
+    if not end_date or end_date <= today_date:
+        return 0
+    try:
+        from chinese_calendar import is_workday
+    except ImportError:
+        is_workday = None
+    lib_ok = True
+    if is_workday is not None:
+        try:
+            is_workday(today_date)
+        except NotImplementedError:
+            lib_ok = False
+        except Exception:
+            pass
+    count = 0
+    d = today_date + timedelta(days=1)
+    while d <= end_date:
+        if lib_ok and is_workday is not None:
+            try:
+                if is_workday(d):
+                    count += 1
+            except Exception:
+                count += (d.weekday() < 5)
+        else:
+            count += (d.weekday() < 5)
+        d += timedelta(days=1)
+    return count
+
+
+def _day_span_entries(t, status, now, ref=None):
+    """时间轴条目展开: 返回该任务应展示的分组条目列表。
+
+    未完成任务按开始日期划分组(从开始起就加入时间轴); 跨天任务在
+    起始日到截止日所覆盖的每个分组各出现一次, 并携带剩余天数(days_left)
+    以在标题后标注「剩余N天」。已完成/已废弃任务保持原有按 ref 归档逻辑。
+
+    每项: {'display','section','section_label','days_left'}
+    """
+    today_date = now.date()
+    done = status in ('completed', 'approved')
+    abandoned = status == 'abandoned'
+    if done or abandoned:
+        ref_date = (ref or t.end_time or now).date()
+        display = 'abandoned' if abandoned else 'completed'
+        diff_days = (ref_date - today_date).days
+        section, section_label = _section_of_diff(diff_days)
+        return [{'display': display, 'section': section,
+                 'section_label': section_label, 'days_left': None}]
+    start = (t.start_time or now).date()
+    end = (t.end_time or start).date()
+    if start > end:
+        start, end = end, start
+    overall_due = t.end_time and t.end_time < now
+    days_left = _count_remaining_workdays(today_date, end)
+    is_cross = (start != end)
+    entries = []
+    # 每天映射分组; 按分组去重, 保证每个分组只出现一次
+    seen = set()
+    d = start
+    while d <= end:
+        diff_days = (d - today_date).days
+        section, section_label = _section_of_diff(diff_days)
+        if section in seen:
+            d += timedelta(days=1)
+            continue
+        seen.add(section)
+        if diff_days == 0:
+            section_label = '今天 · ' + d.strftime('%m月%d日')
+        if overall_due:
+            display = 'overdue'
+        elif diff_days == 0:
+            display = 'today'
+        elif diff_days > 0:
+            display = 'future'
+        else:
+            display = 'past'
+        entries.append({'display': display, 'section': section,
+                        'section_label': section_label,
+                        'days_left': days_left if is_cross else None})
+        d += timedelta(days=1)
+    if not entries:
+        section, section_label = _section_of_diff((start - today_date).days)
+        return [{'display': 'today', 'section': section,
+                 'section_label': section_label, 'days_left': days_left if is_cross else None}]
+    return entries
+
+
 @app.route('/api/tasks/timeline', methods=['GET'])
 @login_required
 def api_tasks_timeline():
@@ -296,13 +408,19 @@ def api_tasks_timeline():
         a = assigns.get(t.id)
         status = a.status if a else 'pending'
         now = cn_now()
-        # 归类基准: 已完成按完成时间,未完成按截止时间(与日历口径一致)
+        # 归类基准: 已完成按完成时间归档; 未完成按开始时间(自开始起加入时间轴)
         done = status in ('completed', 'approved')
         ref = (a.completed_at or t.end_time) if (done and a) else t.end_time
-        if start and end and ref and not (start <= ref <= end):
-            continue
-        display, section, section_label = _task_display_and_section(
-            t, status, now, ref=ref)
+        if start and end:
+            if done:
+                if not (ref and start <= ref <= end):
+                    continue
+            else:
+                # 未完成: 任务时间区间与筛选区间有交叠即为命中(跨天任务可见)
+                if not (t.end_time and t.start_time and
+                        t.start_time <= end and t.end_time >= start):
+                    continue
+        spans = _day_span_entries(t, status, now, ref=ref)
         # 分类计数 — 与「全部」同口径的全集统计(不受category过滤影响, 归一化脏数据)
         s2 = status
         if s2 != 'abandoned' and not (s2 in ('completed', 'approved') and not show_completed):
@@ -310,31 +428,41 @@ def api_tasks_timeline():
             all_categories[k] = all_categories.get(k, 0) + 1
         if category and cat_key(t) != category:
             continue
-        # 默认不展示已完成
-        if display == 'completed' and not show_completed:
-            continue
-        out.append({
-            'id': t.id,
-            'title': t.title,
-            'description': (t.description or '')[:200],
-            'full_description': t.description or '',
-            'category': cat_key(t),
-            'start_time': t.start_time.strftime('%Y-%m-%d %H:%M'),
-            'end_time': t.end_time.strftime('%Y-%m-%d %H:%M'),
-            'progress': a.progress if a else 0,
-            'status': status,
-            'display': display,
-            'section': section,
-            'section_label': section_label,
-            'ref_date': ref.strftime('%Y-%m-%d') if ref else '',
-            'note': (a.note or '') if a else '',
-            'attachment': (a.attachment or '') if a else '',
-            'assignment_id': a.id if a else None,
-            'creator_id': t.creator_id,
-            'is_owner': t.creator_id == current_user.id or current_user.role == 'admin',
-            'assignee_ids': assignee_map.get(t.id, []),
-            'group_ids': [g.id for g in t.groups],
-        })
+        base_days_left = None
+        if not done and t.start_time and t.end_time and \
+                t.end_time.date() != t.start_time.date():
+            base_days_left = _count_remaining_workdays(
+                now.date(), t.end_time.date())
+        for sp in spans:
+            display = sp['display']
+            # 默认不展示已完成
+            if display == 'completed' and not show_completed:
+                continue
+            dl = sp['days_left'] if sp['days_left'] is not None else base_days_left
+            out.append({
+                'id': t.id,
+                'title': t.title,
+                'days_left': dl,
+                'cross_day': bool(sp['days_left']),
+                'description': (t.description or '')[:200],
+                'full_description': t.description or '',
+                'category': cat_key(t),
+                'start_time': t.start_time.strftime('%Y-%m-%d %H:%M'),
+                'end_time': t.end_time.strftime('%Y-%m-%d %H:%M'),
+                'progress': a.progress if a else 0,
+                'status': status,
+                'display': display,
+                'section': sp['section'],
+                'section_label': sp['section_label'],
+                'ref_date': ref.strftime('%Y-%m-%d') if ref else '',
+                'note': (a.note or '') if a else '',
+                'attachment': (a.attachment or '') if a else '',
+                'assignment_id': a.id if a else None,
+                'creator_id': t.creator_id,
+                'is_owner': t.creator_id == current_user.id or current_user.role == 'admin',
+                'assignee_ids': assignee_map.get(t.id, []),
+                'group_ids': [g.id for g in t.groups],
+            })
     # 安全上限: 防止极端数据量下响应过大(has_more 提示被截断)
     TL_MAX = 2000
     has_more = len(out) > TL_MAX
@@ -369,13 +497,18 @@ def api_tasks_calendar():
         a_statuses += ['completed', 'approved']
     # SQL 层先按"归档时间落在当月"过滤分配行(未完成按任务 end_time,
     # 已完成按 completed_at), 只取命中行, 不再把该用户全部历史分配载入内存;
-    # 状态表随后仅对最终命中的少量任务批量补查, 保证与时间轴同构口径
+    # 状态表随后仅对最终命中的少量任务批量补查, 保证与时间轴同构口径。
+    # 额外纳入"与当月时间区间有交叠"的跨天任务(跨月尚未结束/跨月起始),
+    # 使横线能延伸跨过月份边界而不被当月过滤条件遗漏。
     from sqlalchemy import or_, and_
+    month_lo = start
+    month_hi = end
     assigned_rows = TaskAssignment.query.join(
         Task, Task.id == TaskAssignment.task_id).filter(
         TaskAssignment.user_id == current_user.id,
         TaskAssignment.status.in_(a_statuses),
         or_(and_(Task.end_time >= start, Task.end_time <= end),
+            and_(Task.start_time <= month_hi, Task.end_time >= month_lo),
             and_(TaskAssignment.completed_at.isnot(None),
                  TaskAssignment.completed_at >= start,
                  TaskAssignment.completed_at <= end))).all()
@@ -386,6 +519,7 @@ def api_tasks_calendar():
             Task.id.in_(visible_ids)),
         Task.deleted_at.is_(None),
         or_(and_(Task.end_time >= start, Task.end_time <= end),
+            and_(Task.start_time <= month_hi, Task.end_time >= month_lo),
             Task.id.in_(done_in_range))
     ).order_by(Task.end_time).all()
     status_by_task = {}
@@ -399,11 +533,44 @@ def api_tasks_calendar():
                            if a.completed_at and start <= a.completed_at <= end}
     density = {}
     items = {}
+    month_start_date = start.date()
+    spans = {}
     for t in tasks:
         st = status_by_task.get(t.id)
         done = st in ('completed', 'approved')
         if done and not show_completed:
             continue
+        # 跨天任务: 记录横线跨度(按开始日期分组)。独立于归档(ref)过滤,
+        # 覆盖当月任意一天的跨天任务都要落线(含跨月尚未结束/跨月起始的任务)
+        if not done and t.start_time and t.end_time \
+                and t.end_time.date() != t.start_time.date():
+            s_date = t.start_time.date()
+            e_date = t.end_time.date()
+            if s_date <= end.date() and e_date >= month_start_date:
+                eff_s = max(s_date, month_start_date)
+                eff_e = min(e_date, end.date())
+                s_ds = s_date.strftime('%Y-%m-%d')
+                sd = spans.setdefault(s_ds, {'days': 0, 'count': 0,
+                                             'titles': [], 'category': ''})
+                sd['count'] += 1
+                if (eff_e - eff_s).days + 1 > sd['days']:
+                    sd['days'] = (eff_e - eff_s).days + 1
+                if len(sd['titles']) < 3:
+                    sd['titles'].append(t.title)
+                if not sd['category']:
+                    sd['category'] = t.category
+                # 跨天任务加入每个覆盖日的明细(供手机端单日面板展示)
+                d_i = eff_s
+                while d_i <= eff_e:
+                    kds = d_i.strftime('%Y-%m-%d')
+                    il = items.setdefault(kds, [])
+                    if len(il) < 5:
+                        il.append({'title': t.title, 'time':
+                                   '跨天:' + s_date.strftime('%m-%d') + '~' +
+                                   e_date.strftime('%m-%d'),
+                                   'category': t.category, 'done': done,
+                                   'cross': True})
+                    d_i += timedelta(days=1)
         ref = done_at_by_task[t.id] if done and done_at_by_task.get(t.id) \
             else t.end_time
         if not (start <= ref <= end):
@@ -486,10 +653,17 @@ def api_tasks_calendar():
                     applied = True
             if applied:
                 holiday_mode = 'api'
+    spans_list = []
+    for s_ds in sorted(spans.keys()):
+        s = spans[s_ds]
+        spans_list.append({
+            'start': s_ds, 'days': s['days'], 'count': s['count'],
+            'title': s['titles'][0], 'more': s['titles'][1:] if s['count'] > 1 else [],
+            'category': s['category']})
     return jsonify({'ok': True, 'density': density, 'tags': tags,
                     'holidays': holidays, 'items': items,
                     'holiday_mode': holiday_mode,
-                    'year': year, 'month': month})
+                    'year': year, 'month': month, 'spans': spans_list})
 
 
 _NOT_READY={'ok':False,'error':'智能时间解析正在初始化（首次需加载语言包），请稍候几秒再试','not_ready':True}
@@ -527,20 +701,24 @@ def api_quick_task_preview():
     if end <= start:
         end = start + timedelta(hours=1)
 
-    # 多场次(第X期): 每场一个待办
+    # 多场次(第X期): 每场一个待办(空场 start=None → 空时间串, 需确认页补填)
     sessions = []
     for s in parsed.get('sessions') or []:
+        if s.get('start') is None:
+            sessions.append({'label': s['label'], 'start_time': '', 'end_time': ''})
+            continue
         ss, ee = s['start'], s.get('end') or s['start']
         if ee <= ss:
             ee = ss + timedelta(hours=1)
         sessions.append({'label': s['label'],
                          'start_time': ss.strftime('%Y-%m-%dT%H:%M'),
                          'end_time': ee.strftime('%Y-%m-%dT%H:%M')})
-    if sessions:
+    timed_sessions = [x for x in sessions if x['start_time']]
+    if timed_sessions:
         start = min(datetime.strptime(x['start_time'], '%Y-%m-%dT%H:%M')
-                    for x in sessions)
+                    for x in timed_sessions)
         end = max(datetime.strptime(x['end_time'], '%Y-%m-%dT%H:%M')
-                  for x in sessions)
+                  for x in timed_sessions)
 
     assignee_ids = []
     assignee_names = []
@@ -928,6 +1106,7 @@ def api_tasks_batch_delete():
         return jsonify({'ok': False, 'error': '只能删除自己创建的待办'}), 403
     import re
     pat = re.compile(r'^(.*?)\s*\(第(\d+)期/共(\d+)期\)$')
+    sess_pat = re.compile(r'^(.*?)（[^（）]+）\s*$')
     extra_ids = set()
     if cascade:
         for t in mine:
@@ -943,6 +1122,22 @@ def api_tasks_batch_delete():
                 for s in all_of_series:
                     sm = pat.match(s.title)
                     if sm and int(sm.group(2)) > cur_num:
+                        extra_ids.add(s.id)
+                continue
+            sm = sess_pat.match(t.title)
+            if sm:
+                base_title = sm.group(1)
+                t_start = t.start_time
+                siblings = Task.query.filter(
+                    Task.creator_id == t.creator_id,
+                    Task.deleted_at.is_(None),
+                    Task.title.like(base_title + '（%')
+                ).all()
+                for s in siblings:
+                    if s.id == t.id or not s.start_time or not t_start:
+                        continue
+                    ssm = sess_pat.match(s.title)
+                    if ssm and ssm.group(1) == base_title and s.start_time > t_start:
                         extra_ids.add(s.id)
     if extra_ids:
         extra_tasks = Task.query.filter(Task.id.in_(extra_ids)).all()

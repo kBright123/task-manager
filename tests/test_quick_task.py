@@ -145,3 +145,82 @@ def test_create_sessions_missing_assignee_rejected(client):
                       'end_time': '2026-09-03T18:00'}]}, headers=CSRF).get_json()
     assert r and not r['ok'], r
     assert '负责人' in r['error'], r
+
+
+def test_create_single_session_plain_title(client):
+    """单个场次(前端显示为 '-')应按普通单任务创建, 标题不追加期数后缀."""
+    title = f'单场次回归{secrets.token_hex(5)}'
+    try:
+        d = client.post('/api/quick-task', json={
+            'title': title, 'category': '培训', 'description': 'x',
+            'start_time': '2026-09-03T14:00', 'end_time': '2026-09-03T18:00',
+            'assignee_ids': [1], 'group_ids': [], 'is_all': False,
+            'recurrence_interval_days': 0, 'recurrence_count': 0,
+            'sessions': [{'label': '-', 'start_time': '2026-09-03T14:00',
+                          'end_time': '2026-09-03T18:00'}]}, headers=CSRF).get_json()
+        assert d and d['ok'], d
+        assert d['created'] == [title]  # 无（第X期）后缀
+        from app import app, db
+        from core.models import Task
+        with app.app_context():
+            t = db.session.get(Task, d['task_id'])
+            assert t.title == title
+            assert t.start_time.strftime('%Y-%m-%dT%H:%M') == '2026-09-03T14:00'
+            assert t.end_time.strftime('%Y-%m-%dT%H:%M') == '2026-09-03T18:00'
+            assert Task.query.filter(Task.title.like(title + '%')).count() == 1
+    finally:
+        _cleanup(title)
+
+
+def test_preview_single_stage_no_sessions(client):
+    """单段「第X期: 时间」不是多场次, 预览 sessions 为空(前端回退为 '-')."""
+    r = client.post('/api/quick-task/preview', json={
+        'text': '第一期：2026年9月3日14:00-18:00'}, headers=CSRF).get_json()
+    if r.get('not_ready'):
+        return
+    assert r['ok'], r
+    assert r['sessions'] == []
+    assert r['start_time'] == '2026-09-03T14:00'
+    assert r['end_time'] == '2026-09-03T18:00'
+
+
+def test_cascade_delete_multi_session_subsequent(client):
+    """删除分阶段待办({标题}（阶段)）支持级联: 只删除开始时间晚于当前场的后续场次."""
+    title = f'级联删除回归{secrets.token_hex(5)}'
+    sessions = [
+        {'label': '第一阶段', 'start_time': '2026-09-07T15:00',
+         'end_time': '2026-09-07T16:00'},
+        {'label': '第二阶段', 'start_time': '2026-09-18T15:00',
+         'end_time': '2026-09-18T16:00'},
+        {'label': '第三阶段', 'start_time': '2026-09-30T08:30',
+         'end_time': '2026-09-30T17:30'},
+    ]
+    try:
+        d = client.post('/api/quick-task', json={
+            'title': title, 'category': '培训', 'description': 'x',
+            'start_time': '2026-09-07T15:00', 'end_time': '2026-09-30T17:30',
+            'assignee_ids': [1], 'group_ids': [], 'is_all': False,
+            'recurrence_interval_days': 0, 'recurrence_count': 0,
+            'sessions': sessions}, headers=CSRF).get_json()
+        assert d and d['ok'], d
+        from app import app, db
+        from core.models import Task
+        with app.app_context():
+            tasks = Task.query.filter(
+                Task.title.like(title + '%')).order_by(Task.start_time).all()
+            assert len(tasks) == 3
+            first, second, third = tasks
+        # 删除「第二阶段」并级联 → 删除目标+后续(第三阶段), 保留更早的第一阶段
+        r = client.post('/api/tasks/batch_delete', json={
+            'task_ids': [second.id], 'cascade': True},
+            headers=CSRF).get_json()
+        assert r and r['ok'], r
+        with app.app_context():
+            f1 = db.session.get(Task, first.id)
+            f2 = db.session.get(Task, second.id)
+            f3 = db.session.get(Task, third.id)
+            assert f1.deleted_at is None, '更早的第一阶段不应被级联删除'
+            assert f2.deleted_at is not None, '目标(第二阶段)应被删除'
+            assert f3.deleted_at is not None, '后续的第三阶段应被级联删除'
+    finally:
+        _cleanup(title)

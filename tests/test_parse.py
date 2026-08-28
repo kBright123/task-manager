@@ -258,6 +258,74 @@ def test_sessions_suppress_recurrence():
     assert r['recurrence'] is None
 
 
+def test_extract_sessions_stage_unit():
+    """「第X阶段/段」作为多场次单元: 正确拆分并按序排列."""
+    text = ('第一阶段：9月7日下午3:00-4:00\n'
+            '第二阶段：9月18日下午3:00-4:00')
+    out = np._extract_sessions(text)
+    assert len(out) == 2
+    assert [s['label'] for s in out] == ['第一阶段', '第二阶段']
+    assert [s['index'] for s in out] == [1, 2]
+    # 下午3:00 → 15:00
+    assert _fmt(out[0]['start']) == '2026-09-07 15:00'
+    assert _fmt(out[1]['start']) == '2026-09-18 15:00'
+
+
+def test_extract_sessions_ampm_conversion():
+    """上午/下午时段词 → 24 小时制小时."""
+    text = ('第一期：9月7日上午9:00\n'
+            '第二期：9月8日晚上8:00')
+    out = np._extract_sessions(text)
+    assert [s['label'] for s in out] == ['第一期', '第二期']
+    assert out[0]['start'].hour == 9
+    assert out[1]['start'].hour == 20
+
+
+def test_extract_sessions_multi_date_in_stage():
+    """同一阶段内多个日期(「、」连接, 文档称任选其一)各拆一场."""
+    text = ('第一阶段：9月7日下午3:00。\n'
+            '第二阶段：9月18日下午3:00、9月19日上午9:00，任选一天。')
+    out = np._extract_sessions(text)
+    assert len(out) == 3
+    assert [s['label'] for s in out] == ['第一阶段', '第二阶段', '第二阶段']
+    assert _fmt(out[0]['start']) == '2026-09-07 15:00'
+    assert _fmt(out[1]['start']) == '2026-09-18 15:00'
+    assert _fmt(out[2]['start']) == '2026-09-19 09:00'
+    # 主时间取第一场
+    r = parse_task_from_text(text)
+    sess = r.get('sessions') or []
+    assert len(sess) == 3, sess
+    assert r['start_time'] == sess[0]['start']
+    assert r['end_time'] == sess[0]['end']
+
+
+def test_extract_sessions_deadline_before():
+    """「X月X日前」截止型 → 当日 08:30-17:30."""
+    text = ('第三阶段：9月30日前集中补学。\n'
+            '第四阶段：9月20日前完成材料。')
+    out = np._extract_sessions(text)
+    assert len(out) == 2
+    assert out[0]['label'] == '第三阶段'
+    assert out[1]['label'] == '第四阶段'
+    assert _fmt(out[0]['start']) == '2026-09-30 08:30'
+    assert _fmt(out[0]['end']) == '2026-09-30 17:30'
+    assert _fmt(out[1]['start']) == '2026-09-20 08:30'
+
+
+def test_extract_sessions_empty_stage():
+    """阶段无时间信息 → 空场 (start/end=None)，需确认页手动补填."""
+    text = ('第三阶段：9月30日前集中补学。\n'
+            '第四阶段：围绕主题交流研讨。')
+    out = np._extract_sessions(text)
+    assert len(out) == 2
+    assert out[0]['start'] is not None and out[1]['start'] is None
+    assert out[1]['label'] == '第四阶段'
+    r = parse_task_from_text(text)
+    sess = r.get('sessions') or []
+    assert len(sess) == 2
+    assert sess[1]['start'] is None
+
+
 def test_timespan_future_weekday():
     """过去星期顺延 + 时段词保留 + 全天合并(回归: 首页解析日期不对)."""
     from core.timeutil import cn_now

@@ -136,7 +136,14 @@ def _parse_birth(data):
 
 
 def _save_record(user_id, kind, title, inp, result):
-    rec = AstroChart(user_id=user_id, kind=kind, title=title[:200],
+    title = (title or '未命名记录')[:200]
+    # 同一用户/类型下, 相同名称(标题)只保留最后一次排盘
+    dupes = (AstroChart.query
+             .filter_by(user_id=user_id, kind=kind, title=title)
+             .all())
+    for d in dupes:
+        db.session.delete(d)
+    rec = AstroChart(user_id=user_id, kind=kind, title=title,
                      input_json=json.dumps(inp, ensure_ascii=False),
                      result_json=json.dumps(result, ensure_ascii=False))
     db.session.add(rec)
@@ -206,8 +213,7 @@ def api_chart():
     saved = False
     if getattr(current_user, 'is_authenticated', False) and data.get('save'):
         try:
-            rec = _save_record(current_user.id, 'natal',
-                               '%s · %s' % (name, western['birth_iso']),
+            rec = _save_record(current_user.id, 'natal', name,
                                {'birth_date': data.get('birth_date'),
                                 'birth_time': data.get('birth_time') or '12:00',
                                 'lat': lat, 'lon': lon},
@@ -426,22 +432,55 @@ def api_records_get(rec_id):
     return jsonify({'ok': True, 'item': _record_dto(rec, full=True)})
 
 
+def _fmt_text(value, indent=0, out=None):
+    """把嵌套 dict/list 渲染成可读的缩进文本行。"""
+    if out is None:
+        out = []
+    pad = '  ' * indent
+    if isinstance(value, dict):
+        for k, v in value.items():
+            if isinstance(v, (dict, list)):
+                out.append('%s%s:' % (pad, k))
+                _fmt_text(v, indent + 1, out)
+            else:
+                out.append('%s%s: %s' % (pad, k, v))
+    elif isinstance(value, list):
+        for item in value:
+            if isinstance(item, (dict, list)):
+                _fmt_text(item, indent, out)
+            else:
+                out.append('%s- %s' % (pad, item))
+    else:
+        out.append('%s%s' % (pad, value))
+    return out
+
+
 @astro_bp.route('/api/records/export')
 @login_required
 def api_records_export():
-    """全量导出为 JSON(存档即权力: 数据随时带走, 无任何限制)。"""
+    """全量导出为纯文本(存档即权力: 数据随时带走, 无任何限制)。"""
     rows = (AstroChart.query.filter_by(user_id=current_user.id)
             .order_by(AstroChart.id.asc()).all())
-    payload = {
-        'site': '知行合一 · 星运', 'exported_at': cn_now().strftime('%Y-%m-%d %H:%M'),
-        'note': '全部历史档案, 无数量限制, 可重新导入任何兼容系统',
-        'count': len(rows),
-        'records': [_record_dto(r, full=True) for r in rows],
-    }
-    buf = io.BytesIO(json.dumps(payload, ensure_ascii=False,
-                                indent=2).encode('utf-8'))
-    filename = 'astro_archive_%s.json' % cn_now().strftime('%Y%m%d_%H%M')
-    return Response(buf.getvalue(), mimetype='application/json',
+    lines = [
+        '知行合一 · 星运 · 全量档案导出(文本)',
+        '导出时间: %s' % cn_now().strftime('%Y-%m-%d %H:%M'),
+        '共 %d 条档案 (数量不限, 可随时重排复现)' % len(rows),
+        '',
+    ]
+    for r in rows:
+        dto = _record_dto(r, full=True)
+        lines.append('=' * 48)
+        lines.append('ID: %s    类型: %s' % (dto.get('id'), dto.get('kind')))
+        lines.append('标题: %s' % dto.get('title'))
+        lines.append('时间: %s' % dto.get('created_at'))
+        lines.append('-- 输入参数 --')
+        lines += _fmt_text(dto.get('input') or {})
+        lines.append('-- 排盘结果 --')
+        lines += _fmt_text(dto.get('result') or {})
+        lines.append('')
+    buf = io.BytesIO('\n'.join(lines).encode('utf-8'))
+    filename = 'astro_archive_%s.txt' % cn_now().strftime('%Y%m%d_%H%M')
+    return Response(buf.getvalue(), mimetype='text/plain',
                     headers={'Content-Disposition':
                              'attachment; filename="%s"' % filename})
 

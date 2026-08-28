@@ -199,7 +199,7 @@ def test_api_page_public(client):
     r = client.get('/astro/')
     html = r.get_data(as_text=True)
     assert r.status_code == 200
-    for kw in ('本命排盘', '每日运势', '命理知识库', '我的存档'):
+    for kw in ('首页', '星盘库', '塔罗馆', '命理知识库', '每日运势', '我的'):
         assert kw in html
     for banned in ('解锁', '会员专享', '剩余次数'):
         assert banned not in html

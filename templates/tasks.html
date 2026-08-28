@@ -111,6 +111,7 @@
     .tl-card .tl-card-time{font-size:.68rem;color:var(--gray-400);margin-bottom:2px;}
     .tl-card .tl-card-title{font-weight:600;color:var(--gray-800);word-break:break-word;}
     .tl-card .tl-card-cat{font-size:.58rem;padding:1px 5px;border-radius:3px;color:#fff;margin-left:4px;vertical-align:middle;}
+    .tl-card .tl-days-left{font-size:.6rem;color:var(--primary);font-weight:500;margin-left:4px;vertical-align:middle;white-space:nowrap;}
     .tl-key-tag{display:inline-block;font-size:.6rem;padding:0 4px;border-radius:3px;background:var(--gray-100);color:var(--gray-600);margin-left:4px;vertical-align:middle;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.5;}
     .tl-key-link{color:var(--primary);text-decoration:none;cursor:pointer;background:var(--primary-light);}
     [data-theme="dark"] .tl-key-tag{background:rgba(255,255,255,.08);color:var(--gray-400);}
@@ -606,7 +607,7 @@ function renderTimeline(el,jump){
       html+='<div style="flex:1;min-width:0;">';
       html+='<div class="tl-card-time">'+esc(t.start_time.substring(5,16))+' - '+esc(t.end_time.substring(5,16))+'</div>';
       var _ki=extractKeyInfo(t.full_description||t.description);
-      html+='<div class="tl-card-title" data-id="'+t.id+'" role="button" tabindex="0" aria-label="编辑任务:'+esc(t.title)+'" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">'+esc(t.title)+renderKeyTags(_ki)+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
+      html+='<div class="tl-card-title" data-id="'+t.id+'" role="button" tabindex="0" aria-label="编辑任务:'+esc(t.title)+'" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">'+esc(t.title)+renderKeyTags(_ki)+(t.cross_day&&t.days_left!==null&&t.days_left!==undefined?'<span class="tl-days-left">'+esc('（剩余'+t.days_left+'工作日）')+'</span>':'')+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
       html+='</div>';
       if(!isCompleted){
         html+='<input type="checkbox" class="form-check-input tl-batch-check" style="flex-shrink:0;width:13px;height:13px;margin-top:3px;" data-tid="'+t.id+'" aria-label="选择:'+esc(t.title)+'">';
@@ -1063,15 +1064,40 @@ function saveTaskEdit(){
       }
     }).catch(function(e){ alert('保存失败: ' + e.message); });
 }
+function deleteSeriesInfo(title,start_time){
+  var recPat=/^(.*?)\s*\(第(\d+)期\/共(\d+)期\)$/;
+  var m=title.match(recPat);
+  if(m){
+    var cur=parseInt(m[2]),tot=parseInt(m[3]);
+    return {type:'rec',stage:'第'+m[2]+'期/共'+m[3]+'期',count:Math.max(0,tot-cur)};
+  }
+  var sm=title.match(/^(.*?)（([^（）]+)）\s*$/);
+  if(sm){
+    var base=sm[1],cnt=0;
+    for(var i=0;i<_tlfCache.length;i++){
+      var x=_tlfCache[i];
+      if(!x||x.id==null||x.title===title)continue;
+      var sm2=(x.title||'').match(/^(.*?)（[^（）]+）\s*$/);
+      if(sm2&&sm2[1]===base&&start_time&&(x.start_time||'')>start_time)cnt++;
+    }
+    return {type:'sess',stage:sm[2],count:cnt};
+  }
+  return null;
+}
 async function deleteTask(id){
   var data=_tlfCache.find(function(x){return x.id===id;});
   var title=(data&&data.title)||'';
-  var recPat=/^(.*?)\s*\(第(\d+)期\/共(\d+)期\)$/;
-  var m=title.match(recPat);
-  var cascadeCount=0;
-  if(m){var curNum=parseInt(m[2]),totalNum=parseInt(m[3]);cascadeCount=totalNum-curNum;}
-  var msg=cascadeCount>0?'该待办是周期任务（第'+m[2]+'期/共'+m[3]+'期），将移入回收站。':'确定删除该待办？将移入回收站，可在回收站恢复或彻底删除。';
-  var r=await uiDeleteConfirm(msg,cascadeCount);
+  var info=deleteSeriesInfo(title,data&&data.start_time||'');
+  var cascadeCount=info?info.count:0;
+  var msg;
+  if(info){
+    msg=info.type==='rec'
+      ? '该待办是周期任务（'+info.stage+'），将移入回收站。'
+      : '该待办是分阶段任务（'+info.stage+'），将移入回收站，可一并删除后续任务。';
+  }else{
+    msg='确定删除该待办？将移入回收站，可在回收站恢复或彻底删除。';
+  }
+  var _dl=info?(info.type==='rec'?'同时删除后续 '+cascadeCount+' 期任务':'同时删除后续 '+cascadeCount+' 个任务'):'';var r=await uiDeleteConfirm(msg,cascadeCount,_dl);
   if(!r.ok)return;
   if(cascadeCount>0&&r.cascade){
     fetchJSON('{{ url_for("api_tasks_batch_delete") }}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task_ids:[id],cascade:true})})
@@ -1163,7 +1189,7 @@ async function reopenTask(id){
             </select>
           </div>
         </div>
-        <div class="row g-2 mb-1">
+        <div class="row g-2 mb-1" id="tmTimesRow">
           <div class="col-6">
             <label class="form-label mb-0" style="font-size:.78rem;">开始时间</label>
             <input type="datetime-local" id="tmStart" class="form-control form-control-sm" style="padding:4px 8px;">
@@ -1172,6 +1198,11 @@ async function reopenTask(id){
             <label class="form-label mb-0" style="font-size:.78rem;">截止时间</label>
             <input type="datetime-local" id="tmEnd" class="form-control form-control-sm" style="padding:4px 8px;">
           </div>
+        </div>
+        <div id="tmSessionsBox" class="mb-1 d-none">
+          <label class="form-label mb-0" style="font-size:.78rem;">多场次时间</label>
+          <div class="d-flex gap-1" style="font-size:.72rem;color:var(--gray-600);"><span style="width:76px;flex-shrink:0;">场次名</span><span style="flex:1.15;">开始时间</span><span style="flex:1.15;">截止时间</span><span style="width:56px;flex-shrink:0;"></span></div>
+          <div id="tmSessionRows"></div>
         </div>
         <div class="row g-2 mb-1">
           <div class="col">
@@ -1243,8 +1274,8 @@ function taskParse(btn){
   if(text.length<2){ if(window.toast)toast('请至少输入2个字','warning'); return; }
   var orig=btn?btn.innerHTML:null;
   if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> 发布中...';}
-  fetch('/api/quick-task/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text})})
-    .then(function(r){return r.json();}).then(function(d){
+  fetchJSON('/api/quick-task/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text})})
+    .then(function(d){
       if(!d.ok){
         if(d.sensitive_words&&d.sensitive_words.length){
           if(window.toast)toast('输入内容包含敏感词：'+d.sensitive_words.join('、'),'danger');
@@ -1258,6 +1289,11 @@ function taskParse(btn){
       document.getElementById('tmTitle').value=d.title||'';
       document.getElementById('tmStart').value=d.start_time||'';
       document.getElementById('tmEnd').value=d.end_time||'';
+      var tsb=document.getElementById('tmSessionsBox'),ttr=document.getElementById('tmTimesRow');
+      var trows=d.sessions&&d.sessions.length?d.sessions:[{label:'-',start_time:d.start_time||'',end_time:d.end_time||''}];
+      tmRenderSessions(trows);
+      if(tsb)tsb.classList.remove('d-none');
+      if(ttr)ttr.classList.add('d-none');
       document.getElementById('tmCategory').value=d.category||'工作';
       document.getElementById('tmDesc').value=d.description||'';
       autoGrowDesc(document.getElementById('tmDesc'));
@@ -1333,13 +1369,24 @@ function tmApplyRecurrenceToSelect(){
     }
   }
 }
+function tmSessRowHtml(lbl,ss,ee){return '<div class="d-flex align-items-center gap-1 mb-1 tm-sess-row"><input type="text" class="form-control form-control-sm tm-sl" value="'+(lbl||'')+'" placeholder="场次名" style="width:76px;flex-shrink:0;font-size:.78rem;padding:2px 6px;"><input type="datetime-local" class="form-control form-control-sm tm-ss" value="'+(ss||'')+'" style="flex:1.05;min-width:0;font-size:.75rem;padding:2px 6px;"><input type="datetime-local" class="form-control form-control-sm tm-se" value="'+(ee||'')+'" style="flex:1.05;min-width:0;font-size:.75rem;padding:2px 6px;"><button type="button" class="btn btn-sm btn-outline-primary" style="padding:0 8px;font-size:.9rem;line-height:1;" onclick="tmAddSessionRow()" title="追加一场">+</button><button type="button" class="btn btn-sm btn-outline-secondary" style="padding:0 8px;font-size:.9rem;line-height:1;" onclick="this.closest(\'.tm-sess-row\').remove()" title="删除该场次">×</button></div>';}
+function tmRenderSessions(list){var rows=list&&list.length?list:[{label:'-',start_time:'',end_time:''}];rows=rows.map(function(s){if(rows.length===1)return{label:'-',start_time:s.start_time||'',end_time:s.end_time||''};return{label:s.label,start_time:s.start_time,end_time:s.end_time};});document.getElementById('tmSessionRows').innerHTML=rows.map(function(s){return tmSessRowHtml(s.label,s.start_time,s.end_time);}).join('');}
+function tmAddSessionRow(){var box=document.getElementById('tmSessionRows');var rows=box.querySelectorAll('.tm-sess-row');var last=rows[rows.length-1];var ss='',ee='';if(last){ss=last.querySelector('.tm-ss').value;ee=last.querySelector('.tm-se').value;}box.insertAdjacentHTML('beforeend',tmSessRowHtml('第'+(rows.length+1)+'期',ss,ee));}
+function tmGetSessions(){var out=[];document.querySelectorAll('#tmSessionRows .tm-sess-row').forEach(function(r){var lbl=r.querySelector('.tm-sl').value.trim();var ss=r.querySelector('.tm-ss').value;var ee=r.querySelector('.tm-se').value;if(ss&&ee)out.push({label:lbl,start_time:ss,end_time:ee});});return out;}
 function taskPublish(btn){
   var err=document.getElementById('tmErr');
-  err.textContent='';
   var title=document.getElementById('tmTitle').value.trim();
   if(title.length<2){err.textContent='待办标题至少2个字';return;}
-  if(!document.getElementById('tmStart').value){err.textContent='请填写开始时间';return;}
-  if(!document.getElementById('tmEnd').value){err.textContent='请填写结束时间';return;}
+  var rows=document.querySelectorAll('#tmSessionRows .tm-sess-row');
+  if(!rows.length){err.textContent='请至少保留一场';return;}
+  for(var si=0;si<rows.length;si++){
+    var r=rows[si];
+    var ss=r.querySelector('.tm-ss').value;
+    var ee=r.querySelector('.tm-se').value;
+    if(!ss||!ee){err.textContent='第'+(si+1)+'场：请填写开始与截止时间';return;}
+    if(ss>ee){err.textContent='第'+(si+1)+'场：截止时间需晚于开始时间';return;}
+  }
+  var sess=tmGetSessions();
   var is_all=document.getElementById('tmAll')?document.getElementById('tmAll').checked:false;
   var ids=[];
   if(!is_all){document.querySelectorAll('.tm-assignee:checked').forEach(function(c){ids.push(parseInt(c.value));});}
@@ -1349,18 +1396,20 @@ function taskPublish(btn){
   var selfCb=window.tmSelfId?document.querySelector('.tm-assignee[value="'+window.tmSelfId+'"]'):null;
   var assign_self=selfCb?selfCb.checked:true;
   var rec=window.tmRec||{};
+  var f=sess[0];
   var body={
     title:title,
-    start_time:document.getElementById('tmStart').value,
-    end_time:document.getElementById('tmEnd').value,
+    start_time:f.start_time,
+    end_time:f.end_time,
     category:document.getElementById('tmCategory').value,
     description:document.getElementById('tmDesc').value,
     assignee_ids:ids,
     group_ids:gids,
     is_all:is_all,
     assign_self:assign_self,
-    recurrence_interval_days:rec.interval||0,
-    recurrence_count:rec.count||0
+    recurrence_interval_days:0,
+    recurrence_count:0,
+    sessions:sess
   };
   if(btn){btn.disabled=true;}
   fetch('/api/quick-task',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
@@ -1571,7 +1620,7 @@ async function purgeFromTrash(id, btn){
   </div>
 </div>
 <script>
-function uiDeleteConfirm(msg, cascadeCount){
+function uiDeleteConfirm(msg, cascadeCount, labelText){
   return new Promise(function(res){
     var m=document.getElementById('deleteConfirmModal');
     if(!m||!window.bootstrap){res({ok:window.confirm(msg),cascade:false});return;}
@@ -1582,7 +1631,7 @@ function uiDeleteConfirm(msg, cascadeCount){
     if(cascadeCount>0){
       wrap.classList.remove('d-none');
       cb.checked=true;
-      label.textContent='同时删除后续 '+cascadeCount+' 期任务';
+      label.textContent=labelText||('同时删除后续 '+cascadeCount+' 期任务');
     }else{
       wrap.classList.add('d-none');
       cb.checked=false;

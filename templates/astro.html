@@ -23,6 +23,23 @@ body.astro-page .email-reminder{background:rgba(232,196,118,.08)!important;
   border-color:rgba(232,196,118,.32)!important;}
 body.astro-page .flash-container .flash-item{background:#141d3d;color:#dbe3f7;
   border:1px solid rgba(140,160,220,.2);}
+/* 独立整页: 不套在站点导航里 */
+body.astro-page .top-nav,body.astro-page .bottom-nav{display:none!important;}
+body.astro-page.authed{padding-top:0;padding-bottom:0;}
+/* 页内轻量顶栏(替代站点导航的返回入口) */
+.as-standalone-top{position:sticky;top:0;z-index:45;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:10px 14px;background:rgba(6,9,20,.7);-webkit-backdrop-filter:blur(10px);
+  backdrop-filter:blur(10px);border-bottom:1px solid rgba(140,160,220,.12);}
+.as-standalone-top .as-back{display:inline-flex;align-items:center;gap:5px;color:var(--as-dim);
+  text-decoration:none;font-size:.9rem;border:1px solid var(--as-line);background:rgba(17,26,54,.5);
+  padding:6px 14px;border-radius:999px;cursor:pointer;transition:.15s;}
+.as-standalone-top .as-back:hover{color:var(--as-txt);border-color:var(--as-blue);}
+.as-standalone-top .as-title{font-weight:800;font-size:1rem;color:var(--as-txt);letter-spacing:.04em;}
+@media(max-width:600px){
+  .as-standalone-top{padding:8px 10px;}
+  .as-standalone-top .as-back{font-size:.82rem;padding:5px 11px;}
+}
+
 .astro-root{
   --as-bg:#0a0f21; --as-bg2:#101833; --as-card:#111a36; --as-card2:#0d1428;
   --as-line:rgba(140,160,220,.16); --as-txt:#dbe3f7; --as-dim:#8b97c2;
@@ -235,35 +252,255 @@ body.astro-page .flash-container .flash-item{background:#141d3d;color:#dbe3f7;
   .zw-head{font-size:.64rem;} .zw-pname{font-size:.72rem;}
   .transparency{padding:8px 10px;}
 }
-@media print{
-  body *{visibility:hidden!important;}
-  #printArea,#printArea *{visibility:visible!important;}
-  #printArea{position:absolute;left:0;top:0;width:100%;background:#fff!important;
-    color:#111!important;padding:20px!important;}
-  #printArea .as-card{background:#fff!important;border-color:#ccc!important;color:#111!important;}
-  #printArea h3{color:#7a5c00!important;} #printArea .as-note,#printArea .bar-name,
-  #printArea .bar-val{color:#444!important;} #printArea .bar-track{background:#eee!important;}
+
+/* ===== 赛博玄学视觉改造(保留原排盘/运势/塔罗/存档引擎, 重构信息架构) ===== */
+#starsCanvas{position:fixed;inset:0;z-index:0;pointer-events:none;}
+.astro-root{position:relative;z-index:1;min-height:100dvh;display:flex;flex-direction:column;
+  padding-bottom:calc(74px + env(safe-area-inset-bottom,0px));}
+.as-tabbar{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;gap:4px;justify-content:center;
+  background:rgba(10,15,33,.86);backdrop-filter:blur(14px);border-top:1px solid var(--as-line);
+  padding:8px calc(10px + env(safe-area-inset-bottom,0px));
+  -webkit-backdrop-filter:blur(14px);box-shadow:0 -8px 30px rgba(0,0,0,.4);}
+.as-tabbar button{flex:1;max-width:180px;border:1px solid transparent;background:transparent;
+  color:var(--as-dim);padding:7px 4px;border-radius:11px;cursor:pointer;transition:.18s;
+  font-size:.8rem;display:flex;flex-direction:column;align-items:center;gap:3px;line-height:1.1;}
+.as-tabbar button .bi{font-size:1.2rem;}
+.as-tabbar button:hover{color:var(--as-txt);}
+.as-tabbar button.active{background:linear-gradient(135deg,#24345f,#1a2547);color:#fff;
+  border-color:#3c5490;box-shadow:inset 0 0 12px rgba(110,168,255,.18);}
+/* 首页大区 */
+.as-home{display:grid;gap:16px;}
+/* 顶部: 打卡圆环 */
+.as-ring-panel{display:flex;align-items:center;gap:20px;flex-wrap:wrap;}
+.as-ring{position:relative;width:min(46vw,240px);aspect-ratio:1;flex-shrink:0;margin:0 auto;}
+.as-ring svg{width:100%;height:100%;transform:rotate(-90deg);}
+.as-ring .ring-bg,.as-ring .ring-fg{fill:none;stroke-width:14;stroke-linecap:round;}
+.as-ring .ring-bg{stroke:rgba(140,160,220,.16);}
+.as-ring .ring-fg{stroke:url(#ringGrad);stroke-dasharray:100 100;stroke-dashoffset:100;
+  transition:stroke-dashoffset 1s ease;filter:drop-shadow(0 0 8px rgba(168,85,247,.55));}
+.as-ring.flash .ring-fg{animation:ringFlow 1.5s ease;}
+@keyframes ringFlow{0%{filter:drop-shadow(0 0 4px rgba(168,85,247,.4));}
+  50%{filter:drop-shadow(0 0 16px rgba(255,120,180,.95));}
+  100%{filter:drop-shadow(0 0 8px rgba(168,85,247,.55));}}
+.as-ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;text-align:center;}
+.as-ring-center .rc-num{font-size:2.4rem;font-weight:800;line-height:1;color:#fff;
+  text-shadow:0 0 18px rgba(168,85,247,.7);}
+.as-ring-center .rc-txt{font-size:.82rem;color:var(--as-dim);margin-top:6px;}
+.as-ring-center .rc-btn{margin-top:14px;}
+.energy-btn{position:relative;background:linear-gradient(135deg,#a855f7,#06b6d4);
+  border:none;color:#fff;font-weight:700;padding:11px 22px;border-radius:999px;cursor:pointer;
+  font-size:.95rem;transition:.2s;overflow:hidden;}
+.energy-btn:hover{filter:brightness(1.12);transform:translateY(-1px);}
+.energy-btn:disabled{opacity:.55;cursor:not-allowed;transform:none;}
+.ring-side{flex:1;min-width:220px;}
+.ring-side h2{color:#fff;font-size:1.15rem;font-weight:700;}
+.ring-side .as-note{line-height:1.7;}
+#energyCard{margin-top:14px;}
+.energy-tag{display:inline-block;margin-top:10px;padding:10px 20px;border-radius:999px;
+  font-size:1.08rem;font-weight:700;color:#fff;background:linear-gradient(135deg,#a855f7,#ec4899);
+  border:1px solid rgba(255,255,255,.25);box-shadow:0 0 22px rgba(236,72,153,.45);
+  animation:tagPop .5s ease;}
+@keyframes tagPop{0%{transform:scale(.6);opacity:0;}60%{transform:scale(1.12);}100%{transform:scale(1);}}
+.glass{background:rgba(17,26,54,.55);border:1px solid rgba(140,160,220,.28);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:16px;padding:16px;
+  box-shadow:0 8px 30px rgba(0,0,0,.3);}
+.glass>h3{color:var(--as-gold);font-size:1rem;font-weight:700;margin-bottom:12px;display:flex;gap:8px;align-items:center;}
+/* 中部: 合盘入口 横向卡片 */
+.as-scroll{display:flex;gap:12px;overflow-x:auto;padding:4px 2px 12px;scroll-snap-type:x mandatory;}
+.as-scroll::-webkit-scrollbar{height:6px;}
+.as-scroll::-webkit-scrollbar-thumb{background:rgba(140,160,220,.3);border-radius:99px;}
+.mini-card{scroll-snap-align:start;flex:0 0 auto;width:200px;border:1px solid var(--as-line);
+  border-radius:14px;padding:14px;background:var(--as-card2);cursor:pointer;transition:.18s;}
+.mini-card:hover{border-color:var(--as-gold);transform:translateY(-3px);}
+.mini-card .mc-ico{font-size:1.6rem;}
+.mini-card .mc-t{font-size:.92rem;font-weight:700;color:var(--as-txt);margin-top:8px;}
+.mini-card .mc-s{font-size:.75rem;color:var(--as-dim);margin-top:4px;line-height:1.5;min-height:36px;}
+.mini-card.add{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,rgba(168,85,247,.22),rgba(6,182,212,.18));
+  border-color:rgba(168,85,247,.5);text-align:center;}
+.mini-card.add .mc-ico{font-size:2rem;color:#c4b5fd;}
+/* 半屏弹窗 */
+.as-sheet-mask{position:fixed;inset:0;background:rgba(4,6,16,.6);z-index:90;display:none;
+  align-items:flex-end;justify-content:center;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);}
+.as-sheet-mask.show{display:flex;}
+.as-sheet{width:100%;max-width:560px;max-height:86vh;overflow-y:auto;background:#0d1428;
+  border:1px solid var(--as-line);border-top-left-radius:20px;border-top-right-radius:20px;
+  padding:18px 18px 26px;animation:sheetUp .3s ease;box-shadow:0 -10px 40px rgba(0,0,0,.5);}
+@keyframes sheetUp{from{transform:translateY(40px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+.as-sheet h3{color:var(--as-gold);font-size:1.05rem;font-weight:700;}
+/* 双星环绕 */
+.syn-orbit{position:relative;width:min(70vw,340px);aspect-ratio:1;margin:10px auto;}
+.syn-orbit .elp{position:absolute;inset:0;border:2px dashed rgba(140,160,220,.4);border-radius:50%;
+  animation:spin 14s linear infinite;}
+.syn-orbit .elp2{position:absolute;inset:14% 4%;border:2px solid rgba(168,85,247,.5);border-radius:50%;
+  animation:spin 9s linear infinite reverse;}
+.syn-orbit .planet{position:absolute;top:50%;left:50%;width:52px;height:52px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:1.5rem;box-shadow:0 0 18px currentColor;}
+.syn-orbit .planet:hover{transform:scale(1.1);}
+.syn-orbit .p1{background:#241f3d;color:#a855f7;border:2px solid #a855f7;animation:spinP 14s linear infinite;}
+.syn-orbit .p2{background:#10303f;color:#06b6d4;border:2px solid #06b6d4;animation:spinP 14s linear infinite reverse;}
+@keyframes spinP{from{transform:translate(-50%,-50%) rotate(0);}to{transform:translate(-50%,-50%) rotate(360deg);}}
+@keyframes spin{from{transform:rotate(0);}to{transform:rotate(360deg);}}
+.syn-match-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;text-align:center;}
+.syn-match-center .mc-pct{font-size:2.6rem;font-weight:800;color:#fff;
+  text-shadow:0 0 24px rgba(168,85,247,.8);}
+.syn-match-center .mc-cap{font-size:.8rem;color:var(--as-dim);}
+.burst{position:absolute;inset:0;pointer-events:none;}
+.burst i{position:absolute;display:block;width:6px;height:6px;border-radius:50%;background:#ffe066;
+  animation:burstFly .9s ease-out forwards;}
+@keyframes burstFly{to{transform:translate(var(--dx),var(--dy)) scale(.2);opacity:0;}}
+/* 社交分享卡(1080x1080 固定比例) */
+.share-card{position:relative;width:min(82vw,340px);aspect-ratio:1;background:
+  radial-gradient(200px 160px at 20% 12%,rgba(168,85,247,.4),transparent 60%),
+  radial-gradient(220px 180px at 82% 88%,rgba(6,182,212,.4),transparent 60%),
+  linear-gradient(150deg,#0b0f26,#1a1440);border:1px solid rgba(140,160,220,.3);
+  border-radius:20px;padding:22px;display:flex;flex-direction:column;margin:12px auto;
+  color:#fff;box-shadow:0 12px 40px rgba(0,0,0,.5);}
+.share-card .sc-logo{position:absolute;top:14px;left:18px;font-size:1rem;font-weight:800;
+  color:#c4b5fd;display:flex;gap:6px;align-items:center;}
+.share-card .sc-qr{position:absolute;bottom:14px;right:14px;width:54px;height:54px;border-radius:10px;
+  border:2px solid rgba(255,255,255,.4);background:repeating-conic-gradient(#fff 0% 25%,#222 0% 50%)
+  50%/0 0;opacity:.85;}
+.share-card .sc-big{font-size:2rem;font-weight:800;margin-top:auto;text-align:center;
+  text-shadow:0 0 22px rgba(168,85,247,.7);}
+.share-card .sc-asp{text-align:center;font-size:.95rem;color:#e9d5ff;margin-top:6px;}
+.share-card .sc-names{text-align:center;font-size:.9rem;color:#bfdbfe;margin-top:14px;}
+.share-card .sc-rel{display:inline-block;margin-top:8px;font-size:.78rem;padding:4px 14px;
+  border-radius:999px;border:1px solid rgba(168,85,247,.6);color:#d8b4fe;align-self:center;}
+/* 塔罗图鉴 */
+.gal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px;}
+.gal-slot{position:relative;aspect-ratio:3/4;border-radius:10px;cursor:pointer;perspective:700px;}
+.gal-inner{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .6s;
+  border-radius:10px;}
+.gal-slot.flip .gal-inner{transform:rotateY(180deg);}
+.gal-face{position:absolute;inset:0;backface-visibility:hidden;border-radius:10px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  background:var(--as-card2);border:1px solid var(--as-line);padding:6px;text-align:center;}
+.gal-face.front{background:repeating-linear-gradient(135deg,rgba(140,160,220,.1) 0 6px,
+  rgba(140,160,220,.03) 6px 12px);}
+.gal-face.front .bi{font-size:1.4rem;color:var(--as-gold);}
+.gal-face.back{transform:rotateY(180deg);background:linear-gradient(150deg,#24345f,#1a2547);
+  border-color:#3c5490;color:#fff;}
+.gal-face.back .gf-no{font-size:.66rem;color:var(--as-gold);}
+.gal-face.back .gf-name{font-size:.8rem;font-weight:700;}
+.gal-face.back .gf-mean{font-size:.6rem;color:var(--as-dim);line-height:1.3;}
+.gal-slot.rare .gal-face.back{background:linear-gradient(150deg,#5a3d12,#7a5a1e);
+  border-color:#e8c476;box-shadow:0 0 16px rgba(232,196,118,.6);}
+.gal-slot.rare .gal-face.back .gf-name{color:#ffe9b8;}
+/* 解谜: 抽取 */
+.tarot-pick{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin:16px 0;}
+.pick-card{width:104px;aspect-ratio:3/4;border-radius:12px;cursor:pointer;perspective:800px;}
+.pick-inner{position:relative;width:100%;height:100%;transform-style:preserve-3d;
+  transition:transform .7s;}
+.pick-card.flip .pick-inner{transform:rotateY(180deg);}
+.pick-face{position:absolute;inset:0;backface-visibility:hidden;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;font-size:1.3rem;
+  background:repeating-linear-gradient(135deg,rgba(168,85,247,.25) 0 6px,rgba(6,182,212,.15) 6px 12px);
+  border:2px solid #a855f7;color:#f3e8ff;}
+.pick-face.back2{transform:rotateY(180deg);background:linear-gradient(150deg,#24345f,#1a2547);
+  border-color:#3c5490;flex-direction:column;font-size:.8rem;gap:4px;color:#fff;padding:8px;}
+.pick-face.back2 .bi{font-size:1.6rem;color:var(--as-gold);}
+/* 积分 / 皮肤 */
+.skin-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;}
+.skin-tile{border:1px solid var(--as-line);border-radius:12px;padding:12px;cursor:pointer;
+  background:var(--as-card2);text-align:center;transition:.18s;position:relative;}
+.skin-tile.locked{opacity:.55;cursor:not-allowed;}
+.skin-tile.active{border-color:var(--as-gold);box-shadow:0 0 14px rgba(232,196,118,.35);}
+.skin-tile .sk-ico{font-size:1.5rem;}
+.skin-tile .sk-n{font-size:.82rem;font-weight:700;color:var(--as-txt);margin-top:6px;}
+.skin-tile .sk-cost{font-size:.72rem;color:var(--as-gold);margin-top:3px;}
+.point-chip{display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#a855f7,#06b6d4);
+  color:#fff;padding:6px 16px;border-radius:999px;font-weight:700;}
+@media(max-width:600px){
+  .astro-root{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px));}
+  .as-tabbar{padding:6px 4px;padding-bottom:calc(6px + env(safe-area-inset-bottom,0px));}
+  .as-tabbar button{font-size:.7rem;padding:5px 2px;}
+  .as-tabbar button .bi{font-size:1.05rem;}
+  .as-home{gap:12px;}
+  /* 一行一屏: 圆环随视口小一点, 首页内容垂直居中占据可视高 */
+  .as-ring-panel{flex-direction:column;gap:12px;align-items:center;text-align:center;}
+  .as-ring{width:min(52vw,240px);}
+  .ring-side h2{font-size:1.05rem;}
+  .ring-side .as-note{font-size:.82rem;}
+  .as-hero{padding:12px 10px 4px;}
+  .as-hero h1{font-size:1.4rem;}
+  .mini-card{width:170px;}
+}
+@media(min-width:601px){
+  .as-home{flex:1;align-content:center;}
 }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="astro-root" id="astroRoot">
-  <div class="as-hero">
-    <h1><i class="bi bi-stars"></i> 星运</h1>
-    <div class="as-slogan">数据全透明 · 功能无限制 · 依托成熟开源生态</div>
-    <div id="guestRestoreBox" class="mt-2"></div>
-  </div>
+  <canvas id="starsCanvas"></canvas>
 
-  <div class="as-tabs" role="tablist">
-    <button type="button" class="as-tab active" data-tab="natal"><i class="bi bi-diagram-3"></i> 本命排盘</button>
-    <button type="button" class="as-tab" data-tab="daily"><i class="bi bi-sunrise"></i> 每日运势</button>
-    <button type="button" class="as-tab" data-tab="kb"><i class="bi bi-book"></i> 命理知识库</button>
-    <button type="button" class="as-tab" data-tab="archive"><i class="bi bi-archive"></i> 我的存档</button>
-  </div>
+  <header class="as-standalone-top">
+    <div class="as-title"><i class="bi bi-stars" style="color:var(--as-gold);"></i> 星运</div>
+    <button type="button" class="as-back" id="asBack"><i class="bi bi-arrow-left"></i> 返回</button>
+  </header>
 
-  <!-- ================= 排盘 ================= -->
-  <section class="as-panel active" id="panel-natal">
+  <nav class="as-tabbar" role="tablist" id="asTabbar">
+    <button type="button" class="as-tab active" data-tab="home"><i class="bi bi-house-heart"></i><span>首页</span></button>
+    <button type="button" class="as-tab" data-tab="natal"><i class="bi bi-diagram-3"></i><span>星盘库</span></button>
+    <button type="button" class="as-tab" data-tab="daily"><i class="bi bi-suit-spade"></i><span>塔罗馆</span></button>
+    <button type="button" class="as-tab" data-tab="kb"><i class="bi bi-book"></i><span>知识</span></button>
+    <button type="button" class="as-tab" data-tab="archive"><i class="bi bi-person-gear"></i><span>我的</span></button>
+  </nav>
+
+  <!-- ================= 首页: 三段式看板 ================= -->
+  <section class="as-panel active" id="panel-home">
+    <div class="as-home">
+      <div id="guestRestoreBox" class="mb-1"></div>
+
+      <!-- 顶部: 打卡圆环 (功能三入口) -->
+      <div class="as-ring-panel glass">
+        <div class="as-ring" id="asRing">
+          <svg viewBox="0 0 100 100">
+            <defs>
+              <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#a855f7"/><stop offset="100%" stop-color="#ec4899"/>
+              </linearGradient>
+            </defs>
+            <circle class="ring-bg" cx="50" cy="50" r="42"/>
+            <circle class="ring-fg" id="ringFg" cx="50" cy="50" r="42"/>
+          </svg>
+          <div class="as-ring-center">
+            <div class="rc-num" id="ringNum">第0天</div>
+            <div class="rc-txt" id="ringTxt">今日尚未打卡</div>
+            <button type="button" class="energy-btn" id="btnEnergy"><i class="bi bi-stars"></i> ✨ 领取今日能量签</button>
+          </div>
+        </div>
+        <div class="ring-side">
+          <h2><i class="bi bi-lightning-charge-fill" style="color:#e8c476;"></i> 打卡盲盒 · 赛博玄学日常</h2>
+          <div class="as-note">每日首次打卡即调用「日运引擎」为你提炼一句<strong style="color:#f0abfc;">核心运势标签</strong>，连续打卡点亮紫→粉能量环，并积累星点积分点亮专属皮肤。</div>
+          <div id="energyCard"><div class="glass" style="padding:14px;"><div class="as-note">今日能量签尚未领取。点击上方按钮，点亮属于你的一天。</div></div></div>
+        </div>
+      </div>
+
+      <!-- 中部: 合盘匹配 (功能一入口) -->
+      <div class="glass">
+        <h3><i class="bi bi-people-fill"></i> 关系合盘 · 双星环绕</h3>
+        <div class="as-scroll" id="matchScroll">
+          <div class="mini-card" id="mcMyChart">
+            <div class="mc-ico">🪐</div><div class="mc-t">我的星盘</div>
+            <div class="mc-s" id="mcMyDesc">点击查看/生成我的本命盘</div>
+          </div>
+          <div class="mini-card add" id="mcMatch">
+            <div class="mc-ico">➕</div><div class="mc-t">匹配 TA</div>
+            <div class="mc-s">输入对方的出生信息，合出一张关系星盘</div>
+          </div>
+        </div>
+        <div id="matchResult"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 星盘库: 排盘 + 存档 ================= -->
+  <section class="as-panel" id="panel-natal">
     <div class="as-grid2">
       <div class="as-card">
         <h3><i class="bi bi-person-badge"></i> 出生信息</h3>
@@ -333,7 +570,10 @@ body.astro-page .flash-container .flash-item{background:#141d3d;color:#dbe3f7;
   <!-- ================= 每日运势 ================= -->
   <section class="as-panel" id="panel-daily">
     <div class="as-card">
-      <h3><i class="bi bi-moon-stars"></i> 选择星座与日期（历史任意日期均可回溯）</h3>
+      <h3 style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <span><i class="bi bi-moon-stars"></i> 塔罗馆 · 每日运势</span>
+        <button type="button" class="as-btn ghost sm" id="btnOpenGallery"><i class="bi bi-collection"></i> 凑图鉴 · 卡牌收藏</button>
+      </h3>
       <div id="signPicker" class="mb-3"></div>
       <div class="d-flex gap-2 flex-wrap align-items-center">
         <input type="date" class="form-control" id="ftDate" style="max-width:170px;">
@@ -344,6 +584,20 @@ body.astro-page .flash-container .flash-item{background:#141d3d;color:#dbe3f7;
     </div>
     <div id="dailyResult"><div class="as-empty"><i class="bi bi-hourglass-split"></i>请先在上方选择星座，点击「查询运势」</div></div>
     <div id="tarotResult" class="mt-2"></div>
+  </section>
+
+  <!-- ================= 塔罗图鉴 (卡牌收藏) ================= -->
+  <section class="as-panel" id="panel-gallery">
+    <div class="as-card">
+      <h3 style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <span><i class="bi bi-collection"></i> 塔罗图鉴 · 22张大阿尔卡纳</span>
+        <button type="button" class="as-btn ghost sm" id="btnGalleryBack"><i class="bi bi-arrow-left"></i> 返回塔罗馆</button>
+      </h3>
+      <div class="as-note">点击任意卡牌翻开查看；已拥有的卡牌加入收藏进度。稀有卡（大阿尔卡纳）带金色镶边。</div>
+      <div id="tarotPick" class="tarot-pick"></div>
+      <div id="tarotPickResult" class="mt-2"></div>
+      <div class="gal-grid mt-3" id="galGrid"></div>
+    </div>
   </section>
 
   <!-- ================= 知识库 ================= -->
@@ -361,12 +615,19 @@ body.astro-page .flash-container .flash-item{background:#141d3d;color:#dbe3f7;
 
   <!-- ================= 我的存档 ================= -->
   <section class="as-panel" id="panel-archive">
+    <div class="as-card">
+      <h3 style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <span><i class="bi bi-gem"></i> 我的 · 积分与皮肤</span>
+        <span class="point-chip" id="pointChip"><i class="bi bi-stars"></i> <span id="pointVal">0</span> 星点</span>
+      </h3>
+      <div class="as-note mb-3">打卡每日 +10 星点，抽塔罗 +5 星点，合盘 +20 星点。星点用于点亮赛博主题皮肤（沿用原有亮/暗主题切换）。</div>
+      <div class="skin-row" id="skinRow"></div>
+    </div>
     {% if current_user.is_authenticated %}
     <div class="as-card">
       <h3><i class="bi bi-archive"></i> 云端档案 <span class="as-note ms-2">数量不限 · 多设备同步 · 随时导出带走</span></h3>
       <div class="d-flex gap-2 flex-wrap mb-3">
-        <a class="as-btn ghost sm" href="/astro/api/records/export"><i class="bi bi-download"></i> 导出全部档案(JSON)</a>
-        <button type="button" class="as-btn ghost sm" onclick="asPrint()"><i class="bi bi-printer"></i> 打印 / 导出PDF</button>
+        <a class="as-btn ghost sm" href="/astro/api/records/export"><i class="bi bi-download"></i> 导出全部档案(Text)</a>
       </div>
       <div id="recList"><div class="as-empty">加载中…</div></div>
     </div>
@@ -386,7 +647,7 @@ body.astro-page .flash-container .flash-item{background:#141d3d;color:#dbe3f7;
         <button type="button" class="as-btn sm" id="btnSubSave">开启订阅</button>
         <button type="button" class="as-btn ghost sm" id="btnSubOff">关闭订阅</button>
       </div>
-      <div class="as-note mt-2" id="subState"></div>
+      <div class="as-note mt-2" id="subState">订阅已关闭（站内通知推送）。</div>
     </div>
     {% else %}
     <div class="as-card">
@@ -402,7 +663,43 @@ body.astro-page .flash-container .flash-item{background:#141d3d;color:#dbe3f7;
     <div id="recViewer"></div>
   </section>
 
-  <div id="printArea"></div>
+</div>
+
+<!-- 合盘半屏弹窗 -->
+<div class="as-sheet-mask" id="matchMask">
+  <div class="as-sheet">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h3><i class="bi bi-people-fill"></i> 匹配 TA · 合一段星缘</h3>
+      <button type="button" class="as-btn ghost sm" id="btnMatchClose"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="as-note mb-2">输入对方的出生日期与时间即可（简化版：已略去经纬度微调，默认同一地点）。</div>
+    <div class="row g-3">
+      <div class="col-12">
+        <label class="as-label">对方称呼</label>
+        <input type="text" class="form-control" id="mpName" placeholder="例：TA" maxlength="20">
+      </div>
+      <div class="col-12">
+        <label class="as-label">对方出生日期与时间 *</label>
+        <div class="d-flex gap-1">
+          <select class="form-select" id="mpYear" style="flex:1.25;min-width:0;"></select>
+          <select class="form-select" id="mpMonth" style="flex:.85;min-width:0;"></select>
+          <select class="form-select" id="mpDay" style="flex:.85;min-width:0;"></select>
+          <input type="time" class="form-control" id="mpTime" value="12:00" required aria-label="时间" style="flex:1.2;min-width:0;">
+        </div>
+      </div>
+      <div class="col-12">
+        <label class="as-label">关系类型</label>
+        <select class="form-select" id="mpRelation">
+          <option value="挚友">挚友</option><option value="恋人">恋人</option><option value="搭档">搭档</option>
+        </select>
+      </div>
+      <div class="col-12 d-flex gap-2 flex-wrap">
+        <button type="button" class="as-btn" id="btnMatchCalc"><i class="bi bi-stars"></i> 开始合盘</button>
+        <span class="as-note align-self-center">我的星盘将自动读取云端档案 / 最近排盘。</span>
+      </div>
+    </div>
+    <div id="matchSheetResult" class="mt-3"></div>
+  </div>
 </div>
 
 <!-- 术语侧边抽屉 -->
@@ -428,30 +725,33 @@ window.asFlash=function(msg,type){
   clearTimeout(el._t);el._t=setTimeout(function(){el.className='as-flash';},2600);
 };
 
-/* 打印/导出PDF: 先把当前报告内容克隆进打印区再唤起系统打印 */
-window.asPrint=function(){
-  var area=$('#printArea');
-  var src=$('.print-report')||$('#dailyResult');
-  if(!src||!src.innerHTML.trim()){asFlash('请先生成一份报告再打印','err');return;}
-  area.innerHTML='<div style="text-align:center;font-weight:800;font-size:18px;margin-bottom:10px;">星运 · 报告</div>'+
-    src.innerHTML;
-  $$('.no-print',area).forEach(function(x){x.remove();});
-  /* 打印版完整性: 展开全部折叠区(含紫微卡内的 details) */
-  $$('details',area).forEach(function(d){d.open=true;});
-  setTimeout(function(){window.print();},60);
-};
-
 /* ---------------- Tabs ---------------- */
 $$('.as-tab').forEach(function(b){
   b.addEventListener('click',function(){switchTab(b.getAttribute('data-tab'));});
 });
-function switchTab(name){
-  $$('.as-tab').forEach(function(x){x.classList.toggle('active',x.getAttribute('data-tab')===name);});
-  $$('.as-panel').forEach(function(p){p.classList.toggle('active',p.id==='panel-'+name);});
-  location.hash='tab-'+name;
-  if(name==='archive'){loadRecords();}
-  if(name==='kb'&&!kbLoaded){loadKb();}
+var NAV_TABS=['home','natal','daily','kb','archive'];
+function navFor(name){
+  if(name==='gallery')return 'daily';
+  if(name==='home')return 'home';
+  if(NAV_TABS.indexOf(name)>=0)return name;
+  if(name==='library')return 'natal';
+  if(name==='tarot')return 'daily';
+  if(name==='mine')return 'archive';
+  return name;
 }
+function switchTab(name){
+  var ns=navFor(name);
+  $$('.as-tab').forEach(function(x){x.classList.toggle('active',x.getAttribute('data-tab')===ns);});
+  $$('.as-panel').forEach(function(p){p.classList.toggle('active',p.id==='panel-'+name);});
+  location.hash='tab-'+ns;
+  if(name==='home'){refreshHome();}
+  if(name==='natal'||name==='library'){if(_lastChartResult)loadNearbyMyChart();}
+  if(name==='archive'||name==='mine'){loadRecords();renderSkins();}
+  if(name==='kb'&&!kbLoaded){loadKb();}
+  if(name==='gallery'){renderGallery();renderPick();loadCloudSign();}
+  if(name==='tarot'||name==='daily'){loadCloudSign();}
+}
+window.asGoTab=function(n){switchTab(n);return false;};
 
 /* ---------------- 术语弹窗 ---------------- */
 var _termsIdx=null,_termKeys=[];
@@ -588,7 +888,7 @@ var CITY_GROUPS=[
  ['华东',[['南京',32.06,118.80],['苏州',31.30,120.58],['无锡',31.49,120.31],['常州',31.81,119.97],
    ['南通',31.98,120.89],['徐州',34.26,117.19],['杭州',30.27,120.15],['宁波',29.87,121.54],
    ['温州',28.00,120.70],['嘉兴',30.75,120.76],['绍兴',30.03,120.58],['金华',29.08,119.65],
-   ['台州',28.66,121.42],['合肥',31.82,117.23],['芜湖',31.33,118.38],['福州',26.07,119.30],
+    ['台州',28.66,121.42],['合肥',31.82,117.23],['芜湖',31.33,118.38],['六安',31.75,116.52],['福州',26.07,119.30],
    ['厦门',24.48,118.09],['泉州',24.87,118.68],['漳州',24.51,117.65],['南昌',28.68,115.86],
    ['赣州',25.83,114.93],['济南',36.65,117.12],['青岛',36.07,120.38],['烟台',37.46,121.45],
    ['威海',37.51,122.12],['潍坊',36.71,119.16],['淄博',36.81,118.05],['临沂',35.10,118.36],
@@ -625,7 +925,7 @@ function cityByName(nm){
     var o=document.createElement('option');o.value=c[0];dl.appendChild(o);
   });
   /* 输入或选择城市名 → 自动回填坐标; 手动改坐标不受影响 */
-  ['change','blur'].forEach(function(ev){
+  ['input','change','blur'].forEach(function(ev){
     inp.addEventListener(ev,function(){
       var c=cityByName(inp.value);
       if(c){$('#ncLat').value=c[1];$('#ncLon').value=c[2];}
@@ -752,6 +1052,7 @@ function buildWheel(chart){
 }
 
 var _lastChartResult=null;
+var _suppressTabJump=false;
 function renderNatal(res){
   _lastChartResult=res;
   var w=res.western,b=w.big_three;
@@ -845,7 +1146,6 @@ function renderNatal(res){
   html+='<div class="transparency as-note mt-3"><i class="bi bi-eye"></i> 引擎：'+esc(res.engine)+
     ' · 生成于 '+esc(res.generated_at)+' · 全部计算参数如上完整公开，可复现可验证。</div>';
   html+='<div class="d-flex gap-2 mt-3 flex-wrap no-print">';
-  html+='<button type="button" class="as-btn ghost sm" onclick="asPrint()"><i class="bi bi-printer"></i> 打印 / 导出 PDF</button>';
   html+='<button type="button" class="as-btn ghost sm" id="btnCopyReport"><i class="bi bi-clipboard"></i> 复制文本报告</button>';
   {% if current_user.is_authenticated %}
   html+='<button type="button" class="as-btn ghost sm" id="btnArchiveNow"><i class="bi bi-cloud-arrow-up"></i> 存入云端档案</button>';
@@ -881,7 +1181,7 @@ function renderNatal(res){
   bindReportActions();
   wrapTerms(box);
   try{localStorage.setItem('astro_last_chart',JSON.stringify(res));}catch(e){}
-  switchTab('natal');
+  if(!_suppressTabJump){switchTab('natal');}
 }
 
 function reportText(){
@@ -889,7 +1189,7 @@ function reportText(){
   var w=_lastChartResult.western,bz=_lastChartResult.bazi,L=[];
   L.push('【星运 · 本命盘报告】'+(w.name||''));
   L.push('出生: '+w.birth_iso+'  北纬'+w.lat+'° 东经'+w.lon+'°');
-  L.push('人格三柱: 太阳'+b.sun+' / 月亮'+b.moon+' / 上升'+b.asc);
+  L.push('人格三柱: 太阳'+w.big_three.sun+' / 月亮'+w.big_three.moon+' / 上升'+w.big_three.asc);
   w.points.forEach(function(p){L.push('  '+p.glyph+p.cn+'  '+p.sign+' '+p.deg+'°  第'+p.house+'宫'+(p.retro?'(逆行)':''));});
   w.aspects.forEach(function(s){L.push('  '+s.a.cn+s.aspect_cn+s.b.cn+' (差'+s.exact+'°)');});
   L.push('八字: '+bz.pillars.join(' ')+'  生肖'+bz.animal+'  日主'+bz.day_master);
@@ -978,6 +1278,21 @@ function initSignPicker(){
     box.appendChild(b);
   });
 }
+/* 进入塔罗馆·每日运势时, 自动读取云端保存的星座并生效 */
+function loadCloudSign(){
+  {% if current_user.is_authenticated %}
+  fetch('/astro/api/subscribe').then(function(r){return r.json();}).then(function(d){
+    var k=d.sub&&d.sub.sign?d.sub.sign:'';
+    if(k&&SIGN_KEYS.indexOf(k)>-1){
+      if(_curSign!==k){
+        _curSign=k;
+        $$('.sign-chip').forEach(function(x){x.classList.toggle('active',x.getAttribute('data-key')===k);});
+      }
+      askFortune();
+    }
+  }).catch(function(){});
+  {% endif %}
+}
 function renderFortune(local,cal,aztro,note){
   var pct=Math.max(4,local.overall);
   var html='<div class="as-grid2">';
@@ -1028,7 +1343,7 @@ function renderFortune(local,cal,aztro,note){
 }
 function aztroNum(a){return (a.current_date?a.current_date+' ':'')+(a.lucky_number!=null?a.lucky_number:'-');}
 function askFortune(){
-  var d=$('#ftDate').value||new Date().toISOString().slice(0,10);
+  var d=$('#ftDate').value||todayStr();
   var btn=$('#btnFortune');btn.disabled=true;
   fetch('/astro/api/fortune?sign='+encodeURIComponent(_curSign)+'&date='+d)
     .then(function(r){return r.json();}).then(function(dd){
@@ -1107,8 +1422,10 @@ function loadRecords(){
 function viewRecord(id){
   fetch('/astro/api/records/'+id).then(function(r){return r.json();}).then(function(d){
     if(!d.ok){asFlash(d.error||'读取失败','err');return;}
-    renderNatal(d.item.result);
-    showZiwei(d.item.result);
+    var res=d.item.result||{};
+    if(!res.western){asFlash('该记录不是本命盘，无法在此视图展示（类型：'+esc(d.item.kind||'?')+'）','err');return;}
+    renderNatal(res);
+    showZiwei(res);
     asFlash('已从云端档案载入：'+d.item.title);
   }).catch(function(){asFlash('网络异常','err');});
 }
@@ -1117,6 +1434,45 @@ function delRecord(id){
   fetch('/astro/api/records/'+id,{method:'DELETE'}).then(function(r){return r.json();})
     .then(function(d){asFlash(d.ok?'已删除':'删除失败',d.ok?'ok':'err');loadRecords();});
 }
+/* 用云端存档回填出生表单 */
+function fillNatalForm(input,result){
+  var inp=input||{};
+  if(inp.birth_date){
+    var parts=String(inp.birth_date).split('-');
+    if(parts.length===3){
+      var y=+parts[0],m=+parts[1]||1,d=+parts[2]||1;
+      var ys=$('#ncYear');if(ys&&y>=1900&&y<=2100)ys.value=y;
+      var ms=$('#ncMonth');if(ms)ms.value=m;
+      fillDays();
+      var dim=_DAYS_M[m-1]||30;
+      if(m===2&&_isLeapYear(y))dim=29;
+      var ds=$('#ncDay');if(ds)ds.value=Math.min(d,dim);
+    }
+  }
+  if(inp.birth_time){var t=$('#ncTime');if(t)t.value=inp.birth_time.slice(0,5);}
+  if(inp.lat){var lat=$('#ncLat');if(lat)lat.value=inp.lat;}
+  if(inp.lon){var lon=$('#ncLon');if(lon)lon.value=inp.lon;}
+  var nm=(result&&result.western&&result.western.name)||inp.name;
+  if(nm){var n=$('#ncName');if(n)n.value=nm;}
+}
+/* 进入排盘页自动加载账号最近一次云端本命盘: 回填表单 + 渲染结果 */
+function autoLoadCloudLatest(){
+  fetch('/astro/api/records').then(function(r){return r.json();}).then(function(d){
+    if(!d.ok||!d.items||!d.items.length)return;
+    var rec=null;
+    for(var i=0;i<d.items.length;i++){if(d.items[i].kind==='natal'){rec=d.items[i];break;}}
+    if(!rec)return;
+    return fetch('/astro/api/records/'+rec.id).then(function(r){return r.json();}).then(function(f){
+      if(!f.ok||!f.item||!f.item.result)return;
+      _suppressTabJump=true;
+      fillNatalForm(f.item.input,f.item.result);
+      renderNatal(f.item.result);
+      showZiwei(f.item.result);
+      _suppressTabJump=false;
+      asFlash('已自动载入云端最近一次排盘','ok');
+    });
+  }).catch(function(){});
+}
 {% if current_user.is_authenticated %}
 function initSubscribe(){
   var sel=$('#subSign');
@@ -1124,7 +1480,8 @@ function initSubscribe(){
     '<option value="'+k+'">'+SIGN_GLYPHS[i]+' '+SIGN_CNS[i]+'</option>');});
   fetch('/astro/api/subscribe').then(function(r){return r.json();}).then(function(d){
     if(d.sub){sel.value=d.sub.sign;$('#subHour').value=d.sub.hour;
-      $('#subState').textContent='订阅生效中：每日 '+String(d.sub.hour).padStart(2,'0')+':00 投递'+(d.sub.last_sent_date?('，最近送达 '+d.sub.last_sent_date):'')+'。';}
+      $('#subState').textContent='订阅生效中：每日 '+String(d.sub.hour).padStart(2,'0')+':00 投递站内通知'+(d.sub.last_sent_date?('，最近送达 '+d.sub.last_sent_date):'')+'。';}
+    else{$('#subState').textContent='订阅已关闭（站内通知推送）。';}
   });
   $('#btnSubSave').addEventListener('click',function(){
     fetch('/astro/api/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -1140,7 +1497,9 @@ function initSubscribe(){
         $('#subState').textContent='订阅已关闭。';asFlash('已关闭订阅');});
   });
   initSubscribe._r=function(){fetch('/astro/api/subscribe').then(function(r){return r.json();}).then(function(d){
-    if(d.sub){$('#subState').textContent='订阅生效中：每日 '+String(d.sub.hour).padStart(2,'0')+':00 投递'+(d.sub.last_sent_date?('，最近送达 '+d.sub.last_sent_date):'')+'。';}});};
+    if(d.sub){$('#subState').textContent='订阅生效中：每日 '+String(d.sub.hour).padStart(2,'0')+':00 投递站内通知'+(d.sub.last_sent_date?('，最近送达 '+d.sub.last_sent_date):'')+'。';}
+    else{$('#subState').textContent='订阅已关闭（站内通知推送）。';}
+  });};
 }
 initSubscribe();
 {% endif %}
@@ -1198,8 +1557,403 @@ function draftUsable(d){
   {% endif %}
 })();
 
+/* ---------------- 赛博玄学新功能: 打卡 · 合盘 · 图鉴 · 积分皮肤 ---------------- */
+
+/* ---- 星点 & 打卡统计 (localStorage, 与服务器松耦合) ---- */
+function loadStats(){
+  var s={last:'',streak:0,points:0,sign:'aries'};
+  try{s=Object.assign(s,JSON.parse(localStorage.getItem('astro_stats')||'{}'));}catch(e){}
+  return s;
+}
+function saveStats(s){try{localStorage.setItem('astro_stats',JSON.stringify(s));}catch(e){}}
+var SKINS=[
+  {id:0,name:'深空原点',cost:0,ico:'🌌',vars:{'--as-gold':'#e8c476','--as-purple':'#b18cff'}},
+  {id:1,name:'霓虹粉紫',cost:120,ico:'💜',vars:{'--as-gold':'#f0abfc','--as-purple':'#e879f9'}},
+  {id:2,name:'赛博未来',cost:240,ico:'🤖',vars:{'--as-gold':'#22d3ee','--as-purple':'#38bdf8'}},
+  {id:3,name:'鎏金暗夜',cost:400,ico:'👑',vars:{'--as-gold':'#fde68a','--as-purple':'#f5d47c'}}
+];
+function applySkin(id){
+  try{localStorage.setItem('astro_skin',String(id));}catch(e){}
+  var sk=SKINS.find(function(x){return x.id===id;})||SKINS[0];
+  var body=document.body;
+  body.style.setProperty('--as-gold',sk.vars['--as-gold']);
+  body.style.setProperty('--as-purple',sk.vars['--as-purple']);
+  body.style.setProperty('--as-blue',sk.id===2?'#7dd3fc':(sk.id===3?'#fcd34d':'#6ea8ff'));
+}
+function getSkin(){var id=0;try{id=parseInt(localStorage.getItem('astro_skin')||'0',10)||0;}catch(e){}return id;}
+function addPoints(n){
+  var s=loadStats();s.points+=n;saveStats(s);
+  var v=$('#pointVal');if(v)v.textContent=s.points;
+  return s;
+}
+
+/* ---- 顶部打卡圆环 ---- */
+function todayStr(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function refreshHome(){
+  var s=loadStats(),today=todayStr();
+  /* 连续天数逻辑: 昨天打卡过则续, 否则若今天已打卡则从1起 */
+  var checked=s.last===today;
+  var fg=$('#ringFg'),num=$('#ringNum'),txt=$('#ringTxt'),btn=$('#btnEnergy');
+  var streak=s.streak;
+  if(checked){
+    if(fg)fg.style.strokeDashoffset='0';
+    if(num)num.textContent='第'+streak+'天';
+    if(txt)txt.textContent='今日已打卡 · 累计'+streak+'天';
+    if(btn){btn.disabled=true;btn.innerHTML='<i class="bi bi-check-circle"></i> 已领取今日能量';}
+    renderEnergyCached(today);
+  }else{
+    if(fg)fg.style.strokeDashoffset='100';
+    var exp=(streak%7)||7;
+    if(num)num.textContent='第'+streak+'天';
+    if(txt)txt.textContent='连续打卡 '+streak+' 天 · 距下一档 '+exp+'/7';
+    if(btn){btn.disabled=false;btn.innerHTML='<i class="bi bi-stars"></i> ✨ 领取今日能量签';}
+  }
+  var pv=$('#pointVal');if(pv)pv.textContent=s.points;
+  loadNearbyMyChart();
+  renderSkins();
+}
+function renderEnergyCached(today){
+  var tag='';
+  try{tag=localStorage.getItem('astro_energy_'+today)||'';}catch(e){}
+  var box=$('#energyCard');if(!box)return;
+  if(tag){
+    box.innerHTML='<div><div class="as-note" style="color:var(--as-dim);">今日核心运势标签</div>'+
+      '<span class="energy-tag">✨ '+esc(tag)+'</span></div>';
+  }else{
+    box.innerHTML='<div class="as-note">今日尚未领取能量签，点击上方按钮为今天注入一点星运能量。</div>';
+  }
+}
+function claimEnergy(){
+  var s=loadStats(),today=todayStr();
+  if(s.last===today){asFlash('今日能量签已领取，明天再来吧','ok');return;}
+  var btn=$('#btnEnergy');btn.disabled=true;btn.innerHTML='<i class="bi bi-arrow-repeat"></i> 正在凝练…';
+  fetch('/astro/api/fortune?sign='+encodeURIComponent(s.sign||'aries')+'&date='+today)
+    .then(function(r){return r.json();}).then(function(dd){
+      if(!dd.ok){btn.disabled=false;btn.innerHTML='<i class="bi bi-stars"></i> ✨ 领取今日能量签';asFlash(dd.error||'凝练失败','err');return;}
+      var tag=deriveEnergyTag(dd.local);
+      /* 更新统计 */
+      var lastSame=false;
+      try{var y=new Date(today);y.setDate(y.getDate()-1);var ys=y.toISOString().slice(0,10);lastSame=s.last===ys;}catch(e){}
+      if(s.last&&lastSame){s.streak+=1;}else{s.streak=1;}
+      s.last=today;s.points+=10;saveStats(s);addPoints(0);
+      try{localStorage.setItem('astro_energy_'+today,tag);}catch(e){}
+      var svg=$('#asRing');if(svg)svg.classList.add('flash');
+      setTimeout(function(){if(svg)svg.classList.remove('flash');},1600);
+      var num=$('#ringNum'),txt=$('#ringTxt');
+      if(num)num.textContent='第'+s.streak+'天';
+      if(txt)txt.textContent='今日已打卡 · 累计'+s.streak+'天';
+      var fg=$('#ringFg');if(fg)fg.style.strokeDashoffset='0';
+      renderEnergyCached(today);
+      var pv=$('#pointVal');if(pv)pv.textContent=s.points;
+      if(navigator.vibrate){try{navigator.vibrate([30,40,30]);}catch(e){}}
+      asFlash('能量签已点亮 · +10星点','ok');
+    }).catch(function(){btn.disabled=false;btn.innerHTML='<i class="bi bi-stars"></i> ✨ 领取今日能量签';asFlash('网络异常，请稍后再试','err');});
+}
+function deriveEnergyTag(local){
+  var dims=(local&&local.dims)||[];
+  if(!dims.length)return '星运能量'+local.overall;
+  var top=dims.slice().sort(function(a,b){return b.score-a.score;})[0];
+  var labelMap={爱情:'桃花',事业:'事业',财富:'财运',健康:'元气',工作:'事业',金钱:'财运'};
+  var key=labelMap[top.label]||top.label;
+  if(top.score>=85)return key+'MAX · 强势高光';
+  if(top.score>=70)return key+'在线 · 稳步走强';
+  if(top.score>=55)return key+'平顺 · 稳中求进';
+  return key+'蓄力 · 静候花开';
+}
+
+/* ---- 中部合盘 ---- */
+var _myChart=null;
+function loadNearbyMyChart(){
+  var d=_lastChartResult;
+  if(!d){try{d=JSON.parse(localStorage.getItem('astro_last_chart')||'null');}catch(e){d=null;}}
+  _myChart=d;
+  var desc=$('#mcMyDesc');
+  if(!desc)return;
+  if(d&&d.western&&d.western.big_three){
+    var bt=d.western.big_three;
+    desc.textContent='太阳'+bt.sun+' · 月亮'+bt.moon+' · 上升'+bt.asc;
+  }else{
+    desc.textContent='点击查看/生成我的本命盘';
+  }
+}
+$('#mcMyChart').addEventListener('click',function(){
+  switchTab('natal');
+});
+$('#mcMatch').addEventListener('click',openMatchSheet);
+$('#btnMatchClose').addEventListener('click',function(){$('#matchMask').classList.remove('show');});
+$('#matchMask').addEventListener('click',function(e){if(e.target===this)this.classList.remove('show');});
+(function initMatchDates(){
+  var ys=$('#mpYear'),ms=$('#mpMonth');
+  if(!ys)return;
+  var nowY=new Date().getFullYear();
+  for(var y=nowY;y>=1900;y--){var o=document.createElement('option');o.value=y;o.textContent=y+'年';ys.appendChild(o);}
+  for(var m=1;m<=12;m++){var o2=document.createElement('option');o2.value=m;o2.textContent=m+'月';ms.appendChild(o2);}
+  ys.value='1995';ms.value='1';mpFillDays();ys.addEventListener('change',mpFillDays);ms.addEventListener('change',mpFillDays);
+})();
+function mpFillDays(){
+  var y=+$('#mpYear').value,m=+$('#mpMonth').value,ds=$('#mpDay'),cur=+ds.value||15;
+  var dim=_DAYS_M[m-1];
+  if(m===2&&_isLeapYear(y))dim=29;
+  ds.innerHTML='';
+  for(var i=1;i<=dim;i++){var o=document.createElement('option');o.value=i;o.textContent=i+'日';ds.appendChild(o);}
+  ds.value=Math.min(cur,dim);
+}
+function openMatchSheet(){
+  loadNearbyMyChart();
+  $('#matchSheetResult').innerHTML='';
+  $('#matchMask').classList.add('show');
+}
+function askMatchCalc(){
+  if(!_myChart){asFlash('请先在「星盘库」生成我的本命盘，再进行合盘','err');return;}
+  var p=function(n){return (n<10?'0':'')+n;};
+  var peerBirth=$('#mpYear').value+'-'+p(+$('#mpMonth').value)+'-'+p(+$('#mpDay').value);
+  var peerTime=$('#mpTime').value||'12:00';
+  var name=$('#mpName').value||'TA';
+  var rel=$('#mpRelation').value;
+  var btn=$('#btnMatchCalc');btn.disabled=true;btn.innerHTML='<i class="bi bi-arrow-repeat"></i> 正在合盘…';
+  var body={name:name+' · '+rel,birth_date:peerBirth,birth_time:peerTime,gender:'女',lat:31.23,lon:121.47};
+  fetch('/astro/api/chart',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(function(r){return r.json();}).then(function(dd){
+      btn.disabled=false;btn.innerHTML='<i class="bi bi-stars"></i> 开始合盘';
+      if(!dd.ok){asFlash(dd.error||'合盘失败','err');return;}
+      var peer=dd.result;
+      renderSynastry(_myChart,peer,name,rel);
+      var pv=$('#pointVal');if(pv)pv.textContent=loadStats().points;
+    }).catch(function(){btn.disabled=false;btn.innerHTML='<i class="bi bi-stars"></i> 开始合盘';asFlash('网络异常，请稍后再试','err');});
+}
+function renderSynastry(my,peer,name,rel){
+  var syn=computeSynastry(my,peer);
+  var myName=(my.western.name||'我'),peerName=(peer.western.name||name);
+  var html='<div class="glass"><h3><i class="bi bi-people-fill"></i> 合盘结果 · '+esc(rel)+'</h3>';
+  html+='<div class="syn-orbit">'+
+    '<div class="elp"></div><div class="elp2"></div>'+
+    '<div class="planet p1" title="'+esc(myName)+'">✨</div>'+
+    '<div class="planet p2" title="'+esc(peerName)+'">🧿</div>'+
+    '<div class="burst" id="burstBox"></div>'+
+    '<div class="syn-match-center"><div class="mc-pct">'+syn.percent+'%</div>'+
+    '<div class="mc-cap">灵魂共鸣度</div>'+
+    '<span class="as-note mt-2" style="color:var(--as-gold);">'+esc(syn.tagline)+'</span></div>'+
+    '</div>';
+  html+='<div class="as-note" style="text-align:center;">'+
+    esc(myName+' ✦ '+peerName)+' · 关键相位</div>';
+  html+='<div style="text-align:center;margin-top:6px;">';
+  syn.highlights.forEach(function(h){
+    html+='<span class="asp-chip"><span class="asp-dot" style="background:'+h.color+'"></span>'+
+      esc(h.text)+'</span>';
+  });
+  if(!syn.highlights.length)html+='<span class="as-note">相位离散，缘分微妙。</span>';
+  html+='</div>';
+  /* 分享卡 */
+  html+='<div class="share-card">'+
+    '<div class="sc-logo"><i class="bi bi-stars"></i> 星运 Synastry</div>'+
+    '<div class="sc-qr"></div>'+
+    '<div class="sc-big">'+syn.percent+'%</div>'+
+    '<div class="sc-asp">灵魂共鸣度 · '+esc(syn.tagline)+'</div>'+
+    '<div class="sc-rel">'+esc(rel)+' · 双星环绕</div>'+
+    '<div class="sc-names">'+esc(myName)+' ✦ '+esc(peerName)+'</div>'+
+    '</div>';
+  html+='<div class="d-flex gap-2 justify-content-center mt-2 flex-wrap">'+
+    '<button type="button" class="energy-btn" onclick="asCopyShare()"><i class="bi bi-share"></i> 复制分享文案</button>'+
+    '<button type="button" class="as-btn ghost sm" id="btnSaveMatch"><i class="bi bi-cloud-arrow-up"></i> 存入关系档案</button>'+
+    '</div></div>';
+  var box=$('#matchSheetResult');box.innerHTML=html;wrapTerms(box);
+  _lastMatch={my:my,peer:peer,name:name,rel:rel,syn:syn,myName:myName,peerName:peerName,myChart:my,peerChart:peer};
+  if(syn.percent>=80){spawnBurst();}
+  addPoints(20);
+  $('#btnSaveMatch').addEventListener('click',saveMatch);
+}
+var _lastMatch=null;
+function computeSynastry(my,peer){
+  var ptsA=my.western.points||[],ptsB=peer.western.points||[];
+  var ASP={0:['合','#6ea8ff'],60:['六合','#5fd0a0'],90:['刑','#e8853d'],120:['三合','#5fd0a0'],180:['冲','#ff8a80']};
+  var list=[];
+  function diff(a,b){var d=Math.abs(a-b)%360;return d>180?360-d:d;}
+  ptsA.forEach(function(a){
+    ptsB.forEach(function(b){
+      var d=diff(a.lon,b.lon);
+      var found=null;
+      Object.keys(ASP).forEach(function(k){if(Math.abs(d-(+k))<=6){found={k:+k,val:ASP[k]};}});
+      if(found){var orb=Math.abs(d-found.k);list.push({text:(a.cn+found.val[0]+b.cn),color:found.val[1],lum:12-orb});}
+    });
+  });
+  list.sort(function(x,y){return y.lum-x.lum;});
+  var sum=list.reduce(function(s,x){return s+x.lum;},0);
+  var percent=50+Math.round(sum*0.9);
+  percent=Math.max(20,Math.min(99,percent));
+  var tagline=[];
+  var hasMoon=0,hasVenus=0;
+  list.slice(0,4).forEach(function(x){
+    if(x.text.indexOf('月亮')>=0){hasMoon=1;}
+    if(x.text.indexOf('金星')>=0){hasVenus=1;}
+    var n=x.text.split(' ')[1]||'';
+    tagline.push(n);
+  });
+  var tag;
+  if(hasMoon&&hasVenus)tag='月金合相 · 心动磁场';
+  else if(hasMoon)tag='月亮共振 · 情绪同频';
+  else if(hasVenus)tag='金星引力 · 浪漫升级';
+  else if(list.length)tag='星相交织 · 缘分开启';
+  else tag='星轨独立 · 各自闪亮';
+  return {percent:percent,highlights:list.slice(0,6),tagline:tag,count:list.length};
+}
+function spawnBurst(){
+  var b=$('#burstBox');if(!b)return;
+  for(var i=0;i<26;i++){
+    var p=document.createElement('i');
+    var ang=Math.random()*Math.PI*2,dist=30+Math.random()*60;
+    p.style.setProperty('--dx',(Math.cos(ang)*dist)+'px');
+    p.style.setProperty('--dy',(Math.sin(ang)*dist)+'px');
+    p.style.left='50%';p.style.top='50%';
+    b.appendChild(p);
+    (function(el){setTimeout(function(){el.remove();},950);})(p);
+  }
+}
+function asCopyShare(){
+  if(!_lastMatch){asFlash('请先生成一份合盘','err');return;}
+  var m=_lastMatch;
+  var txt='【灵魂共鸣度 '+m.syn.percent+'% | '+m.syn.tagline+'】\n'+
+    m.myName+' ✦ '+m.peerName+' · '+m.rel+'\n来自 星运 Synastry';
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(function(){asFlash('分享文案已复制','ok');},
+      function(){prompt('复制以下文案：',txt);});
+  }else{prompt('复制以下文案：',txt);}
+}
+function saveMatch(){
+  if(!_lastMatch){asFlash('请先生成一份合盘','err');return;}
+  var m=_lastMatch;
+  var input={
+    kind:'match',title:m.rel+'合盘 · '+m.myName+' ✦ '+m.peerName,
+    input:{peer_name:m.name,peer_birth:m.peer.western.birth_iso,
+      relation_type:m.rel,percent:m.syn.percent,tagline:m.syn.tagline},
+    result:{my:m.myChart,peer:m.peerChart,syn:m.syn,percent:m.syn.percent,tagline:m.syn.tagline}
+  };
+  fetch('/astro/api/records',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)})
+    .then(function(r){return r.json();}).then(function(d){
+      if(d.ok){asFlash('已存入关系档案（'+m.rel+'）','ok');}
+      else{asFlash(d.error||'请先登录后保存档案','err');}
+    }).catch(function(){asFlash('网络异常','err');});
+}
+
+/* ---- 塔罗图鉴 ---- */
+var TAROT_MAJOR=['愚者','魔术师','女祭司','女皇','皇帝','教皇','恋人','战车','力量','隐士','命运之轮','正义','吊人','死神','节制','恶魔','高塔','星星','月亮','太阳','审判','世界'];
+function loadOwned(){var o=[];try{o=JSON.parse(localStorage.getItem('astro_tarot_owned')||'[]').map(Number);}catch(e){o=[];}return o;}
+function saveOwned(o){try{localStorage.setItem('astro_tarot_owned',JSON.stringify(o));}catch(e){}}
+function renderGallery(){
+  var owned=loadOwned(),grid=$('#galGrid');if(!grid)return;
+  var html='';
+  for(var i=0;i<22;i++){
+    var ownedIt=owned.indexOf(i)>=0;
+    html+='<div class="gal-slot'+(ownedIt?' flip rare':'')+'" data-no="'+i+'">'+
+      '<div class="gal-inner">'+
+      '<div class="gal-face front"><i class="bi bi-question-lg"></i><span class="as-note">?</span></div>'+
+      '<div class="gal-face back"><div class="gf-no">NO.'+i+'</div><div class="gf-name">'+esc(TAROT_MAJOR[i])+'</div>'+
+      '<div class="gf-mean">大阿尔卡纳</div></div></div></div>';
+  }
+  grid.innerHTML=html;
+  var ownerCount=$('#galOwnCount');
+  if(ownerCount)ownerCount.textContent=owned.length+' / 22';
+  $$('.gal-slot',grid).forEach(function(sl){
+    sl.addEventListener('click',function(){
+      if(!sl.classList.contains('flip')){
+        var no=+sl.getAttribute('data-no');
+        sl.classList.add('flip');
+        var o=loadOwned();
+        if(o.indexOf(no)<0){o.push(no);saveOwned(o);addPoints(5);
+          asFlash('收藏 '+TAROT_MAJOR[no]+' · +5星点','ok');renderGallery();}
+      }
+    });
+  });
+}
+function renderPick(){
+  var box=$('#tarotPick');if(!box)return;
+  var owned=loadOwned();
+  box.innerHTML='<div style="width:100%;text-align:center;margin-bottom:6px;">'+
+    '<button type="button" class="as-btn" id="btnBlindBox"><i class="bi bi-gift"></i> 开盲盒 · 抽一张塔罗</button></div>';
+  $('#btnBlindBox').addEventListener('click',function(){
+    var btn=this;btn.disabled=true;btn.innerHTML='<i class="bi bi-arrow-repeat"></i> 正在开启…';
+    fetch('/astro/api/tarot',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
+      .then(function(r){return r.json();}).then(function(d){
+        btn.disabled=false;btn.innerHTML='<i class="bi bi-gift"></i> 开盲盒 · 抽一张塔罗';
+        if(!d.ok||!d.cards.length){asFlash('开盒失败','err');return;}
+        var c=d.cards[0];
+        box.innerHTML='<div class="pick-card flip"><div class="pick-inner">'+
+          '<div class="pick-face"><i class="bi bi-gift"></i></div>'+
+          '<div class="pick-face back2"><i class="bi bi-star"></i><span>'+esc(c.cn)+'</span>'+
+          (c.reversed?'<span>逆位</span>':'')+'</div></div></div>'+
+          '<div class="as-note" style="width:100%;text-align:center;">'+esc(c.meaning)+'</div>';
+        var no=c.no;
+        var o=loadOwned();
+        if(o.indexOf(no)<0){o.push(no);saveOwned(o);addPoints(5);asFlash('图鉴新增 '+c.cn+' · +5星点','ok');}
+        renderGallery();
+      }).catch(function(){btn.disabled=false;btn.innerHTML='<i class="bi bi-gift"></i> 开盲盒 · 抽一张塔罗';asFlash('网络异常','err');});
+  });
+}
+$('#btnOpenGallery').addEventListener('click',function(){switchTab('gallery');});
+$('#btnGalleryBack').addEventListener('click',function(){switchTab('daily');});
+
+/* ---- 我的: 积分 & 皮肤 ---- */
+function renderSkins(){
+  var row=$('#skinRow');if(!row)return;
+  var s=loadStats(),active=getSkin();
+  row.innerHTML='';
+  SKINS.forEach(function(sk){
+    var unlocked=s.points>=sk.cost||sk.cost===0;
+    row.insertAdjacentHTML('beforeend',
+      '<div class="skin-tile'+(unlocked?'':' locked')+(active===sk.id?' active':'')+'" data-id="'+sk.id+'">'+
+      '<div class="sk-ico">'+sk.ico+'</div><div class="sk-n">'+esc(sk.name)+'</div>'+
+      (sk.cost>0?'<div class="sk-cost">'+sk.cost+' 星点</div>':'<div class="sk-cost">默认</div>')+
+      '</div>');
+  });
+  $$('.skin-tile',row).forEach(function(t){
+    t.addEventListener('click',function(){
+      var id=+t.getAttribute('data-id'),sk=SKINS.find(function(x){return x.id===id;});
+      if(loadStats().points<sk.cost){asFlash('星点不足，还差 '+(sk.cost-loadStats().points)+' 星点','err');return;}
+      applySkin(id);
+      $$('.skin-tile',row).forEach(function(x){x.classList.remove('active');});
+      t.classList.add('active');
+      asFlash('已启用皮肤 · '+sk.name,'ok');
+    });
+  });
+}
+applySkin(getSkin());
+
+/* ---- 背景星空粒子 ---- */
+(function initStars(){
+  var cv=document.getElementById('starsCanvas');
+  if(!cv)return;
+  var ctx=cv.getContext('2d');
+  var W,H,cx;
+  function size(){W=cv.width=window.innerWidth;H=cv.height=window.innerHeight;}
+  function make(n){var a=[];for(var i=0;i<n;i++){a.push({x:Math.random()*W,y:Math.random()*H,
+    r:Math.random()*1.6+0.4,vx:(Math.random()-0.5)*0.24,vy:(Math.random()-0.5)*0.24,
+    tw:Math.random()*Math.PI*2});}return a;}
+  size();cx=make(140);
+  window.addEventListener('resize',function(){size();cx=make(140);});
+  (function loop(){
+    ctx.clearRect(0,0,W,H);
+    for(var i=0;i<cx.length;i++){
+      var p=cx[i];p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=W;if(p.x>W)p.x=0;if(p.y<0)p.y=H;if(p.y>H)p.y=0;
+      p.tw+=0.03;
+      var a=0.35+0.45*Math.abs(Math.sin(p.tw));
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle='rgba(196,181,253,'+a+')';ctx.fill();
+    }
+    requestAnimationFrame(loop);
+  })();
+})();
+
 /* ---------------- 启动 ---------------- */
 initSignPicker();
+$('#asBack').addEventListener('click',function(){
+  var home='{% if current_user.is_authenticated %}{{ url_for("user_dashboard") }}{% else %}/{% endif %}';
+  if(history.length>1){history.back();}else{location.href=home;}
+});
+$('#btnEnergy').addEventListener('click',claimEnergy);
+$('#btnMatchCalc').addEventListener('click',askMatchCalc);
+refreshHome();
+{% if current_user.is_authenticated %}
+autoLoadCloudLatest();
+{% endif %}
 $('#btnNatal').addEventListener('click',function(){askNatal(false);});
 {% if current_user.is_authenticated %}
 $('#btnSaveChart').addEventListener('click',function(){
@@ -1207,11 +1961,15 @@ $('#btnSaveChart').addEventListener('click',function(){
 });
 {% endif %}
 $('#btnFortune').addEventListener('click',askFortune);
-$('#btnToday').addEventListener('click',function(){$('#ftDate').value=new Date().toISOString().slice(0,10);askFortune();});
+$('#btnToday').addEventListener('click',function(){$('#ftDate').value=todayStr();askFortune();});
 $('#btnTarot').addEventListener('click',askTarot);
 (function(){
-  var today=new Date().toISOString().slice(0,10);
-  var fd=$('#ftDate');if(fd){fd.value=today;fd.max='2028-12-31';}
+  var nd=new Date(),today=todayStr();
+  var mx=new Date(nd.getTime()+730*86400000);
+  var fd=$('#ftDate');if(fd){
+    fd.value=today;fd.min='2000-01-01';
+    fd.max=mx.getFullYear()+'-'+String(mx.getMonth()+1).padStart(2,'0')+'-'+String(mx.getDate()).padStart(2,'0');
+  }
 })();
 var h=location.hash||'';
 if(h.indexOf('tab-')===0){switchTab(h.slice(4));}

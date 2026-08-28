@@ -593,43 +593,93 @@ def _cn_to_int(s):
 
 
 # 「第一期：2026年8月28日14:30-16:30」类多场次行(≥2 场视为拆分信号)
-_SESS_PAT = re.compile(
-    r'第\s*([一二三四五六七八九十百\d]{1,3})\s*([期届场次轮节讲])\s*[:：]?\s*'
+_SESS_HEAD_PAT = re.compile(
+    r'第\s*([一二三四五六七八九十百\d]{1,3})\s*'
+    r'(期|届|场|次|轮|节|讲|阶段|段|批|天)'
+    r'(?![\u4e00-\u9fff\u201c\u201d\u2018\u2019"\'\"\'])')
+_SESS_TIME_PAT = re.compile(
     r'(?:(\d{4})\s*年)?\s*(?:(\d{1,2})\s*月)?\s*(\d{1,2})\s*[日号]?'
-    r'\s*(\d{1,2})[：:时点]\s*(\d{1,2})?分?'
-    r'(?:\s*[-—–~至到]+\s*(\d{1,2})[：:时]\s*(\d{1,2})?分?)?')
+    r'\s*(上[午]|下[午]|晚[上]|早[上晨]|凌[晨])?\s*(\d{1,2})[：:时点]\s*(\d{1,2})?分?'
+    r'(?:\s*[-—–~至到]+\s*(上[午]|下[午]|晚[上])?\s*(\d{1,2})[：:时]\s*(\d{1,2})?分?)?')
+# 「X月X日前」截止型: 如「9月30日前集中补学」→ 当日 08:30-17:30
+_SESS_DEADLINE_PAT = re.compile(
+    r'(?:(\d{4})\s*年)?\s*(?:(\d{1,2})\s*月)?\s*(\d{1,2})\s*[日号]?\s*'
+    r'(?:之前|以前|前)')
+
+
+def _sess_adjust_hour(period, h):
+    """上午/下午/晚上等时段词 → 24 小时制小时."""
+    if period in ('下午', '晚上'):
+        return h + 12 if h < 12 else h
+    if period in ('上午', '早上', '早晨', '凌晨'):
+        return 0 if h == 12 else h
+    return h
 
 
 def _extract_sessions(text):
-    """提取「第X期/场/次: 日期 时间-时间」多场次列表。
+    """提取「第X期/场/次/阶段: 日期 时间 / X月X日前 / 无时间」多场次列表。
 
-    返回 [{'label','index','start','end'}]; 少于 2 场或无法解析日期返回 []。
-    未写年份按当前年推算, 若已过则顺延一年; 缺结束时间默认 +1 小时。
+    返回 [{'label','index','start','end'}]; start/end 可为 None 表示该场暂无时间
+    (需在确认页手动补填)。少于 2 场(含空场)或无法解析返回 []。
+    每个「第X」段落内的每个日期各拆一场(如同一阶段出现多个可选日期);
+    未写年份按当前年推算, 若已过则顺延一年; 缺结束时间默认 +1 小时;
+    「X月X日前」按当日 08:30-17:30 处理; 段落内既无日期也无截止词则为空场。
     """
     now = cn_now()
     out = []
-    for m in _SESS_PAT.finditer(text):
-        num_s, unit, yy, mo, dd, h1, mi1, h2, mi2 = m.groups()
+    heads = list(_SESS_HEAD_PAT.finditer(text))
+    for hi, hm in enumerate(heads):
+        num_s, unit = hm.group(1), hm.group(2)
         idx = _cn_to_int(num_s)
-        if not idx or not mo or not dd:
+        if not idx:
             continue
-        try:
-            year = int(yy) if yy else now.year
-            start = datetime(year, int(mo), int(dd),
-                             int(h1), int(mi1 or 0))
-            if not yy and start < now:
-                start = start.replace(year=year + 1)
-            if h2 is not None:
-                end = start.replace(hour=int(h2), minute=int(mi2 or 0))
-                if end <= start:
-                    end += timedelta(days=1)
-            else:
-                end = start + timedelta(hours=1)
-        except ValueError:
-            continue
-        out.append({'label': f'第{num_s}{unit}', 'index': idx,
-                    'start': start, 'end': end})
-    out.sort(key=lambda x: x['index'])
+        block_start = hm.end()
+        block_end = heads[hi + 1].start() if hi + 1 < len(heads) else len(text)
+        block = text[block_start:block_end]
+        label = f'第{num_s}{unit}'
+        found = False
+        for m in _SESS_TIME_PAT.finditer(block):
+            yy, mo, dd, per1, h1, mi1, per2, h2, mi2 = m.groups()
+            if not mo or not dd:
+                # 非完整日期(如裸时间「11:00」)不视为阶段时间, 也不计入 found
+                continue
+            found = True
+            try:
+                year = int(yy) if yy else now.year
+                start = datetime(year, int(mo), int(dd),
+                                 _sess_adjust_hour(per1, int(h1)), int(mi1 or 0))
+                if not yy and start < now:
+                    start = start.replace(year=year + 1)
+                if h2 is not None:
+                    end = start.replace(hour=_sess_adjust_hour(per2, int(h2)),
+                                        minute=int(mi2 or 0))
+                    if end <= start:
+                        end += timedelta(days=1)
+                else:
+                    end = start + timedelta(hours=1)
+            except ValueError:
+                continue
+            found = True
+            out.append({'label': label, 'index': idx, 'start': start, 'end': end})
+        if not found:
+            # 段内无「时间」型: 尝试「X月X日前」截止型
+            dm = _SESS_DEADLINE_PAT.search(block)
+            if dm and (dm.group(2) and dm.group(3)):
+                yy, mo, dd = dm.group(1), dm.group(2), dm.group(3)
+                try:
+                    year = int(yy) if yy else now.year
+                    start = datetime(year, int(mo), int(dd), 8, 30)
+                    if not yy and start < now:
+                        start = start.replace(year=year + 1)
+                    end = start.replace(hour=17, minute=30)
+                except ValueError:
+                    continue
+                out.append({'label': label, 'index': idx, 'start': start, 'end': end})
+                continue
+            # 既无时间也无截止词 → 空场(确认页需手动补填时间)
+            out.append({'label': label, 'index': idx, 'start': None, 'end': None})
+    out.sort(key=lambda x: (x['index'],
+                            x['start'] if x['start'] is not None else datetime.max))
     return out if len(out) >= 2 else []
 
 

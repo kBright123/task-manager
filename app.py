@@ -440,6 +440,9 @@ from routes.astro import init_models as astro_init_models, astro_bp
 astro_init_models(db)
 app.register_blueprint(astro_bp)
 
+from routes.education import education_bp  # 纯前端, 无需 init_models
+app.register_blueprint(education_bp)
+
 # ---- ServiceWorker / 宠物页 / 静态版本号 / 模板注入 ----
 @app.route('/sw.js')
 def service_worker_js():

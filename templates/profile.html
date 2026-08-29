@@ -181,6 +181,43 @@
     </div>
   </div>
 </div>
+
+<!-- ================= 孩子学习档案(教育乐园) ================= -->
+<div class="card mt-4">
+  <div class="card-header py-2 px-3"><i class="bi bi-mortarboard"></i> 孩子学习档案（教育乐园）</div>
+  <div class="card-body py-3 px-3" style="font-size:.85rem;">
+    <p style="color:var(--gray-500);font-size:.78rem;margin-bottom:10px;">
+      登记孩子的出生年份与性别，教育乐园会自动进入对应年龄段的学习内容，并支持登记多个孩子、随时切换。
+    </p>
+    <div id="kidList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;"></div>
+
+    <div style="border-top:1px dashed var(--gray-300);padding-top:12px;">
+      <div style="font-weight:700;color:var(--gray-700);margin-bottom:8px;" id="pkFormTitle">➕ 添加孩子</div>
+      <div class="row g-2 align-items-end">
+        <div class="col-sm-4">
+          <label style="font-size:.72rem;color:var(--gray-500);display:block;">名字 / 昵称</label>
+          <input type="text" id="pkName" class="form-control" maxlength="12" placeholder="例如：小豆豆" style="font-size:.82rem;padding:.3rem .6rem;">
+        </div>
+        <div class="col-sm-3">
+          <label style="font-size:.72rem;color:var(--gray-500);display:block;">出生年份</label>
+          <select id="pkYear" class="form-select" style="font-size:.82rem;padding:.3rem .6rem;"></select>
+        </div>
+        <div class="col-auto">
+          <label style="font-size:.72rem;color:var(--gray-500);display:block;">性别</label>
+          <div class="btn-group" role="group">
+            <button type="button" id="pkG-male" class="btn btn-sm" style="border:1px solid var(--gray-300);" onclick="pkGender('male')">👦 男</button>
+            <button type="button" id="pkG-female" class="btn btn-sm" style="border:1px solid var(--gray-300);" onclick="pkGender('female')">👧 女</button>
+          </div>
+        </div>
+        <div class="col-sm-auto text-end">
+          <button type="button" class="btn btn-primary btn-sm" onclick="pkSave()" style="font-size:.8rem;">保存</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="pkReset()" style="font-size:.8rem;display:none;" id="pkCancelBtn">取消</button>
+        </div>
+      </div>
+      <div id="pkMsg" style="font-size:.75rem;margin-top:6px;color:var(--danger);"></div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -312,5 +349,109 @@ function webcalAdd(link) {
   }
   return true;
 }
+</script>
+<script>
+// ================= 孩子学习档案(教育乐园) =================
+(function () {
+  if (!window.eduKids) return;
+  var pkEditId = null;
+  var pkGenderVal = null;
+  var msgEl = document.getElementById('pkMsg');
+
+  function msg(t){ msgEl.textContent = t || ''; }
+
+  function populateYears(){
+    var sel = document.getElementById('pkYear');
+    if (sel.options.length) return;
+    var y = new Date().getFullYear();
+    for (var i = 0; i <= 15; i++){
+      var o = document.createElement('option');
+      o.value = String(y - i);
+      o.textContent = (y - i) + ' 年';
+      sel.appendChild(o);
+    }
+  }
+
+  function renderKids(){
+    var listEl = document.getElementById('kidList');
+    var kids = window.eduKids.all();
+    if (!kids.length){
+      listEl.innerHTML = '<div class="p-2" style="color:var(--gray-400);font-size:.8rem;text-align:center;">还没有添加孩子，快添加第一个吧 🎈</div>';
+      return;
+    }
+    listEl.innerHTML = kids.map(function(k){
+      var on = window.eduKids.active() && window.eduKids.active().id === k.id;
+      var age = window.eduKids.ageOf(k.birthYear);
+      var tier = window.eduKids.tierLabel(window.eduKids.tierOf(age));
+      return '<div class="d-flex align-items-center gap-2 p-2" style="border:1.5px solid ' + (on ? 'var(--primary)' : 'var(--gray-200)') + ';border-radius:10px;">'+
+        '<span style="font-size:1.3rem;">' + window.eduKids.genderIcon(k.gender) + '</span>' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="font-weight:600;">' + esc(k.name || '宝贝') + (on ? ' <span class="badge" style="background:var(--primary);color:#fff;font-size:.62rem;">当前</span>' : '') + '</div>' +
+          '<small style="color:var(--gray-500);">' + age + ' 岁 · ' + esc(window.eduKids.genderLabel(k.gender)) + ' · ' + esc(tier) + '</small>' +
+        '</div>' +
+        '<div class="btn-group btn-group-sm">' +
+          '<button class="btn btn-sm" style="border:1px solid var(--gray-300);" onclick="pkSwitch(\'' + k.id + '\')" title="设为当前"><i class="bi bi-check-lg"></i></button>' +
+          '<button class="btn btn-sm" style="border:1px solid var(--gray-300);" onclick="pkEdit(\'' + k.id + '\')" title="编辑"><i class="bi bi-pencil"></i></button>' +
+          '<button class="btn btn-sm" style="border:1px solid var(--gray-300);" onclick="pkRemove(\'' + k.id + '\')" title="删除"><i class="bi bi-trash"></i></button>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  window.pkSwitch = function (id){ window.eduKids.setActive(id); renderKids(); };
+  window.pkEdit = function (id){
+    var k = window.eduKids.all().filter(function(x){ return x.id === id; })[0];
+    if (!k) return;
+    pkEditId = id;
+    pkGenderVal = k.gender;
+    document.getElementById('pkFormTitle').textContent = '✏ 编辑「' + (k.name || '宝贝') + '」';
+    document.getElementById('pkName').value = k.name || '';
+    document.getElementById('pkYear').value = String(k.birthYear);
+    highlightGender();
+    document.getElementById('pkCancelBtn').style.display = '';
+    msg();
+    document.getElementById('pkName').scrollIntoView({ behavior:'smooth', block:'center' });
+  };
+  window.pkRemove = async function (id){
+    if (!(await window.uiConfirm('确定删除这个孩子及其学习记录吗？'))) return;
+    window.eduKids.remove(id);
+    pkReset();
+    renderKids();
+  };
+  window.pkGender = function (g){ pkGenderVal = g; highlightGender(); };
+  function highlightGender(){
+    document.getElementById('pkG-male').style.background = pkGenderVal==='male' ? 'var(--primary)' : '';
+    document.getElementById('pkG-male').style.color = pkGenderVal==='male' ? '#fff' : '';
+    document.getElementById('pkG-female').style.background = pkGenderVal==='female' ? 'var(--primary)' : '';
+    document.getElementById('pkG-female').style.color = pkGenderVal==='female' ? '#fff' : '';
+  }
+  window.pkSave = function (){
+    var name = (document.getElementById('pkName').value || '').trim() || '宝贝';
+    var birthYear = parseInt(document.getElementById('pkYear').value, 10);
+    if (!birthYear){ msg('请选择出生年份'); return; }
+    if (!pkGenderVal){ msg('请选择性别'); return; }
+    if (pkEditId){
+      window.eduKids.update({ id: pkEditId, name: name, birthYear: birthYear, gender: pkGenderVal });
+      window.eduKids.setActive(pkEditId);
+    } else {
+      var kid = window.eduKids.add({ name: name, birthYear: birthYear, gender: pkGenderVal, created: Date.now() });
+      window.eduKids.setActive(kid.id);
+    }
+    pkReset();
+    renderKids();
+  };
+  window.pkReset = function (){
+    pkEditId = null;
+    pkGenderVal = null;
+    document.getElementById('pkFormTitle').textContent = '➕ 添加孩子';
+    document.getElementById('pkName').value = '';
+    document.getElementById('pkYear').value = String(new Date().getFullYear());
+    document.getElementById('pkCancelBtn').style.display = 'none';
+    highlightGender();
+    msg();
+  };
+  populateYears();
+  renderKids();
+  pkReset();
+})();
 </script>
 {% endblock %}

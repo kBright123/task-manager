@@ -264,7 +264,7 @@
   {% endwith %}
 
   {% if current_user.is_authenticated %}
-  {% if request.args.get('frame') != '1' %}
+  {% if request.args.get('frame') != '1' and not request.endpoint.startswith('education.') %}
   <!-- PC Top Nav -->
   <nav class="top-nav">
     <div class="top-nav-inner">
@@ -384,6 +384,7 @@
 
   <!-- Mobile Bottom Nav -->
   {% if request.args.get('frame') != '1' %}
+  {% if not request.endpoint.startswith('education.') %}
   <nav class="bottom-nav">
     <a href="{{ url_for('user_dashboard') }}" class="{% if request.endpoint == 'user_dashboard' %}active{% endif %}">
       <i class="bi bi-house"></i><span>首页</span>
@@ -403,27 +404,32 @@
     </a>
     {% endif %}
   </nav>
+  {% endif %}
 
   <!-- 快捷悬浮球: 全站可用, 有弹窗则内联打开, 否则跳转对应页面 -->
   {% include '_quick_task_modal.html' %}
   {% if current_user.is_authenticated %}
   <div id="quickFab" class="quick-fab">
     <div class="quick-fab-menu">
-      <button type="button" class="quick-fab-item" data-modal="quickTaskModal" data-url="{{ url_for('user_tasks') }}" onclick="fabOpen(this)">
+      <button type="button" class="quick-fab-item fab-work" data-modal="quickTaskModal" data-url="{{ url_for('user_tasks') }}" onclick="fabOpen(this)">
         <span class="quick-fab-item-icon" style="background:var(--primary);color:#fff;"><i class="bi bi-plus-circle"></i></span>
         <span>创建待办</span>
       </button>
-      <button type="button" class="quick-fab-item" data-modal="quickNoteModal" data-url="{{ url_for('notes.index') }}" onclick="fabOpen(this)">
+      <button type="button" class="quick-fab-item fab-work" data-modal="quickNoteModal" data-url="{{ url_for('notes.index') }}" onclick="fabOpen(this)">
         <span class="quick-fab-item-icon" style="background:var(--success);color:#fff;"><i class="bi bi-pencil-square"></i></span>
         <span>随手记</span>
       </button>
-      <button type="button" class="quick-fab-item" data-url="{{ url_for('kb.workbench') }}" onclick="fabKb(this)">
+      <button type="button" class="quick-fab-item fab-work" data-url="{{ url_for('kb.workbench') }}" onclick="fabKb(this)">
         <span class="quick-fab-item-icon" style="background:var(--warning);color:#fff;"><i class="bi bi-cloud-arrow-up"></i></span>
         <span>上传知识</span>
       </button>
-      <button type="button" class="quick-fab-item" data-url="/astro/" onclick="location.href=this.dataset.url">
+      <button type="button" class="quick-fab-item fab-work" data-url="/astro/" onclick="location.href=this.dataset.url">
         <span class="quick-fab-item-icon" style="background:linear-gradient(135deg,#e8c476,#b18cff);color:#1a2244;"><i class="bi bi-stars"></i></span>
         <span>星运排盘</span>
+      </button>
+      <button type="button" class="quick-fab-item" id="fabEduMode" onclick="fabMode(this)">
+        <span class="quick-fab-item-icon" style="background:linear-gradient(135deg,#ff8a4a,#ff5c8a);color:#fff;"><i id="fabEduModeIcon" class="bi bi-journal-bookmark"></i></span>
+        <span id="fabEduModeTxt">教育娱乐</span>
       </button>
     </div>
     <button type="button" id="quickFabToggle" class="quick-fab-toggle" aria-label="快速创建" aria-expanded="false"><i class="bi bi-plus-lg"></i></button>
@@ -547,6 +553,15 @@
       try{localStorage.setItem('kb_theme',nxt);}catch(e){}
       icon(nxt);
     });
+  })();
+  </script>
+  <script>
+  (function(){
+    var t=document.getElementById('fabEduModeTxt');
+    var ic=document.getElementById('fabEduModeIcon');
+    var edu=document.body.classList.contains('edu-page');
+    if(t)t.textContent=edu?'返回工作':'教育娱乐';
+    if(ic)ic.className=edu?'bi bi-briefcase':'bi bi-journal-bookmark';
   })();
   </script>
   <script src="{{ url_for('static', filename='js/shared.js', v=staticv('js/shared.js')) }}"></script>

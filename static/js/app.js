@@ -326,6 +326,10 @@
       }
       if (url) { window.location.href = url; }
     }
+    function fabMode() {
+      closeFab();
+      if (typeof toggleEduMode === 'function') toggleEduMode();
+    }
     function showQuickNoteModal() {
       var m = document.getElementById('quickNoteModal');
       if (m) { bootstrap.Modal.getOrCreateInstance(m).show(); return; }

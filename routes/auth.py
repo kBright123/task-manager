@@ -154,8 +154,6 @@ def login():
             user.last_seen = cn_now()
             login_user(user)
             session.permanent = True  # 会话 4 小时后自动过期退出登录
-            log_operation('login', username,
-                          f'用户 {user.name or user.username} 登录成功')
             db.session.commit()
             flash('登录成功！', 'success')
             next_page = request.args.get('next')
@@ -301,9 +299,6 @@ def register():
 @app.route('/logout')
 @login_required
 def logout():
-    log_operation('logout', current_user.username or '',
-                  f'用户 {current_user.name or current_user.username} 退出登录')
-    db.session.commit()
     logout_user()
     flash('已退出登录', 'info')
     return redirect(url_for('login'))
@@ -318,9 +313,6 @@ def guest_login():
         return redirect(url_for('login'))
     login_user(user)
     session.permanent = True
-    log_operation('login', user.username,
-                  f'体验客户 {user.name or user.username} 一键登录')
-    db.session.commit()
     return redirect(url_for('index'))
 
 

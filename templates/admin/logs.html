@@ -20,8 +20,8 @@
 {% block title %}管理{% endblock %}
 {% block body_class %}admin-full{% endblock %}
 {% block content %}
-{% set badge_map = {'login': 'var(--success)', 'login_fail': 'var(--danger)', 'logout': 'var(--gray-500)', 'kb_upload': 'var(--primary)', 'kb_delete': 'var(--danger)', 'kb_reprocess': 'var(--warning)', 'kb_cancel': 'var(--gray-500)', 'kb_export': 'var(--primary)', 'kb_bulk_delete': 'var(--danger)', 'kb_bulk_reprocess': 'var(--warning)', 'kb_bulk_export': 'var(--primary)', 'kb_collection_create': 'var(--primary)', 'kb_collection_update': 'var(--primary)', 'kb_collection_delete': 'var(--danger)', 'kb_collection_assign': 'var(--primary)', 'logs_cleanup': 'var(--warning)'} %}
-{% set label_map = {'login': '登录成功', 'login_fail': '登录失败', 'logout': '退出登录', 'kb_upload': '上传文档', 'kb_delete': '删除文档', 'kb_reprocess': '重新识别', 'kb_cancel': '停止识别', 'kb_export': '导出文档', 'kb_bulk_delete': '批量删除', 'kb_bulk_reprocess': '批量重识别', 'kb_bulk_export': '批量导出', 'kb_collection_create': '创建集合', 'kb_collection_update': '更新集合', 'kb_collection_delete': '删除集合', 'kb_collection_assign': '集合分配', 'logs_cleanup': '清理日志'} %}
+{% set badge_map = {'login': 'var(--success)', 'login_fail': 'var(--danger)', 'logout': 'var(--gray-500)', 'kb_upload': 'var(--primary)', 'kb_delete': 'var(--danger)', 'kb_reprocess': 'var(--warning)', 'kb_cancel': 'var(--gray-500)', 'kb_export': 'var(--primary)', 'kb_bulk_delete': 'var(--danger)', 'kb_bulk_reprocess': 'var(--warning)', 'kb_bulk_export': 'var(--primary)', 'kb_collection_create': 'var(--primary)', 'kb_collection_update': 'var(--primary)', 'kb_collection_delete': 'var(--danger)', 'kb_collection_assign': 'var(--primary)', 'logs_cleanup': 'var(--warning)', 'astro_visit': 'var(--info)'} %}
+{% set label_map = {'login': '登录成功', 'login_fail': '登录失败', 'logout': '退出登录', 'kb_upload': '上传文档', 'kb_delete': '删除文档', 'kb_reprocess': '重新识别', 'kb_cancel': '停止识别', 'kb_export': '导出文档', 'kb_bulk_delete': '批量删除', 'kb_bulk_reprocess': '批量重识别', 'kb_bulk_export': '批量导出', 'kb_collection_create': '创建集合', 'kb_collection_update': '更新集合', 'kb_collection_delete': '删除集合', 'kb_collection_assign': '集合分配', 'logs_cleanup': '清理日志', 'astro_visit': '星运访问'} %}
 <ul class="nav nav-tabs mb-3 flex-nowrap admin-tabs" style="border-bottom:1px solid var(--gray-200);flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;">
   <li class="nav-item">
     <a class="nav-link nav-tab-link" href="{{ url_for('admin_users') }}" style="font-size:.85rem;color:var(--gray-500);"><i class="bi bi-people"></i> 用户管理</a>
@@ -46,7 +46,7 @@
       </div>
       <select class="form-select form-select-sm" name="action" style="width:170px;flex:0 1 auto;font-size:.8rem;border-color:var(--gray-200);">
         <option value="">全部操作</option>
-        {% set actions = ['login','login_fail','logout','kb_upload','kb_delete','kb_reprocess','kb_cancel','kb_export','kb_bulk_delete','kb_bulk_reprocess','kb_bulk_export','kb_collection_create','kb_collection_update','kb_collection_delete','kb_collection_assign'] %}
+        {% set actions = ['login','login_fail','logout','kb_upload','kb_delete','kb_reprocess','kb_cancel','kb_export','kb_bulk_delete','kb_bulk_reprocess','kb_bulk_export','kb_collection_create','kb_collection_update','kb_collection_delete','kb_collection_assign','astro_visit'] %}
         {% for a in actions %}
         <option value="{{ a }}" {% if action == a %}selected{% endif %}>{{ a }}</option>
         {% endfor %}
@@ -63,6 +63,7 @@
     <div class="d-flex gap-2 align-items-center flex-shrink-0 d-none d-md-flex" style="white-space:nowrap;">
       <span class="badge" style="background:var(--gray-100);color:var(--gray-600);font-size:.7rem;">共 {{ total_logs }} 条</span>
       <span class="badge" style="background:var(--primary-light);color:var(--primary);font-size:.7rem;">{{ total_users }} 位用户操作</span>
+      <span class="badge" style="background:rgba(13,110,253,.12);color:var(--info);font-size:.7rem;">星运访问 {{ astro_visits }} 次{% if astro_visits_today %}（今日 {{ astro_visits_today }}）{% endif %}</span>
     </div>
     <button class="btn btn-sm btn-outline-danger flex-shrink-0" type="button" data-bs-toggle="modal" data-bs-target="#cleanupLogsModal"><i class="bi bi-trash3"></i> 清理日志</button>
   </div>

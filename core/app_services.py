@@ -62,7 +62,9 @@ def client_ip():
 
 def log_operation(action, target='', detail='', user=None):
     """记录一条用户操作日志。user 缺省取当前登录用户。
-    仅 flush 不立即 commit, 由请求结束时统一提交, 减少每请求多次 commit。"""
+    立即 commit 以便只读请求(如星运/公开页)的日志也能落库——
+    after_request 的 commit 依赖 session 存在 new/dirty 对象,
+    而 flush 后条目已带着 id, 只读路由下不会被提交。"""
     try:
         u = user or (current_user if current_user.is_authenticated else None)
         entry = OperationLog(
@@ -74,7 +76,7 @@ def log_operation(action, target='', detail='', user=None):
             ip=client_ip(),
         )
         db.session.add(entry)
-        db.session.flush()
+        db.session.commit()
     except Exception as e:
         logger.warning('log_operation failed: %s', e)
 

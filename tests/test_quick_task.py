@@ -224,3 +224,23 @@ def test_cascade_delete_multi_session_subsequent(client):
             assert f3.deleted_at is not None, '后续的第三阶段应被级联删除'
     finally:
         _cleanup(title)
+
+
+def test_astro_visit_logged_out_logs_ip(client):
+    """公开星运页访问写入操作记录: 未登录用户记录 IP(空用户名)+访问页面."""
+    from app import app, db
+    from core.models import OperationLog
+    with app.app_context():
+        before = db.session.query(db.func.max(OperationLog.id)).scalar() or 0
+        c = app.test_client()  # 未登录(不注入会话)
+        r = c.get('/astro', follow_redirects=True)
+        assert r.status_code == 200
+        recs = (OperationLog.query
+                .filter(OperationLog.id > before,
+                        OperationLog.action == 'astro_visit')
+                .order_by(OperationLog.id.desc()).all())
+        assert recs, '公开访问 /astro 应写入 astro_visit 记录'
+        rec = recs[0]
+        assert rec.ip, '未登录访问也需记录 IP'
+        assert not rec.username, '未登录用户用户名应为空'
+        assert rec.target in ('/astro', '/astro/'), rec.target

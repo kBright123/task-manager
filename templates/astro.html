@@ -35,9 +35,16 @@ body.astro-page.authed{padding-top:0;padding-bottom:0;}
   padding:6px 14px;border-radius:999px;cursor:pointer;transition:.15s;}
 .as-standalone-top .as-back:hover{color:var(--as-txt);border-color:var(--as-blue);}
 .as-standalone-top .as-title{font-weight:800;font-size:1rem;color:var(--as-txt);letter-spacing:.04em;}
+.as-standalone-top .as-head-right{display:flex;align-items:center;gap:8px;}
+.as-standalone-top .as-visitor{display:inline-flex;align-items:center;gap:5px;color:var(--as-gold);
+  text-decoration:none;font-size:.78rem;letter-spacing:.02em;border:1px dashed rgba(232,196,118,.45);
+  background:rgba(232,196,118,.08);padding:5px 12px;border-radius:999px;white-space:nowrap;}
+.as-standalone-top .as-visitor i{font-size:.72rem;}
 @media(max-width:600px){
   .as-standalone-top{padding:8px 10px;}
   .as-standalone-top .as-back{font-size:.82rem;padding:5px 11px;}
+  .as-standalone-top .as-visitor{font-size:.7rem;padding:4px 9px;}
+  .as-standalone-top .as-title{font-size:.9rem;}
 }
 
 .astro-root{
@@ -429,8 +436,27 @@ body.astro-page.authed{padding-top:0;padding-bottom:0;}
   .mini-card{width:170px;}
 }
 @media(min-width:601px){
-  .as-home{flex:1;align-content:center;}
+  .as-home{flex:1;align-content:start;}
+  #guestRestoreBox{grid-column:1 / -1;}
 }
+/* 桌面端: 首页两卡并排, 消除全宽卡片的横向空白 */
+@media(min-width:861px){
+  .as-home{grid-template-columns:1fr 1fr;align-items:stretch;align-content:stretch;}
+  .as-ring-panel{gap:18px;}
+  .as-ring{width:min(26vw,224px);}
+}
+/* 首页底部: 全宽功能速览(次网格, 桌面填充纵向空白) */
+.as-quick{grid-column:1 / -1;}
+.quick-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;}
+.quick-tile{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;
+  background:var(--as-card2);border:1px solid var(--as-line);border-radius:12px;padding:14px 16px;
+  cursor:pointer;color:var(--as-txt);transition:.18s;}
+.quick-tile .bi{font-size:1.4rem;color:var(--as-gold);}
+.quick-tile span{font-weight:700;font-size:.96rem;margin-top:6px;}
+.quick-tile em{font-style:normal;font-size:.76rem;color:var(--as-dim);line-height:1.5;}
+.quick-tile:hover{border-color:var(--as-gold);transform:translateY(-2px);
+  box-shadow:0 8px 22px rgba(0,0,0,.3);}
+.quick-tile:hover .bi{filter:brightness(1.2);}
 </style>
 {% endblock %}
 
@@ -440,7 +466,10 @@ body.astro-page.authed{padding-top:0;padding-bottom:0;}
 
   <header class="as-standalone-top">
     <div class="as-title"><i class="bi bi-stars" style="color:var(--as-gold);"></i> 星运</div>
-    <button type="button" class="as-back" id="asBack"><i class="bi bi-arrow-left"></i> 返回</button>
+    <div class="as-head-right">
+      <span class="as-visitor" title="累计到访人次"><i class="bi bi-gem"></i> 第 {{ astro_visits }} 位有缘人</span>
+      <button type="button" class="as-back" id="asBack"><i class="bi bi-arrow-left"></i> 返回</button>
+    </div>
   </header>
 
   <nav class="as-tabbar" role="tablist" id="asTabbar">
@@ -496,13 +525,32 @@ body.astro-page.authed{padding-top:0;padding-bottom:0;}
         </div>
         <div id="matchResult"></div>
       </div>
+
+      <!-- 底部: 全宽功能速览(桌面端填充纵向空白, 兼作快捷入口) -->
+      <div class="glass as-quick">
+        <h3><i class="bi bi-compass"></i> 星运功能速览</h3>
+        <div class="quick-grid">
+          <button type="button" class="quick-tile" data-go="natal">
+            <i class="bi bi-person-badge"></i><span>本命排盘</span><em>生时真太阳 · 紫微斗数</em>
+          </button>
+          <button type="button" class="quick-tile" data-go="daily">
+            <i class="bi bi-suit-spade"></i><span>塔罗馆 · 每日运势</span><em>运势签名 · 抽一组塔罗</em>
+          </button>
+          <button type="button" class="quick-tile" data-go="kb">
+            <i class="bi bi-book-half"></i><span>命理知识库</span><em>速查术语 · 检索释义</em>
+          </button>
+          <button type="button" class="quick-tile" data-go="archive">
+            <i class="bi bi-person-gear"></i><span>我的档案</span><em>星点 · 皮肤 · 排盘记录</em>
+          </button>
+        </div>
+      </div>
     </div>
   </section>
 
   <!-- ================= 星盘库: 排盘 + 存档 ================= -->
   <section class="as-panel" id="panel-natal">
     <div class="as-grid2">
-      <div class="as-card">
+      <div class="as-card" style="grid-column:1/-1;">
         <h3><i class="bi bi-person-badge"></i> 出生信息</h3>
         <div class="row g-3">
           <div class="col-7">
@@ -728,6 +776,9 @@ window.asFlash=function(msg,type){
 /* ---------------- Tabs ---------------- */
 $$('.as-tab').forEach(function(b){
   b.addEventListener('click',function(){switchTab(b.getAttribute('data-tab'));});
+});
+$$('.quick-tile').forEach(function(t){
+  t.addEventListener('click',function(){switchTab(t.getAttribute('data-go'));});
 });
 var NAV_TABS=['home','natal','daily','kb','archive'];
 function navFor(name){

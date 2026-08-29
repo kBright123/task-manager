@@ -39,7 +39,14 @@ import time
 from flask import Blueprint, Response, jsonify, render_template, request
 from flask_login import current_user, login_required
 
-from core.app_services import create_notification
+from core.app_services import create_notification, log_operation
+
+try:
+    from app import db
+    from core.models import OperationLog
+except Exception:  # 模块级预导入失败时兜底, 避免破坏整体导入
+    db = None
+    OperationLog = None
 from services import astro_engine as ae
 
 logger = logging.getLogger(__name__)
@@ -157,8 +164,19 @@ def _save_record(user_id, kind, title, inp, result):
 @astro_bp.route('/')
 def index():
     """星运工作台(公开访问, 反付费墙: 游客与登录用户体验一致)。"""
+    log_operation('astro_visit', target=request.path or '/astro',
+                  detail='星运页面访问')
+    astro_visits = 0
+    try:
+        if OperationLog is not None:
+            astro_visits = (db.session.query(db.func.count(OperationLog.id))
+                            .filter(OperationLog.action == 'astro_visit')
+                            .scalar() or 0)
+    except Exception:
+        astro_visits = 0
     return render_template('astro.html',
-                           ziwei_ready=bool(os.environ.get('ASTRO_ZIWEI_URL')))
+                           ziwei_ready=bool(os.environ.get('ASTRO_ZIWEI_URL')),
+                           astro_visits=astro_visits)
 
 
 # ---------------------------------------------------------------- 排盘 API

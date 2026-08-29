@@ -217,12 +217,22 @@ def admin_logs():
     total_users = db.session.query(
         func.count(func.distinct(OperationLog.user_id))).scalar() or 0
 
+    astro_visits = (OperationLog.query
+                    .filter(OperationLog.action == 'astro_visit').count())
+    astro_visits_today = (OperationLog.query
+                          .filter(OperationLog.action == 'astro_visit',
+                                  OperationLog.created_at >= cn_now().replace(
+                                      hour=0, minute=0, second=0, microsecond=0))
+                          .count())
+
     return render_template('admin/logs.html', logs=logs,
                            pagination=pagination, username=username,
                            action=action, days=days,
                            total_users=total_users,
                            total_logs=(db.session.query(OperationLog.id)
-                                       .count()))
+                                       .count()),
+                           astro_visits=astro_visits,
+                           astro_visits_today=astro_visits_today)
 
 
 @app.route('/admin/logs/cleanup', methods=['POST'])

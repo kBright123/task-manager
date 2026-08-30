@@ -123,7 +123,12 @@
   .quiz-item .qi-opt button.pick{border-color:var(--edu-primary);background:var(--edu-chip);}
   .quiz-item .qi-opt button.correct{background:#e7fff1;border-color:var(--edu-green);color:#1a9e5c;}
   .quiz-item .qi-opt button.wrong{background:#ffecec;border-color:#ff8a8a;color:#d94c4c;}
-  .quiz-item .qi-fill input{width:120px;font-size:1.3rem;text-align:center;padding:8px;border-radius:12px;border:2px solid var(--edu-input-bd);background:var(--edu-surface);color:var(--edu-ink);}
+  .quiz-item .qi-fill{display:flex;flex-direction:column;align-items:center;gap:12px;padding:14px 0 6px;}
+  .quiz-item .qi-expr{font-size:2rem;font-weight:900;color:var(--edu-ink);letter-spacing:.05em;text-align:center;word-break:break-all;line-height:1.3;}
+  .quiz-item .qi-ans{display:flex;align-items:center;gap:10px;}
+  .quiz-item .qi-eq{font-size:1.6rem;font-weight:900;color:var(--edu-muted);}
+  .quiz-item .qi-ans input{width:132px;font-size:2rem;text-align:center;padding:8px 6px;border-radius:14px;border:2px solid var(--edu-input-bd);background:var(--edu-surface);color:var(--edu-ink);caret-color:var(--edu-primary);}
+  .quiz-item .qi-ans input:focus{outline:none;border-color:var(--edu-primary);box-shadow:0 0 0 3px rgba(255,107,74,.15);}
   .quiz-item .qi-feed{margin-top:10px;font-size:.9rem;font-weight:600;min-height:20px;}
   .quiz-item .qi-feed.ok{color:var(--edu-green);}
   .quiz-item .qi-feed.no{color:#d94c4c;}
@@ -348,7 +353,7 @@
   html[data-theme="dark"] .quiz-item .qi-opt button.correct{background:#123c2a;border-color:var(--edu-green);color:#7ce0b0;}
   html[data-theme="dark"] .quiz-item .qi-opt button.wrong{background:#4a2026;border-color:#ff8a8a;color:#ffb3b3;}
   html[data-theme="dark"] .quiz-item .qi-feed.no{color:#ff8a8a;}
-  html[data-theme="dark"] .quiz-item .qi-fill input{background:var(--edu-surface);color:var(--edu-ink);}
+  html[data-theme="dark"] .quiz-item .qi-ans input{background:var(--edu-surface);color:var(--edu-ink);}
   html[data-theme="dark"] .edu-field select,.edu-field input{background:var(--edu-soft);color:var(--edu-ink);}
   html[data-theme="dark"] .edu-field select option{background:var(--edu-surface);color:var(--edu-ink);}
   html[data-theme="dark"] .wb-pill{background:#123c2f;color:var(--edu-green);border-color:#0f4a38;}

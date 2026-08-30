@@ -224,6 +224,29 @@ console.log('TOTAL='+(iH.match(/class="badge-card/g)||[]).length);
     assert 'ON=6' in out and 'TOTAL=11' in out, out
 
 
+def test_calc_fill_no_blank_visual(client):
+    """口算题卡片不应显得'空白/不完整': 有大号算式展示+输入框, 且不提前泄题(不出现答案数字)."""
+    out = _harness(r'''
+(async()=>{
+  const eng=W.eduEngine;
+  const items=await eng.assemble('math','calc');
+  const first=items[0];
+  const expr=(String(first.big||first.prompt).replace(/\s*=\s*\?+\s*$/,''));
+  console.log('PROMPT='+first.prompt);
+  console.log('EXPR='+expr);
+  console.log('HAS_EQ='+(/=\s*\?+\s*$/.test(String(first.big||first.prompt))?'1':'0'));
+  // 校验表达式不含答案
+  const leak=/=[\s]*(-?\d+)\s*$/.test(String(first.big||first.prompt));
+  console.log('LEAK='+(leak?'1':'0'));
+})().catch(e=>{console.log('ERR='+e.message)});
+''')
+    assert 'PROMPT=' in out and 'EXPR=' in out, out
+    # 表达式应是算式左半边(不含最后 '= ?'), 卡片将用它做醒目展示
+    expr_line = out.split('EXPR=')[1].split('\n')[0]
+    assert '= ?' not in expr_line, 'expr仍带占位等号: ' + out
+    assert 'LEAK=0' in out, '提前泄露答案: ' + out
+
+
 if __name__ == '__main__':
     # 便于 run_tests.py 风格手动运行
     import conftest

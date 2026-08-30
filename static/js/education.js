@@ -943,22 +943,32 @@
       var card = document.createElement('div');
       card.className = 'quiz-item';
       card.id = 'qi-'+i;
-      var h = '<div class="qi-head"><span class="qi-no">'+(i+1)+'</span><span class="qi-prompt">'+esc(it.prompt)+'</span></div>';
-      if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</div>';
-      if (it.options){
-        h += '<div class="qi-opt">'+it.options.map(function(o, oi){
-          return '<button type="button" data-v="'+esc(o.v)+'" id="qo-'+i+'-'+oi+'" onclick="pickOpt('+i+',\''+esc(o.v)+'\')">'+esc(o.label)+'</button>';
-        }).join('')+'</div>';
-      } else if (it.order){
-        h += '<div class="qi-order">'+
-          '<div class="qo-seq" id="qseq-'+i+'"><span class="qo-empty">从小到大点出顺序…</span></div>'+
-          '<div class="qo-chips">'+it.expected.slice().sort(function(){ return Math.random()-0.5; }).map(function(v){
-            return '<button type="button" class="qo-chip" data-v="'+esc(v)+'" onclick="tapOrder('+i+',\''+esc(v)+'\')">'+esc(v)+'</button>';
-          }).join('')+'</div>'+
-          '<button type="button" class="qo-clear" onclick="clearOrder('+i+')">清空顺序</button>'+
-          '</div>';
+      var h;
+      if (it.input){
+        h = '<div class="qi-head"><span class="qi-no">'+(i+1)+'</span></div>';
+        h += '<div class="qi-fill">';
+        var src = it.big || it.prompt;
+        var eq = /\s*=\s*\?+\s*$/.test(String(src));
+        h += '<div class="qi-expr">'+esc(String(src).replace(/\s*=\s*\?+\s*$/, ''))+'</div>';
+        h += '<div class="qi-ans">'+(eq ? '<span class="qi-eq">＝</span>' : '')+'';
+        h += '<input class="qi-in" data-idx="'+i+'" type="number" inputmode="numeric" autocomplete="off" placeholder="?" aria-label="答案" onkeydown="if(event.key===\'Enter\')submitQuiz()">';
+        h += '</div></div>';
       } else {
-        h += '<div class="qi-fill"><input class="qi-in" data-idx="'+i+'" type="number" inputmode="numeric" autocomplete="off" placeholder="填答案" onkeydown="if(event.key===\'Enter\')submitQuiz()"></div>';
+        h = '<div class="qi-head"><span class="qi-no">'+(i+1)+'</span><span class="qi-prompt">'+esc(it.prompt)+'</span></div>';
+        if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</div>';
+        if (it.options){
+          h += '<div class="qi-opt">'+it.options.map(function(o, oi){
+            return '<button type="button" data-v="'+esc(o.v)+'" id="qo-'+i+'-'+oi+'" onclick="pickOpt('+i+',\''+esc(o.v)+'\')">'+esc(o.label)+'</button>';
+          }).join('')+'</div>';
+        } else if (it.order){
+          h += '<div class="qi-order">'+
+            '<div class="qo-seq" id="qseq-'+i+'"><span class="qo-empty">从小到大点出顺序…</span></div>'+
+            '<div class="qo-chips">'+it.expected.slice().sort(function(){ return Math.random()-0.5; }).map(function(v){
+              return '<button type="button" class="qo-chip" data-v="'+esc(v)+'" onclick="tapOrder('+i+',\''+esc(v)+'\')">'+esc(v)+'</button>';
+            }).join('')+'</div>'+
+            '<button type="button" class="qo-clear" onclick="clearOrder('+i+')">清空顺序</button>'+
+            '</div>';
+        }
       }
       h += '<div class="qi-feed"></div>';
       card.innerHTML = h;

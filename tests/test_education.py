@@ -271,7 +271,7 @@ def test_quiz_restore_after_refresh():
     subj:'math', type:'calc',
     items:[{input:true,big:'20 - 9',prompt:'20 - 9 = ?'},
            {input:true,big:'13 + 8',prompt:'13 + 8 = ?'}],
-    answers:{0:'11',1:'21'}, order:{}, submitted:false, _t:1
+    answers:{0:'11',1:'21'}, order:{}, submitted:false, _t:Date.now()
   });
   // 柱桩: wb-math-body 捕获 innerHTML; qi-{i} 提供可读写的 input
   let bodyH='';const body={style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},appendChild(){},querySelectorAll(){return[]},querySelector(){return me()}};
@@ -305,7 +305,7 @@ def test_quiz_save_state_on_answer():
   store['edu_quiz_v1_kk']=JSON.stringify({
     subj:'zh', type:'zi',
     items:[{options:[{v:'a',label:'好'},{v:'b',label:'不'}],prompt:'选对字',correct:'a'}],
-    answers:{}, order:{}, submitted:false, _t:1
+    answers:{}, order:{}, submitted:false, _t:Date.now()
   });
   // 柱桩: quiz 容器捕获 innerHTML; qi-0 提供 querySelectorAll 返回选项按钮
   let bodyH='';const body={style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},appendChild(){},querySelectorAll(){return[]},querySelector(){return me()}};

@@ -245,7 +245,12 @@
       var raw = localStorage.getItem(quizStateKey());
       if (!raw || raw === 'null') return false;
       var snap = JSON.parse(raw);
-      if (!snap || snap.submitted || !snap.items || !snap.items.length) return false;
+      // 太久以前的进行中卷子(>12小时)直接作废, 避免还原陈旧题目
+      if (!snap || (snap._t && (Date.now() - snap._t > 12 * 3600 * 1000))){
+        clearQuizState();
+        return false;
+      }
+      if (snap.submitted || !snap.items || !snap.items.length) return false;
       if (snap.subj !== subj) return false;
       quiz = { subj: snap.subj, type: snap.type, items: snap.items, answers: snap.answers || {}, submitted: false, _t: snap._t || Date.now() };
       quizSubject = snap.subj;
@@ -1711,6 +1716,7 @@
   }
   window.switchKid = function (id){
     window.eduKids.setActive(id);
+    restoredQuizSubj = null;  // 换孩子后可还原其各自的进行中卷子
     document.getElementById('kidPickDrop').classList.remove('show');
     enter();
   };

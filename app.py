@@ -382,7 +382,8 @@ def _csrf_protect():
     表单 token 由 base.html 的 JS 自动注入, AJAX 由全局 fetch 包装注入。
     /api/token 令牌获取接口与 API 令牌鉴权请求(Bearer)跳过 CSRF。"""
     if request.method in ('POST', 'PUT', 'PATCH', 'DELETE'):
-        if request.path == '/api/token' or _api_token_user() is not None:
+        if (request.path == '/api/token' or request.path.startswith('/edu/api/')
+                or _api_token_user() is not None):
             return
         supplied = (request.form.get('_csrf_token')
                     or request.headers.get('X-CSRF-Token') or '')

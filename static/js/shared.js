@@ -16,6 +16,10 @@ window.eduKids = (function () {
     return raw;
   }
   function save(d) { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} }
+  // 孩子档案改动后，异步同步到后端数据库(本地仍为缓存/离线可用)
+  function kick() {
+    if (window.eduSync) window.eduSync.pushKids();
+  }
   function ageOf(birthYear) {
     var y = new Date().getFullYear();
     return Math.max(0, (y - birthYear));
@@ -35,9 +39,22 @@ window.eduKids = (function () {
     for (var i = 0; i < d.list.length; i++) { if (d.list[i].id === d.activeId) { idx = i; break; } }
     return idx >= 0 ? d.list[idx] : (d.list[0] || null);
   }
+  function byId(id) {
+    return load().list.filter(function (k) { return k.id === id; })[0] || null;
+  }
   function add(kid) {
     var d = load();
     kid.id = kid.id || ('k' + Date.now() + '-' + Math.floor(Math.random() * 10000));
+    d.list.push(kid);
+    if (!d.activeId) d.activeId = kid.id;
+    save(d);
+    kick();
+    return kid;
+  }
+  // 直接加入一个孩子(用于后端 hydration, 不触发二次同步)
+  function addLocal(kid) {
+    var d = load();
+    if (d.list.some(function (k) { return k.id === kid.id; })) { save(d); return kid; }
     d.list.push(kid);
     if (!d.activeId) d.activeId = kid.id;
     save(d);
@@ -47,23 +64,148 @@ window.eduKids = (function () {
     var d = load();
     d.list = d.list.map(function (k) { return k.id === kid.id ? kid : k; });
     save(d);
+    if (window.eduSync && kid.dbId) window.eduSync.pushKids();
     return kid;
   }
   function remove(id) {
     var d = load();
+    var target = d.list.filter(function (k) { return k.id === id; })[0];
     d.list = d.list.filter(function (k) { return k.id !== id; });
     if (d.activeId === id) d.activeId = d.list.length ? d.list[0].id : null;
     save(d);
+    if (window.eduSync && target && target.dbId) window.eduSync.deleteKid(target.dbId);
   }
   function setActive(id) { var d = load(); d.activeId = id; save(d); }
+  function setDbId(id, dbId) {
+    var d = load();
+    d.list = d.list.map(function (k) { return k.id === id ? (function (o){ o.dbId = dbId; return o; })(k) : k; });
+    save(d);
+  }
   function hasAny() { return load().list.length > 0; }
   function genderLabel(g) { return g === 'male' ? '男孩' : (g === 'female' ? '女孩' : '未设置'); }
   function genderIcon(g) { return g === 'male' ? '👦' : (g === 'female' ? '👧' : '🧒'); }
   return {
-    KEY: KEY, load: load, save: save, all: all, active: active,
-    add: add, update: update, remove: remove, setActive: setActive, hasAny: hasAny,
+    KEY: KEY, load: load, save: save, all: all, active: active, byId: byId,
+    add: add, addLocal: addLocal, update: update, remove: remove,
+    setActive: setActive, setDbId: setDbId, hasAny: hasAny,
     ageOf: ageOf, tierOf: tierOf, tierLabel: tierLabel,
     genderLabel: genderLabel, genderIcon: genderIcon
+  };
+})();
+
+// ============ 教育数据 <-> 后端数据库 双向同步桥 ============
+// 教育模式使用独立后端数据库(edu.db)，本模块把 localStorage 缓存镜像到后端；
+// 后端为权威来源，本地为缓存/离线兜底。未登录按匿名 ID 归属，已登录按账号归属。
+window.eduSync = (function () {
+  var pushTimer = null;
+  function anonId() {
+    var k = 'edu_anon_id';
+    var v = null;
+    try { v = localStorage.getItem(k); } catch (e) {}
+    if (!v) {
+      v = 'a' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
+      try { localStorage.setItem(k, v); } catch (e) {}
+    }
+    return v;
+  }
+  function api(method, url, body) {
+    return fetch('/edu/api' + url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json', 'X-Edu-Anon': anonId() },
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) { return r.json().catch(function () { return {}; }); })
+      .catch(function () { return {}; });
+  }
+  function dbIdOf(kid) { return kid && kid.dbId ? kid.dbId : null; }
+  // 整体推送孩子档案并回填 dbId
+  function pushKids() {
+    var kids = window.eduKids.all();
+    return api('POST', '/kids', {
+      kids: kids.map(function (k, i) {
+        return { dbId: dbIdOf(k), clientId: k.id, name: k.name, birthYear: k.birthYear, gender: k.gender };
+      }),
+      removedIds: []
+    }).then(function (res) {
+      if (res && res.ok && res.kids) {
+        res.kids.forEach(function (sk) {
+          var local = window.eduKids.all().filter(function (k) { return k.id === sk.clientId; })[0];
+          if (local && !dbIdOf(local)) window.eduKids.setDbId(local.id, sk.id);
+        });
+      }
+      return res;
+    });
+  }
+  function pushKidsDebounced() {
+    if (pushTimer) return;
+    pushTimer = setTimeout(function () { pushTimer = null; pushKids(); }, 400);
+  }
+  function pushState(kidId, dkey, data) {
+    var kid = window.eduKids.byId(kidId);
+    if (!kid) return;
+    if (!dbIdOf(kid)) {
+      pushKids().then(function () {
+        var k2 = window.eduKids.byId(kidId);
+        if (k2 && dbIdOf(k2)) api('POST', '/kids/' + dbIdOf(k2) + '/state', { dkey: dkey, data: data });
+      });
+      return;
+    }
+    api('POST', '/kids/' + dbIdOf(kid) + '/state', { dkey: dkey, data: data });
+  }
+  function deleteKid(dbId) {
+    api('POST', '/kids/' + dbId + '/delete', {});
+  }
+  // 页面注册的回调：把后端的某孩子某一类数据回填到本地缓存
+  var onState = null;
+  function setOnState(fn){ onState = fn; }
+
+  // ---- 题库(qbank): 拉取待巩固题 / 批量入库 / 记录作答反馈 ----
+  function qbankPull(p) {
+    return api('POST', '/qbank/pull', p || {});
+  }
+  function qbankEnsure(p) {
+    return api('POST', '/qbank/ensure', p || {});
+  }
+  function qbankLearn(p) {
+    return api('POST', '/qbank/learn', p || {});
+  }
+  // 启动时从后端恢复：孩子档案若无本地则用后端；本地孩子回填 dbId。
+  function hydrate() {
+    return api('POST', '/bootstrap').then(function (res) {
+      if (!res || !res.ok) return;
+      var serverKids = res.kids || [];
+      var local = window.eduKids.all();
+      if (!local.length && serverKids.length) {
+        serverKids.forEach(function (sk) {
+          window.eduKids.addLocal({
+            id: 'db' + sk.id, dbId: sk.id, name: sk.name,
+            birthYear: sk.birthYear, gender: sk.gender, created: Date.now()
+          });
+        });
+        local = window.eduKids.all();
+      } else {
+        serverKids.forEach(function (sk) {
+          var m = local.filter(function (k) {
+            return k.name === sk.name && Number(k.birthYear) === Number(sk.birthYear)
+              && k.gender === sk.gender && !dbIdOf(k);
+          })[0];
+          if (m) window.eduKids.setDbId(m.id, sk.id);
+        });
+      }
+      // 回填每个孩子的学习数据(仅当本地为空时,以后端为准)
+      local.forEach(function (k) {
+        if (!dbIdOf(k)) return;
+        ['state', 'workbench'].forEach(function (dkey) {
+          api('GET', '/kids/' + dbIdOf(k) + '/state?dkey=' + dkey).then(function (s) {
+            if (s && s.ok && s.data && onState) onState(k.id, dkey, s.data);
+          });
+        });
+      });
+    });
+  }
+  return {
+    anonId: anonId, api: api, pushKids: pushKids, pushKidsDebounced: pushKidsDebounced,
+    pushState: pushState, deleteKid: deleteKid, hydrate: hydrate, setOnState: setOnState,
+    qbankPull: qbankPull, qbankEnsure: qbankEnsure, qbankLearn: qbankLearn
   };
 })();
 

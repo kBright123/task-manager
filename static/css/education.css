@@ -206,18 +206,18 @@
   .edu-bottom-nav .edu-nav-btn.active{background:var(--edu-primary);color:#fff;box-shadow:0 4px 14px rgba(255,122,74,.4);}
   .edu-bottom-nav .edu-nav-btn .emo{font-size:1.05rem;line-height:1;}
 
-  /* 右上角 学习模式切换（幼小衔接 / 快乐乐园） */
+  /* 右上角 学习模式切换（下拉选择，便于后续扩展更多模式） */
   .kid-bar{justify-content:space-between;}
-  .mode-toggle{display:inline-flex;gap:4px;background:var(--edu-surface-2);border:1.5px solid var(--edu-border);border-radius:999px;padding:3px;box-shadow:0 4px 12px rgba(0,0,0,.06);}
-  .mt-opt{display:inline-flex;align-items:center;gap:4px;border:none;border-radius:999px;padding:6px 12px;font-size:.78rem;font-weight:800;color:var(--edu-muted);background:transparent;cursor:pointer;transition:.13s;white-space:nowrap;}
-  .mt-opt.active{background:var(--edu-primary);color:#fff;box-shadow:0 4px 12px rgba(255,122,74,.35);}
+  .mode-toggle{display:inline-flex;align-items:center;gap:6px;background:var(--edu-surface-2);border:1.5px solid var(--edu-border);border-radius:999px;padding:4px 10px;box-shadow:0 4px 12px rgba(0,0,0,.06);}
+  .mode-select{appearance:none;-webkit-appearance:none;background:transparent;border:none;color:var(--edu-ink);font-size:.82rem;font-weight:800;font-family:inherit;cursor:pointer;outline:none;padding:2px 16px 2px 2px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23a09483'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right center;}
+  .mode-select option{background:var(--edu-surface);color:var(--edu-ink);}
 
-  /* 手机窄屏：孩子切换条 + 模式切换自动换行收紧，PC 保持单行 */
+  /* 手机窄屏：孩子切换条保持单行，PC 保持单行 */
   @media (max-width:640px){
     .kid-bar{gap:6px;margin-bottom:10px;flex-wrap:nowrap;overflow-x:auto;}
     .kid-bar .kb-chip{flex:0 0 auto;min-width:0;font-size:.8rem;}
     .mode-toggle{flex:0 0 auto;}
-    .mt-opt{flex:0 0 auto;padding:5px 10px;font-size:.76rem;}
+    .mode-select{font-size:.76rem;}
     .kb-stars{margin-left:2px;}
   }
 

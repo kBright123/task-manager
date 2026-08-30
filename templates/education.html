@@ -36,8 +36,11 @@
       <div class="drop" id="kidPickDrop"></div>
     </span>
     <span class="mode-toggle" id="modeToggleWrap">
-      <button type="button" class="mt-opt" data-mode="workbench" onclick="switchMode('workbench')">🏫 幼小衔接</button>
-      <button type="button" class="mt-opt" data-mode="paradise" onclick="switchMode('paradise')">🌈 快乐乐园</button>
+      <i class="bi bi-stars" style="color:var(--edu-muted);font-size:.85rem;"></i>
+      <select id="modeSelect" class="mode-select" aria-label="学习模式" onchange="switchMode(this.value)">
+        <option value="workbench">🏫 幼小衔接</option>
+        <option value="paradise">🌈 快乐乐园</option>
+      </select>
     </span>
   </div>
 
@@ -128,6 +131,16 @@
     <div id="eduBadgesBody"></div>
   </section>
 
+  <!-- ================= 家长数据看板 ================= -->
+  <section id="eduStatsPage" style="display:none;">
+    <button type="button" class="wish-back" onclick="eduNav('home')" style="margin-bottom:10px;"><i class="bi bi-arrow-left"></i> 返回首页</button>
+    <div class="edu-hero">
+      <h1>📊 家长数据看板</h1>
+      <p style="font-size:.95rem;color:var(--edu-muted);">学习统计一览，帮助了解孩子进度</p>
+    </div>
+    <div id="eduStatsBody"></div>
+  </section>
+
 </div>
 
 <!-- 底部导航（按学习模式动态渲染） -->
@@ -207,6 +220,14 @@
       <label>家长口令（4 位数字，保护家长操作）</label>
       <input type="password" id="setPwd" maxlength="4" inputmode="numeric" placeholder="例如 1234" style="letter-spacing:2px;">
       <p class="muted" style="margin:4px 0 0;">星愿新增/删除、重置数据、家长控制操作需输入此口令。</p>
+    </div>
+    <div class="edu-field">
+      <label>内容开关</label>
+      <div class="set-checks">
+        <label class="set-check"><input type="checkbox" id="setTrace"> 启用「描红」（写字练习）</label>
+        <label class="set-check"><input type="checkbox" id="setPar"> 启用「快乐乐园」小游戏</label>
+      </div>
+      <p class="muted" style="margin:4px 0 0;">关闭后对应入口自动隐藏，孩子专注课内练习。</p>
     </div>
     <div class="edu-actions">
       <button type="button" class="btn-soft" style="flex:1;" onclick="setSave()">保存设置</button>

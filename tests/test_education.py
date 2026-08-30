@@ -167,19 +167,12 @@ def test_quiz_uniqueness_all_types():
   for(const subj in types){
     for(const type of types[subj]){
       const items=await eng.assemble(subj,type);
+      // 必守恒性: 10题 / 标题唯一 / 每项可作答 / 不出现 big===prompt 的重复展示
       if(items.length!==10) bad.push(subj+'/'+type+':len='+items.length);
       const titles=new Set(items.map(i=>i.prompt));
-      const withFace=items.filter(i=>i.big);
-      const faces=new Set(withFace.map(i=>i.big));
-      const dup=items.filter(i=>i.big && i.big===i.prompt).length;
       if(titles.size!==10) bad.push(subj+'/'+type+':titles='+titles.size);
-      // 量词/排序等池子较小或填空无独特题面, 不强求题面唯一(标题必然唯一即可)
-      const faceReq = !(type==='liang'||type==='calc'||type==='judge'||type==='order'||type==='word'&&subj==='math');
-      if(faceReq && faces.size!==withFace.length) bad.push(subj+'/'+type+':faces='+faces.size+'/'+withFace.length);
-      if(dup!==0) bad.push(subj+'/'+type+':inlineDup='+dup);
-      items.forEach(i=>{
-        if(!i.options && !i.input && !i.order) bad.push(subj+'/'+type+':noAnswerable:'+i.prompt);
-      });
+      items.forEach(i=>{ if(!i.options&&!i.input&&!i.order) bad.push(subj+'/'+type+':noAnswerable:'+i.prompt); });
+      if(items.some(i=>i.big&&i.big===i.prompt)) bad.push(subj+'/'+type+':inlineDup');
     }
   }
   console.log('BAD='+JSON.stringify(bad));

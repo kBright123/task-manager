@@ -1627,8 +1627,8 @@
     var pa = document.getElementById('eduParadise');
     if (wb) wb.style.display = (m === 'workbench') ? '' : 'none';
     if (pa) pa.style.display = (m === 'paradise') ? '' : 'none';
-    var opts = document.querySelectorAll('.mt-opt');
-    for (var i = 0; i < opts.length; i++) opts[i].classList.toggle('active', opts[i].getAttribute('data-mode') === m);
+    var sel = document.getElementById('modeSelect');
+    if (sel && sel.value !== m) sel.value = m;
   }
   window.switchMode = function (m){
     if (m !== 'workbench' && m !== 'paradise') return;

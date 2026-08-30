@@ -3,7 +3,7 @@
   var QUIZ_LEN = 10;
   var LS_BASE = 'edu_record_v1';
   var STR_BASE = 'edu_workbench_v1';
-  var DEFAULT_SET = { range: 20, nocarry: false, dailyQ: 20, dailyMin: 0 };
+  var DEFAULT_SET = { range: 20, nocarry: false, dailyQ: 20, dailyMin: 0, show: { trace: true }};
   var state = { stars: 0, records: [], wrong: [], settings: {}, usage: {}, maxCombo: 0, badges: {}, submits: 0, wishes: [], wishLog: [] };
   var wb = {};
 
@@ -41,7 +41,16 @@
   }
   function mergeSet(s){
     var out = {};
-    for (var k in DEFAULT_SET) out[k] = (s && s[k] !== undefined && s[k] !== null) ? s[k] : DEFAULT_SET[k];
+    for (var k in DEFAULT_SET){
+      if (k === 'show'){
+        var sh = (s && s.show) ? s.show : {};
+        var o = {};
+        for (var sk in DEFAULT_SET.show) o[sk] = (sh[sk] !== undefined) ? !!sh[sk] : DEFAULT_SET.show[sk];
+        out.show = o;
+      } else {
+        out[k] = (s && s[k] !== undefined && s[k] !== null) ? s[k] : DEFAULT_SET[k];
+      }
+    }
     return out;
   }
   function curSettings(){ return state.settings; }
@@ -1557,7 +1566,7 @@
     document.getElementById('kidAva').textContent = window.eduKids.genderIcon(kid.gender);
     document.getElementById('kidAva').className = 'kb-ava ' + (kid.gender === 'female' ? 'b' : '');
     document.getElementById('kidName').textContent = kid.name || '宝贝';
-    document.getElementById('kidAge').textContent = age + ' 岁 · ' + window.eduKids.tierLabel(tier);
+    document.getElementById('kidAge').textContent = age + ' 岁';
     var kidStars = (load(LS_BASE + '_' + String(kid.id)) || {}).stars || 0;
     document.getElementById('kidBarStars').textContent = '⭐ ' + kidStars;
     // 下拉
@@ -1569,6 +1578,7 @@
     }).join('');
     html += '<div class="kit-item" onclick="kidAdd()"><i class="bi bi-plus-lg"></i> 添加孩子</div>';
     html += '<div class="kit-item" onclick="openBadges()"><i class="bi bi-patch-check"></i> 荣誉墙</div>';
+    html += '<div class="kit-item" onclick="openStats()"><i class="bi bi-bar-chart"></i> 数据看板</div>';
     html += '<div class="kit-item" onclick="openSettings()"><i class="bi bi-gear"></i> 家长控制</div>';
     drop.innerHTML = html;
   }
@@ -1633,7 +1643,7 @@
   };
 
   // ======================= 教育娱乐模式：底部导航 =======================
-  var eduPages = { home: 'eduHomePage', learn: 'eduLearnPage', wish: 'eduWishPage', badges: 'eduBadgesPage' };
+  var eduPages = { home: 'eduHomePage', learn: 'eduLearnPage', wish: 'eduWishPage', badges: 'eduBadgesPage', stats: 'eduStatsPage' };
   var navNow = 'home';
   var subjNow = 'zh';
   var parNow = null;
@@ -1646,6 +1656,7 @@
     if (p === 'home') renderHome();
     if (p === 'wish'){ loadAllState(); renderStars(); renderWish(); }
     if (p === 'badges'){ loadAllState(); renderBadges(); }
+    if (p === 'stats'){ loadAllState(); renderStars(); renderStats(); }
     if (p === 'learn'){
       renderKidBar();
       loadAllState();

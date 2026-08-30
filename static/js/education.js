@@ -1558,6 +1558,7 @@
         window.eduKids.genderIcon(k.gender) + ' ' + esc(k.name || '宝贝') + '<span style="margin-left:auto;font-size:.72rem;">' + ka + '岁</span></div>';
     }).join('');
     html += '<div class="kit-item" onclick="kidAdd()"><i class="bi bi-plus-lg"></i> 添加孩子</div>';
+    html += '<div class="kit-item" onclick="openBadges()"><i class="bi bi-patch-check"></i> 荣誉墙</div>';
     html += '<div class="kit-item" onclick="openSettings()"><i class="bi bi-gear"></i> 家长控制</div>';
     drop.innerHTML = html;
   }
@@ -1622,7 +1623,7 @@
   };
 
   // ======================= 教育娱乐模式：底部导航 =======================
-  var eduPages = { home: 'eduHomePage', learn: 'eduLearnPage', wish: 'eduWishPage' };
+  var eduPages = { home: 'eduHomePage', learn: 'eduLearnPage', wish: 'eduWishPage', badges: 'eduBadgesPage' };
   var navNow = 'home';
   var subjNow = 'zh';
   var parNow = null;
@@ -1634,6 +1635,7 @@
     anim(document.getElementById(eduPages[p]));
     if (p === 'home') renderHome();
     if (p === 'wish'){ loadAllState(); renderStars(); renderWish(); }
+    if (p === 'badges'){ loadAllState(); renderBadges(); }
     if (p === 'learn'){
       renderKidBar();
       loadAllState();
@@ -1826,6 +1828,30 @@
   };
 
   // ======================= 星愿 =======================
+  function badgeCard(k){
+    var b = BADGES[k];
+    var unlocked = state.badges && state.badges[k];
+    return '<div class="badge-card' + (unlocked ? ' on' : '') + '">' +
+      '<div class="bc-ico">' + b[0] + '</div>' +
+      '<div class="bc-name">' + esc(b[1]) + '</div>' +
+      '<div class="bc-desc">' + esc(b[2]) + '</div>' +
+      '</div>';
+  }
+  function renderBadges(){
+    var body = document.getElementById('eduBadgesBody');
+    if (!body) return;
+    var kid = window.eduKids.active();
+    if (!kid){
+      body.innerHTML = '<div class="edu-card" style="text-align:center;"><h4>还没有孩子</h4><p class="muted">先到首页添加孩子吧～</p></div>';
+      return;
+    }
+    var keys = Object.keys(BADGES);
+    var unlocked = keys.filter(function(k){ return state.badges && state.badges[k]; }).length;
+    var html = '<div class="badge-count">🏅 已解锁 <b>' + unlocked + '</b> / ' + keys.length + ' 枚徽章</div>' +
+      '<div class="badge-grid">' + keys.map(badgeCard).join('') + '</div>';
+    body.innerHTML = html;
+    anim(body);
+  }
   function renderWish(){
     var body = document.getElementById('eduWishBody');
     if (!body) return;
@@ -1927,6 +1953,10 @@
   };
 
   // ======================= 家长控制设置 =======================
+  window.openBadges = function (){
+    document.getElementById('kidPickDrop').classList.remove('show');
+    eduNav('badges');
+  };
   window.openSettings = function (){
     requireParent(function(){
       var s = curSettings();

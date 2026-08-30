@@ -283,6 +283,14 @@
   .kk-badge-title{font-size:.72rem;font-weight:800;color:var(--edu-muted);margin-right:2px;}
   .kk-badge{width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;font-size:.95rem;border-radius:50%;background:linear-gradient(135deg,#fff7e0,#ffe3b3);border:1.5px solid #f6cf8e;box-shadow:0 2px 6px rgba(246,180,60,.35);cursor:default;}
   .kk-badge.more{background:var(--edu-chip);border-color:var(--edu-chip-bd);font-size:.66rem;font-weight:900;color:var(--edu-muted);}
+  .badge-count{text-align:center;font-size:.95rem;font-weight:800;color:var(--edu-ink);margin:4px 0 16px;}
+  .badge-count b{color:var(--edu-primary);}
+  .badge-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:12px;}
+  .badge-card{background:var(--edu-surface-2);border:2px solid var(--edu-border);border-radius:16px;padding:16px 12px;text-align:center;opacity:.45;filter:grayscale(1);transition:.15s;}
+  .badge-card.on{opacity:1;filter:none;border-color:var(--edu-primary);box-shadow:0 6px 18px rgba(255,122,74,.14);}
+  .badge-card .bc-ico{font-size:2rem;line-height:1;margin-bottom:6px;}
+  .badge-card .bc-name{font-size:.8rem;font-weight:900;color:var(--edu-ink);}
+  .badge-card .bc-desc{font-size:.68rem;color:var(--edu-muted);margin-top:4px;font-weight:600;}
   .empty-hero{text-align:center;padding:18px 0 6px;}
   .empty-hero h2{font-size:1.25rem;color:var(--edu-ink);}
   .kid-card .kk-add{display:flex;flex-direction:column;align-items:center;gap:8px;padding:38px 0;color:var(--edu-muted);font-weight:800;}
@@ -467,6 +475,16 @@
       <p style="font-size:.95rem;color:var(--edu-muted);">用小星星兑换心愿，激励孩子坚持学习</p>
     </div>
     <div id="eduWishBody"></div>
+  </section>
+
+  <!-- ================= 荣誉墙 ================= -->
+  <section id="eduBadgesPage" style="display:none;">
+    <button type="button" class="wish-back" onclick="eduNav('home')" style="margin-bottom:10px;"><i class="bi bi-arrow-left"></i> 返回首页</button>
+    <div class="edu-hero">
+      <h1>🏅 荣誉墙</h1>
+      <p style="font-size:.95rem;color:var(--edu-muted);">看看宝贝攒下了哪些成就徽章</p>
+    </div>
+    <div id="eduBadgesBody"></div>
   </section>
 
 </div>

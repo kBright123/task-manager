@@ -240,6 +240,28 @@ def test_calc_fill_no_blank_visual(client):
     assert 'LEAK=0' in out, '提前泄露答案: ' + out
 
 
+def test_render_stats(client):
+    """家长数据看板: 依据 state 输出 KPI/7天趋势/分科正确率."""
+    out = _harness(r'''
+store['edu_record_v1_kk']=JSON.stringify({stars:5,records:[
+  {t:1,date:'2026-08-28',subj:'zh',type:'poem',prompt:'a',correct:'x',got:'x',ok:true},
+  {t:2,date:'2026-08-28',subj:'math',type:'calc',prompt:'b',correct:'1',got:'2',ok:false},
+  {t:3,date:'2026-08-29',subj:'en',type:'word',prompt:'c',correct:'y',got:'y',ok:true}
+],wrong:[{subj:'math',type:'calc',q:'b',times:1,prompt:'b',correct:'1'}],settings:{},usage:{date:'2026-08-30',n:1,secs:120},maxCombo:3,badges:{s1:1},submits:1,wishes:[],wishLog:[]});
+let iH='';const b=me();
+Object.defineProperty(b,'innerHTML',{get(){return iH},set(v){iH=v}});
+const orig=global.document.getElementById;
+global.document.getElementById=(id)=> id==='eduStatsBody'?b:me();
+W.eduNav('stats');
+console.log('HAS_KPI='+(iH.indexOf('累计答题')>=0&&iH.indexOf('正确率')>=0?'1':'0'));
+console.log('HAS_TREND='+(iH.indexOf('st-trend')>=0?'1':'0'));
+console.log('HAS_SUBJ='+(iH.indexOf('分科正确率')>=0?'1':'0'));
+console.log('TOTAL_REC='+(iH.match(/class="sk"/g)||[]).length);
+''')
+    assert 'HAS_KPI=1' in out and 'HAS_TREND=1' in out and 'HAS_SUBJ=1' in out, out
+    assert 'TOTAL_REC=6' in out, out
+
+
 if __name__ == '__main__':
     # 便于 run_tests.py 风格手动运行
     import conftest

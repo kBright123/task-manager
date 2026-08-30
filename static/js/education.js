@@ -3,7 +3,7 @@
   var QUIZ_LEN = 10;
   var LS_BASE = 'edu_record_v1';
   var STR_BASE = 'edu_workbench_v1';
-  var DEFAULT_SET = { range: 20, nocarry: false, dailyQ: 20, dailyMin: 0, show: { trace: true }};
+  var DEFAULT_SET = { range: 20, nocarry: false, dailyQ: 20, dailyMin: 0, show: { trace: true, par: true } };
   var state = { stars: 0, records: [], wrong: [], settings: {}, usage: {}, maxCombo: 0, badges: {}, submits: 0, wishes: [], wishLog: [] };
   var wb = {};
 
@@ -1620,7 +1620,10 @@
   function currentMode(){
     var p = getPref();
     var m = p && p.mode;
-    return (m === 'workbench' || m === 'paradise') ? m : defaultModeFor();
+    if (m !== 'workbench' && m !== 'paradise') m = defaultModeFor();
+    var s = curSettings();
+    if (m === 'paradise' && s && s.show && s.show.par === false) m = 'workbench';
+    return m;
   }
   function setModeUI(m){
     var wb = document.getElementById('eduWorkbench');
@@ -1672,6 +1675,24 @@
     setModeUI(m);
     if (m === 'workbench') wbInit();
     else parInit();
+  }
+
+  // 家长内容开关: 依设置隐藏 描红 tab / 快乐乐园 选项
+  function applyContentToggles(){
+    var s = curSettings();
+    var show = s && s.show;
+    var tr = document.getElementById('wbTabTrace');
+    if (tr) tr.style.display = (show && show.trace === false) ? 'none' : '';
+    var sel = document.getElementById('modeSelect');
+    if (sel){
+      var optPar = sel.querySelector ? sel.querySelector('option[value="paradise"]') : null;
+      if (optPar){
+        var on = !(show && show.par === false);
+        optPar.disabled = !on;
+        optPar.style.display = on ? '' : 'none';
+        if (!on && sel.value === 'paradise') switchMode('workbench');
+      }
+    }
   }
 
   // 动态底部导航：幼小衔接 → 语文/数学/英语；快乐乐园 → 乐园
@@ -1873,6 +1894,74 @@
     body.innerHTML = html;
     anim(body);
   }
+
+  var SUBJ_LABEL = { zh: '语文', math: '数学', en: '英语', par: '乐园' };
+  function renderStats(){
+    var body = document.getElementById('eduStatsBody');
+    if (!body) return;
+    var kid = window.eduKids.active();
+    if (!kid){
+      body.innerHTML = '<div class="edu-card" style="text-align:center;"><h4>还没有孩子</h4><p class="muted">先到首页添加孩子吧～</p></div>';
+      return;
+    }
+    var recs = state.records || [];
+    var total = recs.length;
+    var okCount = recs.filter(function(r){ return r.ok; }).length;
+    var rate = total ? Math.round(okCount * 100 / total) : 0;
+    var stars = state.stars || 0;
+    var wrong = (state.wrong || []).length;
+    var badges = Object.keys(state.badges || {}).filter(function(k){ return BADGES[k]; }).length;
+    var maxCombo = state.maxCombo || 0;
+    var u = usageForToday();
+    var days = [];
+    var now = new Date();
+    for (var d = 6; d >= 0; d--){
+      var t = new Date(now.getTime() - d * 86400000);
+      var key = pad(t.getFullYear()) + '-' + pad(t.getMonth() + 1) + '-' + pad(t.getDate());
+      days.push({ key: key, label: (t.getMonth() + 1) + '/' + t.getDate(), n: 0, ok: 0 });
+    }
+    var dayMap = {};
+    days.forEach(function(x){ dayMap[x.key] = x; });
+    recs.forEach(function(r){
+      if (dayMap[r.date]){ dayMap[r.date].n++; if (r.ok) dayMap[r.date].ok++; }
+    });
+    var maxN = 1;
+    days.forEach(function(x){ maxN = Math.max(maxN, x.n); });
+    var trend = days.map(function(x){
+      var h = x.n === 0 ? 3 : Math.max(3, Math.round(x.n / maxN * 68));
+      return '<div class="bar" title="'+x.key+' 答 '+x.n+' 题 '+(x.n?Math.round(x.ok*100/x.n):0)+'% 正确">' +
+        '<span class="n">' + x.n + '</span><span class="fill" style="height:'+h+'px;"></span><span class="d">' + x.label + '</span></div>';
+    }).join('');
+
+    // 各科正确率
+    var bySubj = {};
+    recs.forEach(function(r){
+      (bySubj[r.subj] = bySubj[r.subj] || { n: 0, ok: 0 }).n++;
+      if (r.ok) bySubj[r.subj].ok++;
+    });
+    var subjRows = Object.keys(bySubj).map(function(s){
+      var v = bySubj[s];
+      var p = Math.round(v.ok * 100 / v.n);
+      return '<div class="st-subj-row"><b>' + (SUBJ_LABEL[s] || s) + '</b>' +
+        '<span class="sbar"><i style="width:'+p+'%;"></i></span><span class="pct">'+p+'%</span></div>';
+    }).join('') || '<p class="muted">暂无做题记录</p>';
+
+    var html =
+      '<div class="st-kpi">' +
+        '<div class="sk"><div class="v">' + total + '</div><div class="l">累计答题</div></div>' +
+        '<div class="sk"><div class="v">' + rate + '%</div><div class="l">正确率</div></div>' +
+        '<div class="sk"><div class="v">⭐ ' + stars + '</div><div class="l">星星</div></div>' +
+        '<div class="sk"><div class="v">' + maxCombo + '</div><div class="l">最长连对</div></div>' +
+        '<div class="sk"><div class="v">' + badges + '</div><div class="l">徽章</div></div>' +
+        '<div class="sk"><div class="v">' + wrong + '</div><div class="l">待巩固错题</div></div>' +
+      '</div>' +
+      '<div class="edu-card"><h4>📈 最近 7 天答题</h4><div class="st-trend">' + trend + '</div>' +
+        '<p class="muted" style="margin:6px 0 0;">今日已用 ' + (minsUsed()) + ' 分钟 · ' + (u.n||0) + ' 题</p></div>' +
+      '<div class="edu-card"><h4>🎯 分科正确率</h4>' + subjRows + '</div>';
+    body.innerHTML = html;
+    anim(body);
+  }
+  function pad(n){ return (n < 10 ? '0' : '') + n; }
   function renderWish(){
     var body = document.getElementById('eduWishBody');
     if (!body) return;
@@ -1978,6 +2067,10 @@
     document.getElementById('kidPickDrop').classList.remove('show');
     eduNav('badges');
   };
+  window.openStats = function (){
+    document.getElementById('kidPickDrop').classList.remove('show');
+    eduNav('stats');
+  };
   window.openSettings = function (){
     requireParent(function(){
       var s = curSettings();
@@ -1985,6 +2078,8 @@
       document.getElementById('setNoCarry').checked = !!s.nocarry;
       document.getElementById('setDailyQ').value = String(s.dailyQ);
       document.getElementById('setDailyMin').value = String(s.dailyMin);
+      document.getElementById('setTrace').checked = !!(s.show && s.show.trace);
+      document.getElementById('setPar').checked = !!(s.show && s.show.par);
       document.getElementById('setPwd').placeholder = parentPwd() === '0000' ? '未设置（当前为 0000）' : '已设置';
       document.getElementById('setPwd').value = '';
       document.getElementById('eduMaskSet').style.display = 'flex';
@@ -1998,9 +2093,13 @@
       range: parseInt(document.getElementById('setRange').value, 10) || 20,
       nocarry: document.getElementById('setNoCarry').checked,
       dailyQ: parseInt(document.getElementById('setDailyQ').value, 10) || 0,
-      dailyMin: parseInt(document.getElementById('setDailyMin').value, 10) || 0
+      dailyMin: parseInt(document.getElementById('setDailyMin').value, 10) || 0,
+      show: mergeSet({}).show
     });
+    state.settings.show.trace = document.getElementById('setTrace').checked;
+    state.settings.show.par = document.getElementById('setPar').checked;
     saveState();
+    applyContentToggles();
     document.getElementById('eduMaskSet').style.display = 'none';
     toast('学习设置已保存');
   };
@@ -2009,6 +2108,7 @@
     renderKidBar();
     loadAllState();
     renderStars();
+    applyContentToggles();
     eduNav('home');
   }
 

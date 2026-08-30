@@ -117,6 +117,11 @@
 
   /* 答题区: 10 题批量卷 */
   .quiz-toolbar{display:flex;align-items:center;gap:8px;justify-content:flex-end;margin-bottom:12px;flex-wrap:wrap;}
+  .quiz-fetching{display:flex;align-items:center;justify-content:center;gap:6px;padding:70px 0;color:var(--edu-muted);font-size:.9rem;font-weight:800;}
+  .quiz-fetching i{width:7px;height:7px;border-radius:50%;background:var(--edu-primary);animation:qfB .9s infinite ease-in-out;}
+  .quiz-fetching i:nth-child(2){animation-delay:.15s;}
+  .quiz-fetching i:nth-child(3){animation-delay:.3s;}
+  @keyframes qfB{0%,100%{opacity:.25;transform:translateY(0);}50%{opacity:1;transform:translateY(-5px);}}
   .quiz-toolbar .qt-progress{font-size:.82rem;font-weight:700;color:var(--edu-ink);margin-right:auto;}
   /* 闯关横幅 */
   .lv-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:linear-gradient(135deg,var(--edu-blue),var(--edu-primary));color:#fff;border-radius:16px;padding:14px 18px;margin-bottom:14px;}
@@ -573,6 +578,13 @@
   function load(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } }
   function save(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
   function clone(o){ return JSON.parse(JSON.stringify(o)); }
+  // 异步出题(拉题库/生成)期间的轻量加载态 + 竞态保护(快速切换学习项时丢弃过期结果)
+  var quizSeq = 0;
+  function showQuizFetching(id){
+    var c = document.getElementById(id);
+    if (!c) return;
+    c.innerHTML = '<div class="quiz-fetching"><i></i><i></i><i></i> 正在出题…</div>';
+  }
   // 学习记录按当前孩子隔离
   function kidSyncKey(){ var a = window.eduKids.active(); return a ? a.id : 'default'; }
   function stateKeyFor(kidId){ return LS_BASE + '_' + (kidId || kidSyncKey()); }
@@ -1028,37 +1040,6 @@
   }
 
   // 生成 10 题: 随机 & 优先错题
-  function build10(subj, type, pool, makeItem, idKey){
-    var usedDone = wb.done || [];
-    var items = [];
-    // 错题优先
-    var wrongList = (state.wrong||[]).filter(function(w){
-      return w.subj===subj && w.type===type && items.length < QUIZ_LEN;
-    }).sort(function(){ return Math.random()-0.5; });
-    wrongList.forEach(function(w){
-      if (items.length >= QUIZ_LEN) return;
-      var p = pool.filter(function(x){ return String(x[idKey])===String(w.q); })[0];
-      if (p){ items.push(makeItem(p, true, w.correct)); }
-    });
-    // 随机补足
-    var candidates = pool.slice().sort(function(){ return Math.random()-0.5; });
-    var seen = {};
-    candidates.forEach(function(p){
-      if (items.length >= QUIZ_LEN) return;
-      var keyz = String(p[idKey]);
-      if (items.some(function(it){ return it.id===keyz; })) return;
-      items.push(makeItem(p, false, null));
-    });
-    // 题目不足(池子<10)则重复
-    var guard = 0;
-    while (items.length < QUIZ_LEN && guard++ < 50){
-      var p = pool[Math.floor(Math.random()*pool.length)];
-      items.push(makeItem(p, false, null));
-    }
-    // 每题补 idx(错题项对齐题库id)
-    items.forEach(function(it, i){ it.i = i; });
-    return items;
-  }
 
   // 生成选项: correct + 从 distractors 抽 n-1
   function makeOptions(correct, distractors, count, labelFn){
@@ -1125,7 +1106,10 @@
       var type = wbZhMode;
       if (wbZhMode==='pinyin') type = (wbPinyinMode==='yun') ? 'yun' : ((wbPinyinMode==='read') ? 'read' : 'pinyin');
       if (wbZhMode==='ciyu') type = (wbCiyuMode==='liang') ? 'liang' : 'fan';
+      var seq = ++quizSeq;
+      showQuizFetching('wb-zh-body');
       window.eduEngine.assemble('zh', type).then(function(items){
+        if (seq !== quizSeq) return;
         startQuiz('zh', type, items);
       });
       return;
@@ -1148,13 +1132,6 @@
     { id:'z11', zi:'手', pinyin:'shǒu', word:'小手', emoji:'✋' },
     { id:'z12', zi:'雨', pinyin:'yǔ', word:'下雨', emoji:'🌧️' }
   ];
-  function wbZiRender(body){
-    quizContainerId = 'wb-zh-body';
-    var items = build10('zh','zi', ZI, function(z){
-      return { id:z.id, prompt:'这个词语对应的汉字是？', big:z.emoji+' '+z.word, options:makeOptions(z.zi, ZI.map(function(x){return x.zi;}), 3), correct:z.zi, note:z.zi+'（'+z.pinyin+'）' };
-    }, 'id');
-    startQuiz('zh','zi', items);
-  }
 
   // ---------- 语文: 笔顺(数笔画) ----------
   var STROKES = [
@@ -1170,14 +1147,6 @@
     { id:'s10', zi:'木', order:['横','竖','撇','捺'] },
     { id:'s11', zi:'十', order:['横','竖'] }
   ];
-  function wbStrokeRender(body){
-    quizContainerId = 'wb-zh-body';
-    var items = build10('zh','stroke', STROKES, function(s){
-      var c = s.order.length;
-      return { id:s.id, prompt:'「'+s.zi+'」这个字一共有几笔？', big:s.zi, options:makeOptions(c, [Math.max(2,c-1), c-2, c+1], 3), correct:c, note:c+' 笔' };
-    }, 'id');
-    startQuiz('zh','stroke', items);
-  }
 
   // ---------- 语文: 拼音 (声母/韵母/拼读) ----------
   var P_SHENG = [
@@ -1214,29 +1183,6 @@
     { id:'r11', zi:'花', py:'huā', e:'🌸' }
   ];
   var wbPinyinMode = 'sheng';
-  function wbPinyinRender(body){
-    quizContainerId = 'wb-zh-body';
-    quizSubject = 'zh';
-    if (wbPinyinMode==='sheng'){
-      var items = build10('zh','pinyin', P_SHENG, function(x){
-        return { id:x.id, prompt:'「'+x.zi+'（'+x.py+'）」的声母是？', big:x.e+' '+x.zi,
-          options:makeOptions(x.s, P_SHENG.map(function(t){return t.s;}), 4), correct:x.s, note:'声母 '+x.s };
-      }, 'id');
-      startQuiz('zh','pinyin', items);
-    } else if (wbPinyinMode==='yun'){
-      var items2 = build10('zh','pinyin', P_YUN, function(x){
-        return { id:x.id, prompt:'「'+x.zi+'（'+x.py+'）」的韵母是？', big:x.e+' '+x.zi,
-          options:makeOptions(x.u, P_YUN.map(function(t){return t.u;}), 4), correct:x.u, note:'韵母 '+x.u };
-      }, 'id');
-      startQuiz('zh','pinyin', items2);
-    } else {
-      var items3 = build10('zh','pinyin', P_READ, function(x){
-        return { id:x.id, prompt:'这个字怎么读？', big:x.e+' '+x.zi,
-          options:makeOptions(x.py, P_READ.map(function(t){return t.py;}), 4), correct:x.py, note:x.py };
-      }, 'id');
-      startQuiz('zh','pinyin', items3);
-    }
-  }
   window.wbPinyin = function (k){ wbPinyinMode=k; setTab('wb-pinyin', k); wbRenderZh(); };
 
   // ---------- 语文: 词语 (反义词 / 量词) ----------
@@ -1256,23 +1202,6 @@
     { id:'l11', zi:'一', n:'老虎', m:'只' }
   ];
   var wbCiyuMode = 'fan';
-  function wbCiyuRender(body){
-    quizContainerId = 'wb-zh-body';
-    quizSubject = 'zh';
-    if (wbCiyuMode==='fan'){
-      var items = build10('zh','ciyu', FANCI, function(x){
-        return { id:x.id, prompt:'「'+x.zi+'」的反义词是？', big:x.e+' '+x.zi,
-          options:makeOptions(x.fan, FANCI.map(function(t){return t.fan;}), 4), correct:x.fan, note:x.zi+'——'+x.fan };
-      }, 'id');
-      startQuiz('zh','ciyu', items);
-    } else {
-      var items2 = build10('zh','ciyu', LIANGCI, function(x){
-        return { id:x.id, prompt:'「'+x.zi+' __ '+x.n+'」填哪个量词？', big:x.zi+' '+(x.n==='猫'?'🐱':'')+' __',
-          options:makeOptions(x.m, ['个','只','朵','条','棵','本','辆','双'], 4), correct:x.m, note:x.zi+x.m+x.n };
-      }, 'id');
-      startQuiz('zh','ciyu', items2);
-    }
-  }
   window.wbCiyu = function (k){ wbCiyuMode=k; setTab('wb-ciyu', k); wbRenderZh(); };
 
   // ---------- 语文: 手写描红 (Canvas, 不评判, 只描轨迹) ----------
@@ -1646,22 +1575,7 @@
     var sentence = tpl(q.a, q.b);
     return { id:'word_'+q.expr, prompt:'应用题：'+sentence, big:sentence, input:true, correct:String(q.ans), note:q.expr+' → '+q.ans };
   }
-  function makeOrderItems(max){
-    var items = [];
-    for (var k=0;k<QUIZ_LEN;k++){
-      var pool = [];
-      for (var n=1;n<=max;n++) pool.push(n);
-      pool.sort(function(){ return Math.random()-0.5; });
-      var nums = pool.slice(0, 5).sort(function(a,b){ return a-b; });
-      items.push({ id:'order_'+nums.join(','), order:true, prompt:'把数字按从小到大排好（按顺序点一点）', expected:nums, correct:nums.join('|'), note:'从小到大：'+nums.join(' → ') });
-    }
-    return items;
-  }
   // 把 qbank 拉回的题转成统一题目对象
-  function qbToItem(q){
-    return { id:'qb_'+q.id, prompt:q.prompt, options:q.options && q.options.length ? q.options : undefined,
-             input: (q.options && q.options.length) ? undefined : true, correct:String(q.correct), note:q.note || '', wtype:q.type };
-  }
   // ---------- 难度档位(1~5): 用于自适应调难 ----------
   var LEVEL_RANGE = [5, 10, 20, 50, 100];
   function levelRange(subj){
@@ -1897,7 +1811,10 @@
     quizContainerId = 'wb-math-body';
     quizSubject = 'math';
     var type = (wbMathMode==='order') ? 'order' : wbMathMode;
+    var seq = ++quizSeq;
+    showQuizFetching('wb-math-body');
     window.eduEngine.assemble('math', type).then(function(items){
+      if (seq !== quizSeq) return;
       startQuiz('math', type, items);
     });
   }
@@ -1980,7 +1897,10 @@
     quizContainerId = 'wb-en-body';
     quizSubject = 'en';
     var type = (wbEnMode==='dialogue') ? 'dialogue' : 'word';
+    var seq = ++quizSeq;
+    showQuizFetching('wb-en-body');
     window.eduEngine.assemble('en', type).then(function(items){
+      if (seq !== quizSeq) return;
       startQuiz('en', type, items);
     });
   }
@@ -2004,14 +1924,6 @@
     { id:'d10', zh:'见到你很高兴。', en:'Nice to meet you.', emoji:'😊' },
     { id:'d11', zh:'我是一个女孩。', en:'I am a girl.', emoji:'👧' }
   ];
-  function renderDialogueQuiz(body){
-    var items = build10('en','dialogue', DIALOGUES, function(d){
-      return { id:d.id, prompt:'这句话用英语怎么说？', big:d.emoji+' '+d.zh, options:makeOptions(d.en, DIALOGUES.map(function(x){return x.en;}), 3), correct:d.en, note:d.en };
-    }, 'id');
-    quizContainerId = 'wb-en-body';
-    quizSubject='en';
-    startQuiz('en','dialogue', items);
-  }
 
   // ======================= 宝贝启蒙乐园 =======================
   var PAR_GAMES = [

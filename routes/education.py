@@ -29,13 +29,15 @@
 - 渲染页面骨架(/edu/)
 - 提供 /edu/api/** REST 接口, 供前端读写数据。
 """
+import json
 import logging
 import os
 import threading
+from datetime import datetime
 
 from flask import Blueprint, jsonify, request, render_template, current_app
 from flask_login import current_user
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, text
 from sqlalchemy.orm import sessionmaker, scoped_session, declarative_base
 
 logger = logging.getLogger(__name__)
@@ -67,6 +69,7 @@ class EduData(Base):
     profile_id = Column(Integer, nullable=False, index=True)
     dkey = Column(String(40), default='state')   # 'state' | 'levels' | 'workbench'
     payload = Column(Text, default='{}')
+    created_at = Column(DateTime)
     updated_at = Column(DateTime)
 
 class EduQBank(Base):
@@ -98,8 +101,21 @@ def _get_session():
             path = _db_path()
             _engine = create_engine('sqlite:///' + path, echo=False)
             Base.metadata.create_all(_engine)
+            _migrate(_engine)
             _Session = scoped_session(sessionmaker(bind=_engine))
     return _Session()
+
+
+def _migrate(engine):
+    """轻量迁移: 旧库补新增列(create_all 不会改已存在表)."""
+    with engine.connect() as conn:
+        cols = [r[1] for r in conn.execute(text("PRAGMA table_info(edu_data)")).fetchall()]
+        if cols and 'created_at' not in cols:
+            conn.execute(text("ALTER TABLE edu_data ADD COLUMN created_at DATETIME"))
+        cols2 = [r[1] for r in conn.execute(text("PRAGMA table_info(edu_profile)")).fetchall()]
+        if cols2 and 'created_at' not in cols2:
+            conn.execute(text("ALTER TABLE edu_profile ADD COLUMN created_at DATETIME"))
+        conn.commit()
 
 
 def _owner_id():
@@ -108,6 +124,12 @@ def _owner_id():
         return 'u' + str(current_user.id)
     anon = (request.headers.get('X-Edu-Anon') or request.args.get('anon') or '').strip()
     return 'anon_' + (anon or 'unknown')
+
+
+def _drop_profile_data(sess, owner, pid):
+    """删除孩子档案及其所有数据弹(仅限归属内)."""
+    sess.query(EduProfile).filter_by(id=pid, owner=owner).delete()
+    sess.query(EduData).filter_by(owner=owner, profile_id=pid).delete()
 
 
 @education_bp.route('/')
@@ -145,7 +167,6 @@ def save_kids():
     sess = _get_session()
     owner = _owner_id()
     out = []
-    returned_ids = set()
     for i, k in enumerate(data.get('kids') or []):
         name = (k.get('name') or '宝贝')[:40]
         birth_year = int(k.get('birthYear') or 2018)
@@ -153,7 +174,12 @@ def save_kids():
         pid = k.get('dbId')
         p = None
         if pid:
-            p = sess.query(EduProfile).filter_by(id=int(pid), owner=owner).first()
+            try:
+                pid = int(pid)
+            except (TypeError, ValueError):
+                pid = None
+            if pid:
+                p = sess.query(EduProfile).filter_by(id=pid, owner=owner).first()
         if p:
             p.name = name; p.birth_year = birth_year; p.gender = gender; p.sort = i
         else:
@@ -161,13 +187,14 @@ def save_kids():
             sess.add(p)
         sess.flush()
         pid2 = p.id
-        returned_ids.add(pid2)
         out.append(dict(id=pid2, clientId=k.get('clientId'), name=p.name,
                         birthYear=p.birth_year, gender=p.gender))
     # 删除已移除的本地孩子(仅限归属内)
     for rid in data.get('removedIds') or []:
-        sess.query(EduProfile).filter_by(id=int(rid), owner=owner).delete()
-        sess.query(EduData).filter_by(owner=owner, profile_id=int(rid)).delete()
+        try:
+            _drop_profile_data(sess, owner, int(rid))
+        except (TypeError, ValueError):
+            continue
     sess.commit()
     sess.close()
     return jsonify(ok=True, owner=owner, kids=out)
@@ -177,8 +204,7 @@ def save_kids():
 def delete_kid(pid):
     sess = _get_session()
     owner = _owner_id()
-    sess.query(EduProfile).filter_by(id=pid, owner=owner).delete()
-    sess.query(EduData).filter_by(owner=owner, profile_id=pid).delete()
+    _drop_profile_data(sess, owner, pid)
     sess.commit()
     sess.close()
     return jsonify(ok=True)
@@ -196,20 +222,21 @@ def kid_state(pid):
     dkey = (request.args.get('dkey') or request.values.get('dkey') or 'state')
     if request.method == 'GET':
         row = sess.query(EduData).filter_by(owner=owner, profile_id=pid, dkey=dkey).first()
-        import json
         payload = json.loads(row.payload) if row and row.payload else {}
         sess.close()
         return jsonify(ok=True, data=payload)
     # POST
     body = request.get_json(silent=True) or {}
-    import json
     payload = body.get('data') or {}
     row = sess.query(EduData).filter_by(owner=owner, profile_id=pid, dkey=dkey).first()
+    now = datetime.utcnow()
     if row:
         row.payload = json.dumps(payload, ensure_ascii=False)
+        row.updated_at = now
     else:
         sess.add(EduData(owner=owner, profile_id=pid, dkey=dkey,
-                         payload=json.dumps(payload, ensure_ascii=False)))
+                         payload=json.dumps(payload, ensure_ascii=False),
+                         created_at=now, updated_at=now))
     sess.commit()
     sess.close()
     return jsonify(ok=True)
@@ -246,7 +273,6 @@ def qbank_ensure():
         return jsonify(ok=False, error='missing fields'), 400
     sess = _get_session()
     owner = _owner_id()
-    from datetime import datetime
     added = 0
     for it in items:
         prompt = (it.get('prompt') or '').strip()
@@ -258,7 +284,6 @@ def qbank_ensure():
         if exists:
             continue
         opts = it.get('options') or []
-        import json
         row = EduQBank(
             owner=owner, subj=subj, type=typ, difficulty=diff,
             prompt=prompt, options=json.dumps(opts, ensure_ascii=False),
@@ -304,7 +329,6 @@ def qbank_pull():
     scored.sort(key=lambda x: -x[0])
     out = []
     for _, r in scored[:limit]:
-        import json
         out.append(dict(
             id=r.id, subj=r.subj, type=r.type, difficulty=r.difficulty,
             prompt=r.prompt, options=json.loads(r.options or '[]'),
@@ -327,7 +351,6 @@ def qbank_learn():
         return jsonify(ok=False, error='missing fields'), 400
     sess = _get_session()
     owner = _owner_id()
-    from datetime import datetime
     row = sess.query(EduQBank).filter_by(
         owner=owner, subj=subj, type=typ, prompt=prompt
     ).first()

@@ -29,6 +29,7 @@
     document.documentElement.setAttribute('data-theme',t);}catch(e){}})();
   </script>
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg', v=staticv('favicon.svg')) }}">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
   <link href="{{ url_for('static', filename='vendor/bootstrap.min.css', v=staticv('vendor/bootstrap.min.css')) }}" rel="stylesheet">
     <link rel="preload" as="font" type="font/woff2" crossorigin href="{{ url_for('static', filename='vendor/fonts/bootstrap-icons.woff2', v=staticv('vendor/fonts/bootstrap-icons.woff2')) }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons.min.css', v=staticv('vendor/bootstrap-icons.min.css')) }}" media="print" onload="this.media='all'">

@@ -1,0 +1,18 @@
+{
+  "name": "知行合一 · 教育与任务管理",
+  "short_name": "知行合一",
+  "description": "任务、教育与知识管理系统",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fffdf8",
+  "theme_color": "#ff6b4a",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

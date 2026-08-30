@@ -91,14 +91,14 @@ def test_qbank_ensure_dedup_pull_learn(client):
     # 同 prompt 去重
     r = client.post('/edu/api/qbank/ensure', json={'subj': 'zh', 'type': 'zi', 'difficulty': 3, 'items': [item]})
     assert r.json['added'] == 0
-    # pull 拉回一个
-    items = client.post('/edu/api/qbank/pull', json={'subj': 'zh', 'type': 'zi', 'difficulty': 3}).json['items']
+    # pull 拉回(用大 limit 覆盖整池, 避免被更高权重的遗留题挤出前10)
+    items = client.post('/edu/api/qbank/pull', json={'subj': 'zh', 'type': 'zi', 'difficulty': 3, 'limit': 200}).json['items']
     assert any(i['prompt'] == probe for i in items)
     assert items[0]['options'] and not isinstance(items[0]['options'], str)
     # learn -> wrong_count 递增
     for _ in range(2):
         client.post('/edu/api/qbank/learn', json={'subj': 'zh', 'type': 'zi', 'prompt': probe, 'correct': False, 'difficulty': 3})
-    items = client.post('/edu/api/qbank/pull', json={'subj': 'zh', 'type': 'zi', 'difficulty': 3}).json['items']
+    items = client.post('/edu/api/qbank/pull', json={'subj': 'zh', 'type': 'zi', 'difficulty': 3, 'limit': 200}).json['items']
     assert any(i['prompt'] == probe for i in items)
     r = client.post('/edu/api/qbank/learn', json={'subj': 'zh', 'type': 'zi', 'prompt': probe, 'correct': True, 'difficulty': 3})
     assert r.json.get('ok')
@@ -214,7 +214,7 @@ W.eduNav('badges');
 console.log('ON='+(iH.match(/class="badge-card on"/g)||[]).length);
 console.log('TOTAL='+(iH.match(/class="badge-card/g)||[]).length);
 ''')
-    assert 'ON=6' in out and 'TOTAL=11' in out, out
+    assert 'ON=6' in out and 'TOTAL=16' in out, out
 
 
 def test_calc_fill_no_blank_visual(client):
@@ -260,6 +260,67 @@ console.log('TOTAL_REC='+(iH.match(/class="sk"/g)||[]).length);
 ''')
     assert 'HAS_KPI=1' in out and 'HAS_TREND=1' in out and 'HAS_SUBJ=1' in out, out
     assert 'TOTAL_REC=6' in out, out
+
+
+def test_quiz_restore_after_refresh():
+    """刷新保持: 进行中卷子的已填答案存 localStorage, 重新起卷时被还原."""
+    out = _harness(r'''
+(async()=>{
+  // 模拟"刷新前"已填答题的进行中卷子
+  store['edu_quiz_v1_kk']=JSON.stringify({
+    subj:'math', type:'calc',
+    items:[{input:true,big:'20 - 9',prompt:'20 - 9 = ?'},
+           {input:true,big:'13 + 8',prompt:'13 + 8 = ?'}],
+    answers:{0:'11',1:'21'}, order:{}, submitted:false, _t:1
+  });
+  // 柱桩: wb-math-body 捕获 innerHTML; qi-{i} 提供可读写的 input
+  let bodyH='';const body={style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},appendChild(){},querySelectorAll(){return[]},querySelector(){return me()}};
+  Object.defineProperty(body,'innerHTML',{get(){return bodyH},set(v){bodyH=String(v)}});
+  const inputs={}; const mkIn=(n)=>{const inp={_v:'',style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},setAttribute(){},getAttribute(){return null},addEventListener(){}};Object.defineProperty(inp,'value',{get(){return inp._v},set(v){inp._v=String(v)}});inputs[n]=inp;return inp;};
+  const items={0:mkIn(0),1:mkIn(1)};
+  const byId=(id)=>{
+    if(id==='wb-math-body') return body;
+    if(id==='qi-0') return {querySelector:()=>items[0]};
+    if(id==='qi-1') return {querySelector:()=>items[1]};
+    return me();
+  };
+  global.document.getElementById=byId;
+  W.wbMath('calc');
+  await new Promise(r=>setTimeout(r,60));
+  console.log('V0='+inputs[0].value);
+  console.log('V1='+inputs[1].value);
+  console.log('KEPT='+(store['edu_quiz_v1_kk']?'1':'0'));
+})();
+''')
+    assert 'V0=11' in out, out
+    assert 'V1=21' in out, out
+    assert 'KEPT=1' in out, out
+
+
+def test_quiz_save_state_on_answer():
+    """作答即持久化: 恢复的卷子选中答案后, localStorage 快照同步更新."""
+    out = _harness(r'''
+(async()=>{
+  store['edu_record_v1_kk']=JSON.stringify({stars:0,records:[],wrong:[],wishes:[],settings:{}});
+  store['edu_quiz_v1_kk']=JSON.stringify({
+    subj:'zh', type:'zi',
+    items:[{options:[{v:'a',label:'好'},{v:'b',label:'不'}],prompt:'选对字',correct:'a'}],
+    answers:{}, order:{}, submitted:false, _t:1
+  });
+  // 柱桩: quiz 容器捕获 innerHTML; qi-0 提供 querySelectorAll 返回选项按钮
+  let bodyH='';const body={style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},appendChild(){},querySelectorAll(){return[]},querySelector(){return me()}};
+  Object.defineProperty(body,'innerHTML',{get(){return bodyH},set(v){bodyH=String(v)}});
+  const btn={classList:{add(){},remove(){},toggle(){},contains(){return false}},getAttribute(){return null}};
+  const itemEl={querySelector:()=>me(),querySelectorAll:()=>[btn]};
+  global.document.getElementById=(id)=> id==='wb-zh-body'?body : (id==='qi-0'?itemEl : me());
+  W.wbZh('zi');
+  await new Promise(r=>setTimeout(r,60));
+  W.pickOpt(0,'a');
+  const snap=JSON.parse(store['edu_quiz_v1_kk']||'null');
+  console.log('SAVED='+(snap && snap.submitted===false && snap.answers && snap.answers[0]==='a' ? '1':'0'));
+})();
+''')
+    assert 'SAVED=1' in out, out
 
 
 if __name__ == '__main__':

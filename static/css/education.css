@@ -284,6 +284,17 @@
   .badge-card .bc-ico{font-size:2rem;line-height:1;margin-bottom:6px;}
   .badge-card .bc-name{font-size:.8rem;font-weight:900;color:var(--edu-ink);}
   .badge-card .bc-desc{font-size:.68rem;color:var(--edu-muted);margin-top:4px;font-weight:600;}
+  .badge-reveal{opacity:0;pointer-events:none;transition:opacity .3s ease;}
+  .badge-reveal.show{opacity:1;pointer-events:auto;}
+  .reveal-box{background:linear-gradient(160deg,#fff7ec,#ffeef2);border-radius:22px;max-width:440px;width:100%;padding:26px 22px;text-align:center;box-shadow:0 18px 54px rgba(0,0,0,.4);animation:eduPop .35s ease;}
+  .reveal-title{font-size:1.25rem;font-weight:900;color:var(--edu-ink);margin-bottom:18px;}
+  .reveal-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin-bottom:20px;}
+  .reveal-card{width:112px;background:var(--edu-surface);border:2px solid var(--edu-gold);border-radius:16px;padding:14px 10px;animation:eduPop .4s ease both;}
+  .reveal-card .rc-ico{font-size:2.2rem;line-height:1;margin-bottom:6px;}
+  .reveal-card .rc-name{font-size:.82rem;font-weight:900;color:var(--edu-ink);}
+  .reveal-card .rc-desc{font-size:.66rem;color:var(--edu-muted);margin-top:4px;font-weight:600;}
+  .kk-badge.pulse{animation:badgePulse .9s ease;}
+  @keyframes badgePulse{0%{transform:scale(1);}40%{transform:scale(1.4);box-shadow:0 0 0 6px rgba(246,180,60,.4);}100%{transform:scale(1);}}
   .empty-hero{text-align:center;padding:18px 0 6px;}
   .empty-hero h2{font-size:1.25rem;color:var(--edu-ink);}
   .kid-card .kk-add{display:flex;flex-direction:column;align-items:center;gap:8px;padding:38px 0;color:var(--edu-muted);font-weight:800;}
@@ -371,4 +382,6 @@
   html[data-theme="dark"] .m-item.lock{background:#123c2a;color:#7ce0b0;}
   html[data-theme="dark"] .m-done{background:#123c2a;color:#7ce0b0;}
   html[data-theme="dark"] .quiz-item .qo-chip{background:var(--edu-soft);}
+  html[data-theme="dark"] .reveal-box{background:linear-gradient(160deg,#2a2228,#211d1a);}
+  html[data-theme="dark"] .reveal-card{background:var(--edu-surface-2);}
   @media (max-width:640px){ .edu-hub{grid-template-columns:1fr;} }

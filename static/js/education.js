@@ -205,12 +205,81 @@
     return true;
   }
 
+  var restoredQuizSubj = null;
   function startQuiz(subj, type, items, levelInfo){
+    // 刷新后恢复: 若存在进行中的同科目卷, 还原之(保持页面+已填答案)
+    if (restoredQuizSubj === null && tryRestoreQuiz(subj)){
+      restoredQuizSubj = subj;
+      return;
+    }
     if (!applyLimit()) return;
     quiz = { subj: subj, type: type, items: items, answers: {}, submitted: false, _t: Date.now() };
     quizSubject = subj;
     quizOrder = {};
+    saveQuizState();
     renderQuiz();
+  }
+
+
+  // ======== 答题中途刷新保持: 把进行中的卷子+已填答案存入 localStorage ========
+  function quizStateKey(){ return 'edu_quiz_v1_' + String((window.eduKids.active() || {}).id || 'kk'); }
+  function saveQuizState(){
+    try {
+      if (!quiz || quiz.submitted) return;
+      // 收集输入框已填值(它们尚未进入 quiz.answers)
+      var inputs = document.querySelectorAll('#quizShell input.qi-in');
+      inputs.forEach(function(inp){
+        var idx = parseInt(inp.getAttribute('data-idx'), 10);
+        if (quiz.items[idx] && quiz.items[idx].input) quiz.answers[idx] = inp.value.replace(/\s+/g, '');
+      });
+      var snap = { subj: quiz.subj, type: quiz.type, items: quiz.items, answers: quiz.answers,
+        order: quizOrder || {}, submitted: false, _t: quiz._t };
+      localStorage.setItem(quizStateKey(), JSON.stringify(snap));
+    } catch (e) {}
+  }
+  function clearQuizState(){
+    try { localStorage.removeItem(quizStateKey()); } catch (e) {}
+  }
+  function tryRestoreQuiz(subj){
+    try {
+      var raw = localStorage.getItem(quizStateKey());
+      if (!raw || raw === 'null') return false;
+      var snap = JSON.parse(raw);
+      if (!snap || snap.submitted || !snap.items || !snap.items.length) return false;
+      if (snap.subj !== subj) return false;
+      quiz = { subj: snap.subj, type: snap.type, items: snap.items, answers: snap.answers || {}, submitted: false, _t: snap._t || Date.now() };
+      quizSubject = snap.subj;
+      quizOrder = snap.order || {};
+      renderQuiz();
+      reapplyAnswers();
+      return true;
+    } catch (e) { return false; }
+  }
+  function reapplyAnswers(){
+    if (!quiz) return;
+    var a = quiz.answers || {};
+    quiz.items.forEach(function(it, i){
+      var item = document.getElementById('qi-' + i);
+      if (!item) return;
+      if (it.input){
+        var inp = item.querySelector('input.qi-in');
+        if (inp && a[i] !== undefined) inp.value = a[i];
+        return;
+      }
+      var my = a[i];
+      if (it.options && my !== undefined){
+        item.querySelectorAll('.qi-opt button').forEach(function(b){
+          b.classList.toggle('pick', b.getAttribute('data-v') === my);
+        });
+      } else if (it.order){
+        renderOrderSeq(i);
+        var seq = quizOrder[i] || [];
+        item.querySelectorAll('.qo-chip').forEach(function(b){
+          b.classList.toggle('picked', seq.indexOf(b.getAttribute('data-v')) >= 0);
+        });
+      }
+    });
+    updateQuizProg();
   }
 
   function blockedHint(msg){
@@ -225,6 +294,14 @@
   }
 
   // 选择题: 标记选中
+  window.onQuizInput = function (idx, val){
+    if (quiz.submitted) return;
+    if (quiz.items[idx] && quiz.items[idx].input){
+      quiz.answers[idx] = (val || '').replace(/\s+/g, '');
+      saveQuizState();
+      updateQuizProg();
+    }
+  };
   window.pickOpt = function (idx, v){
     if (quiz.submitted) return;
     quiz.answers[idx] = v;
@@ -234,6 +311,7 @@
     });
     if (quiz.items[idx] && quiz.items[idx].order) return;
     updateQuizProg();
+    saveQuizState();
   };
 
   // 排序题: 点选排列
@@ -250,6 +328,7 @@
       b.classList.toggle('picked', seq.indexOf(b.getAttribute('data-v')) >= 0);
     });
     updateQuizProg();
+    saveQuizState();
   };
   window.clearOrder = function (idx){
     if (quiz.submitted) return;
@@ -258,6 +337,7 @@
     var chips = document.getElementById('qi-'+idx).querySelectorAll('.qo-chip');
     chips.forEach(function(b){ b.classList.remove('picked'); });
     updateQuizProg();
+    saveQuizState();
   };
   function renderOrderSeq(idx){
     var box = document.getElementById('qseq-'+idx);
@@ -340,6 +420,7 @@
       }
     }
     gradeQuiz(count, maxCombo, bonus);
+    clearQuizState();
   };
 
   // 适合幼儿的暖心反馈: 答对鼓励, 答错给温柔引导(不冷冰冰)
@@ -464,17 +545,22 @@
     saveState();
   }
 
-  // 成就徽章
+  // 成就徽章: [emoji, 名称, 描述]
   var BADGES = {
     s1: ['⭐', '第一颗星', '累计获得 1 颗星'],
     s10: ['🌟', '十星小达人', '累计获得 10 颗星'],
     s50: ['💎', '学习小超人', '累计获得 50 颗星'],
+    r100: ['📈', '百日之基', '累计完成 100 题'],
     c5: ['🔥', '连对五题', '一组里连续答对 5 题'],
     c10: ['⚡', '全对风暴', '一组里连续答对 10 题'],
     d3: ['📅', '坚持三天', '连续打卡 3 天'],
     d7: ['🗓️', '七日成习', '连续打卡 7 天'],
     z1: ['🎉', '初次答卷', '完成第 1 份卷子'],
     z10: ['📚', '十卷成材', '完成 10 份卷子'],
+    z25: ['🏛️', '心得成篇', '完成 25 份卷子'],
+    m5: ['🧮', '口算小神童', '数学口算答对 30 题'],
+    f20: ['🍃', '诗词小书生', '古诗答对 20 题'],
+    p10: ['🎈', '乐园常客', '快乐乐园玩满 5 次'],
     all: ['🎨', '全面发展', '语文 / 数学 / 英语 / 乐园 都练过'],
     w0: ['🧹', '错题清零', '把错题全部消灭']
   };
@@ -484,22 +570,63 @@
     if (state.stars >= 1) want.s1 = 1;
     if (state.stars >= 10) want.s10 = 1;
     if (state.stars >= 50) want.s50 = 1;
+    if ((state.records || []).length >= 100) want.r100 = 1;
     if (comboRun >= 5) want.c5 = 1;
     if (comboRun >= 10) want.c10 = 1;
     if ((wb.streak || 0) >= 3) want.d3 = 1;
     if ((wb.streak || 0) >= 7) want.d7 = 1;
     if (state.submits >= 1) want.z1 = 1;
     if (state.submits >= 10) want.z10 = 1;
+    if (state.submits >= 25) want.z25 = 1;
     var subjs = {};
-    state.records.forEach(function(r){ subjs[r.subj] = 1; });
+    var okMathCalc = 0, okPoem = 0, parCount = 0;
+    (state.records || []).forEach(function(r){
+      subjs[r.subj] = 1;
+      if (r.ok && r.subj === 'math' && r.type === 'calc') okMathCalc++;
+      if (r.ok && r.subj === 'zh' && r.type === 'poem') okPoem++;
+      if (r.subj === 'par') parCount++;
+    });
+    if (okMathCalc >= 30) want.m5 = 1;
+    if (okPoem >= 20) want.f20 = 1;
+    if (parCount >= 5) want.p10 = 1;
     if (subjs.zh && subjs.math && subjs.en && subjs.par) want.all = 1;
     if (prevWrong > 0 && state.wrong.length === 0) want.w0 = 1;
+    var newly = [];
     for (var k in want){
       if (!state.badges[k]){
         state.badges[k] = Date.now();
-        if (BADGES[k]) toast('🏅 解锁徽章：' + BADGES[k][1] + '（' + BADGES[k][2] + '）');
+        newly.push(k);
       }
     }
+    if (newly.length){
+      setTimeout(function(){ badgeReveal(newly); }, 500);
+    }
+  }
+  // 徽章解锁庆祝: 全屏覆盖层展示新解锁徽章
+  function badgeReveal(keys){
+    var cards = keys.map(function(k){
+      var b = BADGES[k];
+      return '<div class="reveal-card"><div class="rc-ico">'+b[0]+'</div><div class="rc-name">'+esc(b[1])+'</div><div class="rc-desc">'+esc(b[2])+'</div></div>';
+    }).join('');
+    var mask = document.createElement('div');
+    mask.className = 'edu-mask badge-reveal';
+    mask.id = 'badgeReveal';
+    mask.innerHTML = '<div class="reveal-box">' +
+      '<div class="reveal-title">🏅 解锁新荣誉！</div>' +
+      '<div class="reveal-grid">' + cards + '</div>' +
+      '<button type="button" class="btn-soft" onclick="closeBadgeReveal()">太棒了！⭐</button>' +
+      '</div>';
+    document.body.appendChild(mask);
+    mask.classList.add('show');
+    keys.forEach(function(k){ badgePulse(k); });
+  }
+  window.closeBadgeReveal = function (){
+    var m = document.getElementById('badgeReveal');
+    if (m && m.parentNode) m.parentNode.removeChild(m);
+  };
+  function badgePulse(k){
+    var el = document.getElementById('homeBadge-' + k);
+    if (el){ el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse'); }
   }
 
   // 生成 10 题: 随机 & 优先错题
@@ -960,7 +1087,7 @@
         var eq = /\s*=\s*\?+\s*$/.test(String(src));
         h += '<div class="qi-expr">'+esc(String(src).replace(/\s*=\s*\?+\s*$/, ''))+'</div>';
         h += '<div class="qi-ans">'+(eq ? '<span class="qi-eq">＝</span>' : '')+'';
-        h += '<input class="qi-in" data-idx="'+i+'" type="number" inputmode="numeric" autocomplete="off" placeholder="?" aria-label="答案" onkeydown="if(event.key===\'Enter\')submitQuiz()">';
+        h += '<input class="qi-in" data-idx="'+i+'" type="number" inputmode="numeric" autocomplete="off" placeholder="?" aria-label="答案" oninput="onQuizInput('+i+',this.value)" onkeydown="if(event.key===\'Enter\')submitQuiz()">';
         h += '</div></div>';
       } else {
         h = '<div class="qi-head"><span class="qi-no">'+(i+1)+'</span><span class="qi-prompt">'+esc(it.prompt)+'</span></div>';
@@ -1809,7 +1936,7 @@
       var badKeys = Object.keys(bad).filter(function(x){ return BADGES[x]; });
       var badgeHtml = badKeys.length
         ? '<div class="kk-badges"><span class="kk-badge-title">🏅 荣誉</span>' +
-            badKeys.slice(0, 8).map(function(x){ return '<span class="kk-badge" title="'+esc(BADGES[x][1])+'：'+esc(BADGES[x][2])+'">'+BADGES[x][0]+'</span>'; }).join('') +
+            badKeys.slice(0, 8).map(function(x){ return '<span class="kk-badge" id="homeBadge-'+x+'" title="'+esc(BADGES[x][1])+'：'+esc(BADGES[x][2])+'">'+BADGES[x][0]+'</span>'; }).join('') +
             (badKeys.length > 8 ? '<span class="kk-badge more">+'+(badKeys.length-8)+'</span>' : '') +
           '</div>'
         : '<div class="kk-badges empty"><span class="kk-badge-title">🏅 努力闯关，解锁更多荣誉</span></div>';

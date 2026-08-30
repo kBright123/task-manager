@@ -223,6 +223,8 @@
     item.querySelectorAll('.qi-opt button').forEach(function(b){
       b.classList.toggle('pick', b.getAttribute('data-v')===v);
     });
+    if (quiz.items[idx] && quiz.items[idx].order) return;
+    updateQuizProg();
   };
 
   // 排序题: 点选排列
@@ -238,6 +240,7 @@
     chips.forEach(function(b){
       b.classList.toggle('picked', seq.indexOf(b.getAttribute('data-v')) >= 0);
     });
+    updateQuizProg();
   };
   window.clearOrder = function (idx){
     if (quiz.submitted) return;
@@ -245,6 +248,7 @@
     renderOrderSeq(idx);
     var chips = document.getElementById('qi-'+idx).querySelectorAll('.qo-chip');
     chips.forEach(function(b){ b.classList.remove('picked'); });
+    updateQuizProg();
   };
   function renderOrderSeq(idx){
     var box = document.getElementById('qseq-'+idx);
@@ -253,6 +257,23 @@
     box.innerHTML = seq.length
       ? seq.map(function(v, i){ return '<span class="qo-seq-chip">'+esc(v)+'</span>'; }).join('')
       : '<span class="qo-empty">从小到大点出顺序…</span>';
+  }
+  // 答题进度: 一个题口的作答状态(选择/填数/排序是否点完)
+  function answeredCount(){
+    var n = 0;
+    quiz.items.forEach(function(it, i){
+      if (it.order){ if ((quizOrder[i]||[]).length === (it.expected||[]).length) n++; return; }
+      if (it.input){ if (String(quiz.answers[i]||'').trim()) n++; return; }
+      if (quiz.answers[i] !== undefined && quiz.answers[i] !== '') n++;
+    });
+    return n;
+  }
+  function updateQuizProg(){
+    var el = document.getElementById('qtProg');
+    if (!el || !quiz) return;
+    var done = quiz.submitted ? quiz.items.length : answeredCount();
+    var tip = quiz.submitted ? '已完成' : ((done === quiz.items.length) ? '已全部作答，可以交卷打分啦' : '做一题点一题，答完点「交卷打分」');
+    el.textContent = '📄 共 '+quiz.items.length+' 题 · 已答 '+done+' · '+tip;
   }
 
   // 交卷自动打分
@@ -370,6 +391,7 @@
     if (tb) tb.textContent = '✅ 已交卷 · 下方查看结果（可再做一组）';
     var sb = box.querySelector('.quiz-toolbar .btn-soft');
     if (sb){ sb.textContent = '已交卷'; sb.disabled = true; }
+    updateQuizProg();
     var medal = score >= 9 ? '🏆' : (score >= 7 ? '🌟' : '💪');
     var praise = score === quiz.items.length
       ? '全对！你是小天才！'
@@ -911,10 +933,11 @@
     }
     var toolbar = document.createElement('div');
     toolbar.className = 'quiz-toolbar';
-    toolbar.innerHTML = '<span class="qt-progress">📄 共 '+quiz.items.length+' 题 · 答完点「交卷打分」</span>'+
+    toolbar.innerHTML = '<span class="qt-progress" id="qtProg"></span>'+
       '<button type="button" class="btn-ghost" onclick="regenQuiz()">换一组题</button>'+
       '<button type="button" class="btn-soft" onclick="submitQuiz()">交卷打分</button>';
     shell.appendChild(toolbar);
+    updateQuizProg();
 
     quiz.items.forEach(function(it, i){
       var card = document.createElement('div');
@@ -1736,6 +1759,16 @@
           '<div class="kw-bar"><div class="kw-bar-fill" style="width:'+wpct+'%;"></div></div>' +
           '<div class="kk-wish-sub">'+gapMsg+'</div></div>';
       }
+      // 荣誉徽章(已解锁)
+      var stL = load(LS_BASE + '_' + String(k.id)) || {};
+      var bad = stL.badges || {};
+      var badKeys = Object.keys(bad).filter(function(x){ return BADGES[x]; });
+      var badgeHtml = badKeys.length
+        ? '<div class="kk-badges"><span class="kk-badge-title">🏅 荣誉</span>' +
+            badKeys.slice(0, 8).map(function(x){ return '<span class="kk-badge" title="'+esc(BADGES[x][1])+'：'+esc(BADGES[x][2])+'">'+BADGES[x][0]+'</span>'; }).join('') +
+            (badKeys.length > 8 ? '<span class="kk-badge more">+'+(badKeys.length-8)+'</span>' : '') +
+          '</div>'
+        : '<div class="kk-badges empty"><span class="kk-badge-title">🏅 努力闯关，解锁更多荣誉</span></div>';
       return '<div class="kid-card' + (isActive ? ' on' : '') + '" onclick="kidEnter(\'' + k.id + '\')">' +
         '<div class="kk-top">' +
           '<span class="kk-ava' + (k.gender === 'female' ? ' b' : '') + '">' + window.eduKids.genderIcon(k.gender) + '</span>' +
@@ -1748,6 +1781,7 @@
         '<div class="kk-stats">' +
           '<span>今日 ' + s.today + ' 题</span><span>正确率 ' + s.pct + '%</span>' +
         '</div>' +
+        badgeHtml +
         wishHtml +
         '<div class="kk-actions">' +
           '<button type="button" class="kk-btn" onclick="event.stopPropagation();kidEnter(\'' + k.id + '\')">🚀 开始学习</button>' +
@@ -1756,7 +1790,11 @@
       '</div>';
     }).join('');
     var add = '<div class="kid-card add" onclick="kidAdd()"><div class="kk-add"><i class="bi bi-plus-lg"></i><span>新增孩子</span></div></div>';
-    body.innerHTML = head + '<div class="kid-grid">' + (kids.length ? all + add : add) + '</div>';
+    var hero = kids.length ? '' :
+      '<div class="edu-hero empty-hero"><div style="font-size:2.6rem;line-height:1;">👶</div>' +
+      '<h2 style="margin:10px 0 4px;">欢迎来到教育乐园</h2>' +
+      '<p style="color:var(--edu-muted);margin:0;">先登记一个宝贝，就能开始闯关攒星星咯</p></div>';
+    body.innerHTML = head + hero + '<div class="kid-grid">' + (kids.length ? all + add : add) + '</div>';
     anim(body);
   }
   // 为指定孩子添加星愿(家长口令后跳转星愿页填写表单)

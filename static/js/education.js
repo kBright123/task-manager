@@ -39,14 +39,22 @@
     var lat = (s.replace(/\s/g, '').match(/[a-zA-Z]/g) || []).length;
     return han >= lat ? 'zh' : 'en';
   }
+  var netAudio = null, netAudioUrl = '';
+  function stopNetAudio(){
+    if (netAudio){ try { netAudio.pause(); } catch (e) {} netAudio = null; netAudioUrl = ''; }
+  }
   function playAudio(urls){
     if (!urls || !urls.length || typeof Audio !== 'function') return;
     var next = urls.slice(1);
     try {
-      var a = new Audio(urls[0]);
-      a.onerror = function(){ a.onerror = null; playAudio(next); };
-      var p = a.play();
-      if (p && p.catch) p.catch(function(){ if (a.onerror) a.onerror(); });
+      // 复用同一个 Audio: 新的朗读会打断上一次, 避免多段语音叠在一起
+      if (!netAudio) netAudio = new Audio();
+      netAudio.src = urls[0];
+      netAudioUrl = urls[0];
+      netAudio.onended = function(){ stopNetAudio(); };
+      netAudio.onerror = function(){ if (netAudioUrl !== urls[0]) return; netAudio.onerror = null; stopNetAudio(); playAudio(next); };
+      var p = netAudio.play();
+      if (p && p.catch) p.catch(function(){ if (netAudioUrl === urls[0]){ stopNetAudio(); playAudio(next); } });
     } catch (e) { playAudio(next); }
   }
   function playNetTTS(text){
@@ -60,20 +68,28 @@
     ]);
   }
   var speakFBTimer = null;
+  var lastSpeakText = '', lastSpeakAt = 0;
   function speak(text){
     if (!text || !speakOn()) return;
     var t = String(text);
+    // 同一段文字在短时间内被重复触发(如连续点击 tab)时只播一次
+    var now = Date.now();
+    if (t === lastSpeakText && now - lastSpeakAt < 1200){ return; }
+    lastSpeakText = t; lastSpeakAt = now;
+    if (speakFBTimer) clearTimeout(speakFBTimer);
     try {
       if (!window.speechSynthesis){ playNetTTS(t); return; }
       window.speechSynthesis.cancel();
+      stopNetAudio();
       var u = new SpeechSynthesisUtterance(t);
       if (zhVoice){ u.voice = zhVoice; u.lang = zhVoice.lang; }
       else { u.lang = 'zh-CN'; }
       u.rate = 0.85; u.pitch = 1.1;
       var started = false;
-      if (speakFBTimer) clearTimeout(speakFBTimer);
       speakFBTimer = setTimeout(function(){ if (!started) playNetTTS(t); }, 900);
-      try { u.onstart = function(){ started = true; if (speakFBTimer) clearTimeout(speakFBTimer); }; } catch (e) {}
+      try { u.onstart = function(){ started = true; if (speakFBTimer) clearTimeout(speakFBTimer);
+        // Web Speech 成功发声后, 若之前 netAudio 仍在播则停掉
+        stopNetAudio(); }; } catch (e) {}
       try { u.onerror = function(){ if (speakFBTimer) clearTimeout(speakFBTimer); playNetTTS(t); }; } catch (e) {}
       window.speechSynthesis.speak(u);
     } catch (e) { playNetTTS(t); }

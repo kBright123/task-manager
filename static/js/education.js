@@ -253,8 +253,13 @@
     return t;
   }
   function wbInit(){
+    var p = getPref();
+    if (p && p.wbZh) wbZhMode = p.wbZh;
+    if (p && p.wbPy) wbPinyinMode = p.wbPy;
+    if (p && p.wbCy) wbCiyuMode = p.wbCy;
     updateDonePill();
     wbSubject(subjNow || 'zh');
+    applyContentToggles();
   }
 
   window.wbSubject = function (s){
@@ -262,7 +267,7 @@
     wbShowPanel(s === 'daily' ? 'wb-daily' : 'wb-'+s);
     if (s === 'daily'){ renderNav(); return; }
     prefSet('subj', s);
-    if (s==='zh') wbZh('poem');
+    if (s==='zh') wbZh(wbZhMode);
     if (s==='math') wbMath('calc');
     if (s==='en') wbEn('word');
     renderNav();
@@ -823,7 +828,7 @@
       variants:[ {blanks:'春种一粒粟，____万颗子', words:['秋收','秋耕','丰收']},
                  {blanks:'四海无闲田，____犹饿死', words:['农夫','农民','耕牛']} ] }
   ];
-  var wbZhMode = 'poem';
+  var wbZhMode = 'zi';
   function wbRenderZh(){
     var body = document.getElementById('wb-zh-body');
     if (wbZhMode==='trace'){ traceRender(body); return; }
@@ -845,6 +850,7 @@
   window.wbZh = function (k){ wbZhMode=k; setTab('wb-zh', k); wbShowPanel('wb-zh'); wbRenderZh();
     var sub = document.getElementById('wb-pinyin');
     if (sub) sub.style.display = (k==='pinyin') ? 'flex' : 'none';
+    prefSet('wbZh', k);
   };
 
   // ---------- 语文: 识字 ----------
@@ -962,7 +968,7 @@
     return best;
   }
   var wbPinyinMode = 'sheng';
-  window.wbPinyin = function (k){ wbPinyinMode=k; setTab('wb-pinyin', k); wbRenderZh(); };
+  window.wbPinyin = function (k){ wbPinyinMode=k; setTab('wb-pinyin', k); wbRenderZh(); prefSet('wbPy', k); };
 
   // ---------- 语文: 词语 (反义词 / 量词) ----------
   var FANCI = [
@@ -981,7 +987,7 @@
     { id:'l11', zi:'一', n:'老虎', m:'只' }
   ];
   var wbCiyuMode = 'fan';
-  window.wbCiyu = function (k){ wbCiyuMode=k; setTab('wb-ciyu', k); wbRenderZh(); };
+  window.wbCiyu = function (k){ wbCiyuMode=k; setTab('wb-ciyu', k); wbRenderZh(); prefSet('wbCy', k); };
 
   // ---------- 语文: 手写描红 (Canvas, 不评判, 只描轨迹) ----------
   var TR_CHARS = [

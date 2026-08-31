@@ -138,12 +138,15 @@
   .quiz-item .qi-spk{margin-left:auto;align-self:flex-start;}
   .quiz-item .qi-big{font-size:1.8rem;font-weight:900;color:var(--edu-primary);letter-spacing:.08em;margin:2px 0 8px;}
   .quiz-item .qi-mouth{font-size:.9rem;font-weight:700;color:var(--edu-blue);background:var(--edu-soft);border:1.5px dashed var(--edu-border-2);border-radius:12px;padding:6px 12px;margin:0 0 8px;display:inline-block;}
-  .quiz-item .qi-opt{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;}
-  .quiz-item .qi-opt button{font-size:1.02rem;font-weight:700;padding:9px 8px;border-radius:12px;border:2px solid var(--edu-border-2);background:var(--edu-surface);color:var(--edu-ink);cursor:pointer;transition:.12s;}
-  .quiz-item .qi-opt button:hover{border-color:var(--edu-blue);}
-  .quiz-item .qi-opt button.pick{border-color:var(--edu-primary);background:var(--edu-chip);}
-  .quiz-item .qi-opt button.correct{background:#e7fff1;border-color:var(--edu-green);color:#1a9e5c;}
-  .quiz-item .qi-opt button.wrong{background:#ffecec;border-color:#ff8a8a;color:#d94c4c;}
+  .quiz-item .qi-opt{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;}
+  .quiz-item .qo-wrap{position:relative;}
+  .quiz-item .qo-pick{width:100%;font-size:1.02rem;font-weight:700;padding:9px 8px;border-radius:12px;border:2px solid var(--edu-border-2);background:var(--edu-surface);color:var(--edu-ink);cursor:pointer;transition:.12s;}
+  .quiz-item .qo-pick:hover{border-color:var(--edu-blue);}
+  .quiz-item .qo-pick.pick{border-color:var(--edu-primary);background:var(--edu-chip);}
+  .quiz-item .qo-pick.correct{background:#e7fff1;border-color:var(--edu-green);color:#1a9e5c;}
+  .quiz-item .qo-pick.wrong{background:#ffecec;border-color:#ff8a8a;color:#d94c4c;}
+  .quiz-item .qo-spk{position:absolute;top:3px;right:3px;width:24px;height:24px;border-radius:7px;border:1.5px solid var(--edu-border-2);background:var(--edu-surface);color:var(--edu-blue);font-size:.72rem;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:.12s;z-index:2;}
+  .quiz-item .qo-spk:hover{border-color:var(--edu-blue);background:var(--edu-soft);}
   .quiz-item .qi-fill{display:flex;align-items:center;justify-content:center;gap:10px;padding:6px 0 4px;flex-wrap:nowrap;}
   .quiz-item .qi-expr{font-size:1.7rem;font-weight:900;color:var(--edu-ink);white-space:nowrap;letter-spacing:.04em;}
   .quiz-item .qi-ans{display:inline-flex;align-items:center;gap:8px;}
@@ -410,8 +413,8 @@
   .tr-actions{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;}
 
   /* 暗黑模式细节覆写 */
-  html[data-theme="dark"] .quiz-item .qi-opt button.correct{background:#123c2a;border-color:var(--edu-green);color:#7ce0b0;}
-  html[data-theme="dark"] .quiz-item .qi-opt button.wrong{background:#4a2026;border-color:#ff8a8a;color:#ffb3b3;}
+  html[data-theme="dark"] .quiz-item .qo-pick.correct{background:#123c2a;border-color:var(--edu-green);color:#7ce0b0;}
+  html[data-theme="dark"] .quiz-item .qo-pick.wrong{background:#4a2026;border-color:#ff8a8a;color:#ffb3b3;}
   html[data-theme="dark"] .quiz-item .qi-feed.no{color:#ff8a8a;}
   html[data-theme="dark"] .quiz-item .qi-ans input{background:var(--edu-surface);color:var(--edu-ink);}
   html[data-theme="dark"] .edu-field select,.edu-field input{background:var(--edu-soft);color:var(--edu-ink);}

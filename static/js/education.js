@@ -372,7 +372,7 @@
       }
       var my = a[i];
       if (it.options && my !== undefined){
-        item.querySelectorAll('.qi-opt button').forEach(function(b){
+        item.querySelectorAll('.qi-opt .qo-pick').forEach(function(b){
           b.classList.toggle('pick', b.getAttribute('data-v') === my);
         });
       } else if (it.order){
@@ -410,7 +410,7 @@
     if (quiz.submitted) return;
     quiz.answers[idx] = v;
     var item = document.getElementById('qi-'+idx);
-    item.querySelectorAll('.qi-opt button').forEach(function(b){
+    item.querySelectorAll('.qi-opt .qo-pick').forEach(function(b){
       b.classList.toggle('pick', b.getAttribute('data-v')===v);
     });
     if (quiz.items[idx] && quiz.items[idx].order) return;
@@ -578,7 +578,7 @@
       var feed = item.querySelector('.qi-feed');
       feed.className = 'qi-feed ' + (ok ? 'ok' : 'no');
       feed.textContent = ok ? ('🎉 ' + warmCheck()) : ('💡 ' + warmWrong(it));
-      item.querySelectorAll('.qi-opt button').forEach(function(b){
+      item.querySelectorAll('.qi-opt .qo-pick').forEach(function(b){
         var val = b.getAttribute('data-v');
         if (val === it.correct){ b.classList.add('correct'); }
         else if (val === my){ b.classList.add('wrong'); }
@@ -1287,9 +1287,19 @@
 if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</div>';
         if (it.mouth) h += '<p class="qi-mouth">👄 口型：'+esc(it.mouth)+'</p>';
         if (it.options){
-          h += '<div class="qi-opt">'+it.options.map(function(o, oi){
-            return '<button type="button" data-v="'+esc(o.v)+'" id="qo-'+i+'-'+oi+'" onclick="pickOpt('+i+',\''+esc(o.v)+'\')">'+esc(o.label)+'</button>';
-          }).join('')+'</div>';
+          var optRows = it.options.map(function(o, oi){
+            var lbl = esc(o.label);
+            // 语文题: 每题选项自带语音播放(点🔊朗读该选项文本)
+            var spk = '';
+            if (quizSubject === 'zh' && o.label){
+              var spkText = String(o.label).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+              spk = '<button type="button" class="qo-spk" aria-label="朗读选项" onclick="event.preventDefault();event.stopPropagation();speak(\''+spkText+'\')">🔊</button>';
+            }
+            return '<div class="qo-wrap">'+
+              '<button type="button" class="qo-pick" data-v="'+esc(o.v)+'" id="qo-'+i+'-'+oi+'" onclick="pickOpt('+i+',\''+esc(o.v)+'\')">'+lbl+'</button>'+
+              spk+'</div>';
+          }).join('');
+          h += '<div class="qi-opt">' + optRows + '</div>';
         } else if (it.order){
           h += '<div class="qi-order">'+
             '<div class="qo-seq" id="qseq-'+i+'"><span class="qo-empty">从小到大点出顺序…</span></div>'+
@@ -1354,7 +1364,15 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
     if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</div>';
     if (it.options){
       h += '<div class="qi-opt">'+it.options.map(function(o, oi){
-        return '<button type="button" data-v="'+esc(o.v)+'" id="pqo-'+oi+'" onclick="practiceAnswer(\''+esc(o.v)+'\')">'+esc(o.label)+'</button>';
+        var lbl = esc(o.label);
+        var spkO = '';
+        if (PRACTICE.subj === 'zh' && o.label){
+          var st = String(o.label).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+          spkO = '<button type="button" class="qo-spk" aria-label="朗读选项" onclick="event.preventDefault();event.stopPropagation();speak(\''+st+'\')">🔊</button>';
+        }
+        return '<div class="qo-wrap">'+
+          '<button type="button" class="qo-pick" data-v="'+esc(o.v)+'" id="pqo-'+oi+'" onclick="practiceAnswer(\''+esc(o.v)+'\')">'+lbl+'</button>'+
+          spkO+'</div>';
       }).join('')+'</div>';
     } else if (it.input){
       h += '<div class="qi-fill"><div class="qi-expr">'+esc(String(it.big || it.prompt).replace(/\s*=\s*\?+\s*$/, ''))+'</div>'+

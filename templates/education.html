@@ -27,23 +27,32 @@
 
 {% block content %}
 <div class="edu-wrap">
-  <!-- 孩子切换条（极简胶囊）+ 右上角学习模式切换 -->
+  <!-- 顶部条（全端统一）：返回 + 头像/姓名/年龄 + 等级徽章 + 声音 + 更多菜单 -->
   <div class="kid-bar" id="kidBar" style="display:none;">
-    <span class="kb-chip kid-pick" id="kidPickWrap" onclick="toggleKidDrop()">
+    <button type="button" class="kb-back" id="kbBack" onclick="quitAsk()" aria-label="返回" style="display:none;"><i class="bi bi-arrow-left"></i></button>
+    <span class="kb-chip kid-pick" id="kidPickWrap" onclick="toggleKidDrop()" title="切换宝贝">
       <span class="kb-ava" id="kidAva">🧒</span>
-      <span id="kidName">宝贝</span>
-      <span class="kb-age" id="kidAge"></span>
-      <span class="kb-stars" id="kidBarStars"></span>
+      <span class="kb-ident" id="kidIdent">小朱 · 6岁</span>
+      <span class="kb-lv" id="kidLv">Lv.6</span>
       <i class="bi bi-chevron-down" style="font-size:.7rem;color:var(--edu-muted);"></i>
       <div class="drop" id="kidPickDrop"></div>
     </span>
-    <span class="mode-toggle" id="modeToggleWrap">
-      <i class="bi bi-stars" style="color:var(--edu-muted);font-size:.85rem;"></i>
-      <select id="modeSelect" class="mode-select" aria-label="学习模式" onchange="switchMode(this.value)">
-        <option value="workbench">🏫 幼小衔接</option>
-        <option value="paradise">🌈 快乐乐园</option>
-      </select>
-      <button type="button" id="soundToggle" class="spk-sound" onclick="toggleSpeak()">🔊 声音开</button>
+    <span class="kb-right">
+      <span class="kb-stars" id="kbStarBar" title="当前难度"></span>
+      <span class="mode-toggle" id="modeToggleWrap">
+        <i class="bi bi-stars" style="color:var(--edu-muted);font-size:.85rem;"></i>
+        <select id="modeSelect" class="mode-select" aria-label="学习模式" onchange="switchMode(this.value)">
+          <option value="workbench">🏫 幼小衔接</option>
+          <option value="paradise">🌈 快乐乐园</option>
+        </select>
+      </span>
+      <button type="button" id="soundToggle" class="spk-sound" onclick="toggleSpeak()">🔊</button>
+      <button type="button" id="moreMenuBtn" class="spk-sound" aria-label="更多菜单" onclick="toggleMoreMenu(event)">☰</button>
+      <div class="drop more-drop" id="moreMenuDrop">
+        <div class="kit-item" onclick="menuGo('parent')"><i class="bi bi-person-gear"></i> 家长模式</div>
+        <div class="kit-item" onclick="menuGo('settings')"><i class="bi bi-gear"></i> 设置</div>
+        <div class="kit-item" onclick="menuGo('help')"><i class="bi bi-question-circle"></i> 帮助</div>
+      </div>
     </span>
   </div>
 
@@ -110,7 +119,6 @@
 
   <!-- ================= 宝贝启蒙乐园 ================= -->
   <section id="eduParadise" style="display:none;">
-    <button type="button" class="edu-back" onclick="eduNav('home')" style="margin-bottom:14px;"><i class="bi bi-arrow-left"></i> 返回首页</button>
     <div id="parHome">
       <div class="wb-strip par-strip" id="parStrip" style="margin-bottom:12px;">
         <span class="wb-pill" id="parStars"><i class="bi bi-star-fill"></i> <span id="parStarN">0</span></span>
@@ -157,7 +165,7 @@
 
 </div>
 
-<!-- 底部导航（按学习模式动态渲染） -->
+<!-- 底部导航（按学习模式动态渲染，PC/iPad/手机全端显示） -->
 <nav class="edu-bottom-nav" id="eduBottomNav"></nav>
 
 <!-- 进入时过渡加载动画 -->
@@ -264,6 +272,83 @@
     <div class="edu-actions">
       <button type="button" class="btn-ghost" style="flex:1;" onclick="pwdCancel()">取消</button>
       <button type="button" class="btn-soft" style="flex:1;" onclick="pwdConfirm()">确认</button>
+    </div>
+  </div>
+</div>
+
+<!-- 退出答题 二次确认 覆盖层 -->
+<div class="edu-mask" id="eduMaskQuit" style="display:none;">
+  <div class="edu-modal">
+    <h3>🏃 要退出吗？</h3>
+    <p class="em-sub">作答还没做完，退出后进度将保留，下次进入可以继续哦。</p>
+    <div class="edu-actions">
+      <button type="button" class="btn-ghost" style="flex:1;" onclick="quitCancel()">继续答题</button>
+      <button type="button" class="btn-soft" style="flex:1;" onclick="quitConfirm()">退出</button>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑宝贝 覆盖层（✎） -->
+<div class="edu-mask" id="eduMaskKidEdit" style="display:none;">
+  <div class="edu-modal">
+    <h3>✏️ 编辑宝贝资料</h3>
+    <p class="em-sub">修改名字、年龄与头像</p>
+    <div class="edu-field">
+      <label>宝贝名字 / 昵称</label>
+      <input type="text" id="editNameInput" maxlength="12" placeholder="例如：小米">
+    </div>
+    <div class="edu-field">
+      <label>年龄</label>
+      <select id="editYearInput"></select>
+    </div>
+    <div class="edu-field">
+      <label>头像</label>
+      <div class="edu-ava-pick" id="editAvaPick">
+        <button type="button" data-a="🧒">🧒</button>
+        <button type="button" data-a="👧">👧</button>
+        <button type="button" data-a="👦">👦</button>
+        <button type="button" data-a="👶">👶</button>
+      </div>
+    </div>
+    <div class="edu-actions">
+      <button type="button" class="btn-ghost" style="flex:1;" onclick="closeMask('eduMaskKidEdit')">取消</button>
+      <button type="button" id="editKidSaveBtn" class="btn-soft" style="flex:1;" onclick="kidEditSave()">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- 管理宝贝 覆盖层 -->
+<div class="edu-mask" id="eduMaskKidsMgr" style="display:none;">
+  <div class="edu-modal">
+    <h3>👤 管理宝贝</h3>
+    <p class="em-sub">可调整顺序或删除宝贝</p>
+    <div id="kidsMgrList"></div>
+    <div class="edu-actions">
+      <button type="button" class="btn-soft" style="flex:1;" onclick="closeMask('eduMaskKidsMgr')">完成</button>
+    </div>
+  </div>
+</div>
+
+<!-- 完整学习报告 看板弹窗 -->
+<div class="edu-mask" id="eduMaskReport" style="display:none;">
+  <div class="edu-modal report-modal">
+    <h3>📈 <span id="reportTitle">学习报告</span></h3>
+    <p class="em-sub" id="reportSub">今日学习情况一览</p>
+    <div id="reportBody"></div>
+    <div class="edu-actions">
+      <button type="button" class="btn-soft" style="flex:1;" onclick="closeMask('eduMaskReport')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 看板详情 通用弹窗（本周趋势 / 错题本 / 识字量 / 荣誉墙 / 星票） -->
+<div class="edu-mask" id="eduMaskDetail" style="display:none;">
+  <div class="edu-modal report-modal">
+    <h3 id="detailTitle">详情</h3>
+    <p class="em-sub" id="detailSub"></p>
+    <div id="detailBody"></div>
+    <div class="edu-actions">
+      <button type="button" class="btn-soft" style="flex:1;" onclick="closeMask('eduMaskDetail')">关闭</button>
     </div>
   </div>
 </div>

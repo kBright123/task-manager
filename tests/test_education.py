@@ -497,7 +497,7 @@ def test_quiz_save_state_on_answer():
   let bodyH='';const body={style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},appendChild(){},querySelectorAll(){return[]},querySelector(){return me()}};
   Object.defineProperty(body,'innerHTML',{get(){return bodyH},set(v){bodyH=String(v)}});
   const btn={classList:{add(){},remove(){},toggle(){},contains(){return false}},getAttribute(){return null}};
-  const itemEl={querySelector:()=>me(),querySelectorAll:()=>[btn]};
+  const itemEl={classList:{add(){},remove(){},toggle(){},contains(){return false}},querySelector:()=>me(),querySelectorAll:()=>[btn]};
   global.document.getElementById=(id)=> id==='wb-zh-body'?body : (id==='qi-0'?itemEl : me());
   W.wbZh('zi');
   await new Promise(r=>setTimeout(r,60));
@@ -528,11 +528,12 @@ def test_star_map_and_daily(client):
   const CELLS=(statsEl._h.match(/class="st-map-cell/g)||[]).length;
   const CELL1=statsEl._h.indexOf('闯关地图')>=0?'1':'0';
   const PASSED=statsEl._h.indexOf('st-map-cell passed')>=0?'1':'0';
-  // 每日挑战: 两次生成内容一致(确定性) + 渲染含每日标记与10题
+  // 每日挑战: 两次生成内容一致(确定性) + 一题一屏渲染(1个题目卡 + 10个进度点)
   W.startDaily();
   await new Promise(r=>setTimeout(r,60));
   const a=String(dEl._h||'');
   const cardsA=(a.match(/qi-head/g)||[]).length;
+  const dotsA=(a.match(/qz-dot(?: |")/g)||[]).length;
   W.startDaily();
   await new Promise(r=>setTimeout(r,60));
   const b=String(dEl._h||'');
@@ -540,7 +541,8 @@ def test_star_map_and_daily(client):
   console.log('MAP_CELLS='+CELLS);
   console.log('PASSED='+PASSED);
   console.log('DAILY_BANNER='+(b.indexOf('每日挑战')>=0?'1':'0'));
-  console.log('DAILY_10='+(cardsA===10?'1':'0'));
+  console.log('DAILY_CARD='+(cardsA===1?'1':'0'));
+  console.log('DAILY_DOTS='+(dotsA===10?'10':'N'));
   console.log('DAILY_SAME='+(a===b?'1':'0'));
 })();
 ''')
@@ -549,7 +551,8 @@ def test_star_map_and_daily(client):
     assert 'MAP_CELLS=15' in out, out
     assert 'PASSED=1' in out, out
     assert 'DAILY_BANNER=1' in out, out
-    assert 'DAILY_10=1' in out, out
+    assert 'DAILY_CARD=1' in out, out
+    assert 'DAILY_DOTS=10' in out, out
     assert 'DAILY_SAME=1' in out, out
 
 
@@ -631,6 +634,215 @@ def test_practice_encourage_and_modebar(client):
     assert 'OK=7/5' in out, out
     assert '|' in out, out
     assert 'MB=true' in out, out
+
+
+def test_quiz_header_live_count(client):
+    """闯关/极速练习横幅: 徽章随模式变化, 副行固定「已答对 N 题」并随作答实时刷新(不再显示难度星)."""
+    harness = r'''
+const fs=require('fs'),vm=require('vm');
+global.window=global;global.esc=s=>String(s||'').replace(/</g,'&lt;').replace(/&/g,'&amp;');
+const store={}; const inserted=[];
+function cap(){ const el={className:'',style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},setAttribute(){},getAttribute(){return null},querySelector:()=>cap(),querySelectorAll:()=>[],textContent:'',value:'',addEventListener(){},options:[],children:[],offsetWidth:0,offsetHeight:0,focus(){},scrollIntoView(){},getContext(){return new Proxy({}, {get:()=>()=>{}})}};
+  Object.defineProperty(el,'innerHTML',{set(v){el._h=String(v);inserted.push(el.className+'|'+String(v));},get(){return el._h}});
+  el.appendChild=(c)=>{el.children.push(c);};
+  return el;
+}
+const container=cap(); let lvSub=null;
+global.document={getElementById:id=>{
+  if(id==='wb-math-body'||id==='quizShell') return container;
+  if(id==='lvSub'){ if(!lvSub){lvSub=cap();lvSub.className='lv-sub';} return lvSub; }
+  return cap();},querySelectorAll:()=>[],querySelector:()=>cap(),createElement:()=>cap(),createTextNode:()=>({}),addEventListener(){},removeEventListener(){},documentElement:{style:{}},body:cap()};
+global.localStorage={getItem:k=>k in store?store[k]:null,setItem(k,v){store[k]=String(v)},removeItem(k){delete store[k]}};
+global.location={};global.navigator={userAgent:'node'};global.performance={now:()=>0};global.HTMLElement=function(){};global.Node=function(){};
+global.eduKids={active:()=>({id:'kk'}),all:()=>[{id:'kk'}],byId:()=>null,tierOf:()=>'workbench',ageOf:()=>6,tierLabel:()=>'',genderIcon:()=>'?',remove(){},setActive(){},hasAny:()=>1,update(){},add(){}};
+global.eduSync={setOnState(){},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
+vm.createContext(global);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),global);
+const W=global; global.__ins=inserted; global.__lv=()=>lvSub;
+'''
+    out_body = harness + r'''
+(async()=>{
+  const h=W.quizHeaderHtml('su','zh','pinyin');
+  console.log('SU_BADGE='+(h.indexOf('极速练习 · 拼音')>=0?'1':'0'));
+  console.log('SU_NO_STARS='+(h.indexOf('难度⭐')<0 && h.indexOf('题过关')<0 ? '1':'0'));
+  // 模拟刷新前已答: 第0题答对, 第1题答错 → 恢复后横幅应显示「已答对 1 题」
+  store['edu_record_v1_kk']=JSON.stringify({stars:0,records:[],wrong:[],wishes:[],settings:{}});
+  store['edu_quiz_v1_kk']=JSON.stringify({subj:'math',type:'calc',
+    items:[{input:true,prompt:'7+8=?',correct:'15'},{input:true,prompt:'3+9=?',correct:'12'}],
+    answers:{0:'15',1:'99'}, order:{}, submitted:false, _t:Date.now()});
+  W.wbMath('calc');
+  await new Promise(r=>setTimeout(r,150));
+  const bannerH=__ins.filter(x=>x.indexOf('lv-banner')>=0).join('');
+  console.log('COUNT_RESTORED='+(bannerH.indexOf('已答对 <b>1</b> 题')>=0?'1':'0'));
+  // 把第1题改成正确答案 → 横幅 live 刷新为「已答对 2 题」
+  W.onQuizInput(1,'12');
+  const lv=__lv();
+  console.log('COUNT_LIVE='+(lv && lv.innerHTML.indexOf('已答对 <b>2</b> 题')>=0?'1':'0'));
+})();
+'''
+    out = subprocess.run(['node', '-e', out_body, _JS], capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    assert 'SU_BADGE=1' in out.stdout, out.stdout
+    assert 'SU_NO_STARS=1' in out.stdout, out.stdout
+    assert 'COUNT_RESTORED=1' in out.stdout, out.stdout
+    assert 'COUNT_LIVE=1' in out.stdout, out.stdout
+
+
+def test_one_question_per_screen_and_advance(client):
+    """一题一屏: 只渲染1个题目卡; 作答后自动跳到下一题; 答完全部点亮「完成闯关」."""
+    harness = r'''
+const fs=require('fs'),vm=require('vm');
+global.window=global;global.esc=s=>String(s||'').replace(/</g,'&lt;').replace(/&/g,'&amp;');
+const store={}; const inserted=[];
+function cap(){ const el={className:'',style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},setAttribute(){},getAttribute(){return null},querySelector:()=>cap(),querySelectorAll:()=>[],textContent:'',value:'',addEventListener(){},options:[],children:[],offsetWidth:0,offsetHeight:0,focus(){},scrollIntoView(){},getContext(){return new Proxy({}, {get:()=>()=>{}})}};
+  Object.defineProperty(el,'innerHTML',{set(v){el._h=String(v);inserted.push(el.className+'|'+String(v));},get(){return el._h}});
+  el.appendChild=(c)=>{el.children.push(c);};
+  return el;
+}
+const container=cap(); container.id='quizShell';
+let lvSub=null;
+global.document={getElementById:id=>{
+  if(id==='wb-math-body'||id==='quizShell') return container;
+  if(id==='lvSub'){ if(!lvSub){lvSub=cap();lvSub.className='lv-sub';} return lvSub; }
+  return cap();},querySelectorAll:()=>[],querySelector:()=>cap(),createElement:()=>cap(),createTextNode:()=>({}),addEventListener(){},removeEventListener(){},documentElement:{style:{}},body:cap()};
+global.localStorage={getItem:k=>k in store?store[k]:null,setItem(k,v){store[k]=String(v)},removeItem(k){delete store[k]}};
+global.location={};global.navigator={userAgent:'node'};global.performance={now:()=>0};global.HTMLElement=function(){};global.Node=function(){};
+global.eduKids={active:()=>({id:'kk'}),all:()=>[{id:'kk'}],byId:()=>null,tierOf:()=>'workbench',ageOf:()=>6,tierLabel:()=>'',genderIcon:()=>'?',remove(){},setActive(){},hasAny:()=>1,update(){},add(){}};
+global.eduSync={setOnState(){},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
+vm.createContext(global);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),global);
+const W=global; global.__ins=inserted;
+'''
+    out_body = harness + r'''
+(async()=>{
+  store['edu_record_v1_kk']=JSON.stringify({stars:0,records:[],wrong:[],wishes:[],settings:{}});
+  W.wbMath('calc');
+  await new Promise(r=>setTimeout(r,150));
+  // 一题一屏: 每次渲染只出现 1 个题目卡 + 10 个进度圆点
+  const itemHits=__ins.filter(x=>/class="quiz-item"/.test(x)).length;
+  const dotsAll=__ins.join('\n');
+  const dotsHits=(dotsAll.match(/qz-dot(?: |")/g)||[]).length;
+  console.log('ONECARD='+(itemHits===1?'1':'N:'+itemHits));
+  console.log('DOTS='+(dotsHits===10?'10':'N:'+dotsHits));
+  // 「完成闯关」按钮存在于页脚, 初始未就绪(disabled)
+  const firstFooter=__ins.filter(x=>x.indexOf('qz-finish')>=0)[0]||'';
+  console.log('FINISH_PRESENT='+(firstFooter.indexOf('qz-finish')>=0?'1':'0'));
+  console.log('FINISH_INIT='+(firstFooter.indexOf('qz-finish ready')<0?'1':'0'));
+  // 作答当前(第0)题 → 1.2s 后自动跳到下一题: 最后一帧题目卡内容发生变化
+  const snapshot=()=>{ const c=__ins.filter(x=>/class="quiz-item"/.test(x)); return c.length?c[c.length-1]:''; };
+  const s0=snapshot();
+  W.quizInputSubmit(0,'99');
+  await new Promise(r=>setTimeout(r,1500));
+  const s1=snapshot();
+  console.log('ADVANCED='+(s0!==s1?'1':'0'));
+})();
+'''
+    out = subprocess.run(['node', '-e', out_body, _JS], capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    assert 'ONECARD=1' in out.stdout, out.stdout
+    assert 'DOTS=10' in out.stdout, out.stdout
+    assert 'FINISH_PRESENT=1' in out.stdout, out.stdout
+    assert 'FINISH_INIT=1' in out.stdout, out.stdout
+    assert 'ADVANCED=1' in out.stdout, out.stdout
+
+
+def test_top_nav_restructure(client):
+    """顶部条全端统一: 返回+头像Lv+星星进度+声音图标, 退出确认弹窗, 不再有 PC 顶部导航."""
+    r = client.get('/edu/')
+    html = r.get_data(as_text=True)
+    for probe in ('id="kbBack"', 'id="kidLv"', 'id="kbStarBar"', 'id="soundToggle"',
+                  'id="eduMaskQuit"', 'quitAsk()', 'quitConfirm()'):
+        assert probe in html, f'missing {probe}'
+    assert 'eduTopNav' not in html
+    assert '<nav class="edu-bottom-nav" id="eduBottomNav"></nav>' in html
+
+
+def test_home_v2_layout():
+    """首页 v2: 宝贝横滑卡片+✎+管理链, 今日报告卡(进度/正确率/继续学习/完整报告), 快捷入口, 顶部身份(Lv)."""
+    harness = r'''
+const fs=require('fs'),vm=require('vm');
+global.window=global;global.esc=s=>String(s||'').replace(/</g,'&lt;').replace(/&/g,'&amp;');
+const store={};
+function node(){const el={style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},setAttribute(){},getAttribute(){return null},textContent:'',value:'',appendChild(){},removeChild(){},addEventListener(){},options:[],children:[],offsetWidth:0,offsetHeight:0,focus(){},scrollIntoView(){},querySelector:()=>node(),querySelectorAll:()=>[],getContext(){return new Proxy({}, {get:()=>()=>{}})}};
+  Object.defineProperty(el,'innerHTML',{get(){return el._h},set(v){el._h=String(v)}}); return el;}
+const body=node(), ava=node(), ident=node(), lv=node(), nav=node(), drop=node();
+const byId=(id)=>(id==='eduHomeBody'?body:(id==='kidAva'?ava:(id==='kidIdent'?ident:(id==='kidLv'?lv:(id==='kidPickDrop'?drop:(id==='eduBottomNav'?nav:node()))))));
+global.document={getElementById:byId,querySelectorAll:()=>[],querySelector:()=>node(),createElement:()=>node(),createTextNode:()=>({}),addEventListener(){},removeEventListener(){},documentElement:{style:{}},body:node()};
+global.localStorage={getItem:k=>k in store?store[k]:null,setItem(k,v){store[k]=String(v)},removeItem(k){delete store[k]}};
+global.location={};global.navigator={userAgent:'node'};global.performance={now:()=>0};global.HTMLElement=function(){};global.Node=function(){};
+const kids=[{id:'a',name:'小米',birthYear:2018,gender:'male'},{id:'b',name:'小花',birthYear:2019,gender:'female'}];
+global.eduKids={active:()=>({id:'a',name:'小米',birthYear:2018,gender:'male'}),all:()=>kids,byId:id=>kids.find(k=>k.id===id),tierOf:()=>'workbench',ageOf:()=>6,tierLabel:()=>'',genderIcon:g=>g==='female'?'👧':'👦',remove(){},setActive(){},hasAny:()=>1,update(){},add(){}};
+global.eduSync={setOnState(){},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
+vm.createContext(global);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),global);
+const W=global;
+'''
+    out_body = harness + r'''
+(async()=>{
+  const pz=n=>(n<10?'0':'')+n; const today=new Date();
+  const kd=off=>{const t=new Date(today.getTime()-off*86400000);return t.getFullYear()+'-'+pz(t.getMonth()+1)+'-'+pz(t.getDate());};
+  store['edu_record_v1_a']=JSON.stringify({stars:6,
+    records:[{t:Date.now(),date:kd(0),subj:'zh',type:'zi',ok:true},{t:Date.now(),date:kd(1),subj:'zh',type:'zi',ok:true}],
+    usage:{date:kd(0),n:1,secs:60},wrong:[{subj:'zh',type:'zi',q:'1',prompt:'火',correct:'huo',nextDue:Date.now()-1000}],
+    wishes:[{name:'去公园',cost:10,done:false}],badges:{lit:1},settings:{}});
+  store['edu_pref_v1_a']=JSON.stringify({mode:'workbench',subj:'zh'});
+  W.eduNav('home');
+  const h=body._h||'';
+  console.log('SWITCH='+(h.indexOf('👨‍👩‍👧‍👦 切换宝贝')>=0?'1':'0'));
+  console.log('ADD_CARD='+(h.indexOf('添加宝贝')>=0?'1':'0'));
+  console.log('EDIT_ICON='+((h.match(/hc-edit/g)||[]).length>=2?'1':'0'));
+  console.log('MANAGE_LINK='+(h.indexOf('管理宝贝')>=0?'1':'0'));
+  console.log('REPORT='+(h.indexOf('今日报告')>=0?'1':'0'));
+  console.log('KPI4='+(h.indexOf('今完成')>=0||h.indexOf('今日完成')>=0?'1':'0'));
+  console.log('DURATION='+(h.indexOf('学习时长')>=0?'1':'0'));
+  console.log('HONOR='+(h.indexOf('荣誉获得')>=0?'1':'0'));
+  console.log('STREAK='+(h.indexOf('连续打卡')>=0?'1':'0'));
+  console.log('BAR='+(h.indexOf('rc-bar')>=0?'1':'0'));
+  console.log('CTA='+(h.indexOf('🚀 继续学习')>=0?'1':'0'));
+  console.log('MORE='+(h.indexOf('查看完整学习报告')>=0?'1':'0'));
+  console.log('PREVIEW='+(h.indexOf('本周趋势')>=0&&h.indexOf('错题本')>=0&&h.indexOf('识字量')>=0?'1':'0'));
+  console.log('MINILINE='+(h.indexOf('mini-line')>=0?'1':'0'));
+  console.log('QUICK='+(h.indexOf('荣誉墙')>=0&&h.indexOf('星票')>=0?'1':'0'));
+  console.log('LBAR='+(h.indexOf('home-sec')>=0?'1':'0'));
+  console.log('BADGE_N='+(h.indexOf('hc-state study')>=0?'1':'0'));
+  console.log('IDENT='+(ident.textContent&&ident.textContent.indexOf('小米')>=0?'1':'0'));
+  console.log('LV='+(lv.textContent&&lv.textContent.indexOf('Lv.')>=0?'1':'0'));
+})();
+'''
+    out = subprocess.run(['node', '-e', out_body, _JS], capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    for probe in ('SWITCH=1','ADD_CARD=1','EDIT_ICON=1','MANAGE_LINK=1','REPORT=1','KPI4=1',
+                  'DURATION=1','HONOR=1','STREAK=1','BAR=1','CTA=1','MORE=1','PREVIEW=1','MINILINE=1',
+                  'QUICK=1','LBAR=1','BADGE_N=1','IDENT=1','LV=1'):
+        assert probe in out.stdout, out.stdout
+
+def test_dock_busy_guard():
+    """答题(Dock守卫): 起卷/极速练习进行中底部导航置灰禁用, 结束/交卷后恢复可点."""
+    out = _harness(r'''
+(async()=>{
+  let bodyH='';const body={style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},appendChild(){},querySelector(){return me()},querySelectorAll(){return[]},scrollIntoView(){},focus(){}};
+  Object.defineProperty(body,'innerHTML',{get(){return bodyH},set(v){bodyH=String(v)}});
+  let navH='';const nav={style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},appendChild(){},querySelector(){return me()},querySelectorAll(){return[]}};
+  Object.defineProperty(nav,'innerHTML',{get(){return navH},set(v){navH=String(v)}});
+  const byId=(id)=>(id==='wb-math-body'||id==='quizShell')?body:(id==='eduBottomNav'?nav:me());
+  global.document.getElementById=byId;
+  store['edu_record_v1_kk']=JSON.stringify({stars:0,records:[],wrong:[],wishes:[],settings:{},level:{zh:4}});
+  W.eduNav('learn');
+  W.wbMath('calc');
+  await new Promise(r=>setTimeout(r,90));
+  console.log('DOCK_DISABLED='+(navH.indexOf('disabled')>=0?'1':'0'));
+  W.startPractice('math','calc');
+  await new Promise(r=>setTimeout(r,40));
+  console.log('DOCK_DISABLED2='+(navH.indexOf('disabled')>=0?'1':'0'));
+  await new Promise(r=>setTimeout(r,1200));
+  const c1=W.PRACTICE.cur.correct;
+  W.practiceAnswer(c1);
+  await new Promise(r=>setTimeout(r,1200));
+  W.stopPractice();
+  console.log('DOCK_ENABLED='+(navH.indexOf('disabled')<0?'1':'0'));
+  process.exit(0);
+})();
+''')
+    assert 'DOCK_DISABLED=1' in out, out
+    assert 'DOCK_DISABLED2=1' in out, out
+    assert 'DOCK_ENABLED=1' in out, out
 
 
 if __name__ == '__main__':

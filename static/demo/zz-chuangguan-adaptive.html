@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>幼小衔接·识字闯关</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{width:100%;height:100%;overflow:hidden;font-family:'PingFang SC','Hiragino Sans GB','Microsoft YaHei',system-ui,-apple-system,sans-serif;background:linear-gradient(160deg,#E8F4FD 0%,#FDE8F0 100%);color:#2d3436;-webkit-user-select:none;user-select:none;}
+button{touch-action:manipulation;font-family:inherit;}
+
+/* ================= 顶部导航：返回+头像+星星进度+音量 (单行) ================= */
+#topbar{position:fixed;top:0;left:0;right:0;height:56px;display:flex;align-items:center;gap:12px;padding:0 16px;background:rgba(255,255,255,.88);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.6);box-shadow:0 2px 12px rgba(0,0,0,.08);z-index:100;}
+#backBtn{min-width:40px;min-height:40px;border:none;border-radius:50%;background:rgba(0,0,0,.06);font-size:20px;color:#2d3436;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+#avatar{display:flex;align-items:center;}
+#avaCircle{position:relative;min-width:40px;min-height:40px;border-radius:50%;background:linear-gradient(135deg,#FF6B6B,#FF8E53);color:#fff;font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 2px 8px rgba(255,107,107,.35);}
+#lvBadge{position:absolute;right:-5px;bottom:-5px;background:linear-gradient(135deg,#FFD93D,#FF9F43);color:#fff;font-size:9px;font-weight:900;border-radius:999px;padding:1px 5px;border:2px solid #fff;line-height:1.3;}
+#starsWrap{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;}
+#starBar{display:inline-flex;gap:3px;font-size:20px;}
+#starBar .st{color:#F5B83D;text-shadow:0 1px 0 rgba(255,255,255,.7);line-height:1;}
+#starBar .st.off{color:#D9CFC0;text-shadow:none;}
+#lvText{font-size:13px;font-weight:700;color:#95A5A6;white-space:nowrap;}
+#soundBtn{min-width:40px;min-height:40px;border:none;border-radius:50%;background:rgba(0,0,0,.06);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+
+/* ================= 答题区：宽屏左右 / 窄屏上下 ================= */
+#app{display:flex;flex-direction:column;width:100%;height:100%;padding-top:56px;}
+#answerArea{flex:1;display:flex;overflow:hidden;padding:16px;gap:16px;min-height:0;}
+@media(orientation:portrait){ #answerArea{flex-direction:column;} #artPanel{flex:0 0 42%;} #optPanel{flex:1;} }
+@media(orientation:landscape){ #answerArea{flex-direction:row;} #artPanel{flex:0 0 42%;} #optPanel{flex:1;} }
+
+/* 左/上图卡 */
+#artPanel{display:flex;align-items:center;justify-content:center;min-height:0;}
+#artCard{position:relative;width:100%;max-width:400px;height:100%;background:#fff;border-radius:24px;box-shadow:0 8px 32px rgba(0,0,0,.08);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:20px;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+#artEmoji{font-size:96px;line-height:1;filter:drop-shadow(0 10px 16px rgba(0,0,0,.16));}
+#artGuide{font-size:18px;font-weight:700;color:#636E72;text-align:center;}
+#ttsBtn{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 22px;border:none;border-radius:999px;background:linear-gradient(135deg,#4D96FF,#6BB5FF);color:#fff;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(77,150,255,.35);}
+#ttsBtn:active{transform:scale(.94);}
+#scoreBadge{position:absolute;top:12px;right:12px;background:linear-gradient(135deg,#FFD93D,#FF9F43);color:#fff;font-size:13px;font-weight:800;border-radius:999px;padding:5px 14px;box-shadow:0 3px 10px rgba(255,159,67,.35);opacity:0;transform:translateY(-8px);transition:.3s;pointer-events:none;white-space:nowrap;}
+#scoreBadge.show{opacity:1;transform:translateY(0);}
+
+/* 右/下选项 */
+#optPanel{display:flex;align-items:center;justify-content:center;min-height:0;}
+#optGrid{display:grid;gap:16px;width:100%;max-width:560px;align-content:center;}
+@media(orientation:landscape){ #optGrid{grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);} }
+@media(orientation:portrait){ #optGrid{grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(3,1fr);max-width:340px;} }
+.opt{aspect-ratio:1;border:none;border-radius:50%;font-size:48px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(0,0,0,.14);transition:transform .15s,box-shadow .15s,filter .3s,opacity .3s;position:relative;}
+.opt:active{transform:scale(.92);}
+.opt.correct{animation:popBounce .5s ease;box-shadow:0 0 30px 8px rgba(255,215,0,.65),0 6px 20px rgba(0,0,0,.12);}
+.opt.wrong{animation:shake .4s ease;}
+.opt.grey-flash{filter:grayscale(1) brightness(1.25);opacity:.5;}
+.opt.lock{pointer-events:none;}
+.opt.off{opacity:.45;pointer-events:none;}
+.opt[data-c="y"]{background:#FFD93D;color:#5D4E00;}
+.opt[data-c="g"]{background:#6BCB77;color:#fff;}
+.opt[data-c="r"]{background:#FF6B6B;color:#fff;}
+.opt[data-c="b"]{background:#4D96FF;color:#fff;}
+.opt[data-c="o"]{background:#FF9F43;color:#fff;}
+.opt[data-c="p"]{background:#A66CFF;color:#fff;}
+
+/* ================= 进度区：圆点 + 星星得分 + 完成闯关 ================= */
+#progressBar{flex-shrink:0;display:flex;align-items:center;gap:12px;padding:4px 16px 12px;flex-wrap:wrap;justify-content:center;}
+#dots{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:center;}
+.dot{width:14px;height:14px;border-radius:50%;background:#DFE6E9;border:2px solid transparent;transition:.3s;}
+.dot.done{background:#FFD93D;}
+.dot.cur{background:#fff;border-color:#FF9F43;box-shadow:0 0 8px rgba(255,159,67,.55);transform:scale(1.25);}
+#scoreChip{display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.8);border:1.5px solid #F6D38B;color:#A05A00;border-radius:999px;padding:4px 12px;font-size:13px;font-weight:800;white-space:nowrap;}
+#finishBtn{min-height:44px;padding:0 24px;border:none;border-radius:999px;background:#DFE6E9;color:#A1AEB3;font-size:15px;font-weight:800;cursor:not-allowed;transition:.3s;white-space:nowrap;}
+#finishBtn.ready{background:linear-gradient(135deg,#FF9F43,#FF6B6B);color:#fff;cursor:pointer;animation:breathe 2s ease-in-out infinite;}
+
+/* ================= 底部 Dock (全屏统一) ================= */
+#dock{position:fixed;left:0;right:0;bottom:0;z-index:100;display:flex;align-items:center;justify-content:space-around;height:calc(64px + env(safe-area-inset-bottom));padding:0 12px calc(6px + env(safe-area-inset-bottom));background:rgba(255,255,255,.88);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-top:1px solid rgba(255,255,255,.65);box-shadow:0 -4px 16px rgba(0,0,0,.08);max-width:680px;margin:0 auto;}
+.dock-tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:1;min-width:56px;min-height:48px;border:none;background:transparent;color:#B2BEC3;font-size:12px;font-weight:700;cursor:pointer;border-radius:14px;transition:.15s;}
+.dock-tab .d-ico{font-size:22px;line-height:1;}
+.dock-tab .d-line{width:16px;height:3px;border-radius:999px;background:transparent;margin-top:1px;}
+.dock-tab.active{color:#FF6B4A;}
+.dock-tab.active .d-ico{transform:translateY(-2px);}
+.dock-tab.active .d-line{background:linear-gradient(90deg,#FF9F43,#FF6B6B);}
+
+/* ================= 弹窗 ================= */
+.mask{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center;padding:20px;}
+.mask.show{display:flex;}
+.modal{background:#fff;border-radius:26px;padding:30px 26px;max-width:360px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.22);animation:pop .4s ease;}
+.modal h3{font-size:22px;margin-bottom:8px;}
+.modal p{font-size:15px;color:#95A5A6;margin-bottom:16px;}
+.modal .btn-row{display:flex;gap:12px;}
+.modal .btn-row button{flex:1;min-height:48px;border:none;border-radius:16px;font-size:15px;font-weight:700;cursor:pointer;}
+.btn-cancel{background:#F1F2F4;color:#636E72;}
+.btn-confirm{background:#FF6B6B;color:#fff;}
+.modal .btn-primary{min-height:48px;padding:0 40px;border:none;border-radius:999px;background:linear-gradient(135deg,#FF9F43,#FF6B6B);color:#fff;font-size:16px;font-weight:800;cursor:pointer;}
+#scoreBig{font-size:52px;font-weight:900;color:#FF9F43;margin:10px 0 4px;}
+
+/* ================= 反馈 toast ================= */
+#toast{position:fixed;top:76px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;padding:10px 22px;border-radius:999px;font-size:14px;font-weight:700;opacity:0;pointer-events:none;transition:.3s;z-index:300;white-space:nowrap;}
+#toast.show{opacity:1;}
+
+/* ================= 动画 ================= */
+@keyframes popBounce{0%{transform:scale(1);}30%{transform:scale(1.15);}50%{transform:scale(.95);}70%{transform:scale(1.06);}100%{transform:scale(1);}}
+@keyframes shake{0%,100%{transform:translateX(0);}20%{transform:translateX(-12px);}40%{transform:translateX(12px);}60%{transform:translateX(-8px);}80%{transform:translateX(8px);}}
+@keyframes breathe{0%,100%{box-shadow:0 4px 14px rgba(255,107,107,.3);}50%{box-shadow:0 4px 30px rgba(255,107,107,.65);}}
+@keyframes pop{0%{transform:scale(.8);opacity:0;}100%{transform:scale(1);opacity:1;}}
+@keyframes fly{0%{opacity:1;transform:translate(0,0) scale(1);}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.3);}}
+.particle{position:fixed;font-size:22px;pointer-events:none;z-index:250;animation:fly .8s ease-out forwards;}
+
+/* ================= 手机适配 ================= */
+@media(max-width:640px), (orientation:portrait) and (max-width:820px){
+  #topbar{height:48px;gap:8px;padding:0 10px;}
+  #app{padding-top:48px;}
+  #avaCircle,#backBtn,#soundBtn{min-width:36px;min-height:36px;font-size:17px;}
+  #starBar{font-size:16px;}
+  #lvText{font-size:11px;}
+  .opt{font-size:32px;}
+  #artEmoji{font-size:64px;}
+  #dock{height:calc(56px + env(safe-area-inset-bottom));}
+  #dots{gap:5px;}.dot{width:12px;height:12px;}
+  #progressBar{gap:8px;padding-bottom:6px;}
+  #finishBtn{min-height:40px;font-size:14px;padding:0 18px;}
+  #scoreChip{font-size:12px;padding:3px 10px;}
+}
+
+@media(max-height:500px) and (orientation:landscape){
+  #artEmoji{font-size:52px;}
+  .opt{font-size:30px;}
+  #artGuide{font-size:14px;}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <button id="backBtn" aria-label="返回">←</button>
+    <div id="avatar"><div id="avaCircle">小朱<span id="lvBadge">Lv.6</span></div></div>
+    <div id="starsWrap"><span id="starBar"></span><span id="lvText"></span></div>
+    <button id="soundBtn" aria-label="音量">🔊</button>
+  </header>
+
+  <main id="answerArea">
+    <section id="artPanel">
+      <div id="artCard">
+        <span id="scoreBadge">⭐ 已获得 0 颗星星</span>
+        <div id="artEmoji">🏔️</div>
+        <div id="artGuide">👆 请点击对应的汉字</div>
+        <button id="ttsBtn">🔊 听一听</button>
+      </div>
+    </section>
+    <section id="optPanel"><div id="optGrid"></div></section>
+  </main>
+
+  <footer id="progressBar">
+    <div id="dots"></div>
+    <span id="scoreChip">⭐ 已获得 0 颗星星</span>
+    <button id="finishBtn">🎉 完成闯关</button>
+  </footer>
+</div>
+
+<nav id="dock"></nav>
+
+<div class="mask" id="quitMask"><div class="modal">
+  <h3>🏃 要离开闯关吗？</h3>
+  <p>进度将保存，回来后可以继续哦</p>
+  <div class="btn-row">
+    <button class="btn-cancel" id="quitCancel">继续闯关</button>
+    <button class="btn-confirm" id="quitConfirm">确认离开</button>
+  </div>
+</div></div>
+
+<div class="mask" id="doneMask"><div class="modal">
+  <h3 id="doneTitle">🎉 闯关成功！</h3>
+  <div id="scoreBig">⭐ 10 / 10</div>
+  <p id="doneMsg">满分通关，你是识字小天才！</p>
+  <button class="btn-primary" id="againBtn">再来一局</button>
+</div></div>
+
+<div id="toast"></div>
+
+<script>
+/* ================= 状态 ================= */
+var state = {
+  currentQuestion: 0,
+  totalQuestions: 10,
+  score: 0,
+  currentLevel: 3,
+  totalLevels: 5,
+  isAnswered: false,
+  isCompleted: false,
+  soundOn: true
+};
+
+/* 题卡: 4 组图文分离的词, 循环组成 10 题 */
+var WORDS = [
+  { emoji:'🏔️', word:'大山', ans:'山', tts:"请找到'大山'对应的汉字", chars:['山','人','火','水','日','木'] },
+  { emoji:'👄', word:'嘴巴', ans:'嘴', tts:"请找到'嘴巴'对应的汉字", chars:['嘴','山','人','火','水','日'] },
+  { emoji:'💧', word:'水滴', ans:'水', tts:"请找到'水滴'对应的汉字", chars:['水','手','人','火','日','木'] },
+  { emoji:'🖐️', word:'小手', ans:'手', tts:"请找到'小手'对应的汉字", chars:['手','山','人','火','水','日'] }
+];
+var COLORS = ['y','g','r','b','o','p'];
+
+/* 底部 Dock 四 Tab */
+var DOCK = [
+  { icon:'🏠', label:'首页' },
+  { icon:'📖', label:'语文' },
+  { icon:'🔢', label:'数学' },
+  { icon:'🌟', label:'每日挑战' }
+];
+
+/* ================= DOM ================= */
+function $(id){ return document.getElementById(id); }
+var backBtn=$('backBtn'), soundBtn=$('soundBtn'), starBar=$('starBar'), lvText=$('lvText'),
+    artCard=$('artCard'), artEmoji=$('artEmoji'), artGuide=$('artGuide'), ttsBtn=$('ttsBtn'),
+    scoreBadge=$('scoreBadge'), optGrid=$('optGrid'), dotsEl=$('dots'), scoreChip=$('scoreChip'),
+    finishBtn=$('finishBtn'), dock=$('dock'), quitMask=$('quitMask'), doneMask=$('doneMask'),
+    doneTitle=$('doneTitle'), doneMsg=$('doneMsg'), scoreBig=$('scoreBig'), againBtn=$('againBtn'),
+    toastEl=$('toast');
+
+/* ================= 语音 ================= */
+function speak(text){
+  if(!state.soundOn) return;
+  if(window.speechSynthesis){ window.speechSynthesis.cancel(); var u=new SpeechSynthesisUtterance(text); u.lang='zh-CN'; u.rate=.9; window.speechSynthesis.speak(u); }
+}
+function speakCurrent(){ var w=curWord(); if(w) speak(w.tts); }
+
+/* ================= 音效 (Web Audio API) ================= */
+var actx=null;
+function ctx(){ try{ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); return actx; }catch(e){ return null; } }
+function tone(f,dur,type,t){ var c=ctx(); if(!c||!state.soundOn) return; var o=c.createOscillator(),g=c.createGain(); o.type=type||'sine'; o.frequency.value=f; g.gain.setValueAtTime(.22,t); g.gain.exponentialRampToValueAtTime(.001,t+dur); o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+dur); }
+function sfxCorrect(){ var c=ctx(); if(!c) return; var t=c.currentTime; tone(523,.15,'sine',t); tone(659,.15,'sine',t+.1); tone(784,.22,'sine',t+.2); }
+function sfxWrong(){ var c=ctx(); if(!c) return; var t=c.currentTime; tone(300,.25,'triangle',t); tone(250,.25,'triangle',t+.12); }
+function sfxFinish(){ var c=ctx(); if(!c) return; var t=c.currentTime; [523,659,784,1047].forEach(function(f,i){ tone(f,.22,'sine',t+i*.14); }); }
+
+/* ================= 渲染 ================= */
+function curWord(){ return WORDS[state.currentQuestion % WORDS.length]; }
+function isBusy(){ return !state.isCompleted; }
+
+function renderStars(){
+  var h=''; for(var i=1;i<=state.totalLevels;i++){ h+='<span class="st'+(i<=state.currentLevel?'':' off')+'">★</span>'; }
+  starBar.innerHTML=h;
+  lvText.textContent='第'+state.currentLevel+'关 / 共'+state.totalLevels+'关';
+}
+function renderDots(){
+  var h=''; for(var i=0;i<state.totalQuestions;i++){
+    var cls='dot';
+    if(i<state.currentQuestion) cls+=' done';
+    else if(i===state.currentQuestion && !state.isCompleted) cls+=' cur';
+    h+='<div class="'+cls+'"></div>';
+  }
+  dotsEl.innerHTML=h;
+}
+function renderScore(){
+  scoreChip.textContent='⭐ 已获得 '+state.score+' 颗星星';
+  scoreBadge.textContent='⭐ 已获得 '+state.score+' 颗星星';
+  scoreBadge.classList.add('show'); setTimeout(function(){ scoreBadge.classList.remove('show'); },1400);
+}
+function shuffle(a){ var b=a.slice(); for(var i=b.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=b[i]; b[i]=b[j]; b[j]=t; } return b; }
+
+function renderDock(){
+  var h='';
+  for(var i=0;i<DOCK.length;i++){
+    var act=(i===1);
+    h+='<button type="button" class="dock-tab'+(act?' active':'')+'" data-i="'+i+'">'+
+       '<span class="d-ico">'+DOCK[i].icon+'</span><span>'+DOCK[i].label+'</span><span class="d-line"></span></button>';
+  }
+  dock.innerHTML=h;
+}
+
+function renderQuestion(){
+  if(state.isCompleted) return;
+  state.isAnswered=false;
+  var w=curWord();
+  artEmoji.textContent=w.emoji;
+  artGuide.textContent='👆 请点击对应的汉字';
+  var chars=shuffle(w.chars);
+  var colors=shuffle(COLORS);
+  var h='';
+  for(var i=0;i<chars.length;i++){
+    h+='<button type="button" class="opt" data-c="'+colors[i]+'" data-stop="'+w.ans+'" data-char="'+chars[i]+'" aria-label="'+chars[i]+'">'+chars[i]+'</button>';
+  }
+  optGrid.innerHTML=h;
+  renderDots();
+  var btns=optGrid.querySelectorAll('.opt');
+  for(var i=0;i<btns.length;i++){
+    (function(btn){
+      btn.addEventListener('touchstart',function(e){ e.preventDefault(); pick(btn); return false; },{passive:false});
+      btn.addEventListener('click',function(){ pick(btn); });
+    })(btns[i]);
+  }
+  setTimeout(speakCurrent, 600);
+}
+
+/* ================= 作答 ================= */
+function pick(btn){
+  if(state.isAnswered||state.isCompleted) return;
+  if(btn.getAttribute('data-char')===btn.getAttribute('data-stop')){
+    good(btn);
+  } else {
+    bad(btn);
+  }
+}
+function good(btn){
+  state.isAnswered=true; state.score++;
+  sfxCorrect();
+  lockAll();
+  btn.classList.remove('off'); btn.classList.add('correct');
+  burst(btn);
+  renderScore();
+  setTimeout(function(){
+    state.currentQuestion++;
+    if(state.currentQuestion>=state.totalQuestions){ finishQuiz(); }
+    else renderQuestion();
+    saveProgress();
+  }, 1200);
+}
+function bad(btn){
+  sfxWrong();
+  showToast('💪 再想想哦~'); speak('再想想哦');
+  btn.classList.add('wrong','grey-flash');
+  setTimeout(function(){ btn.classList.remove('wrong','grey-flash'); },400);
+}
+function lockAll(){
+  var bs=optGrid.querySelectorAll('.opt');
+  for(var i=0;i<bs.length;i++) bs[i].classList.add('off');
+}
+function finishQuiz(){
+  state.isCompleted=true;
+  saveProgress();
+  renderDots();
+  finishBtn.classList.add('ready');
+  showToast('🎊 全部答完！点「完成闯关」领奖');
+}
+function resetQuiz(){
+  doneMask.classList.remove('show');
+  state.currentQuestion=0; state.score=0; state.isAnswered=false; state.isCompleted=false;
+  finishBtn.classList.remove('ready');
+  clearProgress();
+  renderStars(); renderDots(); renderScore(); renderQuestion();
+}
+
+/* ================= 星星粒子 ================= */
+function burst(target){
+  var r=target.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2;
+  var es=['⭐','✨','🌟','💫'];
+  for(var i=0;i<12;i++){
+    var p=document.createElement('div'); p.className='particle';
+    p.textContent=es[i%4];
+    p.style.left=cx+'px'; p.style.top=cy+'px';
+    var a=(i/12)*Math.PI*2, d=55+Math.random()*50;
+    p.style.setProperty('--dx',(Math.cos(a)*d)+'px');
+    p.style.setProperty('--dy',(Math.sin(a)*d-30)+'px');
+    document.body.appendChild(p);
+    setTimeout(function(e){return function(){ if(e.parentNode) e.parentNode.removeChild(e); }}(p), 900);
+  }
+}
+
+/* ================= 提示 ================= */
+var toastT=null;
+function showToast(msg){
+  toastEl.textContent=msg; toastEl.classList.add('show');
+  if(toastT) clearTimeout(toastT);
+  toastT=setTimeout(function(){ toastEl.classList.remove('show'); },1600);
+}
+
+/* ================= 事件 ================= */
+function tap(el, fn){
+  el.addEventListener('touchstart',function(e){ e.preventDefault(); fn(); return false; },{passive:false});
+  el.addEventListener('click',function(){ fn(); });
+}
+
+function initEvents(){
+  tap(backBtn, quitAsk);
+  tap(soundBtn, function(){ state.soundOn=!state.soundOn; soundBtn.textContent=state.soundOn?'🔊':'🔇'; speak(state.soundOn?'声音已开启':'声音已关闭'); });
+  tap(ttsBtn, speakCurrent);
+  tap(artCard, speakCurrent);
+  tap(finishBtn, function(){ if(state.isCompleted) showDone(); });
+  againBtn.addEventListener('click', resetQuiz);
+  tap($('quitCancel'), quitCancel);
+  tap($('quitConfirm'), quitBack);
+  var tabs=dock.querySelectorAll('.dock-tab');
+  for(var i=0;i<tabs.length;i++){
+    (function(tab,i){
+      tab.addEventListener('touchstart',function(e){ e.preventDefault(); pickTab(i); return false; },{passive:false});
+      tab.addEventListener('click',function(){ pickTab(i); });
+    })(tabs[i],i);
+  }
+}
+function pickTab(i){
+  if(i===1) return;                 // 语文(当前)
+  if(isBusy()){ showToast('答题中，完成后再切换吧'); return; }
+  renderDock(); showToast('已切换到「'+DOCK[i].label+'」');
+}
+function quitAsk(){
+  if(!isBusy()){ showToast('👋 已保存进度'); return; }
+  quitMask.classList.add('show');
+}
+function quitCancel(){ quitMask.classList.remove('show'); }
+function quitBack(){ quitMask.classList.remove('show'); saveProgress(); showToast('👋 已保存进度，下次继续'); }
+function showDone(){
+  doneTitle.textContent = state.score===state.totalQuestions ? '🎉 满分闯关！' : '🎉 闯关成功！';
+  scoreBig.textContent = '⭐ '+state.score+' / '+state.totalQuestions;
+  doneMsg.textContent = state.score===state.totalQuestions ? '满分通关，你是识字小天才！' : '表现很棒，继续加油！';
+  doneMask.classList.add('show');
+  sfxFinish();
+}
+
+/* ================= 触控优化 & 初始化 ================= */
+document.addEventListener('touchstart', function(){}, {passive:true});
+
+/* ---------- 进度持久化: 退出后回来可继续 ---------- */
+var LS_KEY = 'zz_shizi_quiz_v1';
+function saveProgress(){
+  try { localStorage.setItem(LS_KEY, JSON.stringify({ q: state.currentQuestion, s: state.score, done: state.isCompleted })); } catch(e){}
+}
+function clearProgress(){
+  try { localStorage.removeItem(LS_KEY); } catch(e){}
+}
+function restoreProgress(){
+  try {
+    var raw = localStorage.getItem(LS_KEY);
+    if (!raw) return false;
+    var d = JSON.parse(raw);
+    if (!d || d.done) { clearProgress(); return false; }
+    if (!d.q || d.q <= 0) { clearProgress(); return false; }
+    state.currentQuestion = Math.min(d.q, state.totalQuestions);
+    state.score = d.s || 0;
+    state.isCompleted = false;
+    return true;
+  } catch(e){ return false; }
+}
+
+function init(){
+  renderStars(); renderDots(); renderScore(); renderDock();
+  if(!restoreProgress()){
+    renderQuestion();
+  } else {
+    renderQuestion();   // 从上次进度继续(当前题忽略已作答, 得分保留)
+  }
+  initEvents();
+}
+init();
+</script>
+</body>
+</html>

@@ -23,14 +23,24 @@
     } catch (e) {}
   }
   try { if (window.speechSynthesis){ pickZhVoice(); window.speechSynthesis.onvoiceschanged = pickZhVoice; } } catch (e) {}
-  function speakOn(){ try { return load(SPEAK_ON_KEY) !== false; } catch(e){ return true; } }
+  // 默认静音: 仅当显式存了 true 才播音; 新用户/未设值→关闭
+  function speakOn(){ try { return load(SPEAK_ON_KEY) === true; } catch(e){ return false; } }
+  function setSpeakIcon(){
+    var btn = document.getElementById('soundToggle');
+    if (btn) btn.textContent = speakOn() ? '🔊' : '🔇';
+  }
   window.toggleSpeak = function (){
     var on = !speakOn();
     try { save(SPEAK_ON_KEY, on); } catch (e) {}
-    var btn = document.getElementById('soundToggle');
-    if (btn) btn.textContent = on ? '🔊 声音开' : '🔇 声音关';
+    setSpeakIcon();
     if (on){ speak('声音已开启'); }
     return on;
+  };
+  window.playSpeak = function (text){
+    // 点击播放: 若当前静音则先自动打开声音, 再朗读
+    if (!text) return;
+    if (!speakOn()){ try { save(SPEAK_ON_KEY, true); } catch (e) {} setSpeakIcon(); }
+    speak(text);
   };
   // 在线 TTS 兜底: 优先同源 /edu/api/tts(服务端转出, 无 Mixed Content/跨域), 失败再试直连兜底
   function ttLang(t){
@@ -97,7 +107,7 @@
   // 生成"点击听音"小喇叭
   function spkBtn(text, cls){
     if (!text) return '';
-    return '<button type="button" class="spk ' + (cls || '') + '" aria-label="朗读" onclick="speak(\'' +
+    return '<button type="button" class="spk ' + (cls || '') + '" aria-label="朗读" onclick="playSpeak(\'' +
       String(text).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,' ').replace(/"/g,'&quot;') +
       '\')">🔊</button>';
   }
@@ -337,7 +347,7 @@
         if (quiz.items[idx] && quiz.items[idx].input) quiz.answers[idx] = inp.value.replace(/\s+/g, '');
       });
       var snap = { subj: quiz.subj, type: quiz.type, items: quiz.items, answers: quiz.answers,
-        order: quizOrder || {}, submitted: false, _t: quiz._t };
+        order: quizOrder || {}, view: quiz.view, submitted: false, _t: quiz._t };
       localStorage.setItem(quizStateKey(), JSON.stringify(snap));
     } catch (e) {}
   }
@@ -357,6 +367,7 @@
       if (snap.submitted || !snap.items || !snap.items.length) return false;
       if (snap.subj !== subj) return false;
       quiz = { subj: snap.subj, type: snap.type, items: snap.items, answers: snap.answers || {}, submitted: false, _t: snap._t || Date.now() };
+      quiz.view = Math.min(snap.view || 0, snap.items.length - 1);
       quizSubject = snap.subj;
       quizOrder = snap.order || {};
       renderQuiz();
@@ -389,6 +400,7 @@
       }
     });
     updateQuizProg();
+    refreshQuizHeader();
   }
 
   function blockedHint(msg){
@@ -409,18 +421,26 @@
       quiz.answers[idx] = (val || '').replace(/\s+/g, '');
       saveQuizState();
       updateQuizProg();
+      refreshQuizHeader();
     }
   };
   window.pickOpt = function (idx, v){
     if (quiz.submitted) return;
     quiz.answers[idx] = v;
     var item = document.getElementById('qi-'+idx);
-    item.querySelectorAll('.qi-opt .qo-pick').forEach(function(b){
+    if (item) item.querySelectorAll('.qi-opt .qo-pick').forEach(function(b){
       b.classList.toggle('pick', b.getAttribute('data-v')===v);
     });
     if (quiz.items[idx] && quiz.items[idx].order) return;
     updateQuizProg();
     saveQuizState();
+    refreshQuizHeader();
+    // 一题一屏: 选择题即时判定 + 1.2s 自动跳下一题
+    if (item && quiz.items[idx] && quiz.items[idx].options && quiz.view === idx){
+      item.querySelectorAll('.qi-opt .qo-pick').forEach(function(b){ b.disabled = true; });
+      showSingleFeedback(idx);
+      setTimeout(quizNext, 1200);
+    }
   };
 
   // 排序题: 点选排列
@@ -432,21 +452,38 @@
     var it = quiz.items[idx];
     it.correct = it.expected.slice().sort(function(a,b){ return a-b; }).join('|');
     renderOrderSeq(idx);
-    var chips = document.getElementById('qi-'+idx).querySelectorAll('.qo-chip');
+    var item = document.getElementById('qi-'+idx);
+    var chips = item.querySelectorAll('.qo-chip');
     chips.forEach(function(b){
       b.classList.toggle('picked', seq.indexOf(b.getAttribute('data-v')) >= 0);
     });
     updateQuizProg();
     saveQuizState();
+    refreshQuizHeader();
+    // 一题一屏: 排序排满自动判定 + 1.2s 跳下一题
+    if (quiz.items[idx] && quiz.items[idx].order &&
+        (quizOrder[idx]||[]).length === (it.expected||[]).length && quiz.view === idx){
+      item.querySelectorAll('.qo-chip').forEach(function(b){ b.disabled = true; });
+      var clearBtns = item.querySelectorAll('.qo-clear');
+      clearBtns.forEach(function(b){ b.disabled = true; });
+      showSingleFeedback(idx);
+      setTimeout(quizNext, 1200);
+    }
   };
   window.clearOrder = function (idx){
     if (quiz.submitted) return;
     quizOrder[idx] = [];
     renderOrderSeq(idx);
-    var chips = document.getElementById('qi-'+idx).querySelectorAll('.qo-chip');
-    chips.forEach(function(b){ b.classList.remove('picked'); });
+    var item = document.getElementById('qi-'+idx);
+    if (item){
+      var chips = item.querySelectorAll('.qo-chip');
+      chips.forEach(function(b){ b.disabled = false; b.classList.remove('picked'); });
+      var clearBtns = item.querySelectorAll('.qo-clear');
+      clearBtns.forEach(function(b){ b.disabled = false; });
+    }
     updateQuizProg();
     saveQuizState();
+    refreshQuizHeader();
   };
   function renderOrderSeq(idx){
     var box = document.getElementById('qseq-'+idx);
@@ -537,6 +574,8 @@
     }
     gradeQuiz(count, maxCombo, bonus);
     clearQuizState();
+    renderNav();
+    renderStarBar();
   };
 
   // 适合幼儿的暖心反馈: 答对鼓励, 答错给温柔引导(不冷冰冰)
@@ -621,15 +660,7 @@
     updateDonePill();
     scrollToShell();
   }
-  function updateDonePill(){
-    var pill = document.getElementById('wbDoneToday');
-    if (!pill) return;
-    var n = (wb.done && wb.done.length) || 0;
-    pill.style.display = n > 0 ? 'inline-flex' : 'none';
-    pill.textContent = '✅ 今日完成 ' + n + ' 组';
-    var strip = document.getElementById('wbStrip');
-    if (strip) strip.style.display = n > 0 ? 'flex' : 'none';
-  }
+  function updateDonePill(){}
   function restartExpr(){
     if (quiz.type === 'daily') return 'startDaily()';
     if (quizSubject === 'par') return 'parPlay(\''+quiz.type+'\')';
@@ -1238,81 +1269,150 @@
       '</div></div>';
   }
 
-  // 卷渲染(共用)
+  // 单题卡 HTML 构建(一题一屏用) - 复用原有题型结构
+  function buildQuizCard(i){
+    if (!quiz) return '';
+    var it = quiz.items[i];
+    if (!it) return '';
+    var readT = it.big ? stripBlank(String(it.big)) : stripBlank(String(it.prompt || ''));
+    var spk = '<span class="qi-spk">' + spkBtn(readT) + '</span>';
+    var h;
+    if (it.input){
+      h = '<div class="qi-head"><span class="qi-no">'+(i+1)+'</span>'+spk+'</div>';
+      h += '<div class="qi-fill">';
+      var src = it.big || it.prompt;
+      var eq = /\s*=\s*\?+\s*$/.test(String(src));
+      h += '<div class="qi-expr">'+esc(String(src).replace(/\s*=\s*\?+\s*$/, ''))+'</div>';
+      h += '<div class="qi-ans">'+(eq ? '<span class="qi-eq">＝</span>' : '')+'';
+      h += '<input class="qi-in" data-idx="'+i+'" type="number" inputmode="numeric" autocomplete="off" placeholder="?" aria-label="答案" oninput="onQuizInput('+i+',this.value)" onkeydown="if(event.key===\'Enter\')quizInputSubmit('+i+',this.value)">';
+      h += '</div></div>';
+    } else {
+      h = '<div class="qi-head"><span class="qi-no">'+(i+1)+'</span><span class="qi-prompt">'+esc(it.prompt)+'</span>'+spk+'</div>';
+      if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</div>';
+      if (it.mouth) h += '<p class="qi-mouth">👄 口型：'+esc(it.mouth)+'</p>';
+      if (it.options){
+        var optRows = it.options.map(function(o, oi){
+          var lbl = esc(o.label);
+          var spkO = '';
+          if (quizSubject === 'zh' && o.label){
+            var spkText = String(o.label).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+            spkO = '<button type="button" class="qo-spk" aria-label="朗读选项" onclick="event.preventDefault();event.stopPropagation();playSpeak(\''+spkText+'\')">🔊</button>';
+          }
+          return '<div class="qo-wrap">'+
+            '<button type="button" class="qo-pick" data-v="'+esc(o.v)+'" id="qo-'+i+'-'+oi+'" onclick="pickOpt('+i+',\''+esc(o.v)+'\')">'+lbl+'</button>'+
+            spkO+'</div>';
+        }).join('');
+        h += '<div class="qi-opt">' + optRows + '</div>';
+      } else if (it.order){
+        h += '<div class="qi-order">'+
+          '<div class="qo-seq" id="qseq-'+i+'"><span class="qo-empty">从小到大点出顺序…</span></div>'+
+          '<div class="qo-chips">'+it.expected.slice().sort(function(){ return Math.random()-0.5; }).map(function(v){
+            return '<button type="button" class="qo-chip" data-v="'+esc(v)+'" onclick="tapOrder('+i+',\''+esc(v)+'\')">'+esc(v)+'</button>';
+          }).join('')+'</div>'+
+          '<button type="button" class="qo-clear" onclick="clearOrder('+i+')">清空顺序</button>'+
+          '</div>';
+      }
+    }
+    h += '<div class="qi-feed"></div>';
+    return '<div class="quiz-item" id="qi-'+i+'">'+h+'</div>';
+  }
+
+  // 一题一屏: 星星进度 + 进度圆点 + 完成闯关按钮
+  function renderQuizFooter(){
+    var total = quiz.items.length;
+    var dots = '';
+    for (var i = 0; i < total; i++){
+      var cls = 'qz-dot';
+      if (i === quiz.view) cls += ' cur';
+      else if (i < quiz.view) cls += ' done';
+      dots += '<span class="'+cls+'"></span>';
+    }
+    var allDone = (answeredCount() === total);
+    var right = quizAnsweredRight();
+    return '<div class="qz-footer">'+
+      '<div class="qz-dots">'+dots+'</div>'+
+      '<div class="qz-stars">⭐ 已获得 <b>'+right+'</b> 颗星星</div>'+
+      '<button type="button" class="qz-finish'+(allDone ? ' ready' : '')+'" '+(allDone ? '' : 'disabled')+' onclick="submitQuiz()">🎉 完成闯关</button>'+
+      '</div>';
+  }
+
+  // 卷渲染(共用) - 一题一屏
   function renderQuiz(){
+    if (!quiz || !quiz.items.length) return;
+    if (quiz.view === undefined) quiz.view = 0;
+    // 若返回重新起卷, view 归零
     var container = document.getElementById(quizContainerId);
     container.innerHTML = '';
 
     var shell = document.createElement('div');
     shell.id = 'quizShell';
-    // 闯关横幅(难度档+过关目标+通关状态) 与 [闯关|极速练习] 入口合并为一行(与极速练习统一页头)
     if (quizSubject !== 'par'){
       var headerDiv = document.createElement('div');
       headerDiv.innerHTML = quizHeaderHtml('guan', quizSubject, quiz.type);
       shell.appendChild(headerDiv);
     }
-    var toolbar = document.createElement('div');
-    toolbar.className = 'quiz-toolbar';
-    toolbar.innerHTML = '<span class="qt-progress" id="qtProg"></span>'+
-      '<button type="button" class="btn-ghost" onclick="regenQuiz()">换一组题</button>'+
-      '<button type="button" class="btn-soft" onclick="submitQuiz()">交卷打分</button>';
-    shell.appendChild(toolbar);
-    updateQuizProg();
-
-    var grid = document.createElement('div');
-    grid.className = 'quiz-grid';
-    quiz.items.forEach(function(it, i){
-      var card = document.createElement('div');
-      card.className = 'quiz-item';
-      card.id = 'qi-'+i;
-      var h;
-      // 朗读内容(数学表达式去尾部"= ?"再读)
-      var readT = it.big ? stripBlank(String(it.big)) : stripBlank(String(it.prompt || ''));
-      var spk = '<span class="qi-spk">' + spkBtn(readT) + '</span>';
-      if (it.input){
-        h = '<div class="qi-head"><span class="qi-no">'+(i+1)+'</span>'+spk+'</div>';
-        h += '<div class="qi-fill">';
-        var src = it.big || it.prompt;
-        var eq = /\s*=\s*\?+\s*$/.test(String(src));
-        h += '<div class="qi-expr">'+esc(String(src).replace(/\s*=\s*\?+\s*$/, ''))+'</div>';
-        h += '<div class="qi-ans">'+(eq ? '<span class="qi-eq">＝</span>' : '')+'';
-        h += '<input class="qi-in" data-idx="'+i+'" type="number" inputmode="numeric" autocomplete="off" placeholder="?" aria-label="答案" oninput="onQuizInput('+i+',this.value)" onkeydown="if(event.key===\'Enter\')submitQuiz()">';
-        h += '</div></div>';
-      } else {
-        h = '<div class="qi-head"><span class="qi-no">'+(i+1)+'</span><span class="qi-prompt">'+esc(it.prompt)+'</span>'+spk+'</div>';
-if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</div>';
-        if (it.mouth) h += '<p class="qi-mouth">👄 口型：'+esc(it.mouth)+'</p>';
-        if (it.options){
-          var optRows = it.options.map(function(o, oi){
-            var lbl = esc(o.label);
-            // 语文题: 每题选项自带语音播放(点🔊朗读该选项文本)
-            var spk = '';
-            if (quizSubject === 'zh' && o.label){
-              var spkText = String(o.label).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
-              spk = '<button type="button" class="qo-spk" aria-label="朗读选项" onclick="event.preventDefault();event.stopPropagation();speak(\''+spkText+'\')">🔊</button>';
-            }
-            return '<div class="qo-wrap">'+
-              '<button type="button" class="qo-pick" data-v="'+esc(o.v)+'" id="qo-'+i+'-'+oi+'" onclick="pickOpt('+i+',\''+esc(o.v)+'\')">'+lbl+'</button>'+
-              spk+'</div>';
-          }).join('');
-          h += '<div class="qi-opt">' + optRows + '</div>';
-        } else if (it.order){
-          h += '<div class="qi-order">'+
-            '<div class="qo-seq" id="qseq-'+i+'"><span class="qo-empty">从小到大点出顺序…</span></div>'+
-            '<div class="qo-chips">'+it.expected.slice().sort(function(){ return Math.random()-0.5; }).map(function(v){
-              return '<button type="button" class="qo-chip" data-v="'+esc(v)+'" onclick="tapOrder('+i+',\''+esc(v)+'\')">'+esc(v)+'</button>';
-            }).join('')+'</div>'+
-            '<button type="button" class="qo-clear" onclick="clearOrder('+i+')">清空顺序</button>'+
-            '</div>';
-        }
-      }
-      h += '<div class="qi-feed"></div>';
-      card.innerHTML = h;
-      renderOrderSeq(i);
-      grid.appendChild(card);
-    });
-    shell.appendChild(grid);
+    // 主卡: 只渲染当前题(一题一屏)
+    var cardWrap = document.createElement('div');
+    cardWrap.className = 'qz-card';
+    cardWrap.innerHTML = buildQuizCard(quiz.view);
+    shell.appendChild(cardWrap);
+    renderOrderSeq(quiz.view);
+    // 进度脚(圆点+星星+完成闯关)
+    var foot = document.createElement('div');
+    foot.innerHTML = renderQuizFooter();
+    shell.appendChild(foot);
     container.appendChild(shell);
+    updateQuizProg();
+    renderNav();
+  }
+  // 跳下一题(自动推进)
+  function quizNext(){
+    if (quiz.submitted) return;
+    if (quiz.view < quiz.items.length - 1){
+      quiz.view++;
+      renderQuiz();
+    } else if (answeredCount() === quiz.items.length){
+      // 最后一题已答完: 重绘当前题, 「完成闯关」按 allDone 亮起
+      renderQuiz();
+    } else {
+      updateQuizProg();
+    }
+  }
+  // 输入题: 回车触发判断并推进
+  window.quizInputSubmit = function (idx, val){
+    onQuizInput(idx, val);
+    if (!quiz || quiz.submitted) return;
+    var it = quiz.items[idx];
+    if (it && it.input && String(quiz.answers[idx]||'').trim()){
+      showSingleFeedback(idx);
+      setTimeout(quizNext, 1200);
+    }
+  };
+  // 单题即时反馈(仅视觉, 不落错题本; 最终仍由 submitQuiz 统一结算)
+  function showSingleFeedback(idx){
+    var it = quiz.items[idx];
+    if (!it) return;
+    var ok = isCorrect(it, quiz.answers[idx]);
+    var item = document.getElementById('qi-'+idx);
+    if (item){
+      var feed = item.querySelector('.qi-feed');
+      if (feed) feed.className = 'qi-feed ' + (ok ? 'ok' : 'no');
+      if (feed) feed.textContent = ok ? ('🎉 ' + warmCheck()) : ('💡 ' + warmWrong(it));
+      if (ok){
+        item.classList.add('graded');
+        if (it.options){
+          item.querySelectorAll('.qo-pick').forEach(function(b){
+            if (b.getAttribute('data-v') === it.correct) b.classList.add('correct');
+          });
+          starBurst();
+        }
+      } else if (it.options){
+        item.querySelectorAll('.qo-pick').forEach(function(b){
+          if (b.getAttribute('data-v') === it.correct) b.classList.add('correct');
+          if (b.getAttribute('data-v') === quiz.answers[idx]) b.classList.add('wrong');
+        });
+      }
+    }
   }
   window.regenQuiz = function (){
     if (quiz.submitted) return;
@@ -1358,7 +1458,7 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
         var spkO = '';
         if (PRACTICE.subj === 'zh' && o.label){
           var st = String(o.label).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
-          spkO = '<button type="button" class="qo-spk" aria-label="朗读选项" onclick="event.preventDefault();event.stopPropagation();speak(\''+st+'\')">🔊</button>';
+          spkO = '<button type="button" class="qo-spk" aria-label="朗读选项" onclick="event.preventDefault();event.stopPropagation();playSpeak(\''+st+'\')">🔊</button>';
         }
         return '<div class="qo-wrap">'+
           '<button type="button" class="qo-pick" data-v="'+esc(o.v)+'" id="pqo-'+oi+'" onclick="practiceAnswer(\''+esc(o.v)+'\')">'+lbl+'</button>'+
@@ -1391,11 +1491,13 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
     var itemName = ({zh:{poem:'古诗',zi:'识字',stroke:'笔顺',pinyin:'拼音',yun:'拼音',read:'拼音',tone:'拼音',fan:'词语',liang:'词语',daily:'每日挑战'},
                      math:{calc:'口算',judge:'判断',word:'应用题',order:'排序',daily:'每日挑战'},
                      en:{word:'单词',dialogue:'对话',daily:'每日挑战'}}[subj]||{})[type] || type;
-    var stars = '';
-    for (var si=0; si<lv; si++) stars += '⭐';
+    var modeTxt = (active === 'su') ? '极速练习' : '闯关';
+    var nRight = (active === 'su')
+      ? ((window.PRACTICE && PRACTICE.active) ? (PRACTICE.right || 0) : 0)
+      : quizAnsweredRight();
     var html = '<div class="lv-banner">'+
-      '<div class="lv-left"><span class="lv-badge">🗺️ 闯关 · '+esc(itemName)+'</span>'+
-      '<span class="lv-sub">难度'+stars+' · 答对 '+(window.eduEngine?window.eduEngine.PASS_Q:7)+' 题过关</span></div>'+
+      '<div class="lv-left"><span class="lv-badge">🗺️ '+modeTxt+' · '+esc(itemName)+'</span>'+
+      '<span class="lv-sub" id="lvSub">已答对 <b>'+nRight+'</b> 题</span></div>'+
       '<div class="lv-right">'+(passed?'<span class="lv-passed">✅ 已通过本关</span>':'<span class="lv-notyet">⏳ 待通关</span>')+
       '<span class="lv-at">难度档 '+lv+'/5</span>';
     if (type !== 'daily'){
@@ -1406,6 +1508,26 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
     html += '</div></div>';
     return html;
   }
+  // 闯关卷已答对题数(排序题按已排完整才计入)
+  function quizAnsweredRight(){
+    var n = 0;
+    if (!quiz) return n;
+    quiz.items.forEach(function(it, i){
+      if (it.order){
+        if (String((quizOrder[i] || []).join('|')) === String(it.correct)) n++;
+        return;
+      }
+      var my = quiz.answers[i];
+      if (my !== undefined && String(my).trim() !== '' && isCorrect(it, my)) n++;
+    });
+    return n;
+  }
+  // 闯关卷作答时实时刷新横幅里的"已答对 N 题"
+  window.refreshQuizHeader = function (){
+    var el = document.getElementById('lvSub');
+    if (!el) return;
+    el.innerHTML = '已答对 <b>' + quizAnsweredRight() + '</b> 题';
+  };
   // 兼容旧引用: 仅按钮一行(练习历史/测试), 委托给统一页头
   function modeBarHtml(active){
     return quizHeaderHtml(active);
@@ -1486,6 +1608,7 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
     window.PRACTICE = PRACTICE;
     practiceNext();
     centerView('quizShell');
+    renderNav();
   };
   window.stopPractice = function (){
     if (!PRACTICE.active) return;
@@ -1516,6 +1639,7 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
         '<button type="button" class="btn-soft" onclick="'+restartExpr()+'">继续学习</button></div>';
       updateDonePill();
     }
+    renderNav();
   };
 
   // ---------- 每日挑战: 按天种子生成"各科混合"的固定挑战卷(同日两次内容一致) + 星级/闯关地图 ----------
@@ -1621,7 +1745,7 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
     var wrong = Math.random() < 0.5;
     var shown = wrong ? (computed + (computed >= 2 ? -1 : 1)) : computed;
     var tf = (shown === computed) ? '对' : '错';
-    return { id:'judge_'+q.text, prompt:q.text.replace('=?','＝ '+shown+'，对吗？'),
+    return { id:'judge_'+q.text, prompt:q.text.replace(/=\s*\?/, '＝ '+shown+'，对吗？'),
       options:[{v:'对',label:'✅ 对'},{v:'错',label:'❌ 错'}], correct:tf, note:q.expr };
   }
   var WORD_PLUS = [
@@ -1812,7 +1936,7 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
           m = (w.prompt||'').match(/(\d+)\s*([+\-])\s*(\d+)\s*=\s*\?/);
           if (m){
             var a=+m[1], b=+m[3], ans = m[2]==='+' ? a+b : a-b;
-            return out({ id:w.q, prompt:w.prompt, input:true, correct:String(ans), note:w.prompt.replace('=?','= '+ans) });
+            return out({ id:w.q, prompt:w.prompt, input:true, correct:String(ans), note:w.prompt.replace(/=\s*\?/, '= '+ans) });
           }
         } else if (type === 'judge'){
           m = (w.prompt||'').match(/(\d+)\s*([+\-])\s*(\d+)\s*＝\s*(\d+)/);
@@ -1985,7 +2109,7 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
         var wq = String(w.prompt||'').replace(/^应用题：/,'');
         return { id:w.q, wtype:'word', prompt:'应用题', big:wq, input:true, correct:String(w.correct), note:'答案：'+w.correct };
       }
-      return { id:w.q, wtype:'calc', prompt:w.prompt || String(w.q).replace(/^calc_/,''), input:true, correct:String(w.correct), note:String(w.q).replace(/^calc_/,'').replace('=?','= '+w.correct) };
+      return { id:w.q, wtype:'calc', prompt:w.prompt || String(w.q).replace(/^calc_/,''), input:true, correct:String(w.correct), note:String(w.q).replace(/^calc_/,'').replace(/=\s*\?/, '= '+w.correct) };
     });
     quizContainerId = 'wb-math-body';
     quizSubject = 'math';
@@ -2130,6 +2254,16 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
       o.textContent = (y - i) + ' 年';
       sel.appendChild(o);
     }
+    // 同步填充编辑宝贝弹窗的年份下拉
+    var editSel = document.getElementById('editYearInput');
+    if (editSel && !editSel.options.length){
+      for (var j = 0; j <= 15; j++){
+        var o2 = document.createElement('option');
+        o2.value = String(y - j);
+        o2.textContent = (y - j) + ' 年';
+        editSel.appendChild(o2);
+      }
+    }
   }
   function openKidMask(title, sub, kid){
     populateYears();
@@ -2190,30 +2324,41 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
     toast('已删除孩子');
   };
 
+  // 顶部条星星进度: 按当前科目难度档显示 5 颗(亮 N 颗)
+  function renderStarBar(){
+    var el = document.getElementById('kbStarBar');
+    if (!el) return;
+    var lv = 3;
+    if (window.eduEngine && subjNow) lv = window.eduEngine.diffOf(subjNow);
+    lv = Math.max(0, Math.min(5, lv));
+    var h = '';
+    for (var i = 1; i <= 5; i++) h += '<span class="st' + (i <= lv ? '' : ' off') + '">★</span>';
+    el.innerHTML = h;
+  }
   function renderKidBar(){
     var bar = document.getElementById('kidBar');
+    if (!bar) return;
     bar.style.display = 'flex';
     var sbtn = document.getElementById('soundToggle');
-    if (sbtn) sbtn.textContent = speakOn() ? '🔊 声音开' : '🔇 声音关';
+    if (sbtn) sbtn.textContent = speakOn() ? '🔊' : '🔇';
     var kids = window.eduKids.all();
     var kid = window.eduKids.active();
+    var avaEl = document.getElementById('kidAva');
+    var lvEl = document.getElementById('kidLv');
+    var identEl = document.getElementById('kidIdent');
     if (!kid){
-      document.getElementById('kidAva').textContent = '🧒';
-      document.getElementById('kidAva').className = 'kb-ava';
-      document.getElementById('kidName').textContent = '添加孩子';
-      document.getElementById('kidAge').textContent = '登记后按年龄段进入学习';
-      document.getElementById('kidBarStars').textContent = '';
+      if (avaEl){ avaEl.textContent = '🧒'; avaEl.className = 'kb-ava'; }
+      if (lvEl) lvEl.textContent = '';
+      if (identEl) identEl.textContent = '';
       document.getElementById('kidPickDrop').innerHTML = '';
+      renderStarBar();
       return;
     }
     var age = window.eduKids.ageOf(kid.birthYear);
-    var tier = window.eduKids.tierOf(age);
-    document.getElementById('kidAva').textContent = window.eduKids.genderIcon(kid.gender);
-    document.getElementById('kidAva').className = 'kb-ava ' + (kid.gender === 'female' ? 'b' : '');
-    document.getElementById('kidName').textContent = kid.name || '宝贝';
-    document.getElementById('kidAge').textContent = age + ' 岁';
-    var kidStars = (load(LS_BASE + '_' + String(kid.id)) || {}).stars || 0;
-    document.getElementById('kidBarStars').textContent = '⭐ ' + kidStars;
+    var lv = Math.max(1, age);
+    if (avaEl){ avaEl.textContent = window.eduKids.genderIcon(kid.gender); avaEl.className = 'kb-ava' + (kid.gender === 'female' ? ' b' : ''); avaEl.style.fontSize = '1.05rem'; }
+    if (lvEl) lvEl.textContent = 'Lv.' + lv;
+    if (identEl) identEl.textContent = String(kid.name || '宝贝') + ' · ' + age + '岁';
     // 下拉
     var drop = document.getElementById('kidPickDrop');
     var html = kids.map(function(k){
@@ -2222,11 +2367,53 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
         window.eduKids.genderIcon(k.gender) + ' ' + esc(k.name || '宝贝') + '<span style="margin-left:auto;font-size:.72rem;">' + ka + '岁</span></div>';
     }).join('');
     html += '<div class="kit-item" onclick="kidAdd()"><i class="bi bi-plus-lg"></i> 添加孩子</div>';
-    html += '<div class="kit-item" onclick="openBadges()"><i class="bi bi-patch-check"></i> 荣誉墙</div>';
-    html += '<div class="kit-item" onclick="openStats()"><i class="bi bi-bar-chart"></i> 数据看板</div>';
-    html += '<div class="kit-item" onclick="openSettings()"><i class="bi bi-gear"></i> 家长控制</div>';
     drop.innerHTML = html;
+    renderStarBar();
   }
+  // ☰ 更多菜单：家长模式 / 设置 / 帮助
+  window.toggleMoreMenu = function (ev){
+    if (ev){ ev.preventDefault(); ev.stopPropagation(); }
+    var drop = document.getElementById('moreMenuDrop');
+    if (drop) drop.classList.toggle('show');
+  };
+  window.closeMoreMenu = function (){
+    var drop = document.getElementById('moreMenuDrop');
+    if (drop) drop.classList.remove('show');
+  };
+  window.menuGo = function (which){
+    closeMoreMenu();
+    if (which === 'parent'){ openParentMode(); return; }
+    if (which === 'settings'){ openSettings(); return; }
+    if (which === 'help'){
+      toast('幼小衔接学习乐园：选择宝贝进入闯关，攒星星换星愿，完成关卡解锁徽章～');
+      return;
+    }
+  };
+
+  // 答题时(Dock/返回守卫): 标准卷未交卷 或 极速练习进行中 → 视为"答题中"
+  function navBusy(){
+    if (window.PRACTICE && PRACTICE.active) return true;
+    return !!(quiz && !quiz.submitted && navNow === 'learn');
+  }
+  window.quitAsk = function (){
+    if (!navBusy()){ eduNav('home'); return; }
+    document.getElementById('eduMaskQuit').style.display = 'flex';
+  };
+  window.quitCancel = function (){
+    document.getElementById('eduMaskQuit').style.display = 'none';
+  };
+  window.quitConfirm = function (){
+    quitCancel();
+    if (window.PRACTICE && PRACTICE.active){
+      stopPractice();
+      PRACTICE.active = false;
+      if (PRACTICE.timer) clearInterval(PRACTICE.timer);
+    } else if (quiz && !quiz.submitted){
+      clearQuizState();
+    }
+    eduNav('home');
+    renderNav();
+  };
   window.switchKid = function (id){
     window.eduKids.setActive(id);
     restoredQuizSubj = null;  // 换孩子后可还原其各自的进行中卷子
@@ -2239,6 +2426,9 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
   document.addEventListener('click', function (e){
     var wrap = document.getElementById('kidPickWrap');
     if (wrap && !wrap.contains(e.target)) document.getElementById('kidPickDrop').classList.remove('show');
+    var moreWrap = document.getElementById('moreMenuBtn');
+    var moreDrop = document.getElementById('moreMenuDrop');
+    if (moreDrop && moreWrap && !moreWrap.contains(e.target) && !moreDrop.contains(e.target)) moreDrop.classList.remove('show');
   });
 
   // ======================= 教育娱乐模式：学习模式(幼小衔接/快乐乐园) =======================
@@ -2310,12 +2500,16 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
     saveNav();
     for (var k in eduPages) document.getElementById(eduPages[k]).style.display = (k === p) ? '' : 'none';
     var kb = document.getElementById('kidBar');
-    if (kb) kb.style.display = (p === 'learn' || p === 'wish') ? 'flex' : 'none';
+    if (kb) kb.style.display = (p === 'home' || p === 'learn' || p === 'wish') ? 'flex' : 'none';
+    var back = document.getElementById('kbBack');
+    if (back) back.style.display = (p === 'learn') ? '' : 'none';
+    var mode = document.getElementById('modeToggleWrap');
+    if (mode) mode.style.display = (p === 'home') ? '' : 'none';
     anim(document.getElementById(eduPages[p]));
-    if (p === 'home') renderHome();
-    if (p === 'wish'){ loadAllState(); renderStars(); renderWish(); }
+    if (p === 'home'){ renderKidBar(); renderHome(); }
+    if (p === 'wish'){ loadAllState(); renderStars(); renderStarBar(); renderWish(); }
     if (p === 'badges'){ loadAllState(); renderBadges(); }
-    if (p === 'stats'){ loadAllState(); renderStars(); renderStats(); }
+    if (p === 'stats'){ loadAllState(); renderStars(); renderStarBar(); renderStats(); }
     if (p === 'learn'){
       renderKidBar();
       loadAllState();
@@ -2377,8 +2571,10 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
           icon: '<span class="emo">' + g.emoji + '</span>', label: g.name });
       });
     }
+    var busy = navBusy();
     nav.innerHTML = items.map(function (it){
-      return '<button type="button" class="edu-nav-btn' + (it.act ? ' active' : '') + '" onclick="' + it.oc + '">' +
+      var cls = 'edu-nav-btn' + (it.act ? ' active' : '') + (busy ? ' disabled' : '');
+      return '<button type="button" class="' + cls + '"' + (busy ? ' disabled' : '') + ' onclick="' + it.oc + '">' +
         it.icon + '<span>' + it.label + '</span></button>';
     }).join('');
   }
@@ -2434,80 +2630,474 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
       wishTotal: wishes.length, wishDone: wishDone
     };
   }
+  // 宝贝头像 emoji: 数据只有性别 → 默认映射; 若档案里有 avatar 字段则用之
+  function kidAvatar(k){
+    if (k && k.avatar) return k.avatar;
+    return k && k.gender === 'female' ? '👧' : '👦';
+  }
+  function kidLevel(k){
+    return Math.max(1, window.eduKids.ageOf(k && k.birthYear));
+  }
+  // 首页宝贝状态(学习中/未开始)与简报数据
+  function homeKidData(k){
+    var s = kidSummary(k.id);
+    var stL = load(LS_BASE + '_' + String(k.id)) || { badges: {}, wishes: [] };
+    var badKeys = Object.keys(stL.badges || {}).filter(function(x){ return BADGES[x]; });
+    var wList = stL.wishes || [];
+    var wDone = wList.filter(function(w){ return w.done; }).length;
+    return {
+      stars: s.stars || 0, today: s.today || 0, pct: s.pct || 0, submits: s.submits || 0,
+      records: s.n || 0, badges: badKeys.length, wishes: wList.length, wishDone: wDone
+    };
+  }
+  // 连续打卡天数: 从今天(或昨天)往前连续有做题记录的天数
+  function loginStreak(recs){
+    var daySet = {};
+    recs.forEach(function(r){ if (r.date) daySet[r.date] = 1; });
+    var d = new Date();
+    var streak = 0;
+    // 今天还没做题也从昨天开始算
+    if (!daySet[keyOf(d)]) d = new Date(d.getTime() - 86400000);
+    while (daySet[keyOf(d)]){
+      streak++;
+      d = new Date(d.getTime() - 86400000);
+    }
+    return streak;
+  }
+  function keyOf(d){
+    return pad(d.getFullYear()) + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
+  // 今日正确率: 只看今天记录
+  function todayAccuracy(recs){
+    var n = 0, ok = 0;
+    var t = todayStr();
+    recs.forEach(function(r){ if (r.date === t){ n++; if (r.ok) ok++; } });
+    return n ? Math.round(ok * 100 / n) : 0;
+  }
+  // 首页驾驶舱汇总(当前选中宝贝)
+  function homeDashData(act){
+    var sk = kidSummary(act.id);
+    var stL = load(LS_BASE + '_' + String(act.id)) || { records: [], badges: {}, wishes: [] };
+    var recs = stL.records || [];
+    var today = (stL.usage && stL.usage.date === todayStr()) ? (stL.usage.n || 0) : 0;
+    var goal = 10;
+    var st = curSettings();
+    if (st && st.dailyQ && st.dailyQ > 0) goal = st.dailyQ;
+    var pctToday = todayAccuracy(recs);
+    var overall = recs.length ? Math.round(recs.filter(function(r){ return r.ok; }).length * 100 / recs.length) : 0;
+    var pct = today ? pctToday : overall;
+    var badKeys = Object.keys(stL.badges || {}).filter(function(x){ return BADGES[x]; });
+    var wList = stL.wishes || [];
+    var wDone = wList.filter(function(w){ return w.done; }).length;
+    // 识字量: zh/zi 答对题数
+    var zishi = recs.filter(function(r){ return r.subj === 'zh' && r.type === 'zi' && r.ok; }).length;
+    // 待复习错题字(错词 prompt)
+    var due = dueWrongListFor(stL).slice(0, 3).map(function(w){ return String(w.prompt).trim().charAt(0); });
+    // 最近7天数据点
+    var days = [];
+    var now = new Date();
+    for (var d = 6; d >= 0; d--){
+      var t = new Date(now.getTime() - d * 86400000);
+      var key = keyOf(t);
+      days.push({ key: key, label: (t.getMonth() + 1) + '/' + t.getDate(), n: 0 });
+    }
+    var dayMap = {};
+    days.forEach(function(x){ dayMap[x.key] = x; });
+    recs.forEach(function(r){ if (dayMap[r.date]) dayMap[r.date].n++; });
+    var maxN = 1;
+    days.forEach(function(x){ maxN = Math.max(maxN, x.n || 1); });
+    var prevWeek = 0;
+    for (var p = 7; p <= 13; p++){
+      var tp = new Date(now.getTime() - p * 86400000);
+      recs.forEach(function(r){ if (r.date === keyOf(tp)) prevWeek++; });
+    }
+    return {
+      today: today, goal: goal, pct: pct, mins: minsUsedP(act), honor: badKeys.length,
+      streak: loginStreak(recs), badges: badKeys.length, zishi: zishi,
+      dueChars: due.slice(0, 3), dueN: dueWrongListFor(stL).length,
+      days: days, maxN: maxN, prevWeek: prevWeek, wList: wList, wDone: wDone, stars: sk.stars || 0
+    };
+  }
+  function dueWrongListFor(stL){
+    var errs = (stL.wrong) || [];
+    var end = endOfToday();
+    return errs.filter(function(w){ return w.nextDue === undefined || w.nextDue <= end; })
+      .sort(function(a, b){ return (a.nextDue || 0) - (b.nextDue || 0); });
+  }
+  function minsUsedP(kid){
+    var stL = load(LS_BASE + '_' + String(kid.id)) || { usage: {} };
+    var u = stL.usage || {};
+    if (u.date !== todayStr()) return 0;
+    return Math.ceil((u.secs || 0) / 60);
+  }
+  // 迷你折线图(SVG): 用7天数据画折线/面积
+  function miniLine(days, maxN, color){
+    var w = 100, h = 34;
+    var pts = days.map(function(x, i){
+      var v = (x.n || 0) / (maxN || 1);
+      var px = i * (w / (days.length - 1 || 1));
+      var py = h - 4 - v * (h - 8);
+      return px.toFixed(1) + ',' + py.toFixed(1);
+    }).join(' ');
+    var area = '0,' + h + ' ' + pts + ' ' + w + ',' + h;
+    return '<svg viewBox="0 0 ' + w + ' ' + h + '" class="mini-line" aria-hidden="true">' +
+      '<polygon points="' + area + '" fill="' + color + '" opacity="0.18"></polygon>' +
+      '<polyline points="' + pts + '" fill="none" stroke="' + color + '" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></polyline>' +
+      '</svg>';
+  }
+  // 今日报告卡: 完成进度 + 激励语
+  function todayQuote(k, d){
+    var name = esc(k.name || '宝贝');
+    if (d.done >= d.goal) return '🎉 今日目标已达成，' + name + ' 太棒了，明天继续闯关攒星星！';
+    if (d.remaining > 0) return '💪 再答 <b>' + d.remaining + '</b> 题就能突破今日目标，加油！';
+    return '从第一题开始，答对题 + 攒星星，' + name + ' 冲鸭！';
+  }
   function renderHome(){
     var body = document.getElementById('eduHomeBody');
     if (!body) return;
     var kids = window.eduKids.all();
     var active = window.eduKids.active();
-    var head = '<div class="edu-head"><div><div class="eh-title">🧒 我的宝贝们</div>' +
-      '<div class="eh-sub">选择孩子开始学习吧</div></div>' +
-      '<button type="button" class="parent-btn' + (parentUnlocked ? ' unlocked' : '') + '" id="parentModeBtn" onclick="openParentMode()"><i class="bi bi-person-gear"></i> 家长模式</button></div>';
-    var all = kids.map(function(k){
-      var age = window.eduKids.ageOf(k.birthYear);
-      var tier = window.eduKids.tierOf(age);
-      var s = kidSummary(k.id);
-      var isActive = active && active.id === k.id;
-      var wst = load(LS_BASE + '_' + String(k.id)) || { stars: 0, wishes: [], wishLog: [] };
-      var wList = wst.wishes || [];
-      var wDone = wList.filter(function(w){ return w.done; }).length;
-      var wOpen = wList.filter(function(w){ return !w.done; });
-      var wNext = null;
-      wOpen.forEach(function(w){ if (!wNext || w.cost < wNext.cost) wNext = w; });
-      var wishHtml;
-      if (!wList.length){
-        wishHtml = '<div class="kk-wish empty"><span class="kk-wish-title">⭐ 星愿未设置</span>' +
-          '<button type="button" class="kk-btn tiny" onclick="event.stopPropagation();addWishFor(\''+k.id+'\')">➕ 添加星愿</button></div>';
-      } else {
-        var wpct = wList.length ? Math.round(wDone / wList.length * 100) : 0;
-        var gapMsg = wOpen.length
-          ? (wNext ? '距「'+esc(wNext.name)+'」（'+wNext.cost+' 星）还差 <b>'+Math.max(0, wNext.cost - (wst.stars||0))+'</b> 星'
-             : '还有 '+wOpen.length+' 个心愿待兑换')
-          : '🎉 全部心愿已兑换';
-        wishHtml = '<div class="kk-wish">' +
-          '<div class="kk-wish-head"><span class="kk-wish-title">⭐ 星愿进度</span>' +
-            '<span class="kk-wish-badge">'+wDone+'/'+wList.length+'</span>' +
-            '<button type="button" class="kk-btn tiny ghost" onclick="event.stopPropagation();addWishFor(\''+k.id+'\')">➕ 添加</button></div>' +
-          '<div class="kw-bar"><div class="kw-bar-fill" style="width:'+wpct+'%;"></div></div>' +
-          '<div class="kk-wish-sub">'+gapMsg+'</div></div>';
-      }
-      // 荣誉徽章(已解锁)
-      var stL = load(LS_BASE + '_' + String(k.id)) || {};
-      var bad = stL.badges || {};
-      var badKeys = Object.keys(bad).filter(function(x){ return BADGES[x]; });
-      var badgeHtml = badKeys.length
-        ? '<div class="kk-badges"><span class="kk-badge-title">🏅 荣誉</span>' +
-            badKeys.slice(0, 8).map(function(x){ return '<span class="kk-badge" id="homeBadge-'+x+'" title="'+esc(BADGES[x][1])+'：'+esc(BADGES[x][2])+'">'+BADGES[x][0]+'</span>'; }).join('') +
-            (badKeys.length > 8 ? '<span class="kk-badge more">+'+(badKeys.length-8)+'</span>' : '') +
-          '</div>'
-        : '<div class="kk-badges empty"><span class="kk-badge-title">🏅 努力闯关，解锁更多荣誉</span></div>';
-      return '<div class="kid-card' + (isActive ? ' on' : '') + '" onclick="kidEnter(\'' + k.id + '\')">' +
-        '<div class="kk-top">' +
-          '<span class="kk-ava' + (k.gender === 'female' ? ' b' : '') + '">' + window.eduKids.genderIcon(k.gender) + '</span>' +
-          '<div class="kk-info">' +
-            '<div class="kk-name">' + esc(k.name || '宝贝') + (isActive ? ' <span class="kk-cur">学习中</span>' : '') + '</div>' +
-            '<div class="kk-sub">' + age + ' 岁 · ' + window.eduKids.tierLabel(tier) + '</div>' +
-          '</div>' +
-          '<span class="kk-stars"><i class="bi bi-star-fill"></i> ' + (s.stars || 0) + '</span>' +
-        '</div>' +
-        '<div class="kk-stats">' +
-          '<span>今日 ' + s.today + ' 题</span><span>正确率 ' + s.pct + '%</span>' +
-        '</div>' +
-        badgeHtml +
-        wishHtml +
-        '<div class="kk-actions">' +
-          '<button type="button" class="kk-btn" onclick="event.stopPropagation();kidEnter(\'' + k.id + '\')">🚀 开始学习</button>' +
-          '<button type="button" class="kk-btn ghost" onclick="event.stopPropagation();kidEditById(\'' + k.id + '\')">✏️ 编辑</button>' +
-        '</div>' +
-      '</div>';
+
+    // ---- 空状态 ----
+    if (!kids.length){
+      body.innerHTML = '<div class="home-hero">' +
+        '<div class="edu-hero empty-hero"><div style="font-size:2.6rem;line-height:1;">👶</div>' +
+        '<h2 style="margin:10px 0 4px;">欢迎来到教育乐园</h2>' +
+        '<p style="color:var(--edu-muted);margin:0;">先登记一个宝贝，就能开始闯关攒星星咯</p>' +
+        '<button type="button" class="home-cta" onclick="kidAdd()">➕ 添加宝贝</button></div></div>';
+      anim(body);
+      return;
+    }
+
+    var act = active || kids[0];
+    if (!active) window.eduKids.setActive(act.id);
+    var d = homeDashData(act);
+    var done = Math.min(d.today, d.goal);
+    var remaining = Math.max(0, d.goal - d.today);
+    var barW = Math.min(100, d.pct);
+
+    // ---- 切换宝贝: 横向滚动卡片 ----
+    var carousel = kids.map(function(k){
+      var on = k.id === act.id;
+      return '<div class="hc-card' + (on ? ' on' : '') + '" onclick="homePickKid(\''+k.id+'\')">' +
+        '<span class="hc-ava">' + kidAvatar(k) + '</span>' +
+        '<span class="hc-name">' + esc(k.name || '宝贝') + '</span>' +
+        '<span class="hc-state' + (on ? ' study' : '') + '">' + (on ? '✓ 学习中' : '未开始') + '</span>' +
+        '<button type="button" class="hc-edit" onclick="event.stopPropagation();homeEditKid(\''+k.id+'\')" aria-label="编辑宝贝">✎</button>' +
+        '</div>';
     }).join('');
-    var add = '<div class="kid-card add" onclick="kidAdd()"><div class="kk-add"><i class="bi bi-plus-lg"></i><span>加个小宝贝</span></div></div>';
-    var hero = kids.length ? '' :
-      '<div class="edu-hero empty-hero"><div style="font-size:2.6rem;line-height:1;">👶</div>' +
-      '<h2 style="margin:10px 0 4px;">欢迎来到教育乐园</h2>' +
-      '<p style="color:var(--edu-muted);margin:0;">先登记一个宝贝，就能开始闯关攒星星咯</p></div>';
-    body.innerHTML = head + hero + '<div class="kid-grid">' + (kids.length ? all + add : add) + '</div>';
+    var addCard = '<div class="hc-card add" onclick="kidAdd()"><span class="hc-add"><i class="bi bi-plus-lg"></i><span>添加宝贝</span></span></div>';
+    var switchHTML = '<section class="home-sec">' +
+      '<div class="home-sec-head"><h3>👨‍👩‍👧‍👦 切换宝贝</h3>' +
+      '<a href="javascript:void(0)" class="mgr-link" onclick="openKidsMgr()">👤 管理宝贝</a></div>' +
+      '<div class="hc-scroll">' + carousel + addCard + '</div>' +
+      '</section>';
+
+    // ---- 今日学习报告卡(驾驶舱核心) ----
+    var streakBadge = d.streak > 0 ? '<span class="rc-streak">🔥 连续打卡 ' + d.streak + ' 天</span>' : '';
+    var report = '<section class="home-sec">' +
+      '<div class="report-card">' +
+        '<div class="rc-head"><span class="rc-title">📊 ' + esc(act.name || '宝贝') + '今日报告</span>' +
+          streakBadge + '<span class="rc-lv">Lv.' + kidLevel(act) + '</span></div>' +
+        '<div class="rc-kpis rc-kpis-4">' +
+          '<span class="rc-kpi"><b>' + d.today + '题</b><i>今日完成</i></span>' +
+          '<span class="rc-kpi"><b>' + d.pct + '%</b><i>正确率</i></span>' +
+          '<span class="rc-kpi"><b>' + d.mins + '分</b><i>学习时长</i></span>' +
+          '<span class="rc-kpi"><b>' + d.honor + '次</b><i>荣誉获得</i></span>' +
+        '</div>' +
+        '<div class="rc-bar"><i style="width:' + barW + '%;"></i></div>' +
+        '<p class="rc-quote">' + todayQuote(act, { done: done, goal: d.goal, remaining: remaining, pct: d.pct }) + '</p>' +
+        '<button type="button" class="home-cta" onclick="homeStartLearn()">🚀 继续学习</button>' +
+        '<button type="button" class="rc-more" onclick="openReport()">📈 查看完整学习报告 &gt;</button>' +
+      '</div>' +
+      '</section>';
+
+    // ---- 看板核心指标预览: 本周趋势 / 错题本 / 识字量 ----
+    var trendUp = d.prevWeek ? Math.round(Math.max(0, (d.days.reduce(function(a,x){ return a + (x.n||0); },0) - d.prevWeek)) / Math.max(1,d.prevWeek) * 100) : 0;
+    var trendTxt = d.prevWeek ? (trendUp >= 0 ? '较上周 ↑' + trendUp + '%' : '较上周 ↓' + Math.abs(trendUp) + '%') : '本周开跑',
+        trendColor = trendUp >= 0 ? '#4D96FF' : '#ff6b6b';
+    var dueChips = d.dueChars.length
+      ? d.dueChars.map(function(c){ return '<span class="pv-char">' + esc(c) + '</span>'; }).join('')
+      : '<span class="pv-empty">无</span>';
+    var preview = '<section class="home-sec">' +
+      '<div class="home-sec-head"><h3>📋 学习看板</h3></div>' +
+      '<div class="pv-grid">' +
+        '<button type="button" class="pv-card" onclick="openDetail(\'trend\')">' +
+          '<div class="pv-name">📈 本周趋势</div>' +
+          miniLine(d.days, d.maxN, trendColor) +
+          '<div class="pv-foot"><span>' + trendTxt + '</span><b>点击查看 ▶</b></div>' +
+        '</button>' +
+        '<button type="button" class="pv-card" onclick="openDetail(\'wrong\')">' +
+          '<div class="pv-name">📝 错题本</div>' +
+          '<div class="pv-chars">' + dueChips + '</div>' +
+          '<div class="pv-foot"><span>需复习 ' + d.dueN + ' 个</span><b>点击查看 ▶</b></div>' +
+        '</button>' +
+        '<button type="button" class="pv-card" onclick="openDetail(\'zishi\')">' +
+          '<div class="pv-name">📚 识字量</div>' +
+          '<div class="pv-big">' + d.zishi + ' <small>字</small></div>' +
+          '<div class="pv-foot"><span>累计识字</span><b>点击查看 ▶</b></div>' +
+        '</button>' +
+      '</div>' +
+      '</section>';
+
+    // ---- 底部功能区: 荣誉墙 + 星票 ----
+    var wtx = !d.wList.length
+      ? '未设置 ▶'
+      : (d.wDone === d.wList.length ? '全部已兑换 ▶' : '已兑换 ' + d.wDone + '/' + d.wList.length + ' ▶');
+    var footer = '<section class="home-sec">' +
+      '<div class="quick-grid">' +
+        '<button type="button" class="quick-card" onclick="openDetail(\'honor\')">' +
+          '<span class="qc-emo">🏆</span><span class="qc-name">荣誉墙</span><span class="qc-sub">获得 ' + d.honor + ' 次</span>' +
+        '</button>' +
+        '<button type="button" class="quick-card" onclick="openDetail(\'wish\')">' +
+          '<span class="qc-emo">⭐</span><span class="qc-name">星票</span><span class="qc-sub">' + esc(wtx) + '</span>' +
+        '</button>' +
+      '</div>' +
+      '</section>';
+
+    body.innerHTML = switchHTML + report + preview + footer;
     anim(body);
   }
+
+  // ---- 看板详情弹窗 ----
+  window.openDetail = function (which){
+    var kid = window.eduKids.active();
+    if (!kid){ toast('请先选择宝贝'); return; }
+    loadAllState();
+    var stL = load(LS_BASE + '_' + String(kid.id)) || { records: [], badges: {}, wishes: [] };
+    var recs = stL.records || [];
+    var title = document.getElementById('detailTitle');
+    var sub = document.getElementById('detailSub');
+    var body = document.getElementById('detailBody');
+    var d = homeDashData(kid);
+    var now = new Date();
+    if (which === 'trend'){
+      title.textContent = '📈 本周趋势';
+      sub.textContent = '最近 7 天答题数量';
+      var days = [];
+      for (var i = 6; i >= 0; i--){
+        var t = new Date(now.getTime() - i * 86400000);
+        var key = keyOf(t);
+        var label = (t.getMonth() + 1) + '月' + t.getDate() + '日';
+        var n = recs.filter(function(r){ return r.date === key; }).length;
+        days.push({ label: label, n: n, cur: i === 0 });
+      }
+      var maxN = 1;
+      days.forEach(function(x){ maxN = Math.max(maxN, x.n || 1); });
+      body.innerHTML = '<div class="dt-line">' + days.map(function(x){
+        var hgt = Math.max(4, Math.round(x.n / maxN * 60));
+        return '<div class="dt-col' + (x.cur ? ' cur' : '') + '"><i style="height:' + hgt + 'px;"></i><span>' + x.label + '</span><b>' + x.n + '</b></div>';
+      }).join('') + '</div>' +
+      '<div class="dt-total">本周共答 <b>' + days.reduce(function(a, x){ return a + (x.n || 0); }, 0) + '</b> 题</div>';
+    } else if (which === 'wrong'){
+      title.textContent = '📝 错题本';
+      var due = dueWrongListFor(stL);
+      sub.textContent = '待复习 ' + due.length + ' 个错题';
+      body.innerHTML = due.slice(0, 20).map(function(w){
+        var shown = String(w.correct).split('|').join(' → ');
+        return '<div class="dt-row"><span class="si-emoji">📕</span><div><div class="dt-w">'+esc(w.prompt)+'</div><div class="dt-wm">'+(SUBJ_LABEL[w.subj]||w.subj)+' · 正确答案 '+esc(shown)+'</div></div></div>';
+      }).join('') || '<p class="muted" style="text-align:center;">太棒了，没有待复习的错题 🎉</p>';
+    } else if (which === 'zishi'){
+      title.textContent = '📚 识字量';
+      var totalZ = recs.filter(function(r){ return r.subj === 'zh' && r.type === 'zi'; }).length;
+      var zishi = recs.filter(function(r){ return r.subj === 'zh' && r.type === 'zi' && r.ok; }).length;
+      sub.textContent = '累计认读 ' + zishi + ' / ' + totalZ + ' 个汉字';
+      // 本周新增识字
+      var wkZ = 0;
+      for (var w2 = 0; w2 < 7; w2++){ var tw = new Date(now.getTime() - w2 * 86400000); if (recs.some(function(r){ return r.date === keyOf(tw) && r.subj==='zh' && r.type==='zi' && r.ok; })) wkZ++; }
+      body.innerHTML = '<div class="dt-big">' + zishi + ' <small>字</small></div>' +
+        '<p class="muted" style="text-align:center;margin:4px 0 12px;">本周 +' + wkZ + ' 字</p>' +
+        '<div class="sbar" style="display:block;height:10px;border-radius:999px;background:var(--edu-border);overflow:hidden;"><i style="display:block;height:100%;width:'+Math.min(100,totalZ?Math.round(zishi/totalZ*100):0)+'%;background:linear-gradient(90deg,#ffd93d,#ff9f43);"></i></div>' +
+        '<p class="muted" style="text-align:center;margin:8px 0 0;">坚持每日识字，向识字小达人进发</p>';
+    } else if (which === 'honor'){
+      title.textContent = '🏆 荣誉墙';
+      var bad = stL.badges || {};
+      var badKeys = Object.keys(bad).filter(function(x){ return BADGES[x]; });
+      sub.textContent = '已获得 ' + badKeys.length + ' 枚徽章';
+      body.innerHTML = '<div class="dt-badges">' +
+        (badKeys.length ? badKeys.map(function(x){
+          return '<div class="dt-badge"><span>' + BADGES[x][0] + '</span><div><b>' + esc(BADGES[x][1]) + '</b><i>' + esc(BADGES[x][2]) + '</i></div></div>';
+        }).join('') : '<p class="muted" style="text-align:center;">努力闯关，解锁第一枚徽章吧！</p>') +
+        '</div>';
+    } else if (which === 'wish'){
+      title.textContent = '⭐ 星票';
+      var wList = stL.wishes || [];
+      sub.textContent = '当前 ' + (d.stars) + ' 星 · ' + '已兑换 ' + wList.filter(function(w){ return w.done; }).length + '/' + wList.length;
+      body.innerHTML = '<div class="dt-big">⭐ ' + d.stars + ' <small>星</small></div>' +
+        '<div class="dt-wl">' + (wList.map(function(w){
+          return '<div class="dt-row"><span class="si-emoji">' + (w.e||'🎁') + '</span><div><div class="dt-w">' + esc(w.name) + '</div><div class="dt-wm">' + w.cost + ' 星 · ' + (w.done ? '✅ 已兑换' : '未兑换') + '</div></div></div>';
+        }).join('') || '<p class="muted" style="text-align:center;">还没有星票，可在「星愿」里设置</p>') + '</div>' +
+        '<button type="button" class="home-cta" style="margin-top:12px;" onclick="closeMask(\'eduMaskDetail\');eduNav(\'wish\')">去星愿页设置</button>';
+    }
+    document.getElementById('eduMaskDetail').style.display = 'flex';
+  };
+
+  // 首页交互: 切换宝贝
+  window.homePickKid = function (id){
+    window.eduKids.setActive(id);
+    loadAllState();
+    renderHome();
+    renderKidBar();
+  };
+  // 首页交互: 开始学习(跳转闯关)
+  window.homeStartLearn = function (){
+    kidEnter(window.eduKids.active() && window.eduKids.active().id);
+  };
+  // 首页交互: ✎ 编辑宝贝详情
+  var editKidId = null;
+  var editKidAva = '🧒';
+  window.homeEditKid = function (id){
+    var kid = window.eduKids.byId(id);
+    if (!kid) return;
+    editKidId = id;
+    editKidAva = kidAvatar(kid);
+    populateYears();
+    document.getElementById('editNameInput').value = kid.name || '';
+    document.getElementById('editYearInput').value = String(kid.birthYear);
+    document.querySelectorAll('#editAvaPick button').forEach(function(b){
+      b.classList.toggle('pick', b.getAttribute('data-a') === editKidAva);
+    });
+    document.getElementById('eduMaskKidEdit').style.display = 'flex';
+  };
+  window.pickEditAva = function (a){
+    editKidAva = a;
+    document.querySelectorAll('#editAvaPick button').forEach(function(b){
+      b.classList.toggle('pick', b.getAttribute('data-a') === a);
+    });
+  };
+  window.kidEditSave = function (){
+    var name = (document.getElementById('editNameInput').value || '').trim() || '宝贝';
+    var birthYear = parseInt(document.getElementById('editYearInput').value, 10);
+    if (!birthYear){ toast('请选择年龄'); return; }
+    var kid = window.eduKids.byId(editKidId);
+    if (kid){
+      window.eduKids.update(Object.assign({}, kid, { name: name, birthYear: birthYear, avatar: editKidAva }));
+    }
+    document.getElementById('eduMaskKidEdit').style.display = 'none';
+    renderHome();
+    renderKidBar();
+    toast('宝贝资料已更新');
+  };
+  // 管理宝贝: 列表(含顺序/删除)
+  window.openKidsMgr = function (){
+    var kids = window.eduKids.all();
+    var list = document.getElementById('kidsMgrList');
+    if (!list) return;
+    list.innerHTML = kids.map(function(k, i){
+      return '<div class="mgr-row" data-id="'+k.id+'">' +
+        '<span class="mgr-ava">' + kidAvatar(k) + '</span>' +
+        '<span class="mgr-name">' + esc(k.name || '宝贝') + ' · ' + window.eduKids.ageOf(k.birthYear) + '岁</span>' +
+        '<span class="mgr-edit" onclick="homeEditKid(\''+k.id+'\')" title="编辑">✎</span>' +
+        '<button type="button" class="mgr-del" onclick="mgrDeleteKid(\''+k.id+'\')">删除</button>' +
+        '</div>';
+    }).join('') || '<p class="muted" style="text-align:center;">还没有宝贝</p>';
+    document.getElementById('eduMaskKidsMgr').style.display = 'flex';
+  };
+  window.mgrDeleteKid = function (id){
+    var kids = window.eduKids.all();
+    var k = null;
+    kids.forEach(function(x){ if (x.id === id) k = x; });
+    if (!k) return;
+    if (!window.confirm('确定删除「' + (k.name || '宝贝') + '」？\n该孩子的学习记录 / 星星 / 错题 / 星愿将一并删除，且不可恢复。')) return;
+    window.eduKids.remove(id);
+    try {
+      localStorage.removeItem(LS_BASE + '_' + id);
+      localStorage.removeItem(STR_BASE + '_' + id);
+      localStorage.removeItem(EDU_PREF_PREFIX + id);
+    } catch (e) {}
+    renderKidsMgrList();
+    renderHome();
+    renderKidBar();
+    toast('已删除宝贝');
+  };
+  function renderKidsMgrList(){
+    var list = document.getElementById('kidsMgrList');
+    if (!list) return;
+    var kids = window.eduKids.all();
+    list.innerHTML = kids.map(function(k){
+      return '<div class="mgr-row" data-id="'+k.id+'">' +
+        '<span class="mgr-ava">' + kidAvatar(k) + '</span>' +
+        '<span class="mgr-name">' + esc(k.name || '宝贝') + ' · ' + window.eduKids.ageOf(k.birthYear) + '岁</span>' +
+        '<span class="mgr-edit" onclick="homeEditKid(\''+k.id+'\')" title="编辑">✎</span>' +
+        '<button type="button" class="mgr-del" onclick="mgrDeleteKid(\''+k.id+'\')">删除</button>' +
+        '</div>';
+    }).join('') || '<p class="muted" style="text-align:center;">还没有宝贝</p>';
+  }
+  // 完整学习报告: 复用 stats 数据做弹窗看板(周进度/识字量/错题/Dock之外的新折线)
+  window.openReport = function (){
+    var kid = window.eduKids.active();
+    if (!kid) return;
+    loadAllState();
+    var recs = state.records || [];
+    var total = recs.length;
+    var okCount = recs.filter(function(r){ return r.ok; }).length;
+    var rate = total ? Math.round(okCount * 100 / total) : 0;
+    var stars = state.stars || 0;
+    var wrong = (state.wrong || []).length;
+    var badges = Object.keys(state.badges || {}).filter(function(k2){ return BADGES[k2]; }).length;
+    var maxCombo = state.maxCombo || 0;
+    var u = usageForToday();
+    // 识字量: 识字(zh/zi)类目的累计答对题数
+    var zishi = recs.filter(function(r){ return r.subj === 'zh' && r.type === 'zi' && r.ok; }).length;
+    // 最近7天(折线图: 每日答题数)
+    var days = [];
+    var now = new Date();
+    for (var d = 6; d >= 0; d--){
+      var t = new Date(now.getTime() - d * 86400000);
+      var key = pad(t.getFullYear()) + '-' + pad(t.getMonth() + 1) + '-' + pad(t.getDate());
+      var lbl = (t.getMonth() + 1) + '/' + t.getDate();
+      var dayRecs = recs.filter(function(r){ return r.date === key; });
+      days.push({ label: lbl, n: dayRecs.length, ok: dayRecs.filter(function(r){ return r.ok; }).length, cur: d === 0 });
+    }
+    var maxN = 1;
+    days.forEach(function(x){ maxN = Math.max(maxN, x.n || 1); });
+    var line = days.map(function(x){
+      var h = Math.max(3, Math.round(x.n / maxN * 60));
+      return '<div class="rp-col' + (x.cur ? ' cur' : '') + '" title="'+x.label+' 答 '+x.n+' 题">' +
+        '</div>';
+    }).join('');
+    // 待复习错题
+    var dueList = dueWrongList().slice(0, 6);
+    var dueHTML = dueList.length
+      ? dueList.map(function(w){
+          var shown = String(w.correct).split('|').join(' → ');
+          return '<div class="rp-wrong"><span>📕</span><span class="rw-t">'+esc(w.prompt)+'</span><span class="rw-m">'+(SUBJ_LABEL[w.subj]||w.subj)+' · '+esc(shown)+'</span></div>';
+        }).join('')
+      : '<p class="muted">今天没有待复习的题目 🎉</p>';
+    document.getElementById('reportTitle').textContent = (kid.name || '宝贝') + ' 学习报告';
+    document.getElementById('reportSub').textContent = todayStr() + ' · ' + (u.n||0) + ' 题 · ' + (minsUsed()) + ' 分钟';
+    document.getElementById('reportBody').innerHTML =
+      '<div class="rp-kpis">' +
+        '<div class="rp-kpi"><b>'+total+'</b><i>累计答题</i></div>' +
+        '<div class="rp-kpi"><b>'+rate+'%</b><i>累计正确率</i></div>' +
+        '<div class="rp-kpi"><b>⭐ '+stars+'</b><i>星星</i></div>' +
+        '<div class="rp-kpi"><b>'+zishi+'</b><i>识字量</i></div>' +
+        '<div class="rp-kpi"><b>'+badges+'</b><i>徽章</i></div>' +
+        '<div class="rp-kpi"><b>'+maxCombo+'</b><i>连对</i></div>' +
+      '</div>' +
+      '<div class="rp-card"><h4>📈 最近 7 天答题趋势</h4><div class="rp-line">' + line + '</div>' +
+        '<div class="rp-day-labels">' + days.map(function(x){ return '<span>' + x.label + '</span>'; }).join('') + '</div></div>' +
+      '<div class="rp-card"><h4>🎯 分科正确率</h4>' + subjRowsHtml() + '</div>' +
+      '<div class="rp-card"><h4>🧠 今日待复习错题</h4>' + dueHTML + '</div>';
+    document.getElementById('eduMaskReport').style.display = 'flex';
+  };
+  function subjRowsHtml(){
+    var recs = state.records || [];
+    var bySubj = {};
+    recs.forEach(function(r){ (bySubj[r.subj] = bySubj[r.subj] || { n: 0, ok: 0 }).n++; if (r.ok) bySubj[r.subj].ok++; });
+    var rows = Object.keys(bySubj).map(function(s){
+      var v = bySubj[s];
+      var p = Math.round(v.ok * 100 / v.n);
+      return '<div class="rp-subj"><b>' + (SUBJ_LABEL[s] || s) + '</b>' +
+        '<span class="sbar"><i style="width:'+p+'%;"></i></span><span>'+p+'%</span></div>';
+    }).join('');
+    return rows || '<p class="muted">暂无做题记录</p>';
+  }
+  function closeMask(id){
+    var el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  }
+  window.closeMask = closeMask;
   // 为指定孩子添加星愿(家长口令后跳转星愿页填写表单)
   window.addWishFor = function (id){
     requireParent(function(){
@@ -2701,6 +3291,10 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
           return '<div class="wish-log-item"><span>' + l.date + '</span><span>' + esc(l.name) + '</span><span>−' + l.cost + ' 星</span></div>';
         }).join('') + '</div></div>';
     }
+    var set = curSettings();
+    var setSel = function(candidates, cur){
+      return candidates.map(function(o){ return '<option value="'+o.v+'"'+(String(cur)===String(o.v)?' selected':'')+'>'+o.l+'</option>'; }).join('');
+    };
     html += parentUnlocked
       ? '<div class="edu-card" id="wishFormWrap"><h4>🎁 新增星愿（家长）</h4>' +
         '<div class="wish-form">' +
@@ -2709,14 +3303,50 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
           '<div class="edu-field" style="flex:0 0 92px;"><label>所需星星</label><input type="number" id="wishCost" min="1" max="999" value="10"></div>' +
         '</div>' +
         '<div class="edu-actions"><button type="button" class="btn-soft" style="flex:1;" onclick="wishAdd()">添加星愿</button></div></div>'+
-      '<div class="edu-card" style="text-align:center;"><h4>⚙️ 家长控制</h4>' +
-        '<p class="muted" style="margin:6px 0 12px;">口算范围 / 进退位 / 乘法表 / 每日上限 / 显示项 / 口令</p>' +
-        '<button type="button" class="btn-soft" onclick="openSettings()">打开家长控制</button></div>'
+      '<div class="edu-card"><h4>⚙️ 家长控制</h4>' +
+        '<p class="em-sub">每个孩子的学习设置独立保存 · 保存后立即生效</p>' +
+        '<div class="edu-field"><label>口算范围</label><select id="setRangeI">' +
+          setSel([{v:0,l:'跟随难度（自动）'},{v:10,l:'10 以内'},{v:20,l:'20 以内'},{v:50,l:'50 以内'},{v:100,l:'100 以内'}], set.range) +
+          '</select><p class="muted" style="margin:4px 0 0;">0 表示跟随孩子难度档自动调整。</p></div>' +
+        '<div class="edu-field"><label>难度开关</label><div class="set-checks">' +
+          '<label class="set-check"><input type="checkbox" id="setNoCarryI"'+(set.nocarry?' checked':'')+'> 禁止进位 / 退位（不进位、不退位）</label>' +
+          '<label class="set-check"><input type="checkbox" id="setMultI"'+(set.mult?' checked':'')+'> 提前开启乘法表（难度档 ≥2 即出现 ×）</label>' +
+          '</div></div>' +
+        '<div class="edu-field"><label>每日题数上限</label><select id="setDailyQI">' +
+          setSel([{v:0,l:'不限'},{v:10,l:'10 题'},{v:20,l:'20 题'},{v:30,l:'30 题'},{v:50,l:'50 题'}], set.dailyQ) + '</select></div>' +
+        '<div class="edu-field"><label>每日用时上限</label><select id="setDailyMinI">' +
+          setSel([{v:0,l:'不限'},{v:10,l:'10 分钟'},{v:20,l:'20 分钟'},{v:30,l:'30 分钟'}], set.dailyMin) + '</select></div>' +
+        '<div class="edu-field"><label>家长口令（4 位数字，保护家长操作）</label>' +
+          '<input type="password" id="setPwdI" maxlength="4" inputmode="numeric" placeholder="'+(parentPwd()==='0000'?'未设置（当前为 0000）':'已设置')+'" style="letter-spacing:2px;"></div>' +
+        '<div class="edu-field"><label>内容开关</label><div class="set-checks">' +
+          '<label class="set-check"><input type="checkbox" id="setTraceI"'+(set.show&&set.show.trace?' checked':'')+'> 启用「描红」（写字练习）</label>' +
+          '<label class="set-check"><input type="checkbox" id="setParI"'+(set.show&&set.show.par?' checked':'')+'> 启用「快乐乐园」小游戏</label>' +
+          '</div></div>' +
+        '<div class="edu-actions"><button type="button" class="btn-soft" style="flex:1;" onclick="setSaveI()">保存设置</button></div></div>'
       : '<div class="edu-card" style="text-align:center;"><h4>🎁 新增星愿（家长）</h4>' +
         '<p class="muted" style="margin:6px 0 12px;">星愿由家长设置，孩子攒星兑换。</p>' +
         '<button type="button" class="btn-soft" onclick="requireParent(function(){ renderWish(); })">🔓 家长模式</button></div>';
     body.innerHTML = html;
     anim(body);
+  }
+  // 家长模式页内嵌的家长控制保存(与顶部弹窗 setSave 保持一致)
+  window.setSaveI = function (){
+    var pwd = (document.getElementById('setPwdI').value || '').replace(/\s+/g, '');
+    if (pwd && !/^\d{4}$/.test(pwd)){ toast('口令需为 4 位数字'); return; }
+    if (pwd) save(PWD_KEY, pwd);
+    state.settings = mergeSet({
+      range: parseInt(document.getElementById('setRangeI').value, 10) || 0,
+      nocarry: document.getElementById('setNoCarryI').checked,
+      mult: document.getElementById('setMultI').checked,
+      dailyQ: parseInt(document.getElementById('setDailyQI').value, 10) || 0,
+      dailyMin: parseInt(document.getElementById('setDailyMinI').value, 10) || 0,
+      show: mergeSet({}).show
+    });
+    state.settings.show.trace = document.getElementById('setTraceI').checked;
+    state.settings.show.par = document.getElementById('setParI').checked;
+    saveState();
+    applyContentToggles();
+    toast('学习设置已保存');
   }
   window.wishAdd = function (){
     var name = (document.getElementById('wishName').value || '').trim();

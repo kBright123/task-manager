@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>幼小衔接·识字闯关</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;font-family:'PingFang SC','Hiragino Sans GB','Microsoft YaHei',system-ui,sans-serif;background:linear-gradient(160deg,#E8F4FD 0%,#FDE8F0 100%);color:#333;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+#app{display:flex;flex-direction:column;height:100%;width:100%}
+
+/* ===== Top Nav Bar ===== */
+#topbar{height:56px;display:flex;align-items:center;padding:0 16px;gap:12px;background:rgba(255,255,255,0.72);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.5);flex-shrink:0;z-index:10}
+#backBtn{width:44px;height:44px;border:none;background:rgba(0,0,0,0.06);border-radius:50%;font-size:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;touch-action:manipulation;transition:background .2s}
+#backBtn:active{background:rgba(0,0,0,0.12)}
+#avatar{display:flex;align-items:center;flex-shrink:0}
+#avatarCircle{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#FF6B6B,#FF8E53);display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;font-weight:700;position:relative;box-shadow:0 2px 8px rgba(255,107,107,0.3)}
+#avatarBadge{position:absolute;bottom:-4px;right:-6px;background:linear-gradient(135deg,#FFD93D,#FF9F43);color:#fff;font-size:9px;font-weight:800;border-radius:10px;padding:1px 5px;border:2px solid #fff;white-space:nowrap;line-height:1.3}
+#starBar{flex:1;display:flex;align-items:center;justify-content:center;gap:6px}
+#starBar .stars{font-size:20px;letter-spacing:2px}
+#starBar .levelText{font-size:13px;font-weight:600;color:#999;margin-left:8px}
+#soundBtn{width:44px;height:44px;border:none;background:rgba(0,0,0,0.06);border-radius:50%;font-size:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;touch-action:manipulation;transition:background .2s}
+#soundBtn:active{background:rgba(0,0,0,0.12)}
+
+/* ===== Answer Area ===== */
+#answerArea{flex:1;display:flex;overflow:hidden;padding:16px;gap:16px}
+@media(orientation:landscape){#answerArea{flex-direction:row}#artPanel{flex:0 0 44%}#optPanel{flex:1}}
+@media(orientation:portrait){#answerArea{flex-direction:column}#artPanel{flex:0 0 40%}#optPanel{flex:1}}
+#artPanel{display:flex;align-items:center;justify-content:center}
+#artCard{background:#fff;border-radius:24px;padding:28px 24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;box-shadow:0 8px 32px rgba(0,0,0,0.08);width:100%;max-width:380px;position:relative}
+.big-emoji{font-size:88px;line-height:1;filter:drop-shadow(0 8px 16px rgba(0,0,0,0.15));text-shadow:0 4px 0 rgba(0,0,0,0.06)}
+.guide-text{font-size:18px;font-weight:600;color:#666}
+.tts-btn{display:flex;align-items:center;gap:6px;padding:10px 24px;background:linear-gradient(135deg,#4D96FF,#6BB5FF);color:#fff;border:none;border-radius:20px;font-size:15px;font-weight:600;cursor:pointer;touch-action:manipulation;box-shadow:0 4px 12px rgba(77,150,255,0.3);transition:transform .15s}
+.tts-btn:active{transform:scale(0.95)}
+#scoreBadge{position:absolute;top:12px;right:12px;background:linear-gradient(135deg,#FFD93D,#FF9F43);color:#fff;font-size:13px;font-weight:700;border-radius:16px;padding:5px 14px;box-shadow:0 3px 10px rgba(255,159,67,0.3);opacity:0;transform:translateY(-8px);transition:opacity .3s,transform .3s;pointer-events:none}
+#scoreBadge.show{opacity:1;transform:translateY(0)}
+
+/* ===== Options ===== */
+#optPanel{display:flex;align-items:center;justify-content:center}
+#optGrid{display:grid;gap:14px;width:100%;max-width:520px}
+@media(orientation:landscape){#optGrid{grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr)}}
+@media(orientation:portrait){#optGrid{grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(3,1fr);max-width:360px}}
+.opt{aspect-ratio:1;border-radius:50%;border:none;font-size:46px;font-weight:800;cursor:pointer;touch-action:manipulation;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(0,0,0,0.12);transition:transform .15s,box-shadow .15s,filter .3s,opacity .3s;position:relative;overflow:visible}
+.opt:active{transform:scale(0.92)}
+.opt.correct{animation:popBounce .5s ease;box-shadow:0 0 30px 8px rgba(255,215,0,0.6),0 6px 20px rgba(0,0,0,0.12)}
+.opt.wrong{animation:shake .4s ease}
+.opt.grey-flash{filter:grayscale(1) brightness(1.3);opacity:.5}
+.opt.disabled{pointer-events:none;opacity:.4}
+.opt[data-color="yellow"]{background:#FFD93D;color:#5D4E00}
+.opt[data-color="green"]{background:#6BCB77;color:#fff}
+.opt[data-color="red"]{background:#FF6B6B;color:#fff}
+.opt[data-color="blue"]{background:#4D96FF;color:#fff}
+.opt[data-color="orange"]{background:#FF9F43;color:#fff}
+.opt[data-color="purple"]{background:#A66CFF;color:#fff}
+
+/* ===== Bottom Bar ===== */
+#bottombar{height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:rgba(255,255,255,0.72);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid rgba(255,255,255,0.5);flex-shrink:0;z-index:10}
+#dots{display:flex;align-items:center;gap:8px}
+.dot{width:14px;height:14px;border-radius:50%;background:#e0e0e0;border:2px solid transparent;transition:all .3s}
+.dot.done{background:#FFD93D}
+.dot.current{background:#fff;border-color:#FF9F43;box-shadow:0 0 8px rgba(255,159,67,0.4);transform:scale(1.2)}
+#finishBtn{padding:12px 28px;border:none;border-radius:28px;background:#ddd;color:#999;font-size:16px;font-weight:700;cursor:not-allowed;touch-action:manipulation;transition:all .3s;white-space:nowrap}
+#finishBtn.ready{background:linear-gradient(135deg,#FF9F43,#FF6B6B);color:#fff;cursor:pointer;box-shadow:0 4px 16px rgba(255,107,107,0.3);animation:breathe 2s ease-in-out infinite}
+
+/* ===== Modal ===== */
+.modal-mask{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center}
+.modal-mask.show{display:flex}
+.modal-box{background:#fff;border-radius:28px;padding:40px 36px;text-align:center;max-width:380px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.2);animation:modalPop .4s ease}
+.modal-box h2{font-size:26px;margin-bottom:10px}
+.modal-box p{font-size:17px;color:#666;margin-bottom:6px}
+.modal-box .score-display{font-size:48px;margin:14px 0}
+.modal-box .btn-primary{margin-top:20px;padding:14px 40px;border:none;border-radius:24px;background:linear-gradient(135deg,#FF9F43,#FF6B6B);color:#fff;font-size:17px;font-weight:700;cursor:pointer;touch-action:manipulation}
+.modal-box .btn-row{display:flex;gap:12px;margin-top:20px}
+.modal-box .btn-row button{flex:1;padding:14px;border:none;border-radius:16px;font-size:15px;font-weight:600;cursor:pointer;touch-action:manipulation}
+.btn-cancel{background:#f0f0f0;color:#666}
+.btn-confirm{background:#FF6B6B;color:#fff}
+
+/* ===== Feedback Toast ===== */
+#feedback{position:fixed;top:72px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.72);color:#fff;padding:10px 24px;border-radius:20px;font-size:15px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .3s;z-index:20;white-space:nowrap}
+#feedback.show{opacity:1}
+
+/* ===== Animations ===== */
+@keyframes popBounce{0%{transform:scale(1)}30%{transform:scale(1.15)}50%{transform:scale(0.95)}70%{transform:scale(1.05)}100%{transform:scale(1)}}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-12px)}40%{transform:translateX(12px)}60%{transform:translateX(-8px)}80%{transform:translateX(8px)}}
+@keyframes breathe{0%,100%{box-shadow:0 4px 16px rgba(255,107,107,0.3)}50%{box-shadow:0 4px 28px rgba(255,107,107,0.6)}}
+@keyframes modalPop{0%{transform:scale(0.8);opacity:0}100%{transform:scale(1);opacity:1}}
+@keyframes particleFly{0%{opacity:1;transform:translate(0,0) scale(1)}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(0.3)}}
+.particle{position:fixed;font-size:22px;pointer-events:none;z-index:50;animation:particleFly .8s ease-out forwards}
+</style>
+</head>
+<body>
+<div id="app">
+  <nav id="topbar">
+    <button id="backBtn" aria-label="返回">←</button>
+    <div id="avatar"><div id="avatarCircle">小朱<span id="avatarBadge">Lv.6</span></div></div>
+    <div id="starBar"><span class="stars" id="starDisplay"></span><span class="levelText" id="levelText"></span></div>
+    <button id="soundBtn" aria-label="音量">🔊</button>
+  </nav>
+  <main id="answerArea">
+    <section id="artPanel">
+      <div id="artCard">
+        <span id="scoreBadge">⭐ 已获得 0 颗星星</span>
+        <div class="big-emoji" id="bigEmoji"></div>
+        <div class="guide-text" id="guideText"></div>
+        <button class="tts-btn" id="ttsBtn">🔊 听一听</button>
+      </div>
+    </section>
+    <section id="optPanel"><div id="optGrid"></div></section>
+  </main>
+  <footer id="bottombar">
+    <div id="dots"></div>
+    <button id="finishBtn">🎉 完成闯关</button>
+  </footer>
+</div>
+
+<div class="modal-mask" id="modal">
+  <div class="modal-box">
+    <h2 id="modalTitle">🎉 闯关成功！</h2>
+    <div class="score-display" id="modalScore"></div>
+    <p id="modalMsg"></p>
+    <button class="btn-primary" id="modalBtn">再来一局</button>
+  </div>
+</div>
+
+<div class="modal-mask" id="quitModal">
+  <div class="modal-box">
+    <h3>🏃 要离开闯关吗？</h3>
+    <p>进度将保存</p>
+    <div class="btn-row">
+      <button class="btn-cancel" id="quitCancel">继续闯关</button>
+      <button class="btn-confirm" id="quitConfirm">确认离开</button>
+    </div>
+  </div>
+</div>
+
+<div id="feedback"></div>
+
+<script>
+var state = {
+  currentQuestion: 0,
+  totalQuestions: 10,
+  score: 0,
+  currentLevel: 3,
+  totalLevels: 5,
+  isAnswered: false,
+  isCompleted: false,
+  soundOn: true
+};
+
+var QUESTION = {
+  emoji: '🖐️',
+  guideText: '👆 请点击对应的汉字',
+  correctChar: '手',
+  ttsText: "请找到'小手'",
+  options: [
+    {char:'手',color:'yellow'},
+    {char:'水',color:'green'},
+    {char:'日',color:'red'},
+    {char:'木',color:'blue'},
+    {char:'口',color:'orange'},
+    {char:'天',color:'purple'}
+  ]
+};
+
+var _audioCtx;
+function getAudioCtx(){if(!_audioCtx)_audioCtx=new(window.AudioContext||window.webkitAudioContext)();return _audioCtx}
+function playTone(freq,dur,type,t){var c=getAudioCtx(),o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.value=freq;g.gain.setValueAtTime(0.25,t);g.gain.exponentialRampToValueAtTime(0.01,t+dur);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+dur)}
+function playCorrectSound(){if(!state.soundOn)return;try{var t=getAudioCtx().currentTime;playTone(523,0.15,'sine',t);playTone(659,0.15,'sine',t+0.1);playTone(784,0.2,'sine',t+0.2)}catch(e){}}
+function playWrongSound(){if(!state.soundOn)return;try{var t=getAudioCtx().currentTime;playTone(300,0.25,'triangle',t);playTone(250,0.25,'triangle',t+0.12)}catch(e){}}
+function playCompleteSound(){if(!state.soundOn)return;try{var t=getAudioCtx().currentTime;[523,659,784,1047].forEach(function(f,i){playTone(f,0.22,'sine',t+i*0.14)})}catch(e){}}
+
+function speak(text){if(!window.speechSynthesis)return;window.speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(text);u.lang='zh-CN';u.rate=0.9;window.speechSynthesis.speak(u)}
+
+var $=function(id){return document.getElementById(id)};
+var backBtn=$('backBtn'),soundBtn=$('soundBtn'),starDisplay=$('starDisplay'),levelText=$('levelText'),bigEmoji=$('bigEmoji'),guideText=$('guideText'),ttsBtn=$('ttsBtn'),scoreBadge=$('scoreBadge'),optGrid=$('optGrid'),dotsContainer=$('dots'),finishBtn=$('finishBtn'),modal=$('modal'),modalScore=$('modalScore'),modalMsg=$('modalMsg'),modalBtn=$('modalBtn'),quitModal=$('quitModal'),quitCancelBtn=$('quitCancel'),quitConfirmBtn=$('quitConfirm'),feedback=$('feedback');
+
+function renderStars(){var h='';for(var i=1;i<=state.totalLevels;i++)h+=i<=state.currentLevel?'⭐️':'☆';starDisplay.textContent=h;levelText.textContent='第'+state.currentLevel+'关/共'+state.totalLevels+'关'}
+function renderScoreBadge(){scoreBadge.textContent='⭐ 已获得 '+state.score+' 颗星星';scoreBadge.classList.add('show');setTimeout(function(){scoreBadge.classList.remove('show')},1500)}
+function renderDots(){var h='';for(var i=0;i<state.totalQuestions;i++){var cls='dot';if(i<state.currentQuestion)cls+=' done';else if(i===state.currentQuestion&&!state.isCompleted)cls+=' current';h+='<div class="'+cls+'"></div>'}dotsContainer.innerHTML=h}
+function shuffleArray(a){var b=a.slice();for(var i=b.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=b[i];b[i]=b[j];b[j]=t}return b}
+
+function renderQuestion(){if(state.isCompleted)return;state.isAnswered=false;bigEmoji.textContent=QUESTION.emoji;guideText.textContent=QUESTION.guideText;var sh=shuffleArray(QUESTION.options);var h='';for(var i=0;i<sh.length;i++){h+='<button class="opt" data-char="'+sh[i].char+'" data-color="'+sh[i].color+'" aria-label="'+sh[i].char+'">'+sh[i].char+'</button>'}optGrid.innerHTML=h;bindOptions();renderDots()}
+
+function bindOptions(){var btns=optGrid.querySelectorAll('.opt');for(var i=0;i<btns.length;i++){(function(btn){btn.addEventListener('touchstart',function(e){e.preventDefault();handleTap(btn)},{passive:false});btn.addEventListener('click',function(){handleTap(btn)})})(btns[i])}}
+
+function handleTap(btn){if(state.isAnswered||state.isCompleted)return;if(btn.dataset.char===QUESTION.correctChar)handleCorrect(btn);else handleWrong(btn)}
+
+function handleCorrect(btn){state.isAnswered=true;state.score++;playCorrectSound();var all=optGrid.querySelectorAll('.opt');for(var i=0;i<all.length;i++)all[i].classList.add('disabled');btn.classList.remove('disabled');btn.classList.add('correct');createParticles(btn);renderScoreBadge();showFeedback('✅ 太棒了！');setTimeout(function(){state.currentQuestion++;if(state.currentQuestion>=state.totalQuestions)completeQuiz();else renderQuestion()},1200)}
+
+function handleWrong(btn){playWrongSound();showFeedback('💪 再想想哦~');speak('再想想哦');btn.classList.add('wrong','grey-flash');setTimeout(function(){btn.classList.remove('wrong','grey-flash')},400)}
+
+function completeQuiz(){state.isCompleted=true;renderDots();finishBtn.classList.add('ready');showFeedback('🎊 全部答完！请点击完成闯关');playCompleteSound()}
+
+function showFeedback(msg){feedback.textContent=msg;feedback.classList.add('show');setTimeout(function(){feedback.classList.remove('show')},1200)}
+
+function createParticles(target){var rect=target.getBoundingClientRect();var cx=rect.left+rect.width/2,cy=rect.top+rect.height/2;var emojis=['⭐','✨','🌟','💫'];for(var i=0;i<12;i++){var el=document.createElement('div');el.className='particle';el.textContent=emojis[i%4];el.style.left=cx+'px';el.style.top=cy+'px';var angle=(i/12)*Math.PI*2;var dist=50+Math.random()*50;el.style.setProperty('--dx',Math.cos(angle)*dist+'px');el.style.setProperty('--dy',(Math.sin(angle)*dist-30)+'px');document.body.appendChild(el);setTimeout(function(e){return function(){e.remove()}}(el),900)}}
+
+function toggleSound(){state.soundOn=!state.soundOn;soundBtn.textContent=state.soundOn?'🔊':'🔇'}
+function showQuitModal(){quitModal.classList.add('show')}
+function hideQuitModal(){quitModal.classList.remove('show')}
+function showCompleteModal(){modalScore.textContent='⭐ '+state.score+' / '+state.totalQuestions;var pct=state.score/state.totalQuestions;if(pct===1){modalMsg.textContent='满分通关！你是识字小天才！🎉';$('modalTitle').textContent='🎉 满分通关！'}else if(pct>=0.8){modalMsg.textContent='表现很棒！继续加油！💪';$('modalTitle').textContent='🎉 闯关成功！'}else{modalMsg.textContent='再接再厉，你可以做得更好！🌟';$('modalTitle').textContent='🎉 闯关完成！'}modal.classList.add('show');playCompleteSound()}
+function resetQuiz(){modal.classList.remove('show');state.currentQuestion=0;state.score=0;state.isAnswered=false;state.isCompleted=false;finishBtn.classList.remove('ready');renderStars();renderScoreBadge();renderDots();renderQuestion();setTimeout(function(){speak(QUESTION.ttsText)},500)}
+
+function initEvents(){
+  backBtn.addEventListener('touchstart',function(e){e.preventDefault();showQuitModal()},{passive:false});
+  backBtn.addEventListener('click',showQuitModal);
+  soundBtn.addEventListener('touchstart',function(e){e.preventDefault();toggleSound()},{passive:false});
+  soundBtn.addEventListener('click',toggleSound);
+  ttsBtn.addEventListener('touchstart',function(e){e.preventDefault();speak(QUESTION.ttsText)},{passive:false});
+  ttsBtn.addEventListener('click',function(){speak(QUESTION.ttsText)});
+  finishBtn.addEventListener('touchstart',function(e){e.preventDefault();if(state.isCompleted)showCompleteModal()},{passive:false});
+  finishBtn.addEventListener('click',function(){if(state.isCompleted)showCompleteModal()});
+  modalBtn.addEventListener('click',resetQuiz);
+  quitCancelBtn.addEventListener('click',hideQuitModal);
+  quitConfirmBtn.addEventListener('click',function(){hideQuitModal();showFeedback('👋 已保存进度，回到首页')});
+}
+
+function init(){renderStars();renderDots();renderQuestion();initEvents();setTimeout(function(){speak(QUESTION.ttsText)},500)}
+init();
+</script>
+</body>
+</html>

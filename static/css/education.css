@@ -116,9 +116,9 @@
   .lv-banner .lv-passed{font-weight:800;font-size:.85rem;}
   .lv-banner .lv-notyet{font-size:.85rem;opacity:.9;}
   .lv-banner .pb-mini-group{display:inline-flex;gap:6px;margin-left:2px;}
-  .lv-banner .pb-mini{font-size:.78rem;font-weight:800;color:var(--edu-blue);border:none;border-radius:13px;padding:4px 10px;cursor:pointer;background:#fff;transition:.12s;}
-  .lv-banner .pb-mini:hover{transform:translateY(-1px);}
-  .lv-banner .pb-mini.active{background:linear-gradient(135deg,var(--edu-primary),#ff8a55);color:#fff;}
+  .lv-banner .pb-mini{font-size:.78rem;font-weight:800;color:var(--edu-ink);border:2px solid var(--edu-border-2);border-radius:14px;padding:4px 12px;cursor:pointer;background:var(--edu-surface);transition:.12s;}
+  .lv-banner .pb-mini:hover{border-color:var(--edu-blue);}
+  .lv-banner .pb-mini.active{background:linear-gradient(135deg,var(--edu-primary),#ff8a55);color:#fff;border-color:transparent;}
   .btn-soft{background:var(--edu-primary);color:#fff;border:none;font-weight:700;padding:10px 24px;border-radius:12px;font-size:.95rem;cursor:pointer;}
   .btn-soft:disabled{opacity:.55;cursor:not-allowed;}
   .btn-ghost{background:var(--edu-surface);color:var(--edu-blue);border:1.5px solid var(--edu-blue);font-weight:700;padding:8px 20px;border-radius:12px;font-size:.9rem;cursor:pointer;}

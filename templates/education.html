@@ -21,6 +21,8 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/education.css', v=staticv('css/education.css')) }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap">
 {% endblock %}
 
 {% block content %}
@@ -41,6 +43,7 @@
         <option value="workbench">🏫 幼小衔接</option>
         <option value="paradise">🌈 快乐乐园</option>
       </select>
+      <button type="button" id="soundToggle" class="spk-sound" onclick="toggleSpeak()">🔊 声音开</button>
     </span>
   </div>
 
@@ -69,6 +72,12 @@
         <button type="button" class="sm-tab" data-s="ciyu" onclick="wbZh('ciyu')">🗂️ 词语</button>
       </div>
       <div id="wb-zh-body"></div>
+      <div id="wb-pinyin" class="sm-tabs sm-tabs-sub" style="display:none;">
+        <button type="button" class="sm-tab active" data-s="sheng" onclick="wbPinyin('sheng')">🔠 声母</button>
+        <button type="button" class="sm-tab" data-s="yun" onclick="wbPinyin('yun')">🔡 韵母</button>
+        <button type="button" class="sm-tab" data-s="read" onclick="wbPinyin('read')">🗣️ 拼读</button>
+        <button type="button" class="sm-tab" data-s="tone" onclick="wbPinyin('tone')">🎵 四声</button>
+      </div>
     </div>
 
     <!-- 数学 -->
@@ -91,6 +100,11 @@
         <button type="button" class="sm-tab" data-s="match" onclick="wbEn('match')">🤝 配对</button>
       </div>
       <div id="wb-en-body"></div>
+    </div>
+
+    <!-- 每日挑战 -->
+    <div id="wb-daily" style="display:none;">
+      <div id="wb-daily-body"></div>
     </div>
   </section>
 
@@ -186,15 +200,19 @@
     <div class="edu-field">
       <label>口算范围</label>
       <select id="setRange">
+        <option value="0">跟随难度（自动）</option>
         <option value="10">10 以内</option>
         <option value="20">20 以内</option>
+        <option value="50">50 以内</option>
         <option value="100">100 以内</option>
       </select>
+      <p class="muted" style="margin:4px 0 0;">0 表示跟随孩子难度档自动调整。</p>
     </div>
     <div class="edu-field">
       <label>难度开关</label>
       <div class="set-checks">
-        <label class="set-check"><input type="checkbox" id="setNoCarry"> 禁止进位 / 退位（两位数不出 10，减法不会借位）</label>
+        <label class="set-check"><input type="checkbox" id="setNoCarry"> 禁止进位 / 退位（不进位、不退位）</label>
+        <label class="set-check"><input type="checkbox" id="setMult"> 提前开启乘法表（难度档 ≥2 即出现 ×）</label>
       </div>
     </div>
     <div class="edu-field">

@@ -29,13 +29,16 @@
 - 渲染页面骨架(/edu/)
 - 提供 /edu/api/** REST 接口, 供前端读写数据。
 """
+import hashlib
 import json
 import logging
 import os
 import threading
+import urllib.parse
+import urllib.request
 from datetime import datetime
 
-from flask import Blueprint, jsonify, request, render_template, current_app
+from flask import Blueprint, jsonify, request, render_template, current_app, abort, send_file
 from flask_login import current_user
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, text
 from sqlalchemy.orm import sessionmaker, scoped_session, declarative_base
@@ -139,6 +142,94 @@ def index():
 
 
 # ==================== API ====================
+
+def _tts_lang(text):
+    """粗略判断朗读语言: 汉字多→zh, 否则→en."""
+    han = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+    lat = sum(1 for c in text if ('a' <= c <= 'z') or ('A' <= c <= 'Z'))
+    return 'zh' if han >= lat else 'en'
+
+
+_EDGE_VOICE = {'zh': 'zh-CN-XiaoxiaoNeural', 'en': 'en-US-AriaNeural'}
+
+
+def _fetch_tts(text, le):
+    """在线获取 mp3: 优先 edge-tts(微软在线, 质量高不限流), 失败回退有道词典 TTS."""
+    data = None
+    try:
+        import asyncio
+        import tempfile
+        import edge_tts
+        fd, tmp = tempfile.mkstemp(suffix='.mp3')
+        os.close(fd)
+        try:
+            async def _run():
+                c = edge_tts.Communicate(text, _EDGE_VOICE.get(le, 'zh-CN-XiaoxiaoNeural'), rate='+10%')
+                await c.save(tmp)
+            asyncio.run(_run())
+            with open(tmp, 'rb') as f:
+                data = f.read()
+            if len(data) <= 500:
+                data = None
+        finally:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+    except Exception:
+        logger.warning('edge-tts failed le=%s', le, exc_info=True)
+    if data:
+        return data
+    # 回退: 有道词典 TTS(有反爬/限流, 不一定成功)
+    url = 'https://dict.youdao.com/dictvoice?le=' + le + '&audio=' + urllib.parse.quote(text)
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0', 'Referer': 'https://dict.youdao.com/'})
+        with urllib.request.urlopen(req, timeout=12) as r:
+            if r.status != 200:
+                return None
+            data = r.read()
+        return data if len(data) > 200 else None
+    except Exception:
+        logger.warning('youdao tts failed le=%s', le, exc_info=True)
+        return None
+
+
+@education_bp.route('/api/tts', methods=['GET'])
+def tts():
+    """语音朗读: 服务端拉取并返回同源 mp3(浏览器直接播放, 无跨域/无 Mixed Content).
+
+    参数: text(要读的文字, ≤180 字符), le(zh|en, 缺省按内容判断)。
+    结果按内容哈希缓存到 instance/tts/, 重复朗读不重复请求外网。
+    """
+    text = (request.args.get('text') or '').strip()
+    if not text:
+        abort(400, description='missing text')
+    text = text[:180]
+    le = request.args.get('le') or ''
+    if le not in ('zh', 'en'):
+        le = _tts_lang(text)
+    key = hashlib.sha1((le + '|' + text).encode('utf-8')).hexdigest()[:24]
+    cache_dir = os.path.join(current_app.instance_path, 'tts')
+    try:
+        os.makedirs(cache_dir, exist_ok=True)
+    except OSError:
+        cache_dir = None
+    path = os.path.join(cache_dir, key + '.mp3') if cache_dir else None
+    if not (path and os.path.isfile(path)):
+        data = _fetch_tts(text, le)
+        if not data:
+            abort(502, description='TTS 服务不可用')
+        if path:
+            try:
+                tmp = path + '.tmp'
+                with open(tmp, 'wb') as f:
+                    f.write(data)
+                os.replace(tmp, path)
+            except OSError:
+                pass
+    resp = send_file(path, mimetype='audio/mpeg')
+    resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+    return resp
 
 @education_bp.route('/api/bootstrap', methods=['GET', 'POST'])
 def bootstrap():

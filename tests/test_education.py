@@ -138,7 +138,7 @@ const fs=require('fs'),vm=require('vm');
 global.window=global;
 global.esc=s=>String(s||'').replace(/</g,'&lt;').replace(/&/g,'&amp;');
 const store={};
-function me(){return {innerHTML:'',style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},setAttribute(){},getAttribute(){return null},querySelector(){return me()},querySelectorAll(){return[]},textContent:'',value:'',appendChild(){},removeChild(){},addEventListener(){},options:[],children:[],offsetWidth:0,offsetHeight:0,getContext(){return new Proxy({}, {get:()=>()=>{}})}};}
+function me(){return {innerHTML:'',style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},setAttribute(){},getAttribute(){return null},querySelector(){return me()},querySelectorAll(){return[]},textContent:'',value:'',appendChild(){},removeChild(){},addEventListener(){},options:[],children:[],offsetWidth:0,offsetHeight:0,focus(){},scrollIntoView(){},getContext(){return new Proxy({}, {get:()=>()=>{}})}};}
 global.document={getElementById:()=>me(),querySelectorAll:()=>[],querySelector:()=>me(),createElement:()=>me(),createTextNode:()=>({}),addEventListener(){},removeEventListener(){},documentElement:{style:{}},body:me()};
 global.localStorage={getItem:k=>k in store?store[k]:null,setItem(k,v){store[k]=String(v)},removeItem(k){delete store[k]}};
 global.location={};global.navigator={userAgent:'node'};global.performance={now:()=>0};global.HTMLElement=function(){};global.Node=function(){};
@@ -162,7 +162,7 @@ def test_quiz_uniqueness_all_types():
     out = _harness(r'''
 (async()=>{
   const eng=W.eduEngine;
-  const types={zh:['poem','zi','stroke','pinyin','yun','read','fan','liang'],math:['calc','judge','word','order'],en:['word','dialogue']};
+  const types={zh:['poem','zi','stroke','pinyin','yun','read','tone','fan','liang'],math:['calc','judge','word','order'],en:['word','dialogue']};
   let bad=[];
   for(const subj in types){
     for(const type of types[subj]){
@@ -179,6 +179,48 @@ def test_quiz_uniqueness_all_types():
 })();
 ''')
     assert 'BAD=[]' in out.replace('\\', '').replace('"', '"') or 'BAD=[]' in out, out
+
+
+def test_tone_and_mouth():
+    """拼音四声辨认: 恒 4 选项且含正常声调; 声母/韵母/拼读题均带口型示范."""
+    out = _harness(r'''
+(async()=>{
+  const eng=W.eduEngine;
+  let okT=1;
+  for(let k=0;k<30;k++){
+    const it=eng.genOne('zh','tone',3);
+    if(!(it.options && it.options.length===4 && [1,2,3,4].indexOf(+it.correct)>=0)) okT=0;
+    if(!/第几声/.test(String(it.prompt))) okT=0;
+  }
+  const s=eng.genOne('zh','pinyin',3), y=eng.genOne('zh','yun',3), r=eng.genOne('zh','read',3);
+  console.log('TONE='+okT);
+  console.log('MOUTH_S='+((s.mouth&&s.mouth.length)?'1':'0'));
+  console.log('MOUTH_Y='+((y.mouth&&y.mouth.length)?'1':'0'));
+  console.log('MOUTH_R='+((r.mouth&&r.mouth.length)?'1':'0'));
+})();
+''')
+    assert 'TONE=1' in out, out
+    assert 'MOUTH_S=1' in out, out
+    assert 'MOUTH_Y=1' in out, out
+    assert 'MOUTH_R=1' in out, out
+
+
+def test_pinyin_subtab_visibility():
+    """拼音子标签: 切到拼音显示 声母/韵母/拼读/四声, 其他模式隐藏."""
+    out = _harness(r'''
+(async()=>{
+  const subEl={style:{display:''},classList:{add(){},remove(){},toggle(){},contains(){return false}},setAttribute(){},getAttribute(){return null},querySelector(){return me()},querySelectorAll(){return[]}};
+  const orig=global.document.getElementById;
+  global.document.getElementById=(id)=> id==='wb-pinyin'?subEl:orig(id);
+  W.wbZh('pinyin');
+  const shown=(subEl.style.display==='flex'||subEl.style.display==='')?'1':'0';
+  W.wbZh('poem');
+  console.log('SUBTAB_SHOW='+shown);
+  console.log('SUBTAB_HIDE='+(subEl.style.display==='none'?'1':'0'));
+})();
+''')
+    assert 'SUBTAB_SHOW=1' in out, out
+    assert 'SUBTAB_HIDE=1' in out, out
 
 
 def test_legacy_wrong_rebuild_complete():
@@ -247,7 +289,11 @@ store['edu_record_v1_kk']=JSON.stringify({stars:5,records:[
   {t:1,date:'2026-08-28',subj:'zh',type:'poem',prompt:'a',correct:'x',got:'x',ok:true},
   {t:2,date:'2026-08-28',subj:'math',type:'calc',prompt:'b',correct:'1',got:'2',ok:false},
   {t:3,date:'2026-08-29',subj:'en',type:'word',prompt:'c',correct:'y',got:'y',ok:true}
-],wrong:[{subj:'math',type:'calc',q:'b',times:1,prompt:'b',correct:'1'}],settings:{},usage:{date:'2026-08-30',n:1,secs:120},maxCombo:3,badges:{s1:1},submits:1,wishes:[],wishLog:[]});
+],wrong:[
+  {subj:'math',type:'calc',q:'b',times:1,prompt:'b',correct:'1'},
+  {subj:'zh',type:'zi',q:'z',times:2,prompt:'字',correct:'好',box:2,nextDue:Date.now()-3600000},
+  {subj:'en',type:'word',q:'w',times:1,prompt:'w',correct:'dog',box:1,nextDue:Date.now()+864000000}
+],settings:{},usage:{date:'2026-08-30',n:1,secs:120},maxCombo:3,badges:{s1:1},submits:1,wishes:[],wishLog:[]});
 let iH='';const b=me();
 Object.defineProperty(b,'innerHTML',{get(){return iH},set(v){iH=v}});
 const orig=global.document.getElementById;
@@ -257,9 +303,81 @@ console.log('HAS_KPI='+(iH.indexOf('累计答题')>=0&&iH.indexOf('正确率')>=
 console.log('HAS_TREND='+(iH.indexOf('st-trend')>=0?'1':'0'));
 console.log('HAS_SUBJ='+(iH.indexOf('分科正确率')>=0?'1':'0'));
 console.log('TOTAL_REC='+(iH.match(/class="sk"/g)||[]).length);
+console.log('DUE_ROWS='+(iH.match(/class="st-wrong-row"/g)||[]).length);
+console.log('HAS_DUE_CARD='+(iH.indexOf('今日待复习')>=0?'1':'0'));
 ''')
     assert 'HAS_KPI=1' in out and 'HAS_TREND=1' in out and 'HAS_SUBJ=1' in out, out
-    assert 'TOTAL_REC=6' in out, out
+    assert 'TOTAL_REC=7' in out, out
+    # 间隔复习: 到期/逾期2条入"今日待复习"卡, 未到期的不进(仅显示2条)
+    assert 'DUE_ROWS=2' in out, out
+    assert 'HAS_DUE_CARD=1' in out, out
+
+
+def test_calc_mult_and_parent_range(client):
+    """口算范围扩充: 高难度混入乘法; 家长 range/nocarry 设置实际生效."""
+    out = _harness(r'''
+(async()=>{
+  const eng=W.eduEngine;
+  // 家长范围覆盖: range=5, 无进退位 → 只出现 ≤5 且不进位的加减
+  store['edu_record_v1_kk']=JSON.stringify({stars:0,records:[],wrong:[],wishes:[],settings:{range:5,nocarry:true},level:{math:5}});
+  W.eduNav('learn');
+  const itemsR=await eng.assemble('math','calc');
+  const small=itemsR.filter(it=>{const m=String(it.prompt).match(/\d+/g);return m && m.every(n=>+n<=5)}).length;
+  // 无范围设置且高难度(L5): 出现乘法 (genOne 循环40次, 近乎必然遇到 ×)
+  store['edu_record_v1_kk']=JSON.stringify({stars:0,records:[],wrong:[],wishes:[],settings:{},level:{math:5}});
+  W.eduNav('learn');
+  let mult=0, plain=0;
+  for(let k=0;k<40;k++){
+    const it=eng.genOne('math','calc',5);
+    if(/×/.test(String(it.prompt))) mult++; else plain++;
+  }
+  console.log('SMALL5='+(small===itemsR.length?'1':'0'));
+  console.log('HAS_MULT='+(mult>0&&plain>0?'1':'0'));
+})();
+''')
+    assert 'SMALL5=1' in out, out
+    assert 'HAS_MULT=1' in out, out
+
+
+def test_practice_mode_blitz():
+    """极速练习: 单题即时反馈 + 连对倍率计分 + 结束结算('⚡X 分'), 回答计入错题本与统计."""
+    out = _harness(r'''
+(async()=>{
+  store['edu_record_v1_kk']=JSON.stringify({stars:0,records:[],wrong:[],wishes:[],settings:{},level:{math:5}});
+  let bodyH='';const body={style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},appendChild(){},querySelector(){return me()},querySelectorAll(){return[]},scrollIntoView(){},focus(){}};
+  Object.defineProperty(body,'innerHTML',{get(){return bodyH},set(v){bodyH=String(v)}});
+  const byId=(id)=> (id==='wb-math-body'||id==='quizShell')?body:me();
+  global.document.getElementById=byId;
+  W.eduNav('learn');
+  W.wbMath('calc');
+  await new Promise(r=>setTimeout(r,60));
+  W.startPractice('math','calc');
+  await new Promise(r=>setTimeout(r,80));
+  const hasCard = bodyH.indexOf('qi-p-in')>=0 && bodyH.indexOf('pr-hud')>=0;
+  // 第1题: 读出正确答案作答 → 连对1 → 得1分
+  const c1 = W.PRACTICE.cur.correct;
+  W.practiceAnswer(c1);
+  const s1 = W.PRACTICE.streak===1 ? (W.PRACTICE.score===1?'1':'0') : '0';
+  await new Promise(r=>setTimeout(r,1000));
+  // 第2题: 再答对 → 连对2 → +2分, 累计3分
+  const c2 = W.PRACTICE.cur.correct;
+  W.practiceAnswer(c2);
+  const s2 = W.PRACTICE.streak===2 ? (W.PRACTICE.score===3?'1':'0') : '0';
+  await new Promise(r=>setTimeout(r,1000));
+  W.stopPractice();
+  const recN = (W.state.records||[]).length;
+  console.log('HAS_CARD='+(hasCard?'1':'0'));
+  console.log('SCORE1='+s1);
+  console.log('SCORE2='+s2);
+  console.log('SUMMARY='+(bodyH.indexOf('⚡3 分')>=0?'1':'0'));
+  console.log('RECN='+(recN===2?'1':'0'));
+})();
+''')
+    assert 'HAS_CARD=1' in out, out
+    assert 'SCORE1=1' in out, out
+    assert 'SCORE2=1' in out, out
+    assert 'SUMMARY=1' in out, out
+    assert 'RECN=1' in out, out
 
 
 def test_quiz_restore_after_refresh():
@@ -321,6 +439,114 @@ def test_quiz_save_state_on_answer():
 })();
 ''')
     assert 'SAVED=1' in out, out
+
+
+def test_star_map_and_daily(client):
+    """星级/闯关地图 + 每日挑战: 地图卡片含 15 关与星级; 挑战卷确定性(同日两份相同)+每日标记."""
+    out = _harness(r'''
+(async()=>{
+  const mkEl=()=>{const el={_h:'',style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},setAttribute(){},getAttribute(){return null},querySelector:()=>mkEl(),querySelectorAll:()=>[],focus(){},scrollIntoView(){},children:[]};
+    Object.defineProperty(el,'innerHTML',{get(){return el._h},set(v){el._h=String(v)}});
+    el._appBuild=(el._h||''); el.appendChild=(c)=>{ if(c && c._h!==undefined) el._h+=(c._h||''); };
+    return el;};
+  const dEl=mkEl(), statsEl=mkEl(), navEl=mkEl();
+  const byId=(id)=> id==='wb-daily'?dEl : (id==='eduStatsBody'?statsEl : (id==='eduBottomNav'?navEl : mkEl()));
+  global.document.getElementById=byId;
+  global.document.createElement=()=>mkEl();
+  global.document.querySelectorAll=()=>[];
+  store['edu_record_v1_kk']=JSON.stringify({stars:9,records:[],wrong:[],wishes:[],settings:{},
+    adv:{zh:{poem:{passed:1,stars:3}},math:{calc:{stars:1}},en:{word:{passed:1}}},level:{}});
+  W.eduNav('stats');
+  const CELLS=(statsEl._h.match(/class="st-map-cell/g)||[]).length;
+  const CELL1=statsEl._h.indexOf('闯关地图')>=0?'1':'0';
+  const PASSED=statsEl._h.indexOf('st-map-cell passed')>=0?'1':'0';
+  // 每日挑战: 两次生成内容一致(确定性) + 渲染含每日标记与10题
+  W.startDaily();
+  await new Promise(r=>setTimeout(r,60));
+  const a=String(dEl._h||'');
+  const cardsA=(a.match(/qi-head/g)||[]).length;
+  W.startDaily();
+  await new Promise(r=>setTimeout(r,60));
+  const b=String(dEl._h||'');
+  console.log('MAP1='+CELL1);
+  console.log('MAP_CELLS='+CELLS);
+  console.log('PASSED='+PASSED);
+  console.log('DAILY_BANNER='+(b.indexOf('每日挑战')>=0?'1':'0'));
+  console.log('DAILY_10='+(cardsA===10?'1':'0'));
+  console.log('DAILY_SAME='+(a===b?'1':'0'));
+})();
+''')
+
+    assert 'MAP1=1' in out, out
+    assert 'MAP_CELLS=15' in out, out
+    assert 'PASSED=1' in out, out
+    assert 'DAILY_BANNER=1' in out, out
+    assert 'DAILY_10=1' in out, out
+    assert 'DAILY_SAME=1' in out, out
+
+
+def test_daily_mixed_subjects(client):
+    """每日挑战: 各科混合(语文4/数学3/英语3)+题型跨各科."""
+    out = _harness(r'''
+(async()=>{
+  const items=W.buildDaily?W.buildDaily():[];
+  const cnt={};
+  (items||[]).forEach(it=>{ cnt[it.isubj]=(cnt[it.isubj]||0)+1; });
+  console.log('DLEN='+items.length);
+  console.log('ZH='+(cnt.zh||0));
+  console.log('MATH='+(cnt.math||0));
+  console.log('EN='+(cnt.en||0));
+  // 两次生成一致(确定性)
+  const b=W.buildDaily();
+  console.log('DAILY_SAME2='+(JSON.stringify(items)===JSON.stringify(b)?'1':'0'));
+})();
+''')
+    assert 'DLEN=10' in out, out
+    assert 'ZH=4' in out, out
+    assert 'MATH=3' in out, out
+    assert 'EN=3' in out, out
+    assert 'DAILY_SAME2=1' in out, out
+
+
+def test_edu_tts_endpoint(client):
+    """语音接口: 同源 mp3 返回 + 内容缓存 + 语言自判(不依赖外网)."""
+    import hashlib
+    import os
+    import routes.education as edu
+    from app import app
+    cache_dir = os.path.join(app.instance_path, 'tts')
+    os.makedirs(cache_dir, exist_ok=True)
+    keys = []
+    for le, txt in (('zh', '你好'), ('en', 'apple')):
+        k = hashlib.sha1((le + '|' + txt).encode('utf-8')).hexdigest()[:24]
+        keys.append(os.path.join(cache_dir, k + '.mp3'))
+        try:
+            os.remove(keys[-1])
+        except OSError:
+            pass
+    calls = []
+    orig = edu._fetch_tts
+    edu._fetch_tts = lambda text, le: (calls.append((text, le)) or b'ID3hello')
+    try:
+        r = client.get('/edu/api/tts?text=%E4%BD%A0%E5%A5%BD')
+        assert r.status_code == 200, r.status_code
+        assert r.content_type.startswith('audio/mpeg'), r.content_type
+        assert r.data[:3] == b'ID3'
+        # 命中磁盘缓存: 不再外呼
+        r2 = client.get('/edu/api/tts?text=%E4%BD%A0%E5%A5%BD')
+        assert r2.status_code == 200 and r2.data == r.data
+        assert calls == [('你好', 'zh')], calls
+        # 英文自判 → en
+        r3 = client.get('/edu/api/tts?text=apple')
+        assert r3.status_code == 200 and calls == [('你好', 'zh'), ('apple', 'en')], calls
+        assert client.get('/edu/api/tts').status_code == 400
+    finally:
+        edu._fetch_tts = orig
+        for p in keys:
+            try:
+                os.remove(p)
+            except OSError:
+                pass
 
 
 if __name__ == '__main__':

@@ -78,6 +78,45 @@ if [ "${KB_PREINSTALL:-1}" = "1" ]; then
   fi
 fi
 
+# ===== edge-tts 启动预装(微软在线TTS, 教育乐园语音朗读; 阻塞至完成/超时, 失败不阻断启动) =====
+# KB_PREINSTALL=0 关闭; 与 jionlp 共用 KB_AUTOPIP_TIMEOUT / KB_PIP_MIRROR
+if [ "${KB_PREINSTALL:-1}" = "1" ]; then
+  if python -c "import edge_tts" >/dev/null 2>&1; then
+    echo "[entrypoint][edge-tts] 已安装, 跳过预装"
+  else
+    PIP_TIMEOUT="${KB_AUTOPIP_TIMEOUT:-600}"
+    MIRROR="${KB_PIP_MIRROR-https://pypi.tuna.tsinghua.edu.cn/simple}"
+    LOG=/app/instance/edge_tts_pip.log
+    mkdir -p /app/instance 2>/dev/null || true
+    echo "== $(date '+%F %T') pip install edge-tts (timeout=${PIP_TIMEOUT}s mirror=${MIRROR:-pypi官方}) ==" > "$LOG" 2>/dev/null || LOG=/tmp/edge_tts_pip.log
+    echo "[entrypoint][edge-tts] 开始预装(超时${PIP_TIMEOUT}s, 源:${MIRROR:-pypi官方})..."
+    START=$(date +%s)
+    set +e
+    if [ -n "$MIRROR" ]; then
+      timeout "$PIP_TIMEOUT" python -m pip install --no-cache-dir \
+        -i "$MIRROR" --trusted-host pypi.tuna.tsinghua.edu.cn \
+        'edge-tts>=7.0.0' >> "$LOG" 2>&1
+    else
+      timeout "$PIP_TIMEOUT" python -m pip install --no-cache-dir \
+        'edge-tts>=7.0.0' >> "$LOG" 2>&1
+    fi
+    RC=$?
+    set -e
+    ELAPSED=$(( $(date +%s) - START ))
+    echo "[entrypoint][edge-tts] 结束 rc=${RC} 耗时${ELAPSED}s (完整日志: ${LOG})"
+    if [ "$RC" -eq 0 ]; then
+      echo "[entrypoint][edge-tts] 预装成功"
+    elif [ "$RC" -eq 124 ]; then
+      echo "[entrypoint][edge-tts] 判定: 超时=网络过慢/被墙, 日志尾部:" >&2
+      tail -n 15 "$LOG" >&2 || true
+    else
+      echo "[entrypoint][edge-tts] 判定: 无法下载(DNS/源不可达/权限), rc=${RC}, 日志尾部:" >&2
+      tail -n 25 "$LOG" >&2 || true
+    fi
+    chown appuser:appuser "$LOG" 2>/dev/null || true
+  fi
+fi
+
 # ===== 权限修复（针对挂载文件） =====
 # bind mount 的文件保留宿主属主/权限。若容器内以 root 运行仍不可读, 通常是
 # rootless/podman 或 userns-remap(容器 root ≠ 宿主 root), 容器内 chown/chmod

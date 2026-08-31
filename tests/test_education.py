@@ -722,6 +722,7 @@ const W=global; global.__ins=inserted;
   const dotsHits=(dotsAll.match(/qz-dot(?: |")/g)||[]).length;
   console.log('ONECARD='+(itemHits===1?'1':'N:'+itemHits));
   console.log('DOTS='+(dotsHits===10?'10':'N:'+dotsHits));
+  console.log('SUBMIT_BTN='+(__ins.some(x=>x.indexOf('qi-submit')>=0 && x.indexOf('确认')>=0)?'1':'0'));
   // 「完成闯关」按钮存在于页脚, 初始未就绪(disabled)
   const firstFooter=__ins.filter(x=>x.indexOf('qz-finish')>=0)[0]||'';
   console.log('FINISH_PRESENT='+(firstFooter.indexOf('qz-finish')>=0?'1':'0'));
@@ -739,9 +740,55 @@ const W=global; global.__ins=inserted;
     assert out.returncode == 0, out.stderr
     assert 'ONECARD=1' in out.stdout, out.stdout
     assert 'DOTS=10' in out.stdout, out.stdout
+    assert 'SUBMIT_BTN=1' in out.stdout, out.stdout
     assert 'FINISH_PRESENT=1' in out.stdout, out.stdout
     assert 'FINISH_INIT=1' in out.stdout, out.stdout
     assert 'ADVANCED=1' in out.stdout, out.stdout
+
+
+def test_rapid_double_enter_no_skip(client):
+    """iPad 连续两次快速回车: 自动跳题定时器需合并, 不应跳过中间的题(每次只前进1题)."""
+    harness = r'''
+const fs=require('fs'),vm=require('vm');
+global.window=global;global.esc=s=>String(s||'').replace(/</g,'&lt;').replace(/&/g,'&amp;');
+const store={}; const inserted=[];
+function cap(){ const el={className:'',style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},setAttribute(){},getAttribute(){return null},querySelector:()=>cap(),querySelectorAll:()=>[],textContent:'',value:'',addEventListener(){},options:[],children:[],offsetWidth:0,offsetHeight:0,focus(){},scrollIntoView(){},getContext(){return new Proxy({}, {get:()=>()=>{}})}};
+  Object.defineProperty(el,'innerHTML',{set(v){el._h=String(v);inserted.push(el.className+'|'+String(v));},get(){return el._h}});
+  el.appendChild=(c)=>{el.children.push(c);};
+  return el;
+}
+const container=cap(); container.id='quizShell';
+global.document={getElementById:id=>{ if(id==='wb-math-body'||id==='quizShell') return container; return cap();},querySelectorAll:()=>[],querySelector:()=>cap(),createElement:()=>cap(),createTextNode:()=>({}),addEventListener(){},removeEventListener(){},documentElement:{style:{}},body:cap()};
+global.localStorage={getItem:k=>k in store?store[k]:null,setItem(k,v){store[k]=String(v)},removeItem(k){delete store[k]}};
+global.location={};global.navigator={userAgent:'node'};global.performance={now:()=>0};global.HTMLElement=function(){};global.Node=function(){};
+global.eduKids={active:()=>({id:'kk'}),all:()=>[{id:'kk'}],byId:()=>null,tierOf:()=>'workbench',ageOf:()=>6,tierLabel:()=>'',genderIcon:()=>'?',remove(){},setActive(){},hasAny:()=>1,update(){},add(){}};
+global.eduSync={setOnState(){},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
+vm.createContext(global);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),global);
+const W=global; global.__ins=inserted;
+'''
+    out_body = harness + r'''
+(async()=>{
+  store['edu_record_v1_kk']=JSON.stringify({stars:0,records:[],wrong:[],wishes:[],settings:{}});
+  W.wbMath('calc');
+  await new Promise(r=>setTimeout(r,150));
+  const progress=()=>{ const m=__ins.filter(x=>x.indexOf('进度')>=0); return m.length?m[m.length-1]:''; };
+  const p0=progress();
+  // 同一题连续两次快速回车(模拟 iPad 双击回车): 定时器应合并为一次跳转 → 进度 +1
+  W.quizInputSubmit(0,'99');
+  W.quizInputSubmit(0,'99');
+  await new Promise(r=>setTimeout(r,1450));
+  const p1=progress();
+  const curOf=(s)=>{ const mm=/进度 (\d+)\//.exec(s); return mm?Number(mm[1]):-1; };
+  console.log('P0='+curOf(p0));
+  console.log('P1='+curOf(p1));
+  console.log('NO_SKIP='+(curOf(p1)===curOf(p0)+1 && curOf(p1)<=10?'1':'0'));
+})();
+'''
+    out = subprocess.run(['node', '-e', out_body, _JS], capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    assert 'P0=1' in out.stdout, out.stdout
+    assert 'P1=2' in out.stdout, out.stdout
+    assert 'NO_SKIP=1' in out.stdout, out.stdout
 
 
 def test_top_nav_restructure(client):

@@ -81,7 +81,7 @@
   var lastSpeakText = '', lastSpeakAt = 0;
   function speak(text){
     if (!text || !speakOn()) return;
-    var t = String(text);
+    var t = mathToSpeak(String(text));
     // 同一段文字在短时间内被重复触发(如连续点击 tab)时只播一次
     var now = Date.now();
     if (t === lastSpeakText && now - lastSpeakAt < 1200){ return; }
@@ -113,7 +113,36 @@
   }
   // 朗读用: 去掉填空下划线/占位等号
   function stripBlank(s){ return String(s||'').replace(/[_＿\s]*\_+[_＿\s]*/g,' ').replace(/\s*=\s*\?+\s*$/,'').replace(/\s+/g,' ').trim(); }
+  // 阿拉伯数字 → 中文数字(0~9999), 供朗读用(小朋友更顺口)
+  var CN0='零一二三四五六七八九';
+  function numCn(n){
+    n = Math.floor(Math.abs(n));
+    if (n === 0) return '零';
+    if (n < 10) return CN0[n];
+    if (n < 20) return '十' + (n % 10 ? CN0[n % 10] : '');
+    if (n < 100){ return CN0[Math.floor(n/10)] + '十' + (n % 10 ? CN0[n%10] : ''); }
+    if (n < 1000){ var b=Math.floor(n/100), r=n%100; return CN0[b]+'百' + (r ? (r<10?'零'+CN0[r]:numCn(r)) : ''); }
+    var q=Math.floor(n/1000), r2=n%1000; return CN0[q]+'千' + (r2 ? (r2<100?'零'+numCn(r2):numCn(r2)) : '');
+  }
+  // 数学算式 → 朗读友好中文: 5 - 3 = ? → 五减三等于多少; ×→乘以, ÷→除以, +→加
+  function mathToSpeak(text){
+    if (!text) return '';
+    var s = String(text);
+    if (!/[+\-×÷＝=]/.test(s)) return s;
+    s = s.replace(/×/g, ' 乘 ').replace(/÷/g, ' 除以 ')
+         .replace(/\s*-\s*/g, ' 减 ').replace(/\s*\+\s*/g, ' 加 ')
+         .replace(/[＝=]\s*\?+(\s*,?\s*对吗)?/g, ' 等于多少')
+         .replace(/[＝=]/g, ' 等于 ')
+         .replace(/\?+/g, '多少')
+         .replace(/\s+/g, ' ');
+    return s.replace(/(\d+)/g, function(m){ return numCn(parseInt(m, 10)); });
+  }
   window.speak = function(t){ speak(t); };
+  // 答题时隐藏全局 "+" 快捷悬浮球(避免干扰作答), 离开答题后恢复
+  function quickFabSet(show){
+    var f = document.getElementById('quickFab');
+    if (f) f.style.display = show ? '' : 'none';
+  }
   // 异步出题(拉题库/生成)期间的轻量加载态 + 竞态保护(快速切换学习项时丢弃过期结果)
   var quizSeq = 0;
   function showQuizFetching(id){
@@ -299,6 +328,7 @@
   var quizContainerId = null;
   var quizSubject = null;
   var quizOrder = {};   // 排序题: idx -> 已点顺序数组
+  var recentExclude = [];   // 本会话最近出过的题 prompt, 用于"换一组题"避免重复
 
   function isCorrect(it, my){
     if (it.order) return String(my) === String(it.correct);
@@ -439,7 +469,7 @@
     if (item && quiz.items[idx] && quiz.items[idx].options && quiz.view === idx){
       item.querySelectorAll('.qi-opt .qo-pick').forEach(function(b){ b.disabled = true; });
       showSingleFeedback(idx);
-      setTimeout(quizNext, 1200);
+      scheduleNext(1200);
     }
   };
 
@@ -467,7 +497,7 @@
       var clearBtns = item.querySelectorAll('.qo-clear');
       clearBtns.forEach(function(b){ b.disabled = true; });
       showSingleFeedback(idx);
-      setTimeout(quizNext, 1200);
+      scheduleNext(1200);
     }
   };
   window.clearOrder = function (idx){
@@ -1284,7 +1314,8 @@
       var eq = /\s*=\s*\?+\s*$/.test(String(src));
       h += '<div class="qi-expr">'+esc(String(src).replace(/\s*=\s*\?+\s*$/, ''))+'</div>';
       h += '<div class="qi-ans">'+(eq ? '<span class="qi-eq">＝</span>' : '')+'';
-      h += '<input class="qi-in" data-idx="'+i+'" type="number" inputmode="numeric" autocomplete="off" placeholder="?" aria-label="答案" oninput="onQuizInput('+i+',this.value)" onkeydown="if(event.key===\'Enter\')quizInputSubmit('+i+',this.value)">';
+      h += '<input id="qi-in-'+i+'" class="qi-in" data-idx="'+i+'" type="number" inputmode="numeric" autocomplete="off" placeholder="?" aria-label="答案" oninput="onQuizInput('+i+',this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();quizInputSubmit('+i+',this.value)}">';
+      h += '<button type="button" class="qi-submit" onclick="quizInputSubmit('+i+',document.getElementById(\'qi-in-'+i+'\').value)">确认</button>';
       h += '</div></div>';
     } else {
       h = '<div class="qi-head"><span class="qi-no">'+(i+1)+'</span><span class="qi-prompt">'+esc(it.prompt)+'</span>'+spk+'</div>';
@@ -1329,16 +1360,19 @@
     }
     var allDone = (answeredCount() === total);
     var right = quizAnsweredRight();
+    var cur = Math.min((quiz.view || 0) + 1, total);
     return '<div class="qz-footer">'+
-      '<div class="qz-dots">'+dots+'</div>'+
-      '<div class="qz-stars">⭐ 已获得 <b>'+right+'</b> 颗星星</div>'+
-      '<button type="button" class="qz-finish'+(allDone ? ' ready' : '')+'" '+(allDone ? '' : 'disabled')+' onclick="submitQuiz()">🎉 完成闯关</button>'+
+      '<div class="qz-progress"><div class="qz-dots">'+dots+'</div>'+
+      '<span class="qz-prog-txt">进度 '+cur+'/'+total+'</span></div>'+
+      '<div class="qz-bottom"><div class="qz-stars">⭐ 已获得 <b>'+right+'</b> 颗星星</div>'+
+      '<button type="button" class="qz-finish'+(allDone ? ' ready' : '')+'" '+(allDone ? '' : 'disabled')+' onclick="submitQuiz()">🎉 完成闯关</button></div>'+
       '</div>';
   }
 
   // 卷渲染(共用) - 一题一屏
   function renderQuiz(){
     if (!quiz || !quiz.items.length) return;
+    quickFabSet(false);
     if (quiz.view === undefined) quiz.view = 0;
     // 若返回重新起卷, view 归零
     var container = document.getElementById(quizContainerId);
@@ -1378,14 +1412,22 @@
       updateQuizProg();
     }
   }
+  // 自动跳下一题: 用单一定时器+守卫, 避免 iPad 回车/连点多触发 setTimeout 连跳跳过题目
+  var advTimer = null;
+  function scheduleNext(ms){
+    clearTimeout(advTimer);
+    advTimer = setTimeout(function(){ advTimer = null; quizNext(); }, ms);
+  }
   // 输入题: 回车触发判断并推进
   window.quizInputSubmit = function (idx, val){
     onQuizInput(idx, val);
     if (!quiz || quiz.submitted) return;
     var it = quiz.items[idx];
     if (it && it.input && String(quiz.answers[idx]||'').trim()){
+      var inp = document.getElementById('qi-in-'+idx);
+      if (inp) inp.disabled = true;
       showSingleFeedback(idx);
-      setTimeout(quizNext, 1200);
+      scheduleNext(1200);
     }
   };
   // 单题即时反馈(仅视觉, 不落错题本; 最终仍由 submitQuiz 统一结算)
@@ -1535,6 +1577,7 @@
   window.ENC_OK = ENC_OK; window.ENC_WRONG = ENC_WRONG; window.encPick = encPick; window.modeBarHtml = modeBarHtml; window.quizHeaderHtml = quizHeaderHtml;
   function practiceNext(){
     if (!PRACTICE.active) return;
+    quickFabSet(false);
     var it = practiceItem();
     if (!it) return;
     PRACTICE.cur = it; PRACTICE.idx++; PRACTICE.lock = false; PRACTICE.leftMs = PRACTICE_SECS * 1000;
@@ -1562,7 +1605,26 @@
     if (!PRACTICE.active || PRACTICE.lock) return;
     PRACTICE.leftMs -= 250;
     practiceRenderTimer();
-    if (PRACTICE.leftMs <= 0) practiceAnswer('⏱ 超时');
+    if (PRACTICE.leftMs <= 0) practiceTimeout();
+  }
+  // 时间到: 直接判错并立刻跳到下一题, 不等作答(避免停留在当前题等回答)
+  function practiceTimeout(){
+    if (!PRACTICE.active || PRACTICE.lock) return;
+    var it = PRACTICE.cur;
+    PRACTICE.lock = true;
+    if (PRACTICE.timer) clearInterval(PRACTICE.timer);
+    if (PRACTICE.lockTimer) clearTimeout(PRACTICE.lockTimer);
+    PRACTICE.pending = '';
+    PRACTICE.streak = 0; PRACTICE.wrong++;
+    recordAnswer(PRACTICE.subj, it.wtype || PRACTICE.type, it.id, it.prompt, it.correct, '⏱ 超时', false);
+    if (window.eduSync && window.eduSync.qbankLearn){
+      window.eduSync.qbankLearn({ subj:PRACTICE.subj, type:it.wtype || PRACTICE.type, prompt:it.prompt, correct:false, difficulty:window.eduEngine?window.eduEngine.diffOf(PRACTICE.subj):3 });
+    }
+    var feed = document.getElementById('pqi') ? document.getElementById('pqi').querySelector('.qi-feed') : null;
+    if (feed){ feed.className = 'qi-feed no'; feed.textContent = '⏱ 时间到～'; }
+    practiceRenderTimer();
+    centerView('pqi');
+    PRACTICE.lockTimer = setTimeout(practiceNext, 650);
   }
   window.practiceInput = function (v){
     if (!PRACTICE.active || PRACTICE.lock) return;
@@ -1573,7 +1635,7 @@
     if (!PRACTICE.active || PRACTICE.lock) return;
     var it = PRACTICE.cur;
     var val = String(got == null ? '' : got).trim();
-    if (PRACTICE.pending) { val = PRACTICE.pending; PRACTICE.pending = ''; }
+    if (PRACTICE.pending && val !== '⏱ 超时') { val = PRACTICE.pending; PRACTICE.pending = ''; }
     PRACTICE.lock = true;
     if (PRACTICE.timer) clearInterval(PRACTICE.timer);
     var ok = String(it.correct) === String(val) || isCorrect(it, val);
@@ -1602,7 +1664,8 @@
     try { var el = document.getElementById(id); if (el && el.scrollIntoView) el.scrollIntoView({behavior:'smooth',block:'center'}); } catch(e){}
   }
   window.startPractice = function (subj, type){
-    quiz.submitted = true;   // 冻结标准卷流程, 防止残留按钮干扰
+    if (quiz) quiz.submitted = true;   // 冻结标准卷流程, 防止残留按钮干扰
+    if (advTimer){ clearTimeout(advTimer); advTimer = null; }
     PRACTICE = { active:true, subj:subj, type:type, idx:0, score:0, streak:0, maxStreak:0,
                  right:0, wrong:0, leftMs:PRACTICE_SECS*1000, timer:null, lockTimer:null, lock:false, pending:'', _t:Date.now() };
     window.PRACTICE = PRACTICE;
@@ -1978,34 +2041,50 @@
           it2.note = (it2.note||'') + ' · 巩固';
           add(it2);
         });
-        var exclude = items.map(function(i){ return i.prompt; });
+        var exclude = items.map(function(i){ return i.prompt; }).concat(recentExclude.slice(0, 60));
+        function finish(list){
+          (list||[]).forEach(function(i){ if (i && i.prompt){ recentExclude.push(i.prompt); } });
+          while (recentExclude.length > 80) recentExclude.shift();
+          resolve(list);
+        }
+        function finish(list){
+          (list||[]).forEach(function(i){ if (i && i.prompt){ recentExclude.push(i.prompt); } });
+          while (recentExclude.length > 80) recentExclude.shift();
+          resolve(list);
+        }
+        var fresh = [];
+        // 现场生成补足: 先尽量全新(避开 recentExclude), 新题不足时回退复用历史, 保证本组满 QUIZ_LEN 且组内不重复
+        function fillToLen(){
+          var guard = 0;
+          while (items.length < QUIZ_LEN && guard++ < 120){
+            var it = genOne(subj, type, diff);
+            if (!it || seen[it.prompt]) continue;
+            if (recentExclude.indexOf(it.prompt) >= 0) continue;
+            seen[it.prompt] = 1; items.push(it); if (fresh.length < 120) fresh.push(it);
+          }
+          guard = 0;
+          while (items.length < QUIZ_LEN && guard++ < 120){
+            var it2 = genOne(subj, type, diff);
+            if (!it2 || seen[it2.prompt]) continue;
+            seen[it2.prompt] = 1; items.push(it2); if (fresh.length < 120) fresh.push(it2);
+          }
+        }
         if (window.eduSync && window.eduSync.qbankPull){
           window.eduSync.qbankPull({ subj:subj, type:type, difficulty:diff, limit:QUIZ_LEN, exclude:exclude })
             .then(function(res){
               (res && res.items || []).forEach(function(q){ if (!isLegacyPrompt(q.prompt)) add(qbToItem(q)); });
-              // 3) 现场生成补足, 并入库扩充题库
-              var fresh = [];
-              var guard=0;
-              while (items.length<QUIZ_LEN && guard++<80){
-                var it=genOne(subj,type,diff); if (it) fresh.push(it); add(it);
-              }
+              fillToLen();
               if (window.eduSync && window.eduSync.qbankEnsure && fresh.length){
                 window.eduSync.qbankEnsure({ subj:subj, type:type, difficulty:diff,
                   items: fresh.filter(function(x){return x&&x.prompt;}).map(function(x){
                     return { prompt:x.prompt, options:x.options||[], correct:x.correct, note:x.note||'' };
                   }) });
               }
-              resolve(items);
+              finish(items);
             })
-            .catch(function(){
-              var guard=0;
-              while (items.length<QUIZ_LEN && guard++<80){ add(genOne(subj,type,diff)); }
-              resolve(items);
-            });
+            .catch(function(){ fillToLen(); finish(items); });
         } else {
-          var guard=0;
-          while (items.length<QUIZ_LEN && guard++<80){ add(genOne(subj,type,diff)); }
-          resolve(items);
+          fillToLen(); finish(items);
         }
       });
     }
@@ -2384,6 +2463,12 @@
     closeMoreMenu();
     if (which === 'parent'){ openParentMode(); return; }
     if (which === 'settings'){ openSettings(); return; }
+    if (which === 'regen' || which === 'restart'){
+      if (!(quiz && !quiz.submitted)){ toast('进入答题后再操作'); return; }
+      if (which === 'regen'){ window.regenQuiz(); }
+      else { window.restartQuiz(); }
+      return;
+    }
     if (which === 'help'){
       toast('幼小衔接学习乐园：选择宝贝进入闯关，攒星星换星愿，完成关卡解锁徽章～');
       return;
@@ -2496,6 +2581,7 @@
   var subjNow = 'zh';
   var parNow = null;
   window.eduNav = function (p){
+    quickFabSet(true);
     navNow = p;
     saveNav();
     for (var k in eduPages) document.getElementById(eduPages[k]).style.display = (k === p) ? '' : 'none';

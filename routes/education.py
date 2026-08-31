@@ -150,7 +150,7 @@ def _tts_lang(text):
     return 'zh' if han >= lat else 'en'
 
 
-_EDGE_VOICE = {'zh': 'zh-CN-XiaoxiaoNeural', 'en': 'en-US-AriaNeural'}
+_EDGE_VOICE = {'zh': 'zh-CN-XiaoyiNeural', 'en': 'en-US-AnaNeural'}
 
 
 def _fetch_tts(text, le):
@@ -164,7 +164,7 @@ def _fetch_tts(text, le):
         os.close(fd)
         try:
             async def _run():
-                c = edge_tts.Communicate(text, _EDGE_VOICE.get(le, 'zh-CN-XiaoxiaoNeural'), rate='+10%')
+                c = edge_tts.Communicate(text, _EDGE_VOICE.get(le, 'zh-CN-XiaoyiNeural'), rate='+12%', pitch='+8Hz')
                 await c.save(tmp)
             asyncio.run(_run())
             with open(tmp, 'rb') as f:

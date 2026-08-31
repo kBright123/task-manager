@@ -1322,13 +1322,6 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
       shell.appendChild(card);
     });
     container.appendChild(shell);
-    // 朗读第一题, 方便学龄前儿童独立操作
-    if (quiz && quiz.items && quiz.items.length){
-      var q0 = quiz.items[0];
-      var read = q0.prompt ? stripBlank(q0.prompt)
-               : (q0.big ? stripBlank(q0.big) : '');
-      if (read) setTimeout(function(){ speak(read); }, 350);
-    }
   }
   window.regenQuiz = function (){
     if (quiz.submitted) return;
@@ -1697,10 +1690,35 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
     }
     // 把 qbank 题转成题目对象
     function qbToItem(q){
-      return { id:'qb_'+q.id, prompt:q.prompt,
+      var it = { id:'qb_'+q.id, prompt:q.prompt,
         options:(q.options && q.options.length) ? q.options : undefined,
         input:(q.options && q.options.length) ? undefined : true,
         correct:String(q.correct), note:q.note||'' , wtype:q.type};
+      // 题库只存 prompt/选项, 不存 big(图形/大字)。从内容池重建 big, 让识字/拼音/反义词等
+      // 题的图案在每个问题上都显示(否则只有最后一道现场生成的题有图案)
+      if (q.subj === 'zh'){
+        var m;
+        if (q.type === 'zi'){
+          m = (q.prompt||'').match(/“(.+?)”对应的汉字是？/);
+          var zs = m && ZI.find(function(x){ return x.word === m[1]; });
+          if (zs){ it.big = zs.emoji+' '+zs.word; it.options = makeOptions(zs.zi, ZI.map(function(x){return x.zi;}), 3); }
+        } else if (q.type === 'read'){
+          m = (q.prompt||'').match(/「(.+?)」这个字怎么读？/);
+          var rs = m && P_READ.find(function(x){ return x.zi === m[1]; });
+          if (rs) it.big = rs.e+' '+rs.zi;
+        } else if (q.type === 'pinyin' || q.type === 'yun' || q.type === 'tone'){
+          m = (q.prompt||'').match(/「(.+?)（(.+?)）」/);
+          var ps = m && P_SHENG.find(function(x){ return x.py === m[2]; })
+                 || P_YUN.find(function(x){ return x.u === m[2]; })
+                 || P_READ.find(function(x){ return x.py === m[2]; });
+          if (ps && ps.e) it.big = ps.e+' '+(ps.zi||'');
+        } else if (q.type === 'fan'){
+          m = (q.prompt||'').match(/「(.+?)」的反义词是？/);
+          var fs = m && FANCI.find(function(x){ return x.zi === m[1]; });
+          if (fs) it.big = fs.e+' '+fs.zi;
+        }
+      }
+      return it;
     }
     // 旧版固定描述(题面缺失/不完整), 需重建成完整题目
     function isLegacyPrompt(p){
@@ -1725,7 +1743,7 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
               options:makeOptions(v.words[0], v.words, 3), correct:v.words[0], note:src.full });
           }
         } else if (type === 'zi'){
-          m = (w.prompt||'').match(/"(.+?)"对应的汉字是？/);
+          m = (w.prompt||'').match(/“(.+?)”对应的汉字是？/);
           var zs = m && ZI.find(function(x){ return x.word === m[1]; });
           if (zs) return out({ id:w.q, prompt:'“'+zs.word+'”对应的汉字是？', big:zs.emoji+' '+zs.word,
             options:makeOptions(zs.zi, ZI.map(function(x){ return x.zi; }), 3), correct:zs.zi, note:zs.zi+'（'+zs.pinyin+'）' });
@@ -2440,7 +2458,7 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
         '</div>' +
       '</div>';
     }).join('');
-    var add = '<div class="kid-card add" onclick="kidAdd()"><div class="kk-add"><i class="bi bi-plus-lg"></i><span>新增孩子</span></div></div>';
+    var add = '<div class="kid-card add" onclick="kidAdd()"><div class="kk-add"><i class="bi bi-plus-lg"></i><span>加个小宝贝</span></div></div>';
     var hero = kids.length ? '' :
       '<div class="edu-hero empty-hero"><div style="font-size:2.6rem;line-height:1;">👶</div>' +
       '<h2 style="margin:10px 0 4px;">欢迎来到教育乐园</h2>' +

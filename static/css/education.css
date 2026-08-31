@@ -342,6 +342,8 @@
   .kid-card .kk-add i{font-size:2rem;}
   .kid-card.add{border-style:dashed;}
   .kid-card.add:hover{border-color:var(--edu-blue);color:var(--edu-blue);}
+  .kid-card.add .kk-add{flex-direction:row;gap:8px;padding:0;justify-content:center;color:var(--edu-ink);font-weight:800;font-size:.95rem;min-height:52px;}
+  .kid-card.add .kk-add i{font-size:1.2rem;color:var(--edu-primary);}
 
   /* ===== 首页：星愿进度 ===== */
   .wish-prog-card{background:var(--edu-result-grad);border:2px solid var(--edu-chip-bd);border-radius:18px;padding:16px 18px;margin-bottom:14px;}

@@ -419,6 +419,7 @@ def test_practice_mode_blitz():
   W.startPractice('math','calc');
   await new Promise(r=>setTimeout(r,80));
   const hasCard = bodyH.indexOf('qi-p-in')>=0 && bodyH.indexOf('pr-hud')>=0;
+  const hasBanner = bodyH.indexOf('lv-banner')>=0 && bodyH.indexOf('难度档')>=0 && bodyH.indexOf('极速练习')>=0 && bodyH.indexOf('闯关')>=0;
   // 第1题: 读出正确答案作答 → 连对1 → 得1分
   const c1 = W.PRACTICE.cur.correct;
   W.practiceAnswer(c1);
@@ -432,6 +433,7 @@ def test_practice_mode_blitz():
   W.stopPractice();
   const recN = (W.state.records||[]).length;
   console.log('HAS_CARD='+(hasCard?'1':'0'));
+  console.log('HAS_BANNER='+(hasBanner?'1':'0'));
   console.log('SCORE1='+s1);
   console.log('SCORE2='+s2);
   console.log('SUMMARY='+(bodyH.indexOf('⚡3 分')>=0?'1':'0'));
@@ -439,6 +441,7 @@ def test_practice_mode_blitz():
 })();
 ''')
     assert 'HAS_CARD=1' in out, out
+    assert 'HAS_BANNER=1' in out, out
     assert 'SCORE1=1' in out, out
     assert 'SCORE2=1' in out, out
     assert 'SUMMARY=1' in out, out

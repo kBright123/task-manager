@@ -1245,30 +1245,11 @@
 
     var shell = document.createElement('div');
     shell.id = 'quizShell';
-    // 闯关横幅(难度档+过关目标+通关状态) 与 [闯关|极速练习] 入口合并为一行
+    // 闯关横幅(难度档+过关目标+通关状态) 与 [闯关|极速练习] 入口合并为一行(与极速练习统一页头)
     if (quizSubject !== 'par'){
-      var lv = window.eduEngine ? window.eduEngine.diffOf(quizSubject) : 3;
-      var passed = (state.adv && state.adv[quizSubject] && state.adv[quizSubject][quiz.type] && state.adv[quizSubject][quiz.type].passed);
-      var itemName = ({zh:{poem:'古诗',zi:'识字',stroke:'笔顺',pinyin:'拼音',yun:'拼音',read:'拼音',tone:'拼音',fan:'词语',liang:'词语',daily:'每日挑战'},
-                       math:{calc:'口算',judge:'判断',word:'应用题',order:'排序',daily:'每日挑战'},
-                       en:{word:'单词',dialogue:'对话',daily:'每日挑战'}}[quizSubject]||{})[quiz.type] || quiz.type;
-      var stars = '';
-      for (var si=0; si<lv; si++) stars += '⭐';
-      var banner = document.createElement('div');
-      banner.className = 'lv-banner';
-      var bannerHtml =
-        '<div class="lv-left"><span class="lv-badge">🗺️ 闯关 · '+esc(itemName)+'</span>'+
-        '<span class="lv-sub">难度'+stars+' · 答对 '+(window.eduEngine?window.eduEngine.PASS_Q:7)+' 题过关</span></div>'+
-        '<div class="lv-right">'+(passed?'<span class="lv-passed">✅ 已通过本关</span>':'<span class="lv-notyet">⏳ 待通关</span>')+
-        '<span class="lv-at">难度档 '+lv+'/5</span>'+
-        (quiz.type !== 'daily'
-          ? '<span class="pb-mini-group">'+
-              '<button type="button" class="pb-mini active" onclick="restartQuiz()">🗺️ 闯关</button>'+
-              '<button type="button" class="pb-mini" onclick="startPractice(\''+esc(quizSubject||'zh')+'\',\''+esc(quiz.type||'zi')+'\')">⚡ 极速练习</button></span>'
-          : '')+
-        '</div>';
-      banner.innerHTML = bannerHtml;
-      shell.appendChild(banner);
+      var headerDiv = document.createElement('div');
+      headerDiv.innerHTML = quizHeaderHtml('guan', quizSubject, quiz.type);
+      shell.appendChild(headerDiv);
     }
     var toolbar = document.createElement('div');
     toolbar.className = 'quiz-toolbar';
@@ -1401,17 +1382,35 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
   }
   var ENC_OK = ['你真棒！','答对啦，太厉害了！','好聪明呀～','漂亮！','你越来越棒咯！','太赞了！','加油，就这样！'];
   var ENC_WRONG = ['打错了～ 继续加油！','没关系，再想想！','别灰心，再试一次！','差一点点，加油！','再想想，你可以的！'];
-  // 闯关 / 极速练习 并列模式条
-  function modeBarHtml(active){
-    var subj = PRACTICE.active ? PRACTICE.subj : quizSubject;
-    var typ = PRACTICE.active ? PRACTICE.type : (quiz && quiz.type);
-    subj = subj || 'zh';
-    typ = typ || 'zi';
-    return '<div class="pb-mode">'+
-      '<button type="button" class="pb-mode-btn'+(active==='guan'?' active':'')+'" onclick="restartQuiz()">🗺️ 闯关</button>'+
-      '<button type="button" class="pb-mode-btn'+(active==='su'?' active':'')+'" onclick="startPractice(\''+subj+'\',\''+typ+'\')">⚡ 极速练习</button></div>';
+  // 闯关/极速练习 统一页头: 闯关横幅信息(学项·难度·答对题数·通关状态·难度档) + [闯关|极速练习]按钮内嵌同一行
+  // active: 'guan'|'su' 决定高亮哪个按钮; subj/type 决定题面与难度
+  function quizHeaderHtml(active, subj, type){
+    subj = subj || 'zh'; type = type || 'zi';
+    var lv = window.eduEngine ? window.eduEngine.diffOf(subj) : 3;
+    var passed = (state.adv && state.adv[subj] && state.adv[subj][type] && state.adv[subj][type].passed);
+    var itemName = ({zh:{poem:'古诗',zi:'识字',stroke:'笔顺',pinyin:'拼音',yun:'拼音',read:'拼音',tone:'拼音',fan:'词语',liang:'词语',daily:'每日挑战'},
+                     math:{calc:'口算',judge:'判断',word:'应用题',order:'排序',daily:'每日挑战'},
+                     en:{word:'单词',dialogue:'对话',daily:'每日挑战'}}[subj]||{})[type] || type;
+    var stars = '';
+    for (var si=0; si<lv; si++) stars += '⭐';
+    var html = '<div class="lv-banner">'+
+      '<div class="lv-left"><span class="lv-badge">🗺️ 闯关 · '+esc(itemName)+'</span>'+
+      '<span class="lv-sub">难度'+stars+' · 答对 '+(window.eduEngine?window.eduEngine.PASS_Q:7)+' 题过关</span></div>'+
+      '<div class="lv-right">'+(passed?'<span class="lv-passed">✅ 已通过本关</span>':'<span class="lv-notyet">⏳ 待通关</span>')+
+      '<span class="lv-at">难度档 '+lv+'/5</span>';
+    if (type !== 'daily'){
+      html += '<span class="pb-mini-group">'+
+        '<button type="button" class="pb-mini'+(active==='guan'?' active':'')+'" onclick="restartQuiz()">🗺️ 闯关</button>'+
+        '<button type="button" class="pb-mini'+(active==='su'?' active':'')+'" onclick="startPractice(\''+esc(subj)+'\',\''+esc(type)+'\')">⚡ 极速练习</button></span>';
+    }
+    html += '</div></div>';
+    return html;
   }
-  window.ENC_OK = ENC_OK; window.ENC_WRONG = ENC_WRONG; window.encPick = encPick; window.modeBarHtml = modeBarHtml;
+  // 兼容旧引用: 仅按钮一行(练习历史/测试), 委托给统一页头
+  function modeBarHtml(active){
+    return quizHeaderHtml(active);
+  }
+  window.ENC_OK = ENC_OK; window.ENC_WRONG = ENC_WRONG; window.encPick = encPick; window.modeBarHtml = modeBarHtml; window.quizHeaderHtml = quizHeaderHtml;
   function practiceNext(){
     if (!PRACTICE.active) return;
     var it = practiceItem();
@@ -1419,7 +1418,7 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
     PRACTICE.cur = it; PRACTICE.idx++; PRACTICE.lock = false; PRACTICE.leftMs = PRACTICE_SECS * 1000;
     var shell = document.getElementById('quizShell');
     if (!shell) return;
-    shell.innerHTML = modeBarHtml('su') + practiceHud() +
+    shell.innerHTML = quizHeaderHtml('su', PRACTICE.subj, PRACTICE.type) + practiceHud() +
       '<div class="quiz-item practice-item" id="pqi">'+practiceRenderItem()+'</div>';
     if (PRACTICE.timer) clearInterval(PRACTICE.timer);
     PRACTICE.timer = setInterval(practiceTick, 250);

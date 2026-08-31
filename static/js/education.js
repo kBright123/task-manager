@@ -638,6 +638,7 @@
     if (quizSubject === 'math') return 'wbMath(\''+wbMathMode+'\')';
     return 'wbZh(\''+wbZhMode+'\')';
   }
+  window.renderQuiz = renderQuiz;
   window.restartQuiz = function (){
     if (quiz.type === 'daily'){ startDaily(); return; }
     if (quizSubject === 'par'){ parPlay(quiz.type); return; }
@@ -1244,14 +1245,7 @@
 
     var shell = document.createElement('div');
     shell.id = 'quizShell';
-    // 闯关 / 极速练习 并列入口
-    if (quizSubject !== 'par' && quiz.type !== 'daily'){
-      var modeBar = document.createElement('div');
-      modeBar.className = 'pb-mode';
-      modeBar.innerHTML = modeBarHtml('guan');
-      shell.appendChild(modeBar);
-    }
-    // 闯关横幅: 让每个学习项都一眼看出是"闯关"模式(难度档 + 过关目标 + 已通关状态)
+    // 闯关横幅(难度档+过关目标+通关状态) 与 [闯关|极速练习] 入口合并为一行
     if (quizSubject !== 'par'){
       var lv = window.eduEngine ? window.eduEngine.diffOf(quizSubject) : 3;
       var passed = (state.adv && state.adv[quizSubject] && state.adv[quizSubject][quiz.type] && state.adv[quizSubject][quiz.type].passed);
@@ -1262,11 +1256,18 @@
       for (var si=0; si<lv; si++) stars += '⭐';
       var banner = document.createElement('div');
       banner.className = 'lv-banner';
-      banner.innerHTML =
+      var bannerHtml =
         '<div class="lv-left"><span class="lv-badge">🗺️ 闯关 · '+esc(itemName)+'</span>'+
         '<span class="lv-sub">难度'+stars+' · 答对 '+(window.eduEngine?window.eduEngine.PASS_Q:7)+' 题过关</span></div>'+
         '<div class="lv-right">'+(passed?'<span class="lv-passed">✅ 已通过本关</span>':'<span class="lv-notyet">⏳ 待通关</span>')+
-        '<span class="lv-at">难度档 '+lv+'/5</span></div>';
+        '<span class="lv-at">难度档 '+lv+'/5</span>'+
+        (quiz.type !== 'daily'
+          ? '<span class="pb-mini-group">'+
+              '<button type="button" class="pb-mini active" onclick="restartQuiz()">🗺️ 闯关</button>'+
+              '<button type="button" class="pb-mini" onclick="startPractice(\''+esc(quizSubject||'zh')+'\',\''+esc(quiz.type||'zi')+'\')">⚡ 极速练习</button></span>'
+          : '')+
+        '</div>';
+      banner.innerHTML = bannerHtml;
       shell.appendChild(banner);
     }
     var toolbar = document.createElement('div');
@@ -1277,6 +1278,8 @@
     shell.appendChild(toolbar);
     updateQuizProg();
 
+    var grid = document.createElement('div');
+    grid.className = 'quiz-grid';
     quiz.items.forEach(function(it, i){
       var card = document.createElement('div');
       card.className = 'quiz-item';
@@ -1325,8 +1328,9 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
       h += '<div class="qi-feed"></div>';
       card.innerHTML = h;
       renderOrderSeq(i);
-      shell.appendChild(card);
+      grid.appendChild(card);
     });
+    shell.appendChild(grid);
     container.appendChild(shell);
   }
   window.regenQuiz = function (){
@@ -2242,6 +2246,15 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
   // 每个孩子独立记录 { mode, subj, par }，进入学习时自动回到该孩子上次学的课模块
   var EDU_PREF_PREFIX = 'edu_pref_v1_';
   function activeKidId(){ var k = window.eduKids.active(); return k ? String(k.id) : null; }
+  // 刷新后保持当前页面(不跳回首页); 每个孩子独立记忆上次停留页
+  function saveNav(){
+    var id = activeKidId();
+    if (id) save('edu_nav_v1_' + id, navNow);
+  }
+  function lastNav(){
+    var id = activeKidId();
+    return id ? load('edu_nav_v1_' + id) : null;
+  }
   function getPref(){
     var id = activeKidId();
     return id ? (load(EDU_PREF_PREFIX + id) || null) : null;
@@ -2295,6 +2308,7 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
   var parNow = null;
   window.eduNav = function (p){
     navNow = p;
+    saveNav();
     for (var k in eduPages) document.getElementById(eduPages[k]).style.display = (k === p) ? '' : 'none';
     var kb = document.getElementById('kidBar');
     if (kb) kb.style.display = (p === 'learn' || p === 'wish') ? 'flex' : 'none';
@@ -2695,7 +2709,10 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
           '<div class="edu-field" style="flex:1;"><label>心愿内容</label><input type="text" id="wishName" maxlength="12" placeholder="例如：周末去游乐场"></div>' +
           '<div class="edu-field" style="flex:0 0 92px;"><label>所需星星</label><input type="number" id="wishCost" min="1" max="999" value="10"></div>' +
         '</div>' +
-        '<div class="edu-actions"><button type="button" class="btn-soft" style="flex:1;" onclick="wishAdd()">添加星愿</button></div></div>'
+        '<div class="edu-actions"><button type="button" class="btn-soft" style="flex:1;" onclick="wishAdd()">添加星愿</button></div></div>'+
+      '<div class="edu-card" style="text-align:center;"><h4>⚙️ 家长控制</h4>' +
+        '<p class="muted" style="margin:6px 0 12px;">口算范围 / 进退位 / 乘法表 / 每日上限 / 显示项 / 口令</p>' +
+        '<button type="button" class="btn-soft" onclick="openSettings()">打开家长控制</button></div>'
       : '<div class="edu-card" style="text-align:center;"><h4>🎁 新增星愿（家长）</h4>' +
         '<p class="muted" style="margin:6px 0 12px;">星愿由家长设置，孩子攒星兑换。</p>' +
         '<button type="button" class="btn-soft" onclick="requireParent(function(){ renderWish(); })">🔓 家长模式</button></div>';
@@ -2803,8 +2820,12 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
     loadAllState();
     renderStars();
     applyContentToggles();
-    eduNav('home');
+    var saved = lastNav();
+    var page = (saved === 'learn' || saved === 'wish' || saved === 'badges' || saved === 'stats') ? saved : 'home';
+    eduNav(page);
   }
+  window.lastNav = lastNav;
+  window.enter = enter;
 
   // 注册后端数据回填回调：把后端该孩子的学习数据写回本地缓存(仅当本地为空)
   if (window.eduSync){

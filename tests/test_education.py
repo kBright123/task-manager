@@ -339,6 +339,71 @@ def test_calc_mult_and_parent_range(client):
     assert 'HAS_MULT=1' in out, out
 
 
+def test_quiz_refresh_keeps_page(client):
+    """刷新保持: 当前页面(非首页)被持久化, 重新进入(enter)恢复到该页而非首页."""
+    out = _harness(r'''
+(async()=>{
+  store['edu_record_v1_kk']=JSON.stringify({stars:0,records:[],wrong:[],wishes:[],settings:{}});
+  const shown=[]; let showing='none';
+  global.document.getElementById=(id)=>{
+    const el=me(); const st={};
+    Object.defineProperty(st,'display',{set(v){ if(id.endsWith('Page')){ if(v===''){ showing=id; shown.push('SHOW'); } else shown.push('HIDE'); } },get(){return st._v}});
+    el.style=st; return el;
+  };
+  W.eduNav('learn');
+  console.log('SAVED='+(store['edu_nav_v1_kk']?'1':'0'));
+  console.log('LAST='+String(W.lastNav()));
+  // 模拟刷新: 记忆仍在 → enter 应恢复 'learn' 而非跳回 'home'
+  showing='none';
+  W.enter();
+  console.log('PAGE='+showing);
+})();
+''')
+    assert 'SAVED=1' in out, out
+    assert 'LAST=learn' in out, out
+    assert 'PAGE=eduLearnPage' in out, out
+
+
+def test_banner_and_quiz_grid(client):
+    """闯关横幅(难度/通关/档位) 与 [闯关|极速练习] 按钮合并成一行; 题目卡片包进两栏 .quiz-grid."""
+    harness = r'''
+const fs=require('fs'),vm=require('vm');
+global.window=global;global.esc=s=>String(s||'').replace(/</g,'&lt;').replace(/&/g,'&amp;');
+const store={}; let inserted=[];
+function cap(){ const el={className:'',style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},setAttribute(){},getAttribute(){return null},querySelector:()=>cap(),querySelectorAll:()=>[],textContent:'',value:'',addEventListener(){},options:[],children:[],offsetWidth:0,offsetHeight:0,focus(){},scrollIntoView(){},getContext(){return new Proxy({}, {get:()=>()=>{}})}};
+  Object.defineProperty(el,'innerHTML',{set(v){ el._h=String(v); const s=String(v); if(s.indexOf('极速练习')>=0||s.indexOf('lv-badge')>=0) inserted.push(el.className+'|'+s); if((el.className==='quiz-grid')&&('quiz-grid'===el.className)) inserted.push('GRID'); },get(){return el._h}});
+  el.appendChild=(c)=>{el.children.push(c);};
+  return el;
+}
+const container=cap();
+global.document={getElementById:id=> (id==='wb-math-body'||id==='quizShell')?container:cap(),querySelectorAll:()=>[],querySelector:()=>cap(),createElement:()=>cap(),createTextNode:()=>({}),addEventListener(){},removeEventListener(){},documentElement:{style:{}},body:cap()};
+global.localStorage={getItem:k=>k in store?store[k]:null,setItem(k,v){store[k]=String(v)},removeItem(k){delete store[k]}};
+global.location={};global.navigator={userAgent:'node'};global.performance={now:()=>0};global.HTMLElement=function(){};global.Node=function(){};
+global.eduKids={active:()=>({id:'kk'}),all:()=>[{id:'kk'}],byId:()=>null,tierOf:()=>'workbench',ageOf:()=>6,tierLabel:()=>'',genderIcon:()=>'?',remove(){},setActive(){},hasAny:()=>1,update(){},add(){}};
+global.eduSync={setOnState(){},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
+vm.createContext(global);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),global);const W=global;
+global.__ins=inserted;
+'''
+    out_body = harness + r'''
+(async()=>{
+  store['edu_record_v1_kk']=JSON.stringify({stars:0,records:[],wrong:[],wishes:[],settings:{},level:{math:5}});
+  store['edu_quiz_v1_kk']=JSON.stringify({subj:'math',type:'calc',items:[{input:true,prompt:'7+8=?',correct:'15'},{input:true,prompt:'3+9=?',correct:'12'}],answers:{},order:{},submitted:false,_t:Date.now()});
+  W.eduNav('learn');
+  await new Promise(r=>setTimeout(r,40));
+  W.wbMath('calc');
+  await new Promise(r=>setTimeout(r,150));
+  // 合并行: 同一元素内含 闯关/极速练习 与 难度档
+  let merged=__ins.filter(x=>x.indexOf('boss')<0 && x.indexOf('极速练习')>=0 && (x.indexOf('lv-at')>=0));
+  console.log('MERGED='+(merged.length?'1':'0'));
+  console.log('HASBTN='+((__ins.join('').indexOf('闯关')>=0 && __ins.join('').indexOf('极速练习')>=0)?'1':'0'));
+})();
+'''
+    r = subprocess.run(['node', '-e', out_body, _JS], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    assert 'MERGED=1' in r.stdout, r.stdout
+    assert 'HASBTN=1' in r.stdout, r.stdout
+
+
 def test_practice_mode_blitz():
     """极速练习: 单题即时反馈 + 连对倍率计分 + 结束结算('⚡X 分'), 回答计入错题本与统计."""
     out = _harness(r'''

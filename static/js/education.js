@@ -1244,6 +1244,13 @@
 
     var shell = document.createElement('div');
     shell.id = 'quizShell';
+    // 闯关 / 极速练习 并列入口
+    if (quizSubject !== 'par' && quiz.type !== 'daily'){
+      var modeBar = document.createElement('div');
+      modeBar.className = 'pb-mode';
+      modeBar.innerHTML = modeBarHtml('guan');
+      shell.appendChild(modeBar);
+    }
     // 闯关横幅: 让每个学习项都一眼看出是"闯关"模式(难度档 + 过关目标 + 已通关状态)
     if (quizSubject !== 'par'){
       var lv = window.eduEngine ? window.eduEngine.diffOf(quizSubject) : 3;
@@ -1266,7 +1273,6 @@
     toolbar.className = 'quiz-toolbar';
     toolbar.innerHTML = '<span class="qt-progress" id="qtProg"></span>'+
       '<button type="button" class="btn-ghost" onclick="regenQuiz()">换一组题</button>'+
-      (quiz.type === 'daily' ? '' : '<button type="button" class="btn-accent" onclick="startPractice(\''+quizSubject+'\',\''+quiz.type+'\')">⚡ 极速练习</button>')+
       '<button type="button" class="btn-soft" onclick="submitQuiz()">交卷打分</button>';
     shell.appendChild(toolbar);
     updateQuizProg();
@@ -1381,6 +1387,27 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
     h += '<div class="qi-feed"></div>';
     return h;
   }
+  // 极速练习鼓励语音: 答对/答错随机一句, 每次一个; 避免连续两次相同
+  var lastEnc = '';
+  function encPick(list){
+    var p = list[Math.floor(Math.random()*list.length)];
+    if (p === lastEnc && list.length > 1){ p = list[(list.indexOf(p)+1) % list.length]; }
+    lastEnc = p;
+    return p;
+  }
+  var ENC_OK = ['你真棒！','答对啦，太厉害了！','好聪明呀～','漂亮！','你越来越棒咯！','太赞了！','加油，就这样！'];
+  var ENC_WRONG = ['打错了～ 继续加油！','没关系，再想想！','别灰心，再试一次！','差一点点，加油！','再想想，你可以的！'];
+  // 闯关 / 极速练习 并列模式条
+  function modeBarHtml(active){
+    var subj = PRACTICE.active ? PRACTICE.subj : quizSubject;
+    var typ = PRACTICE.active ? PRACTICE.type : (quiz && quiz.type);
+    subj = subj || 'zh';
+    typ = typ || 'zi';
+    return '<div class="pb-mode">'+
+      '<button type="button" class="pb-mode-btn'+(active==='guan'?' active':'')+'" onclick="restartQuiz()">🗺️ 闯关</button>'+
+      '<button type="button" class="pb-mode-btn'+(active==='su'?' active':'')+'" onclick="startPractice(\''+subj+'\',\''+typ+'\')">⚡ 极速练习</button></div>';
+  }
+  window.ENC_OK = ENC_OK; window.ENC_WRONG = ENC_WRONG; window.encPick = encPick; window.modeBarHtml = modeBarHtml;
   function practiceNext(){
     if (!PRACTICE.active) return;
     var it = practiceItem();
@@ -1388,7 +1415,7 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
     PRACTICE.cur = it; PRACTICE.idx++; PRACTICE.lock = false; PRACTICE.leftMs = PRACTICE_SECS * 1000;
     var shell = document.getElementById('quizShell');
     if (!shell) return;
-    shell.innerHTML = practiceHud() +
+    shell.innerHTML = modeBarHtml('su') + practiceHud() +
       '<div class="quiz-item practice-item" id="pqi">'+practiceRenderItem()+'</div>';
     if (PRACTICE.timer) clearInterval(PRACTICE.timer);
     PRACTICE.timer = setInterval(practiceTick, 250);
@@ -1435,11 +1462,13 @@ if (it.big && it.big !== it.prompt) h += '<div class="qi-big">'+esc(it.big)+'</d
       PRACTICE.score += PRACTICE.streak;   // 连对倍率: 连对越多本题分值越高
       PRACTICE.right++;
       if (feed){ feed.className = 'qi-feed ok'; feed.textContent = '🎉 '+warmCheck()+ (PRACTICE.streak>=3 ? '  🔥x'+PRACTICE.streak : ''); }
+      speak(encPick(ENC_OK));
       PRACTICE.lockTimer = setTimeout(practiceNext, 900);
       if (PRACTICE.streak > 0 && PRACTICE.streak % 5 === 0) starBurst();
     } else {
       PRACTICE.streak = 0; PRACTICE.wrong++;
       if (feed){ feed.className = 'qi-feed no'; feed.textContent = '💡 '+(val === '⏱ 超时' ? '时间到～' : warmWrong(it)); }
+      speak(encPick(ENC_WRONG));
       PRACTICE.lockTimer = setTimeout(practiceNext, 1700);
     }
     centerView('pqi');

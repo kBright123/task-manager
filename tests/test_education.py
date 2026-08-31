@@ -549,6 +549,22 @@ def test_edu_tts_endpoint(client):
                 pass
 
 
+def test_practice_encourage_and_modebar(client):
+    """极速练习鼓励语音: 答对/答错各有随机词库且能抽到; 闯关/极速练习并列模式条含两入口."""
+    out = _harness(r'''
+  var h=W.modeBarHtml('guan');
+  var h2=W.modeBarHtml('su');
+  console.log('OK='+W.ENC_OK.length+'/'+W.ENC_WRONG.length);
+  console.log('PICK='+W.encPick(W.ENC_OK)+'|'+W.encPick(W.ENC_WRONG));
+  console.log('MB='+((h.indexOf('闯关')>=0 && h.indexOf('极速练习')>=0)));
+  console.log('MGUAN='+(h.indexOf('active')>=0));
+  console.log('MSU='+(h2.indexOf('active')>=0));
+''')
+    assert 'OK=7/5' in out, out
+    assert '|' in out, out
+    assert 'MB=true' in out, out
+
+
 if __name__ == '__main__':
     # 便于 run_tests.py 风格手动运行
     import conftest

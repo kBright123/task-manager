@@ -137,8 +137,32 @@ def _drop_profile_data(sess, owner, pid):
 
 @education_bp.route('/')
 def index():
-    """教育学习乐园(前端驱动, 数据走 /edu/api/**)."""
-    return render_template('education.html')
+    """教育乐园首页：孩子管理 + 星愿进度。"""
+    return render_template('edu_home.html')
+
+
+@education_bp.route('/learn')
+def learn():
+    """学习中心：幼小衔接工作台 + 快乐乐园。"""
+    return render_template('edu_learn.html')
+
+
+@education_bp.route('/wish')
+def wish():
+    """星愿页面。"""
+    return render_template('edu_wish.html')
+
+
+@education_bp.route('/badges')
+def badges():
+    """荣誉墙页面。"""
+    return render_template('edu_badges.html')
+
+
+@education_bp.route('/stats')
+def stats():
+    """家长数据看板页面。"""
+    return render_template('edu_stats.html')
 
 
 # ==================== API ====================

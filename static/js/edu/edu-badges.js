@@ -1,0 +1,44 @@
+(function () {
+  'use strict';
+  var C = window.Edu.Constants;
+  var M = window.Edu.MathUtils;
+  var Store = window.Edu.Store;
+  var Legacy = window.Edu.Legacy;
+
+  function badgeCard(k) {
+    var b = Legacy.BADGES[k];
+    var got = Store.state.badges && Store.state.badges[k];
+    return '<div class="badge-card '+(got?'on':'dim')+'" id="badge-'+k+'" onclick="window.Edu.Legacy.badgePulse(\''+k+'\')">'+
+      '<div class="badge-icon">'+(b?b.name.split(' ')[0]:'🏅')+'</div>'+
+      '<div class="badge-name">'+(b?b.name:k)+'</div>'+
+      '<div class="badge-desc">'+(b?b.desc:'')+'</div>'+
+      (got?'<div class="badge-got">已获得</div>':'')+
+      '</div>';
+  }
+
+  function renderBadges() {
+    var body = document.getElementById('eduBadgesBody');
+    if (!body) return;
+    var keys = Object.keys(Legacy.BADGES);
+    var unlocked = 0;
+    for (var i=0;i<keys.length;i++) if (Store.state.badges && Store.state.badges[keys[i]]) unlocked++;
+    var act = window.eduKids ? window.eduKids.active() : null;
+    var name = act ? (act.name || '宝贝') : '宝贝';
+    var pct = keys.length ? Math.round(unlocked * 100 / keys.length) : 0;
+    body.innerHTML =
+      '<div class="bd-hero">'+
+        '<div class="bd-hero-em">🏆</div>'+
+        '<div class="bd-hero-meta"><div class="bd-hero-t">' + name + ' 的闯关勋章墙</div>'+
+        '<div class="bd-hero-sub">已解锁 <b>' + unlocked + '</b> / ' + keys.length + ' 枚 · 星星 ⭐ ' + (Store.state.stars || 0) + '</div>'+
+        '<div class="bd-prog"><div class="bd-fill" style="width:' + pct + '%;"></div></div></div>'+
+      '</div>'+
+      '<div class="badge-count">已解锁 '+unlocked+' / '+keys.length+' 枚徽章</div>'+
+      '<div class="badge-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;">'+keys.map(badgeCard).join('')+'</div>'+
+      '<p class="bd-tip">💡 闯关、极速练习与每日挑战都能赢星星换新徽章，继续加油！</p>';
+  }
+
+  window.Edu.Badges = {
+    renderBadges: renderBadges,
+    badgeCard: badgeCard
+  };
+})();

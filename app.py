@@ -459,13 +459,14 @@ def pet_page():
     return render_template('pet.html')
 _STATIC_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 
-_STATIC_MTIME_TTL = 30.0
+_STATIC_MTIME_TTL = 1.0
 _static_mtime_cache = {}  # {filename: (version, fetched_at)}
 def _static_mtime_version(filename):
     """静态文件 mtime 版本号: 内容变化自动换 URL 版本, 支持不可变缓存。
 
-    版本号带 30s TTL 缓存:一次页面渲染会为多个资源调用本函数,避免每个
-    静态文件每次请求都做一次 stat;开发期改文件最迟 30s 内生效。"""
+    版本号带极短(1s)TTL 缓存:同一次页面渲染对同一资源去重 stat;改动
+    后会尽快换新版本 URL, 避免 service worker 长期命中旧 URL 缓存(旧模块/
+    旧 CSS)导致改动不生效。"""
     now = time.time()
     cached = _static_mtime_cache.get(filename)
     if cached is not None and now - cached[1] < _STATIC_MTIME_TTL:
@@ -477,6 +478,37 @@ def _static_mtime_version(filename):
         version = 0
     _static_mtime_cache[filename] = (version, now)
     return version
+
+_EDU_STATIC_VERSION_CACHE = None
+def edu_static_version(_placeholder=None):
+    """教育乐园前端缓存版本: 取 js/edu 全部模块里最新的 mtime, 并叠加
+    布局模板 mtime。任一模块/模板变更都会导致版本号立即变化, 从而让
+    edu-main.js 把该版本拼到全部模块 URL 上, 彻底避免 SW/HTTP 缓存
+    返回旧模块导致"一直转圈/答题不出题"。
+
+    注意: 此处**不缓存**版本值(每次 /edu/ 渲染都实时 re-stat)。因为
+    service worker 采用 stale-while-revalidate, 一旦版本号在改动后仍保持
+    旧值(延迟刷新), SW 就会继续命中旧 URL 缓存返回旧模块, 造成改动
+    "看不到效果"。必须让版本号随文件变更立即变化, 使 URL 立即改变、
+    迫使 SW 走网络回退拿新内容。""" 
+    global _EDU_STATIC_VERSION_CACHE
+    edu_dir = os.path.join(_STATIC_ROOT, 'js', 'edu')
+    latest = 0
+    try:
+        for fname in os.listdir(edu_dir):
+            if fname.endswith('.js'):
+                latest = max(latest, int(os.path.getmtime(os.path.join(edu_dir, fname))))
+    except OSError:
+        pass
+    for tpl in ('edu_home.html', 'edu_learn.html', 'edu_wish.html',
+                'edu_badges.html', 'edu_stats.html', 'education.html'):
+        tp = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates', tpl)
+        try:
+            latest = max(latest, int(os.path.getmtime(tp)))
+        except OSError:
+            pass
+    _EDU_STATIC_VERSION_CACHE = latest
+    return latest
 @app.context_processor
 def inject_globals():
     if current_user.is_authenticated:
@@ -499,6 +531,7 @@ def inject_globals():
             '%Y年%m月%d日 %A'), 'timedelta': timedelta,
                 'VERSION': VERSION,
                 'staticv': _static_mtime_version,
+                'edu_static_version': edu_static_version,
                 'unread_notifications': unread_count,
                 'recent_notifications': recent,
                 'users': User.query.filter(User.is_disabled == False).all(),
@@ -506,7 +539,8 @@ def inject_globals():
                 'is_admin': str(getattr(current_user, 'role', '')) == 'admin'}
     return {'now': cn_now, 'today_str': cn_now().strftime(
         '%Y年%m月%d日 %A'), 'timedelta': timedelta, 'VERSION': VERSION,
-            'staticv': _static_mtime_version}
+            'staticv': _static_mtime_version,
+            'edu_static_version': edu_static_version}
 
 
 import markupsafe

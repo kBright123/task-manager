@@ -1,0 +1,427 @@
+{# -*- coding: utf-8 -*-
+  This file is part of 知行合一 · 任务与知识管理系统 (TaskManager).
+  Copyright (C) 2026 TaskManager contributors
+  
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+  
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+  
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#}
+{% extends "base.html" %}
+{% block title %}教育乐园 - 知行合一{% endblock %}
+{% block body_class %}edu-page edu-badges{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/education.css', v=staticv('css/education.css')) }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap">
+{% endblock %}
+
+{% block content %}
+<div class="edu-wrap">
+  <!-- ================= 首页：孩子管理 + 星愿进度 ================= -->
+  <section id="eduHomePage" style="display:none;">
+    <div id="eduHomeBody"></div>
+  </section>
+
+  <!-- ================= 学习页 ================= -->
+  <div id="eduLearnPage" style="display:none;">
+
+  <!-- ================= 幼小衔接工作台 ================= -->
+  <section id="eduWorkbench" style="display:none;">
+    <div class="wb-strip" id="wbStrip" style="display:none;">
+      <span class="wb-pill" id="wbDoneToday" style="display:none;">✅ 今日已完成</span>
+    </div>
+
+    <!-- 语文 -->
+    <div id="wb-zh">
+      <div class="sm-tabs">
+        <button type="button" class="sm-tab active" data-s="zi" onclick="wbZh('zi')">🔠 识字</button>
+        <button type="button" class="sm-tab" data-s="pinyin" onclick="wbZh('pinyin')">🔤 拼音</button>
+        <button type="button" class="sm-tab" data-s="ciyu" onclick="wbZh('ciyu')">🗂️ 词语</button>
+        <button type="button" class="sm-tab" data-s="poem" onclick="wbZh('poem')">📜 古诗</button>
+        <button type="button" class="sm-tab" data-s="stroke" onclick="wbZh('stroke')">✍️ 笔顺</button>
+        <button type="button" class="sm-tab" data-s="trace" id="wbTabTrace" onclick="wbZh('trace')">🖌️ 描红</button>
+      </div>
+      <div id="wb-zh-body"></div>
+      <div id="wb-pinyin" class="sm-tabs sm-tabs-sub" style="display:none;">
+        <button type="button" class="sm-tab active" data-s="sheng" onclick="wbPinyin('sheng')">🔠 声母</button>
+        <button type="button" class="sm-tab" data-s="yun" onclick="wbPinyin('yun')">🔡 韵母</button>
+        <button type="button" class="sm-tab" data-s="read" onclick="wbPinyin('read')">🗣️ 拼读</button>
+        <button type="button" class="sm-tab" data-s="tone" onclick="wbPinyin('tone')">🎵 四声</button>
+      </div>
+    </div>
+
+    <!-- 数学 -->
+    <div id="wb-math" style="display:none;">
+      <div class="sm-tabs">
+        <button type="button" class="sm-tab active" data-s="calc" onclick="wbMath('calc')">➗ 口算</button>
+        <button type="button" class="sm-tab" data-s="judge" onclick="wbMath('judge')">✅ 判断</button>
+        <button type="button" class="sm-tab" data-s="word" onclick="wbMath('word')">🧮 应用题</button>
+        <button type="button" class="sm-tab" data-s="order" onclick="wbMath('order')">🔢 排序</button>
+        <button type="button" class="sm-tab" data-s="wrong" onclick="wbMath('wrong')">📕 错题本</button>
+      </div>
+      <div id="wb-math-body"></div>
+    </div>
+
+    <!-- 英语 -->
+    <div id="wb-en" style="display:none;">
+      <div class="sm-tabs">
+        <button type="button" class="sm-tab active" data-s="word" onclick="wbEn('word')">🔤 单词</button>
+        <button type="button" class="sm-tab" data-s="dialogue" onclick="wbEn('dialogue')">💬 对话</button>
+        <button type="button" class="sm-tab" data-s="match" onclick="wbEn('match')">🤝 配对</button>
+      </div>
+      <div id="wb-en-body"></div>
+    </div>
+
+    <!-- 每日挑战 -->
+    <div id="wb-daily" style="display:none;">
+      <div id="wb-daily-body"></div>
+    </div>
+  </section>
+
+  <!-- ================= 宝贝启蒙乐园 ================= -->
+  <section id="eduParadise" style="display:none;">
+    <div id="parHome">
+      <div class="wb-strip par-strip" id="parStrip" style="margin-bottom:12px;">
+        <span class="wb-pill" id="parStars"><i class="bi bi-star-fill"></i> <span id="parStarN">0</span></span>
+      </div>
+      <div class="edu-hero" style="padding-top:6px;">
+        <p style="font-size:1.05rem;font-weight:700;color:var(--edu-ink);">🌈 选择一个小游戏，一次 10 题自动打分！</p>
+      </div>
+      <div class="par-grid" id="parGameGrid"></div>
+    </div>
+    <div id="parPlay" style="display:none;"></div>
+  </section>
+
+  </div><!-- /eduLearnPage -->
+
+  <!-- ================= 星愿（家长模式） ================= -->
+  <section id="eduWishPage" style="display:none;">
+    <button type="button" class="wish-back" onclick="eduNav('home')" style="margin-bottom:10px;"><i class="bi bi-arrow-left"></i> 返回首页</button>
+    <div class="edu-hero">
+      <h1>🌟 星愿</h1>
+      <p style="font-size:.95rem;color:var(--edu-muted);">用小星星兑换心愿，激励孩子坚持学习</p>
+    </div>
+    <div id="eduWishBody"></div>
+  </section>
+
+  <!-- ================= 荣誉墙 ================= -->
+  <section id="eduBadgesPage" style="display:none;">
+    <button type="button" class="wish-back" onclick="eduNav('home')" style="margin-bottom:10px;"><i class="bi bi-arrow-left"></i> 返回首页</button>
+    <div class="edu-hero">
+      <h1>🏅 荣誉墙</h1>
+      <p style="font-size:.95rem;color:var(--edu-muted);">看看宝贝攒下了哪些成就徽章</p>
+    </div>
+    <div id="eduBadgesBody"></div>
+  </section>
+
+  <!-- ================= 家长数据看板 ================= -->
+  <section id="eduStatsPage" style="display:none;">
+    <button type="button" class="wish-back" onclick="eduNav('home')" style="margin-bottom:10px;"><i class="bi bi-arrow-left"></i> 返回首页</button>
+    <div class="edu-hero">
+      <h1>📊 家长数据看板</h1>
+      <p style="font-size:.95rem;color:var(--edu-muted);">学习统计一览，帮助了解孩子进度</p>
+    </div>
+    <div id="eduStatsBody"></div>
+  </section>
+
+  <section id="eduMinePage" style="display:none;">
+    <div class="edu-hero">
+      <h1>👤 我的</h1>
+      <p style="font-size:.95rem;color:var(--edu-muted);">宝贝信息与家长设置</p>
+    </div>
+    <div id="eduMineBody"></div>
+  </section>
+
+  <!-- 底部导航（按学习模式动态渲染，PC/iPad/手机全端显示） -->
+  <nav class="edu-bottom-nav" id="eduBottomNav"></nav>
+
+  <!-- 进入时过渡加载动画 -->
+  <div class="edu-loader" id="eduLoader" aria-hidden="true"><div class="el-ball"></div></div>
+
+  <!-- 首次进入 / 新增孩子 覆盖层 -->
+  <div class="edu-mask" id="eduMask" style="display:none;">
+    <div class="edu-modal">
+      <h3 id="kidModalTitle">👶 添加孩子资料</h3>
+      <p class="em-sub" id="kidModalSub">填写后即可按年龄段自动进入对应的学习内容</p>
+      <div class="edu-field">
+        <label>孩子名字 / 昵称</label>
+        <input type="text" id="kidNameInput" maxlength="12" placeholder="例如：小豆豆">
+      </div>
+      <div class="edu-field">
+        <label>出生年份</label>
+        <select id="kidYearInput"></select>
+      </div>
+      <div class="edu-field">
+        <label>性别</label>
+        <div class="edu-gender">
+          <button type="button" id="g-male" data-g="male" onclick="kidGender('male')">👦 男孩</button>
+          <button type="button" id="g-female" data-g="female" onclick="kidGender('female')">👧 女孩</button>
+        </div>
+      </div>
+      <div class="edu-actions">
+        <button type="button" class="kid-del-btn" id="kidDelBtn" style="display:none;" onclick="kidDelete()"><i class="bi bi-trash"></i> 删除</button>
+        <button type="button" class="btn-soft" id="kidSaveBtn" style="flex:1;" onclick="kidSave()">保存并进入</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-pill" id="eduToast"></div>
+
+  <!-- 家长控制 设置覆盖层 -->
+  <div class="edu-mask" id="eduMaskSet" style="display:none;">
+    <div class="edu-modal">
+      <h3>⚙️ 家长控制</h3>
+      <p class="em-sub">每个孩子的学习设置独立保存，随时可改</p>
+      <div class="edu-field">
+        <label>口算范围</label>
+        <select id="setRange">
+          <option value="0">跟随难度（自动）</option>
+          <option value="10">10 以内</option>
+          <option value="20">20 以内</option>
+          <option value="50">50 以内</option>
+          <option value="100">100 以内</option>
+        </select>
+        <p class="muted" style="margin:4px 0 0;">0 表示跟随孩子难度档自动调整。</p>
+      </div>
+      <div class="edu-field">
+        <label>难度开关</label>
+        <div class="set-checks">
+          <label class="set-check"><input type="checkbox" id="setNoCarry"> 禁止进位 / 退位（不进位、不退位）</label>
+          <label class="set-check"><input type="checkbox" id="setMult"> 提前开启乘法表（难度档 ≥2 即出现 ×）</label>
+        </div>
+      </div>
+      <div class="edu-field">
+        <label>每日题数上限</label>
+        <select id="setDailyQ">
+          <option value="0">不限</option>
+          <option value="10">10 题</option>
+          <option value="20">20 题</option>
+          <option value="30">30 题</option>
+          <option value="50">50 题</option>
+        </select>
+      </div>
+      <div class="edu-field">
+        <label>每日用时上限</label>
+        <select id="setDailyMin">
+          <option value="0">不限</option>
+          <option value="10">10 分钟</option>
+          <option value="20">20 分钟</option>
+          <option value="30">30 分钟</option>
+        </select>
+      </div>
+      <div class="edu-field">
+        <label>家长口令（4 位数字，保护家长操作）</label>
+        <input type="password" id="setPwd" maxlength="4" inputmode="numeric" placeholder="例如 1234" style="letter-spacing:2px;">
+        <p class="muted" style="margin:4px 0 0;">星愿新增/删除、重置数据、家长控制操作需输入此口令。</p>
+      </div>
+      <div class="edu-field">
+        <label>内容开关</label>
+        <div class="set-checks">
+          <label class="set-check"><input type="checkbox" id="setTrace"> 启用「描红」（写字练习）</label>
+          <label class="set-check"><input type="checkbox" id="setPar"> 启用「快乐乐园」小游戏</label>
+        </div>
+        <p class="muted" style="margin:4px 0 0;">关闭后对应入口自动隐藏，孩子专注课内练习。</p>
+      </div>
+      <div class="edu-field">
+        <label>👀 护眼时长（连续作答后提醒休息，默认 20 分钟）</label>
+        <select id="setEyeMin">
+          <option value="5">5 分钟</option>
+          <option value="10">10 分钟</option>
+          <option value="15">15 分钟</option>
+          <option value="20">20 分钟（推荐）</option>
+          <option value="30">30 分钟</option>
+          <option value="45">45 分钟</option>
+          <option value="60">60 分钟</option>
+        </select>
+      </div>
+      <div class="edu-field">
+        <label>🔊 音效与朗读</label>
+        <div class="set-checks">
+          <label class="set-check"><input type="checkbox" id="setSound"> 开启朗读与音效</label>
+        </div>
+      </div>
+      <div class="edu-field">
+        <label>🔤 界面字体大小</label>
+        <select id="setFont">
+          <option value="s">小号</option>
+          <option value="m">中号（默认）</option>
+          <option value="l">大号（护眼）</option>
+        </select>
+      </div>
+      <div class="edu-field">
+        <label>💾 数据备份（仅保存在本机，导出内容不含姓名）</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button type="button" class="btn-soft" style="flex:1;" onclick="exportBackup()">导出备份</button>
+          <button type="button" class="btn-soft" style="flex:1;" onclick="document.getElementById('backupFile').click()">导入备份</button>
+          <input type="file" id="backupFile" accept=".json,application/json" style="display:none;" onchange="importBackup()">
+        </div>
+        <p class="muted" style="margin:4px 0 0;">匿名 JSON 备份，不含姓名/全名，可随时导回。</p>
+      </div>
+      <div class="edu-field danger-zone">
+        <label>⚠️ 危险操作</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button type="button" id="setResetBtn" class="btn-danger btn-sm" style="flex:1;" onclick="openReset()">重置所有进度</button>
+          <button type="button" class="btn-ghost btn-sm" style="flex:1;" onclick="lockParentMode()">锁定家长模式</button>
+        </div>
+        <p class="muted" style="margin:4px 0 0;">重置将清空全部宝贝数据，需要勾选「我已知晓」二次确认。</p>
+      </div>
+      <div class="edu-actions">
+        <button type="button" class="btn-soft" style="flex:1;" onclick="setSave()">保存设置</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 家长口令确认 覆盖层 -->
+  <div class="edu-mask" id="eduMaskPwd" style="display:none;">
+    <div class="edu-modal">
+      <h3>🔒 家长确认</h3>
+      <p class="em-sub">请输入 4 位家长口令（默认 0000，可在「家长控制」修改）</p>
+      <div class="edu-field">
+        <input type="password" id="pwdInput" maxlength="4" inputmode="numeric" placeholder="••••" style="letter-spacing:6px;text-align:center;font-size:1.2rem;" onkeydown="if(event.key==='Enter'){pwdConfirm();}">
+      </div>
+      <div class="edu-actions">
+        <button type="button" class="btn-ghost" style="flex:1;" onclick="pwdCancel()">取消</button>
+        <button type="button" class="btn-soft" style="flex:1;" onclick="pwdConfirm()">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 重置所有进度 二次确认(勾选我已知晓) -->
+  <div class="edu-mask" id="eduMaskReset" style="display:none;">
+    <div class="edu-modal">
+      <h3>🧹 重置所有进度</h3>
+      <p class="em-sub">将清除所有宝贝的学习进度、星星、徽章与错题记录，<b>无法恢复</b>。</p>
+      <label class="set-check reset-ack"><input type="checkbox" id="resetAck"> <span><b>我已知晓</b>重置后果</span></label>
+      <div class="edu-actions">
+        <button type="button" class="btn-ghost" style="flex:1;" onclick="resetCancel()">取消</button>
+        <button type="button" id="resetGoBtn" class="btn-danger" style="flex:1;" onclick="resetGo()">重置并清空</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 危险操作 输入确认(如删除宝贝/清空) -->
+  <div class="edu-mask" id="eduMaskConfirm" style="display:none;">
+    <div class="edu-modal">
+      <h3 id="cTitle">确认操作</h3>
+      <p class="em-sub" id="cSub"></p>
+      <div class="edu-field">
+        <label>请输入「<b id="cExpect">删除</b>」以确认：</label>
+        <input type="text" id="cInput" maxlength="20" autocomplete="off" onkeydown="if(event.key==='Enter'){confirmOk();}">
+      </div>
+      <div class="edu-actions">
+        <button type="button" class="btn-ghost" style="flex:1;" onclick="confirmCancel()">取消</button>
+        <button type="button" id="cOkBtn" class="btn-danger" style="flex:1;" onclick="confirmOk()">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 退出答题 二次确认 覆盖层 -->
+  <div class="edu-mask" id="eduMaskQuit" style="display:none;">
+    <div class="edu-modal">
+      <h3>🏃 要退出吗？</h3>
+      <p class="em-sub">作答还没做完，退出后进度将保留，下次进入可以继续哦。</p>
+      <div class="edu-actions">
+        <button type="button" class="btn-ghost" style="flex:1;" onclick="quitCancel()">继续答题</button>
+        <button type="button" class="btn-soft" style="flex:1;" onclick="quitConfirm()">退出</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 续学确认 覆盖层（有上次未完成练习时给出提示, 可继续或取消） -->
+  <div class="edu-mask" id="eduMaskResume" style="display:none;">
+    <div class="edu-modal">
+      <h3>🌱 上次的练习还没做完</h3>
+      <p class="em-sub">我们帮你保存了进度，要接着上次继续做吗？</p>
+      <div class="edu-actions">
+        <button type="button" class="btn-ghost" style="flex:1;" onclick="resumeNo()">取消</button>
+        <button type="button" class="btn-soft" style="flex:1;" onclick="resumeYes()">继续上次</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑宝贝 覆盖层（✎） -->
+  <div class="edu-mask" id="eduMaskKidEdit" style="display:none;">
+    <div class="edu-modal">
+      <h3>✏️ 编辑宝贝资料</h3>
+      <p class="em-sub">修改名字、年龄与头像</p>
+      <div class="edu-field">
+        <label>宝贝名字 / 昵称</label>
+        <input type="text" id="editNameInput" maxlength="12" placeholder="例如：小米">
+      </div>
+      <div class="edu-field">
+        <label>年龄</label>
+        <select id="editYearInput"></select>
+      </div>
+      <div class="edu-field">
+        <label>头像</label>
+        <div class="edu-ava-pick" id="editAvaPick">
+          <button type="button" data-a="🧒">🧒</button>
+          <button type="button" data-a="👧">👧</button>
+          <button type="button" data-a="👦">👦</button>
+          <button type="button" data-a="👶">👶</button>
+        </div>
+      </div>
+      <div class="edu-actions">
+        <button type="button" class="btn-ghost" style="flex:1;" onclick="closeMask('eduMaskKidEdit')">取消</button>
+        <button type="button" id="editKidSaveBtn" class="btn-soft" style="flex:1;" onclick="kidEditSave()">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 管理宝贝 覆盖层 -->
+  <div class="edu-mask" id="eduMaskKidsMgr" style="display:none;">
+    <div class="edu-modal">
+      <h3>👤 管理宝贝</h3>
+      <p class="em-sub">可调整顺序或删除宝贝</p>
+      <div id="kidsMgrList"></div>
+      <div class="edu-actions">
+        <button type="button" class="btn-soft" style="flex:1;" onclick="closeMask('eduMaskKidsMgr')">完成</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 完整学习报告 看板弹窗 -->
+  <div class="edu-mask" id="eduMaskReport" style="display:none;">
+    <div class="edu-modal report-modal">
+      <h3>📈 <span id="reportTitle">学习报告</span></h3>
+      <p class="em-sub" id="reportSub">今日学习情况一览</p>
+      <div id="reportBody"></div>
+      <div class="edu-actions">
+        <button type="button" class="btn-soft" style="flex:1;" onclick="closeMask('eduMaskReport')">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 看板详情 通用弹窗（本周趋势 / 错题本 / 识字量 / 荣誉墙 / 星票） -->
+  <div class="edu-mask" id="eduMaskDetail" style="display:none;">
+    <div class="edu-modal report-modal">
+      <h3 id="detailTitle">详情</h3>
+      <p class="em-sub" id="detailSub"></p>
+      <div id="detailBody"></div>
+      <div class="edu-actions">
+        <button type="button" class="btn-soft" style="flex:1;" onclick="closeMask('eduMaskDetail')">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 徽章解锁 庆祝浮层容器 -->
+  <div id="badgeRevealHost" aria-live="polite"></div>
+  <!-- 导出报告 PDF(仅打印时显示) -->
+  <div id="pdfReportWrap" style="display:none;"></div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/edu/edu-main.js', v=(edu_static_version() if edu_static_version is defined else staticv('js/edu/edu-main.js'))) }}"></script>
+{% endblock %}

@@ -1,5 +1,5 @@
-var CACHE = 'tx-static-v6';
-var SHELL_CACHE = 'tx-edu-shell-v1';
+var CACHE = 'tx-static-v8';
+var SHELL_CACHE = 'tx-edu-shell-v3';
 var SHELL_URL = '/edu/';
 self.addEventListener('install', function (e) { self.skipWaiting(); });
 self.addEventListener('activate', function (e) {

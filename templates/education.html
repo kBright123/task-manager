@@ -27,37 +27,6 @@
 
 {% block content %}
 <div class="edu-wrap">
-  <!-- 顶部条（全端统一）：返回 + 头像/姓名/年龄 + 等级徽章 + 声音 + 更多菜单 -->
-  <div class="kid-bar" id="kidBar" style="display:none;">
-    <button type="button" class="kb-back" id="kbBack" onclick="quitAsk()" aria-label="返回" style="display:none;"><i class="bi bi-arrow-left"></i></button>
-    <span class="kb-chip kid-pick" id="kidPickWrap" onclick="toggleKidDrop()" title="切换宝贝">
-      <span class="kb-ava" id="kidAva">🧒</span>
-      <span class="kb-ident" id="kidIdent">小朱 · 6岁</span>
-      <span class="kb-lv" id="kidLv">Lv.6</span>
-      <i class="bi bi-chevron-down" style="font-size:.7rem;color:var(--edu-muted);"></i>
-      <div class="drop" id="kidPickDrop"></div>
-    </span>
-    <span class="kb-right">
-      <span class="kb-stars" id="kbStarBar" title="当前难度"></span>
-      <span class="mode-toggle" id="modeToggleWrap">
-        <i class="bi bi-stars" style="color:var(--edu-muted);font-size:.85rem;"></i>
-        <select id="modeSelect" class="mode-select" aria-label="学习模式" onchange="switchMode(this.value)">
-          <option value="workbench">🏫 幼小衔接</option>
-          <option value="paradise">🌈 快乐乐园</option>
-        </select>
-      </span>
-      <button type="button" id="soundToggle" class="spk-sound" onclick="toggleSpeak()">🔊</button>
-      <button type="button" id="moreMenuBtn" class="spk-sound" aria-label="更多菜单" onclick="toggleMoreMenu(event)">☰</button>
-      <div class="drop more-drop" id="moreMenuDrop">
-        <div class="kit-item" onclick="menuGo('parent')"><i class="bi bi-person-gear"></i> 家长模式</div>
-        <div class="kit-item" onclick="menuGo('settings')"><i class="bi bi-gear"></i> 设置</div>
-        <div class="kit-item" onclick="menuGo('regen')"><i class="bi bi-arrow-repeat"></i> 换一组题</div>
-        <div class="kit-item" onclick="menuGo('restart')"><i class="bi bi-arrow-counterclockwise"></i> 重新开始</div>
-        <div class="kit-item" onclick="menuGo('help')"><i class="bi bi-question-circle"></i> 帮助</div>
-      </div>
-    </span>
-  </div>
-
   <!-- ================= 首页：孩子管理 + 星愿进度 ================= -->
   <section id="eduHomePage">
     <div id="eduHomeBody"></div>
@@ -165,6 +134,15 @@
     <div id="eduStatsBody"></div>
   </section>
 
+  <!-- ================= 我的 ================= -->
+  <section id="eduMinePage" style="display:none;">
+    <div class="edu-hero">
+      <h1>👤 我的</h1>
+      <p style="font-size:.95rem;color:var(--edu-muted);">宝贝信息与家长设置</p>
+    </div>
+    <div id="eduMineBody"></div>
+  </section>
+
 </div>
 
 <!-- 底部导航（按学习模式动态渲染，PC/iPad/手机全端显示） -->
@@ -195,7 +173,7 @@
     </div>
     <div class="edu-actions">
       <button type="button" class="kid-del-btn" id="kidDelBtn" style="display:none;" onclick="kidDelete()"><i class="bi bi-trash"></i> 删除</button>
-      <button type="button" class="btn-soft" style="flex:1;" onclick="kidSave()">保存并进入</button>
+      <button type="button" class="btn-soft" id="kidSaveBtn" style="flex:1;" onclick="kidSave()">保存并进入</button>
     </div>
   </div>
 </div>
@@ -257,6 +235,49 @@
       </div>
       <p class="muted" style="margin:4px 0 0;">关闭后对应入口自动隐藏，孩子专注课内练习。</p>
     </div>
+    <div class="edu-field">
+      <label>👀 护眼时长（连续作答后提醒休息，默认 20 分钟）</label>
+      <select id="setEyeMin">
+        <option value="5">5 分钟</option>
+        <option value="10">10 分钟</option>
+        <option value="15">15 分钟</option>
+        <option value="20">20 分钟（推荐）</option>
+        <option value="30">30 分钟</option>
+        <option value="45">45 分钟</option>
+        <option value="60">60 分钟</option>
+      </select>
+    </div>
+    <div class="edu-field">
+      <label>🔊 音效与朗读</label>
+      <div class="set-checks">
+        <label class="set-check"><input type="checkbox" id="setSound"> 开启朗读与音效</label>
+      </div>
+    </div>
+    <div class="edu-field">
+      <label>🔤 界面字体大小</label>
+      <select id="setFont">
+        <option value="s">小号</option>
+        <option value="m">中号（默认）</option>
+        <option value="l">大号（护眼）</option>
+      </select>
+    </div>
+    <div class="edu-field">
+      <label>💾 数据备份（仅保存在本机，导出内容不含姓名）</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="btn-soft" style="flex:1;" onclick="exportBackup()">导出备份</button>
+        <button type="button" class="btn-soft" style="flex:1;" onclick="document.getElementById('backupFile').click()">导入备份</button>
+        <input type="file" id="backupFile" accept=".json,application/json" style="display:none;" onchange="importBackup()">
+      </div>
+      <p class="muted" style="margin:4px 0 0;">匿名 JSON 备份，不含姓名/全名，可随时导回。</p>
+    </div>
+    <div class="edu-field danger-zone">
+      <label>⚠️ 危险操作</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" id="setResetBtn" class="btn-danger btn-sm" style="flex:1;" onclick="openReset()">重置所有进度</button>
+        <button type="button" class="btn-ghost btn-sm" style="flex:1;" onclick="lockParentMode()">锁定家长模式</button>
+      </div>
+      <p class="muted" style="margin:4px 0 0;">重置将清空全部宝贝数据，需要勾选「我已知晓」二次确认。</p>
+    </div>
     <div class="edu-actions">
       <button type="button" class="btn-soft" style="flex:1;" onclick="setSave()">保存设置</button>
     </div>
@@ -278,6 +299,35 @@
   </div>
 </div>
 
+<!-- 重置所有进度 二次确认(勾选我已知晓) -->
+<div class="edu-mask" id="eduMaskReset" style="display:none;">
+  <div class="edu-modal">
+    <h3>🧹 重置所有进度</h3>
+    <p class="em-sub">将清除所有宝贝的学习进度、星星、徽章与错题记录，<b>无法恢复</b>。</p>
+    <label class="set-check reset-ack"><input type="checkbox" id="resetAck"> <span><b>我已知晓</b>重置后果</span></label>
+    <div class="edu-actions">
+      <button type="button" class="btn-ghost" style="flex:1;" onclick="resetCancel()">取消</button>
+      <button type="button" id="resetGoBtn" class="btn-danger" style="flex:1;" onclick="resetGo()">重置并清空</button>
+    </div>
+  </div>
+</div>
+
+<!-- 危险操作 输入确认(如删除宝贝/清空) -->
+<div class="edu-mask" id="eduMaskConfirm" style="display:none;">
+  <div class="edu-modal">
+    <h3 id="cTitle">确认操作</h3>
+    <p class="em-sub" id="cSub"></p>
+    <div class="edu-field">
+      <label>请输入「<b id="cExpect">删除</b>」以确认：</label>
+      <input type="text" id="cInput" maxlength="20" autocomplete="off" onkeydown="if(event.key==='Enter'){confirmOk();}">
+    </div>
+    <div class="edu-actions">
+      <button type="button" class="btn-ghost" style="flex:1;" onclick="confirmCancel()">取消</button>
+      <button type="button" id="cOkBtn" class="btn-danger" style="flex:1;" onclick="confirmOk()">确认</button>
+    </div>
+  </div>
+</div>
+
 <!-- 退出答题 二次确认 覆盖层 -->
 <div class="edu-mask" id="eduMaskQuit" style="display:none;">
   <div class="edu-modal">
@@ -286,6 +336,18 @@
     <div class="edu-actions">
       <button type="button" class="btn-ghost" style="flex:1;" onclick="quitCancel()">继续答题</button>
       <button type="button" class="btn-soft" style="flex:1;" onclick="quitConfirm()">退出</button>
+    </div>
+  </div>
+</div>
+
+<!-- 续学确认 覆盖层（有上次未完成练习时给出提示, 可继续或取消） -->
+<div class="edu-mask" id="eduMaskResume" style="display:none;">
+  <div class="edu-modal">
+    <h3>🌱 上次的练习还没做完</h3>
+    <p class="em-sub">我们帮你保存了进度，要接着上次继续做吗？</p>
+    <div class="edu-actions">
+      <button type="button" class="btn-ghost" style="flex:1;" onclick="resumeNo()">取消</button>
+      <button type="button" class="btn-soft" style="flex:1;" onclick="resumeYes()">继续上次</button>
     </div>
   </div>
 </div>
@@ -354,8 +416,13 @@
     </div>
   </div>
 </div>
+
+  <!-- 徽章解锁 庆祝浮层容器 -->
+  <div id="badgeRevealHost" aria-live="polite"></div>
+  <!-- 导出报告 PDF(仅打印时显示) -->
+  <div id="pdfReportWrap" style="display:none;"></div>
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/education.js', v=staticv('js/education.js')) }}"></script>
+<script src="{{ url_for('static', filename='js/edu/edu-main.js', v=(edu_static_version() if edu_static_version is defined else staticv('js/edu/edu-main.js'))) }}"></script>
 {% endblock %}

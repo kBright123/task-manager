@@ -1,0 +1,466 @@
+(function () {
+  'use strict';
+  var C = window.Edu.Constants;
+  var M = window.Edu.MathUtils;
+  var Store = window.Edu.Store;
+  var Speech = window.Edu.Speech;
+  var Kids = window.Edu.Kids;
+  var Nav = window.Edu.Nav;
+  var QuizEngine = window.Edu.QuizEngine;
+  var ZhWorkbench = window.Edu.ZhWorkbench;
+  var MathWorkbench = window.Edu.MathWorkbench;
+  var EnWorkbench = window.Edu.EnWorkbench;
+  var Daily = window.Edu.Daily;
+  var Legacy = window.Edu.Legacy;
+
+  var SUBJ_LABEL = { zh: '语文', math: '数学', en: '英语', par: '乐园' };
+
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function keyOf(d) { return pad(d.getFullYear()) + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function todayStr() { return keyOf(new Date()); }
+  function endOfToday() { var t = new Date(); t.setHours(23, 59, 59, 999); return t.getTime(); }
+  function esc(s) { return String(s === undefined || s === null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
+
+  function kidAvatar(k) {
+    if (k && k.avatar) return k.avatar;
+    return k && k.gender === 'female' ? '👧' : '👦';
+  }
+  function kidLevel(k) {
+    return Math.max(1, (window.eduKids && window.eduKids.ageOf ? window.eduKids.ageOf(k && k.birthYear) : 6));
+  }
+  function loginStreak(recs) {
+    var daySet = {};
+    (recs || []).forEach(function (r) { if (r.date) daySet[r.date] = 1; });
+    var d = new Date();
+    var streak = 0;
+    if (!daySet[keyOf(d)]) d = new Date(d.getTime() - 86400000);
+    while (daySet[keyOf(d)]) { streak++; d = new Date(d.getTime() - 86400000); }
+    return streak;
+  }
+  function todayAccuracy(recs) {
+    var n = 0, ok = 0;
+    var t = todayStr();
+    (recs || []).forEach(function (r) {
+      var d = r.date || (r.t ? keyOf(new Date(r.t)) : '');
+      if (d === t) { n++; if (r.ok) ok++; }
+    });
+    return n ? Math.round(ok * 100 / n) : 0;
+  }
+  function dueWrongListFor(stL) {
+    var errs = (stL.wrong) || [];
+    var end = endOfToday();
+    return errs.filter(function (w) { return w.nextDue === undefined || (w.nextDue || 0) <= end; })
+      .sort(function (a, b) { return (a.nextDue || 0) - (b.nextDue || 0); });
+  }
+  function minsUsedP() {
+    var u = Store.usageForToday ? (Store.usageForToday() || {}) : {};
+    if (!u.secs) return 0;
+    return Math.ceil((u.secs || 0) / 60);
+  }
+  function homeDashData(act) {
+    var stL = Store.state;
+    var recs = stL.records || [];
+    var u = Store.usageForToday ? (Store.usageForToday() || {}) : {};
+    var today = (u.n || 0);
+    var goal = 10;
+    var st = Store.curSettings();
+    if (st && st.dailyQ && st.dailyQ > 0) goal = st.dailyQ;
+    var pctToday = todayAccuracy(recs);
+    var overall = recs.length ? Math.round(recs.filter(function (r) { return r.ok; }).length * 100 / recs.length) : 0;
+    var pct = today ? pctToday : overall;
+    var badKeys = Object.keys(stL.badges || {}).filter(function (x) { return Legacy.BADGES[x]; });
+    var wList = stL.wishes || [];
+    var wDone = wList.filter(function (w) { return w.done; }).length;
+    var zishi = recs.filter(function (r) { return r.subj === 'zh' && r.type === 'zi' && r.ok; }).length;
+    var due = dueWrongListFor(stL).slice(0, 3).map(function (w) { return String(w.prompt).trim().charAt(0); });
+    var days = [];
+    var now = new Date();
+    for (var d = 6; d >= 0; d--) {
+      var t = new Date(now.getTime() - d * 86400000);
+      var key = keyOf(t);
+      days.push({ key: key, label: (t.getMonth() + 1) + '/' + t.getDate(), n: 0 });
+    }
+    var dayMap = {};
+    days.forEach(function (x) { dayMap[x.key] = x; });
+    recs.forEach(function (r) { if (dayMap[r.date]) dayMap[r.date].n++; });
+    var maxN = 1;
+    days.forEach(function (x) { maxN = Math.max(maxN, x.n || 1); });
+    var prevWeek = 0;
+    for (var p = 7; p <= 13; p++) {
+      var tp = new Date(now.getTime() - p * 86400000);
+      recs.forEach(function (r) { if (r.date === keyOf(tp)) prevWeek++; });
+    }
+    return {
+      today: today, goal: goal, pct: pct, mins: minsUsedP(act), honor: badKeys.length,
+      streak: loginStreak(recs), badges: badKeys.length, zishi: zishi,
+      dueChars: due.slice(0, 3), dueN: dueWrongListFor(stL).length,
+      days: days, maxN: maxN, prevWeek: prevWeek, wList: wList, wDone: wDone,
+      stars: stL.stars || 0
+    };
+  }
+  function miniLine(days, maxN, color) {
+    var w = 100, h = 34;
+    var pts = days.map(function (x, i) {
+      var v = (x.n || 0) / (maxN || 1);
+      var px = i * (w / (days.length - 1 || 1));
+      var py = h - 4 - v * (h - 8);
+      return px.toFixed(1) + ',' + py.toFixed(1);
+    }).join(' ');
+    var area = '0,' + h + ' ' + pts + ' ' + w + ',' + h;
+    return '<svg viewBox="0 0 ' + w + ' ' + h + '" class="mini-line" aria-hidden="true">' +
+      '<polygon points="' + area + '" fill="' + color + '" opacity="0.18"></polygon>' +
+      '<polyline points="' + pts + '" fill="none" stroke="' + color + '" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></polyline>' +
+      '</svg>';
+  }
+  function todayQuote(k, d) {
+    var name = esc(k.name || '宝贝');
+    if (d.done >= d.goal) return '🎉 今日目标已达成，' + name + ' 太棒了，明天继续闯关攒星星！';
+    if (d.remaining > 0) return '💪 再答 <b>' + d.remaining + '</b> 题就能突破今日目标，加油！';
+    return '从第一题开始，答对题 + 攒星星，' + name + ' 冲鸭！';
+  }
+  function anim(el) {
+    if (!el) return;
+    el.classList.remove('page-enter');
+    void el.offsetWidth;
+    el.classList.add('page-enter');
+  }
+
+  function renderHome() {
+    var body = document.getElementById('eduHomeBody');
+    if (!body) return;
+    var kids = window.eduKids ? window.eduKids.all() : [];
+    if (!kids.length) {
+      body.innerHTML = '<div class="home-hero">' +
+        '<div class="edu-hero empty-hero"><div style="font-size:2.6rem;line-height:1;">👶</div>' +
+        '<h2 style="margin:10px 0 4px;">欢迎来到教育乐园</h2>' +
+        '<p style="color:var(--edu-muted);margin:0;">先登记一个宝贝，就能开始闯关攒星星咯</p>' +
+        '<button type="button" class="home-cta" onclick="kidAdd()">➕ 添加宝贝</button></div></div>';
+      anim(body);
+      return;
+    }
+    var act = window.eduKids.active() || kids[0];
+    if (!window.eduKids.active()) window.eduKids.setActive(act.id);
+    var d = homeDashData(act);
+    var done = Math.min(d.today, d.goal);
+    var remaining = Math.max(0, d.goal - d.today);
+    var barW = Math.min(100, d.pct);
+
+    // ===== 区块 1: 顶部 欢迎语 + 学习模式切换 (身份/宝贝切换统一在顶部条, 避免重复) =====
+    var hour = new Date().getHours();
+    var greet = hour < 6 ? '夜深了' : (hour < 12 ? '早上好' : (hour < 18 ? '下午好' : '晚上好'));
+    var curMode = Nav.currentMode ? Nav.currentMode() : 'workbench';
+    var modeSwitch = '<span class="mode-toggle hw-mode">' +
+      '<i class="bi bi-stars" style="color:var(--edu-muted);font-size:.85rem;"></i>' +
+      '<select id="modeSelect" class="mode-select" aria-label="学习模式" onchange="switchMode(this.value)">' +
+      '<option value="workbench"' + (curMode === 'workbench' ? ' selected' : '') + '>🏫 幼小衔接</option>' +
+      '<option value="paradise"' + (curMode === 'paradise' ? ' selected' : '') + '>🌈 快乐乐园</option>' +
+      '</select></span>';
+    var head = '<section class="home-welcome">' +
+      '<div class="hw-meta"><div class="hw-hello">' + greet + '！今天也要开开心心学习哦</div>' +
+      '<div class="hw-sub">坚持闯关，天天有进步 ✨</div></div>' +
+      modeSwitch +
+      '</section>';
+
+    // ===== 区块 2: 中部 大「继续学习」按钮(占屏约40%) =====
+    var quote = d.today >= d.goal
+      ? '🎉 今日目标已达成，明天继续闯关攒星星！'
+      : (remaining > 0 ? '💪 再答 <b>' + remaining + '</b> 题就能突破今日目标，加油！' : '从第一题开始，答对题 + 攒星星，冲鸭！');
+    var middle = '<section class="home-continue" onclick="homeStartLearn()">' +
+      '<div class="hc-badge">🚀 继续学习</div>' +
+      '<div class="hc-title">' + esc(act.name || '宝贝') + '，准备好了吗？</div>' +
+      '<div class="hc-quote">' + quote + '</div>' +
+      '<div class="hc-track"><div class="hc-fill" style="width:' + barW + '%;"></div></div>' +
+      '<div class="hc-count"><b>' + done + '</b> / ' + d.goal + ' 题</div>' +
+      '</section>';
+
+    // ===== 区块 3: 下部 课程横向滑动列表 =====
+    var today = todayStr();
+    var recs = Store.state.records || [];
+    var subjN = { zh: 0, math: 0, en: 0 };
+    recs.forEach(function (r) { if (r.date === today && subjN[r.subj] !== undefined) subjN[r.subj]++; });
+    var lvMap = (Store.state.level || {});
+    var courses = [
+      { s: 'zh', type: 'zi', em: '📖', name: '语文识字', sub: '认识新汉字', locked: false },
+      { s: 'math', type: 'calc', em: '🔢', name: '数学口算', sub: '加减乘除小能手', locked: false },
+      { s: 'en', type: '', em: '🔤', name: '英语启蒙', sub: 'ABC 说起来', locked: false },
+      { s: 'daily', type: '', em: '☀️', name: '每日挑战', sub: '混合 10 题', locked: false }
+    ];
+    function courseStatus(c) {
+      if (c.locked) return { tag: '未解锁', cls: 'locked' };
+      var lv = c.s === 'daily' ? Math.min(5, Math.max(1, Math.ceil((d.today / Math.max(1, d.goal)) * 5))) : (lvMap[c.s] || 0);
+      if (lv >= 5) return { tag: '已通关', cls: 'done' };
+      if (lv > 0) return { tag: '继续', cls: 'go' };
+      return { tag: '未开始', cls: 'todo' };
+    }
+    var courseCards = courses.map(function (c) {
+      var st = courseStatus(c);
+      var n = c.s === 'daily' ? d.today : subjN[c.s];
+      var prog = c.s === 'daily' ? Math.min(100, Math.round((d.today / Math.max(1, d.goal)) * 100)) : ((lvMap[c.s] || 0) / 5) * 100;
+      return '<button type="button" class="home-course' + (st.cls === 'locked' ? ' locked' : '') + '"' +
+        (st.cls === 'locked' ? ' disabled aria-disabled="true"' : ' onclick="window.Edu.Workbench.quickStart(\'' + c.s + '\'' +
+        (c.type ? ',\'' + c.type + '\'' : '') + ')"') + '>' +
+        '<span class="hc-emo">' + c.em + '</span>' +
+        '<span class="hc-info"><span class="hc-hd"><span class="hc-nm">' + c.name + '</span>' +
+        '<span class="hc-tag ' + st.cls + '">' + (st.cls === 'done' ? '已通关 🎉' : st.cls === 'locked' ? '🔒 ' + st.tag : st.tag) + '</span></span>' +
+        '<span class="hc-sb">' + c.sub + ' · 已练 ' + n + ' 题</span>' +
+        '<span class="hc-track"><span class="hc-fill" style="width:' + prog + '%;"></span></span></span>' +
+        '<i class="bi bi-chevron-right hc-arrow"></i></button>';
+    }).join('');
+    var list = '<section class="home-course-sec"><div class="home-sec-head"><h3>📚 继续练</h3>' +
+      '<span class="qs-hint">左右滑动查看更多</span></div>' +
+      '<div class="home-course-scroll">' + courseCards + '</div></section>';
+
+    // 闯关地图 teaser: 展示当前旅程进度, 点按进入「闯关」课程地图页
+    var courseTeaser = '';
+    if (window.Edu.Course && window.Edu.Course.journeyTeaser) {
+      courseTeaser = window.Edu.Course.journeyTeaser();
+    }
+
+    body.innerHTML = head + middle + courseTeaser + list;
+    anim(body);
+  }
+
+  window.homePickKid = function (id) {
+    if (window.eduKids) window.eduKids.setActive(id);
+    Store.loadAllState();
+    renderHome();
+    renderKidBar();
+  };
+  window.homeStartLearn = function () {
+    var act = window.eduKids ? window.eduKids.active() : null;
+    if (act) kidEnter(act.id);
+  };
+  window.openDetail = function (which) {
+    var kid = window.eduKids ? window.eduKids.active() : null;
+    if (!kid) { Speech.toast('请先选择宝贝'); return; }
+    Store.loadAllState();
+    var stL = Store.state;
+    var recs = stL.records || [];
+    var title = document.getElementById('detailTitle');
+    var sub = document.getElementById('detailSub');
+    var body = document.getElementById('detailBody');
+    var now = new Date();
+    if (which === 'trend') {
+      if (title) title.textContent = '📈 本周趋势';
+      if (sub) sub.textContent = '最近 7 天答题数量';
+      var days = [];
+      for (var i = 6; i >= 0; i--) {
+        var t = new Date(now.getTime() - i * 86400000);
+        days.push({ label: (t.getMonth() + 1) + '月' + t.getDate() + '日', n: recs.filter(function (r) { return r.date === keyOf(t); }).length, cur: i === 0 });
+      }
+      var maxN = 1;
+      days.forEach(function (x) { maxN = Math.max(maxN, x.n || 1); });
+      if (body) body.innerHTML = '<div class="dt-line">' + days.map(function (x) {
+        var hgt = Math.max(4, Math.round(x.n / maxN * 60));
+        return '<div class="dt-col' + (x.cur ? ' cur' : '') + '"><i style="height:' + hgt + 'px;"></i><span>' + x.label + '</span><b>' + x.n + '</b></div>';
+      }).join('') + '</div>' +
+        '<div class="dt-total">本周共答 <b>' + days.reduce(function (a, x) { return a + (x.n || 0); }, 0) + '</b> 题</div>';
+    } else if (which === 'wrong') {
+      if (title) title.textContent = '📝 错题本';
+      var due = dueWrongListFor(stL);
+      if (sub) sub.textContent = '待复习 ' + due.length + ' 个错题';
+      if (body) body.innerHTML = due.slice(0, 20).map(function (w) {
+        var shown = String(w.correct).split('|').join(' → ');
+        return '<div class="dt-row"><span class="si-emoji">📕</span><div><div class="dt-w">' + esc(w.prompt) + '</div><div class="dt-wm">' + (SUBJ_LABEL[w.subj] || w.subj) + ' · 正确答案 ' + esc(shown) + '</div></div></div>';
+      }).join('') || '<p class="muted" style="text-align:center;">太棒了，没有待复习的错题 🎉</p>';
+    } else if (which === 'zishi') {
+      if (title) title.textContent = '📚 识字量';
+      var totalZ = recs.filter(function (r) { return r.subj === 'zh' && r.type === 'zi'; }).length;
+      var zishi = recs.filter(function (r) { return r.subj === 'zh' && r.type === 'zi' && r.ok; }).length;
+      if (sub) sub.textContent = '累计认读 ' + zishi + ' / ' + totalZ + ' 个汉字';
+      if (body) body.innerHTML = '<div class="dt-big">' + zishi + ' <small>字</small></div>' +
+        '<p class="muted" style="text-align:center;margin:4px 0 12px;">坚持每日识字，向识字小达人进发</p>';
+    } else if (which === 'honor') {
+      if (title) title.textContent = '🏆 荣誉墙';
+      var bad = stL.badges || {};
+      if (sub) sub.textContent = '已获得 ' + Object.keys(bad).length + ' 枚徽章';
+      if (body) body.innerHTML = '<div class="dt-badges"><p class="muted" style="text-align:center;">努力闯关，解锁第一枚徽章吧！</p></div>';
+    } else if (which === 'wish') {
+      if (title) title.textContent = '⭐ 星票';
+      var wList = stL.wishes || [];
+      if (sub) sub.textContent = '当前 ' + (stL.stars || 0) + ' 星 · 已兑换 ' + wList.filter(function (w) { return w.done; }).length + '/' + wList.length;
+      if (body) body.innerHTML = '<div class="dt-big">⭐ ' + (stL.stars || 0) + ' <small>星</small></div>' +
+        '<div class="dt-wl">' + (wList.map(function (w) {
+          return '<div class="dt-row"><span class="si-emoji">🎁</span><div><div class="dt-w">' + esc(w.name) + '</div></div></div>';
+        }).join('') || '<p class="muted" style="text-align:center;">还没有星票，可在「星愿」里设置</p>') + '</div>';
+    }
+    var mask = document.getElementById('eduMaskDetail');
+    if (mask) mask.style.display = 'flex';
+  };
+
+  window.homeEditKid = function (id) {
+    var k = window.eduKids ? window.eduKids.byId(id) : null;
+    if (!k) return;
+    Kids.populateYears();
+    editKidId = id;
+    editKidAva = kidAvatar(k);
+    var ni = document.getElementById('editNameInput');
+    if (ni) ni.value = k.name || '';
+    var yi = document.getElementById('editYearInput');
+    if (yi) yi.value = String(k.birthYear);
+    var mask = document.getElementById('eduMaskKidEdit');
+    if (mask) mask.style.display = 'flex';
+  };
+
+  window.openKidsMgr = function () {
+    var list = document.getElementById('kidsMgrList');
+    if (!list) return;
+    var kids = window.eduKids ? window.eduKids.all() : [];
+    list.innerHTML = kids.map(function (k) {
+      return '<div class="mgr-row" data-id="' + k.id + '">' +
+        '<span class="mgr-ava">' + kidAvatar(k) + '</span>' +
+        '<span class="mgr-name">' + esc(k.name || '宝贝') + ' · ' + (window.eduKids ? window.eduKids.ageOf(k.birthYear) : 6) + '岁</span>' +
+        '<span class="mgr-edit" onclick="homeEditKid(\'' + k.id + '\')" title="编辑">✎</span>' +
+        '<button type="button" class="mgr-del" onclick="mgrDeleteKid(\'' + k.id + '\')">删除</button>' +
+        '</div>';
+    }).join('') || '<p class="muted" style="text-align:center;">还没有宝贝</p>';
+    var mask = document.getElementById('eduMaskKidsMgr');
+    if (mask) mask.style.display = 'flex';
+  };
+  window.mgrDeleteKid = function (id) {
+    window.requireParent(function () {
+      if (!(window.confirm && window.confirm('确定删除该宝贝？此操作不可恢复。'))) return;
+      if (window.eduKids) window.eduKids.remove(id);
+      try {
+        localStorage.removeItem(C.LS_BASE + '_' + id);
+        localStorage.removeItem(C.STR_BASE + '_' + id);
+        localStorage.removeItem('edu_pref_v1_' + id);
+      } catch (e) {}
+      if (window.fetch) {
+        window.fetch('/edu/api/kids', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ kids:[], removedIds:[id] }) })
+          .then(function(r){ return r.json && r.json(); })
+          .catch(function(){});
+      }
+      renderKidsMgrList();
+      renderHome();
+      renderKidBar();
+    });
+  };
+  function renderKidsMgrList() {
+    var list = document.getElementById('kidsMgrList');
+    if (!list) return;
+    var kids = window.eduKids ? window.eduKids.all() : [];
+    list.innerHTML = kids.map(function (k) {
+      return '<div class="mgr-row" data-id="' + k.id + '"><span class="mgr-ava">' + kidAvatar(k) + '</span><span class="mgr-name">' + esc(k.name || '宝贝') + '</span><span class="mgr-edit">✎</span></div>';
+    }).join('') || '<p class="muted" style="text-align:center;">还没有宝贝</p>';
+  }
+  window.kidEnter = function (id) {
+    if (window.eduKids) window.eduKids.setActive(id);
+    Store.loadAllState();
+    var p = Nav.getPref();
+    if (p && p.mode === 'paradise') {
+      Nav.setSubj('zh');
+      Nav.setPar(p.par || null);
+    } else {
+      Nav.setSubj((p && p.subj) || 'zh');
+      Nav.setPar(null);
+    }
+    window.eduNav('learn');
+  };
+  window.kidEditById = function (id) {
+    window.homeEditKid(id);
+  };
+  window.addWishFor = function (id) {
+    window.requireParent(function () {
+      if (window.eduKids) window.eduKids.setActive(id);
+      Store.loadAllState();
+      window.eduNav('wish');
+    });
+  };
+
+  // stub subjNow/parNow accessors bound to Nav
+
+  var editKidId = null;
+  var editKidAva = '🧒';
+
+  window.renderHome = renderHome;
+  window.Edu.Home = {
+    renderHome: renderHome,
+    homePickKid: window.homePickKid,
+    homeStartLearn: window.homeStartLearn,
+    homeEditKid: window.homeEditKid,
+    openDetail: window.openDetail,
+    openKidsMgr: window.openKidsMgr,
+    mgrDeleteKid: window.mgrDeleteKid,
+    switchKid: window.switchKid,
+    toggleKidDrop: window.toggleKidDrop,
+    kidEnter: window.kidEnter,
+    kidEditById: window.kidEditById,
+    openReport: window.openReport,
+    renderStarBar: window.renderStarBar,
+    renderKidBar: window.renderKidBar,
+    kidAvatar: kidAvatar,
+    kidLevel: kidLevel,
+    homeKidData: homeDashData,
+    loginStreak: loginStreak,
+    todayAccuracy: todayAccuracy,
+    dueWrongListFor: dueWrongListFor,
+    minsUsedP: minsUsedP,
+    miniLine: miniLine,
+    todayQuote: todayQuote
+  };
+
+  // ===================== Workbench 桥接（由学习核心提供） =====================
+  window.Edu.Workbench = {
+    wbZhMode: ZhWorkbench.wbZhMode,
+    wbPinyinMode: ZhWorkbench.wbPinyinMode,
+    wbCiyuMode: ZhWorkbench.wbCiyuMode,
+    wbMathMode: MathWorkbench.wbMathMode,
+    wbWrongActive: MathWorkbench.wbWrongActive,
+    wbEnMode: EnWorkbench.wbEnMode
+  };
+  window.Edu.Workbench.wbInit = function () {
+    var pref = Nav.getPref();
+    if (pref.wbZh) ZhWorkbench.wbZhMode = pref.wbZh;
+    if (pref.wbPy) ZhWorkbench.wbPinyinMode = pref.wbPy;
+    if (pref.wbCy) ZhWorkbench.wbCiyuMode = pref.wbCy;
+    if (pref.wbMath) MathWorkbench.wbMathMode = pref.wbMath;
+    if (pref.wbEn) EnWorkbench.wbEnMode = pref.wbEn;
+    var s = pref.lastSubj || 'zh';
+    if (s === 'daily') { window.startDaily(); return; }
+    if (s === 'zh') window.wbZh(ZhWorkbench.wbZhMode);
+    else if (s === 'math') window.wbMath(MathWorkbench.wbMathMode);
+    else if (s === 'en') window.wbEn(EnWorkbench.wbEnMode);
+    window.renderNav();
+  };
+  window.Edu.Workbench.wbSubject = function (s) {
+    Nav.prefSet('subj', s);
+    var pref = Nav.getPref(); pref.lastSubj = s; Nav.savePref(pref);
+    if (s === 'zh') window.wbZh(ZhWorkbench.wbZhMode);
+    else if (s === 'math') window.wbMath(MathWorkbench.wbMathMode);
+    else if (s === 'en') window.wbEn(EnWorkbench.wbEnMode);
+    window.renderNav();
+  };
+  // 首页一键直达答题：合并「选科/选题」到首页，1 步进入答题
+  window.Edu.Workbench.quickStart = function (subj, type) {
+    if (!(window.eduKids && window.eduKids.active())) { Speech.toast('请先选择宝贝'); return; }
+    Store.loadAllState();
+    Nav.prefSet('subj', subj);
+    var p = Nav.getPref();
+    p.lastSubj = subj; p.mode = 'workbench'; p.par = null;
+    // 记录目标题型: wbInit 会依据 pref 打开对应面板, 避免"先默认开面板再二次打开"的重复初始化
+    if (subj === 'daily') {
+      p.wbZh = null; p.wbMath = null; p.wbEn = null;
+    } else if (subj === 'math') { p.wbMath = type || p.wbMath || 'calc'; }
+    else if (subj === 'zh') { p.wbZh = type || p.wbZh || 'zi'; }
+    else if (subj === 'en') { p.wbEn = type || p.wbEn || 'word'; }
+    Nav.savePref(p);
+    eduNav('learn');
+    if (window.renderNav) window.renderNav();
+  };
+  window.Edu.Workbench.quickHome = function () { eduNav('home'); };
+  // 切换外层学科面板(语文/数学/英语/每日挑战)的可见性
+  window.Edu.Workbench.showSubjectSection = function (s) {
+    var id = s === 'daily' ? 'wb-daily' : 'wb-' + s;
+    ['wb-zh', 'wb-math', 'wb-en', 'wb-daily'].forEach(function (x) {
+      var el = document.getElementById(x);
+      if (el) el.style.display = (x === id) ? '' : 'none';
+    });
+  };
+
+  // legacy getters for Nav-bound subj/par (kept for compatibility)
+  window.Edu.Home.getSubj = function () { return Nav.subjNow; };
+  window.Edu.Home.getPar = function () { return Nav.parNow; };
+  window.Edu.Home.setSubj = function (s) { Nav.setSubj(s); };
+  window.Edu.Home.setPar = function (p) { Nav.setPar(p); };
+})();

@@ -85,7 +85,7 @@ window.eduKids = (function () {
   function genderLabel(g) { return g === 'male' ? '男孩' : (g === 'female' ? '女孩' : '未设置'); }
   function genderIcon(g) { return g === 'male' ? '👦' : (g === 'female' ? '👧' : '🧒'); }
   return {
-    KEY: KEY, load: load, save: save, all: all, active: active, byId: byId,
+    KEY: KEY, load: load, save: save, all: all, list: all, active: active, byId: byId,
     add: add, addLocal: addLocal, update: update, remove: remove,
     setActive: setActive, setDbId: setDbId, hasAny: hasAny,
     ageOf: ageOf, tierOf: tierOf, tierLabel: tierLabel,

@@ -264,7 +264,7 @@
         '</span>';
       var lvLine = lv
         ? '<span class="hc-lv">' + lv.em + ' 第 ' + lv.n + ' 关 · ' + lv.name + '</span>'
-        : (c.s === 'daily' ? '<span class="hc-lv">⭐ 每日挑战</span>' : '');
+        : (c.s === 'daily' ? '<span class="hc-lv">今日 ' + Math.min(d.today, d.goal) + '/' + d.goal + ' 题</span>' : '');
       return '<section class="home-course' + (locked ? ' locked' : '') + '"' + click + '>' +
         '<div class="hc-main">' +
         '<span class="hc-emo">' + c.em + '</span>' +

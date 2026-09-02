@@ -356,14 +356,15 @@
     var minsBars = minutesBars(lastDays(7));
 
     var master = subjMastery();
+    var stEmpty = master.length ? '' : '<p class="muted" style="text-align:center;margin:8px 0;">暂无做题记录</p>';
     var ringGrid = master.map(function (s) {
       return '<div class="st-ring-col"><div class="st-ring-bx">' + ring(s.p, SUBJ_COLOR[s.subj] || '#ff6b4a') + '</div>' +
         '<div class="st-ring-l">' + (SUBJ_LABEL[s.subj] || s.subj) + '</div></div>';
-    }).join('') || '<p class="muted" style="grid-column:1/-1;text-align:center;">暂无做题记录</p>';
+    }).join('');
     var subjRows = master.map(function (s) {
       return '<div class="st-subj-row"><b>' + (SUBJ_LABEL[s.subj] || s.subj) + '</b>' +
         '<span class="sbar"><i style="width:' + s.p + '%;"></i></span><span class="pct">' + s.p + '%</span></div>';
-    }).join('') || '<p class="muted">暂无做题记录</p>';
+    }).join('');
 
     var radarAx = radarAxes();
     var weakSegs = weakDist();
@@ -374,12 +375,12 @@
 
     var starCurve = lastDays(14).map(function (x) { return { label: x.label, v: x.stars || 0 }; });
     var kids = (window.eduKids ? window.eduKids.all() : []) || [];
-    var kidChips = kids.map(function (k) {
+    var kidChips = kids.length > 1 ? kids.map(function (k) {
       var on = kid && k.id === kid.id;
       var ava = (k.avatar) || (window.eduKids && window.eduKids.genderIcon ? window.eduKids.genderIcon(k.gender) : '🧒');
       return '<button type="button" class="dash-kid' + (on ? ' on' : '') + '" onclick="window.Edu.Dash.switchKid(\'' + k.id + '\')">' +
         '<span class="dk-ava">' + ava + '</span><span>' + esc(k.name || '宝贝') + '</span></button>';
-    }).join('');
+    }).join('') : '';
 
     var dueList = dueWrongList().slice(0, 8);
     var dueCard = '<div class="edu-card"><h4>🧠 今日待复习</h4>' +
@@ -430,8 +431,8 @@
         '<div class="edu-card"><h4>📈 正确率趋势 <span class="dash-hint">最近7天 · 每日答题</span></h4><div class="st-trend">' + trend + '</div></div>' +
         '<div class="edu-card"><h4>⏱️ 用时分析 <span class="dash-hint">最近7天 · 分钟</span></h4><div class="st-trend">' + minsBars + '</div>' +
           '<p class="muted" style="margin:6px 0 0;">今日已用 ' + todayMins + ' 分钟 · ' + (u.n || 0) + ' 题</p></div>' +
-        '<div class="edu-card"><h4>🎯 分科掌握率</h4><div class="st-rings">' + ringGrid + '</div>' +
-          '<div class="st-subj-detail">' + subjRows + '</div></div>' +
+        '<div class="edu-card"><h4>🎯 分科掌握率</h4>' + (stEmpty || ('<div class="st-rings">' + ringGrid + '</div>' +
+          '<div class="st-subj-detail">' + subjRows + '</div>')) + '</div>' +
         '<div class="edu-card"><h4>🛰️ 技能雷达</h4><div class="dash-radar-wrap">' + radarSvg(radarAx) + '</div></div>' +
         '<div class="edu-card"><h4>📉 薄弱知识点分布</h4><div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;">' +
           '<div>' + donutSvg(weakSegs) + '</div><div class="dk-legend-col">' + (donutLegend || '<p class="muted">暂无数据</p>') + '</div></div></div>' +

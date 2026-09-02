@@ -1556,6 +1556,8 @@ def test_dash_charts_pdf_replay():
     adv:{zh:{poem:{passed:1,stars:2}},math:{calc:{stars:1}}},
     settings:{},wishes:[],wishLog:[]});
   W.Edu.Store.loadAllState();
+  global.eduKids.all=()=>[{id:'kk',name:'小米'},{id:'kk2',name:'小朵'}];
+  global.eduKids.switchKid=()=>{};
   let iH='';const b=me();
   Object.defineProperty(b,'innerHTML',{get(){return iH},set(v){iH=v}});
   const db=me(); const mask={style:{}};

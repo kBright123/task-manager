@@ -85,18 +85,20 @@
         'stroke-dasharray="' + circ + '" stroke-dashoffset="' + off + '" transform="rotate(-90 36 36)" style="transition:stroke-dashoffset .6s ease;"></circle>' +
         '<text x="36" y="41" text-anchor="middle" font-size="15" font-weight="900" fill="' + c + '">' + p + '%</text></svg>';
     }
-    var ringGrid = Object.keys(bySubj).map(function (s) {
+    var bySubjKeys = Object.keys(bySubj);
+    var stEmpty = bySubjKeys.length ? '' : '<p class="muted" style="grid-column:1/-1;text-align:center;margin:8px 0;">暂无做题记录</p>';
+    var ringGrid = bySubjKeys.map(function (s) {
       var v = bySubj[s];
       var p = v.n ? Math.round(v.ok * 100 / v.n) : 0;
       return '<div class="st-ring-col"><div class="st-ring-bx">' + ring(p, SUBJ_COLOR[s] || '#ff6b4a') + '</div>' +
         '<div class="st-ring-l">' + (SUBJ_LABEL[s] || s) + '</div></div>';
-    }).join('') || '<p class="muted" style="grid-column:1/-1;text-align:center;">暂无做题记录</p>';
-    var subjRows = Object.keys(bySubj).map(function (s) {
+    }).join('');
+    var subjRows = bySubjKeys.map(function (s) {
       var v = bySubj[s];
       var p = v.n ? Math.round(v.ok * 100 / v.n) : 0;
       return '<div class="st-subj-row"><b>' + (SUBJ_LABEL[s] || s) + '</b>' +
         '<span class="sbar"><i style="width:' + p + '%;"></i></span><span class="pct">' + p + '%</span></div>';
-    }).join('') || '<p class="muted">暂无做题记录</p>';
+    }).join('');
 
     var dueList = dueWrongList().slice(0, 8);
     var dueCard = '<div class="edu-card"><h4>🧠 今日待复习</h4>' +
@@ -134,8 +136,8 @@
       '</div>' +
       '<div class="edu-card"><h4>📈 最近 7 天答题</h4><div class="st-trend">' + trend + '</div>' +
         '<p class="muted" style="margin:6px 0 0;">今日已用 ' + (Store.minsUsed()) + ' 分钟 · ' + (u.n || 0) + ' 题</p></div>' +
-      '<div class="edu-card"><h4>🎯 分科掌握率</h4><div class="st-rings">' + ringGrid + '</div>' +
-        '<div class="st-subj-detail">' + subjRows + '</div></div>' +
+      '<div class="edu-card"><h4>🎯 分科掌握率</h4>' + (stEmpty || ('<div class="st-rings">' + ringGrid + '</div>' +
+        '<div class="st-subj-detail">' + subjRows + '</div>')) + '</div>' +
       mapCard +
       dueCard +
       '</div>';

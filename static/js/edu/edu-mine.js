@@ -26,7 +26,8 @@
     var goal = s && s.goal ? s.goal : 5;
     var name = act ? (act.name || '宝贝') : '宝贝';
 
-    var kidSwitch = '<div class="mine-kids">' +
+    var kidSwitch = kids.length > 1
+      ? '<div class="mine-kids">' +
       '<div class="mine-kids-head"><h3>👨‍👩‍👧‍👦 宝贝</h3>' +
       '<a href="javascript:void(0)" class="mgr-link" onclick="openKidsMgr()">管理</a></div>' +
       '<div class="mine-kid-scroll">' + kids.map(function (k) {
@@ -36,7 +37,8 @@
           '<span class="mine-kid-name">' + esc(k.name || '宝贝') + '</span>' +
           (on ? '<span class="mine-kid-cur">学习中</span>' : '') +
           '</button>';
-      }).join('') + '</div></div>';
+      }).join('') + '</div></div>'
+      : '';
 
     var actions = '<div class="mine-actions">' +
       '<button type="button" class="mine-act" onclick="openParentMode()"><span class="ma-emo">⚙️</span><span>家长设置</span><i class="bi bi-chevron-right"></i></button>' +

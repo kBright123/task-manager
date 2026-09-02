@@ -15,9 +15,13 @@
   var matchL = [], matchR = [], selL = -1, selR = -1, matchedN = 0, matchedMap = {}, matchT = Date.now();
 
   function wbShowPanel(id) {
-    document.querySelectorAll('#wb-zh > div[id^="wb-"]').forEach(function(d){ d.style.display = 'none'; });
+    // 只隐藏「子标签页栏」(如拼音的声母/韵母), 不能隐藏答题主体 #wb-zh-body——
+    // 它 id 以 wb- 开头会被(id^=wb-)兜住并置为 display:none, 导致题目写进隐藏容器「不显示」
+    document.querySelectorAll('#wb-zh .sm-tabs-sub').forEach(function(d){ d.style.display = 'none'; });
     var el = document.getElementById(id);
     if (el) el.style.display = '';
+    var body = document.getElementById('wb-zh-body');
+    if (body) body.style.display = '';
   }
 
   function setTab(containerId, k) {

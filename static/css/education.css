@@ -1036,10 +1036,16 @@
   .hc-fill{height:100%;border-radius:999px;background:#fff;transition:width .35s ease;}
   .hc-count{font-size:1.15rem;font-weight:900;}
 
-  /* 下部课程列表网格: 手机2列 / 平板3列 / PC4列 */
+  /* 下部课程列表: 手机横滑 / 平板3列 / PC4列 */
   .home-course-sec{margin-top:4px;}
-  .home-course-scroll{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
-  @media (min-width:768px){ .home-course-scroll{grid-template-columns:repeat(3,1fr);} }
+  .home-course-scroll{display:flex;gap:12px;overflow-x:auto;padding:2px 2px 10px;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;}
+  .home-course-scroll::-webkit-scrollbar{display:none;}
+  .home-course-scroll .home-course{flex:0 0 250px;}
+  @media (min-width:768px){
+    .home-course-scroll{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;overflow:visible;padding:0;}
+    .home-course-scroll .home-course{flex:auto;width:100%;}
+  }
   @media (min-width:1080px){ .home-course-scroll{grid-template-columns:repeat(4,1fr);} }
   .home-course{display:flex;align-items:center;gap:14px;min-width:0;width:100%;
     min-height:96px;padding:14px 16px;border-radius:20px;border:2px solid var(--edu-border);
@@ -1233,6 +1239,14 @@
   .dash-hero .dh-name{font-size:1.05rem;font-weight:900;color:var(--edu-ink);}
   .dash-hero .dh-sub{font-size:.76rem;color:var(--edu-muted);margin-top:2px;}
   .dash-hero .dh-pdf{flex-shrink:0;font-size:.84rem;padding:8px 14px;}
+  @media (max-width:640px){
+    .mine-head{flex-wrap:wrap;gap:12px;}
+    .mine-meta{flex:1 1 150px;}
+    .mine-stars{margin-left:auto;}
+    .dash-hero{flex-wrap:wrap;gap:10px;}
+    .dash-hero .dh-meta{flex:1 1 120px;}
+  }
+  @media (max-width:360px){ .mine-sub{font-size:.82rem;} }
   .dash-kids{display:flex;gap:8px;overflow-x:auto;padding:2px;scrollbar-width:none;}
   .dash-kid{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--edu-border-2);background:var(--edu-surface);
     border-radius:999px;padding:6px 13px;font-size:.85rem;font-weight:800;color:var(--edu-ink);cursor:pointer;flex-shrink:0;transition:.12s;}

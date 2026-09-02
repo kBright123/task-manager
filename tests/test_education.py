@@ -1258,7 +1258,8 @@ const W=global;
   store['edu_pref_v1_a']=JSON.stringify({mode:'workbench',subj:'zh'});
   W.eduNav('home');
   const h=body._h||'';
-  console.log('GREET='+((h.indexOf('早上好')>=0||h.indexOf('下午好')>=0||h.indexOf('晚上好')>=0)?'1':'0'));
+  // 问候语按小时变化(跨夜时测试会命中「夜深了」), 昼间/夜间问候均视为有效
+  console.log('GREET='+((h.indexOf('早上好')>=0||h.indexOf('下午好')>=0||h.indexOf('晚上好')>=0||h.indexOf('夜深了')>=0)?'1':'0'));
   console.log('MODE='+(h.indexOf('幼小衔接')>=0&&h.indexOf('mode-select')>=0?'1':'0'));
   console.log('NO_STARS='+(h.indexOf('⭐')<0?'1':'0'));
   console.log('CONTINUE='+(h.indexOf('🚀 继续学习')>=0?'1':'0'));

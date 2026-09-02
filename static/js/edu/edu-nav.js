@@ -172,20 +172,26 @@
     var p = getPref() || {};
     p.mode = 'workbench';
     p.subj = s;
+    p.lastSubj = s;
+    p.par = null;
     savePref(p);
     subjNow = s;
     parNow = null;
+    // 只设 pref 再进 learn: wbInit 会按 lastSubj 打开一次面板,
+    // 避免「eduNav→wbInit 启动 + wbSubject 再启动」双触发导致刚保存的快照被误判为可续学
     eduNav('learn');
-    if (window.Edu.Workbench && window.Edu.Workbench.wbSubject) window.Edu.Workbench.wbSubject(s);
   };
   window.navDaily = function () {
     var p = getPref() || {};
     p.mode = 'workbench';
+    p.subj = 'daily';
+    p.lastSubj = 'daily';
+    p.wbZh = null; p.wbMath = null; p.wbEn = null;
     savePref(p);
     parNow = null;
     subjNow = 'daily';
+    // wbInit 检测 lastSubj==='daily' 会调用 startDaily()(仅一次)
     eduNav('learn');
-    if (window.startDaily) window.startDaily();
   };
   window.navParPlay = function (key) {
     var p = getPref() || {};

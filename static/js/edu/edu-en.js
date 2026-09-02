@@ -65,7 +65,7 @@
       var done = matchedMap[m.id];
       return '<button type="button" class="match-btn '+(done?'done':'')+' '+(selR===i?'sel':'')+'" onclick="window.Edu.EnWorkbench.matchRpick('+i+')">'+(done?'✅ ':'')+m.text+'</button>';
     }).join('');
-    if (msg) msg.textContent = matchedN === n ? '全部配对完成！' : '点击左右两边配对';
+    if (msg) msg.textContent = matchedN === matchL.length ? '全部配对完成！' : '点击左右两边配对';
   }
 
   window.Edu.EnWorkbench = {

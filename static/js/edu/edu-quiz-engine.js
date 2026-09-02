@@ -47,10 +47,13 @@
 
   // 上次未完成的练习快照(待用户确认是否续学)
   var resumeSnap = null;
+  // 本次会话内已被用户「取消」的续学(subj+type), 取消后再进入该练习直接生成新题, 不再反复弹窗
+  var dismissedResume = {};
 
   // 校验并缓存一个「可续学」的快照; 返回是否命中(不自动恢复)
   function hasResume(subj, type) {
     resumeSnap = null;
+    if (dismissedResume[subj + ':' + type]) return false;
     var raw = null;
     try { raw = localStorage.getItem(quizStateKey()); } catch (e) { return false; }
     if (!raw || raw === 'null') return false;
@@ -113,6 +116,7 @@
   function resumeNo() {
     var mask = document.getElementById('eduMaskResume');
     if (mask) { mask.style.display = 'none'; }
+    if (resumeSnap) dismissedResume[resumeSnap.subj + ':' + resumeSnap.type] = true;
     resumeSnap = null;   // 仅取消弹窗, 不开始新练习, 停留在进入前页面
   }
   function reapplyAnswers() {
@@ -690,8 +694,13 @@
   };
 
   window.Edu.QuizEngine.startQuiz = function (subj, type, items, levelInfo) {
-    // 存在上次未完成练习时：给出「继续上次 / 取消」交互提示, 不自动恢复也不自动开始
-    if (hasResume(subj, type)) { showResumePrompt(); return; }
+    // 正在做同一套练习时再次进入(如再次点击该科目标签): 直接重新生成新题, 不弹续学遮罩
+    var isLive = !!(quiz && !quiz.submitted && quizSubject === subj && quiz.type === type);
+    if (!isLive) {
+      // 存在上次未完成练习时：给出「继续上次 / 取消」交互提示, 不自动恢复也不自动开始
+      if (hasResume(subj, type)) { showResumePrompt(); return; }
+    }
+    delete dismissedResume[subj + ':' + type];
     quizSubject = subj;
     quiz = { items: items, type: type, difficulty: levelInfo && levelInfo.difficulty, answers: {}, view: 0, submitted: false, _t: Date.now(), startedAt: Date.now() };
     window.Edu.QuizEngine.quiz = quiz;

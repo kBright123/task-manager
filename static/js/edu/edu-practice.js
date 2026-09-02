@@ -21,7 +21,15 @@
     if (type === 'calc') { var q = M.makeCalc(range, nocarry, allowMult); return M.makeCalcItem(q); }
     if (type === 'judge') { var q2 = M.makeCalc(range, nocarry, allowMult); return M.makeJudgeItem(q2, PRACTICE.idx); }
     if (type === 'word') { var q3 = C.WORD_PLUS[Math.floor(Math.random()*C.WORD_PLUS.length)]; if (Math.random()<0.5) q3 = C.WORD_MINUS[Math.floor(Math.random()*C.WORD_MINUS.length)]; return M.makeWordItem(q3); }
-    if (type === 'zi') { var z = C.ZI[Math.floor(Math.random()*C.ZI.length)]; return { id:z.id, type:'zi', prompt:z.prompt, options:['天','地','人','大','小','上','下','中','日','月'].filter(function(x){return x!==z.prompt;}).slice(0,3).concat(z.prompt).sort(function(){return Math.random()-0.5;}), correct:z.prompt }; }
+    if (type === 'zi') {
+      // 与闯关「识字」一致: 2000 常用字池 + 听音选字(播放词语语音, 隐藏目标字)
+      var pool = C.ZI_2000 || C.ZI;
+      var z = pool[Math.floor(Math.random()*pool.length)];
+      var word = z.ex || z.prompt;
+      var dist = (C.ZI_2000 || C.ZI).map(function(x){ return x.prompt; });
+      return { id:z.id, type:'zi', prompt:'听一听，是哪个字？', listen:word, word:word, pinyin:z.pinyin,
+        options:M.makeOptions(z.prompt, dist, 4), correct:z.prompt };
+    }
     if (type === 'pinyin') { var p = C.P_READ[Math.floor(Math.random()*C.P_READ.length)]; return { id:'read_'+p.id, type:'pinyin', prompt:'「'+p.zi+'」这个字怎么读？', big:p.e+' '+p.zi, options:M.makeOptions(p.py, C.P_READ.map(function(t){return t.py;}), 3), correct:p.py, note:p.py }; }
     if (type === 'word_en') { var w = C.WORDS[Math.floor(Math.random()*C.WORDS.length)]; return { id:w.id, type:'word_en', prompt:w.cn, options:C.WORDS.filter(function(x){return x.id!==w.id;}).slice(0,3).map(function(x){return x.word;}).concat(w.word).sort(function(){return Math.random()-0.5;}), correct:w.word }; }
     return null;
@@ -39,7 +47,13 @@
     if (!it) return '';
     var spk = Speech.spkBtn(it.prompt, 'qi-spk');
     var h = '<div class="quiz-item active" style="margin-top:10px;">';
-    h += '<div class="qi-head"><span class="qi-no">'+(PRACTICE.idx+1)+'</span><span class="qi-prompt">'+M.stripBlank(it.prompt)+'</span>'+spk+'</div>';
+    if (it.listen) {
+      // 听音选字(识字极速/闯关同款): 不显示目标字, 🔊 重播 + 自动播放词语语音
+      h += '<div class="qi-head"><span class="qi-no">'+(PRACTICE.idx+1)+'</span><span class="qi-prompt">'+M.stripBlank(it.prompt)+'</span></div>';
+      h += '<div class="qi-listen"><button type="button" class="qi-listen-btn" onclick="window.Edu.Practice.replaySpeak()" aria-label="再听一遍">🔊</button><div class="qi-listen-hint">再听一遍</div></div>';
+    } else {
+      h += '<div class="qi-head"><span class="qi-no">'+(PRACTICE.idx+1)+'</span><span class="qi-prompt">'+M.stripBlank(it.prompt)+'</span>'+spk+'</div>';
+    }
     if (it.input) {
       h += '<div class="qi-ans">'+(/\s*=\s*\?+\s*$/.test(String(it.prompt)) ? '<span class="qi-eq">＝</span>' : '')+'';
       h += '<input id="pqi" class="qi-in" type="number" inputmode="numeric" autocomplete="off" placeholder="?" aria-label="答案" oninput="window.Edu.Practice.practiceInput(this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();window.Edu.Practice.practiceAnswer(this.value)}">';
@@ -96,12 +110,21 @@
     PRACTICE.lockTimer = setTimeout(practiceNext, 650);
   }
 
+  function practiceContainer() {
+    // 模块化架构下题目渲染进对应学科面板(而非不存在的 #quizShell); 与闯关容器保持一致
+    var subj = PRACTICE ? PRACTICE.subj : 'zh';
+    if (subj === 'daily') return 'wb-daily';
+    if (subj === 'math') return 'wb-math-body';
+    if (subj === 'en') return 'wb-en-body';
+    return 'wb-zh-body';
+  }
+
   function practiceNext() {
     if (!PRACTICE.active) return;
     var it = practiceItem();
     if (!it) return;
     PRACTICE.cur = it; PRACTICE.idx++; PRACTICE.lock = false; PRACTICE.leftMs = PRACTICE_SECS * 1000;
-    var box = document.getElementById('quizShell');
+    var box = document.getElementById(practiceContainer());
     if (!box) return;
     box.innerHTML = window.quizHeaderHtml('su', PRACTICE.subj, PRACTICE.type) + practiceHud() +
       '<div class="quiz-item pratica qi-p-in" id="pqi">'+practiceRenderItem()+'</div>';
@@ -110,6 +133,10 @@
     PRACTICE.timer = setInterval(practiceTick, 250);
     var inp = document.getElementById('pqi');
     if (inp && inp.querySelector) { var inn = inp.querySelector('.qi-in'); if (inn) setTimeout(function(){ inn.focus(); }, 100); }
+    if (it.listen && window.Speech && Speech.playSpeak) {
+      if (Speech.preloadTTS) Speech.preloadTTS(it.listen);
+      setTimeout(function(){ if (window.Speech && Speech.playSpeak) Speech.playSpeak(it.listen); }, 60);
+    }
   }
 
   window.Edu.Practice = {
@@ -122,6 +149,11 @@
     practiceTick: practiceTick,
     practiceTimeout: practiceTimeout,
     practiceNext: practiceNext
+  };
+
+  window.Edu.Practice.replaySpeak = function () {
+    var it = window.Edu.Practice && window.Edu.Practice.PRACTICE && window.Edu.Practice.PRACTICE.cur;
+    if (it && it.listen && window.Speech && Speech.playSpeak) Speech.playSpeak(it.listen);
   };
 
   window.Edu.Practice.practiceInput = function (v) {
@@ -200,7 +232,7 @@
     if (Store.wb.done.indexOf(doneKey) < 0) Store.wb.done.push(doneKey);
     if (window.Edu.Legacy) window.Edu.Legacy.evalBadges([], PRACTICE.maxStreak);
     Store.saveState(); Store.saveWb();
-    var shell = document.getElementById('quizShell');
+    var shell = document.getElementById(practiceContainer());
     if (shell) {
       var medal = PRACTICE.score >= 30 ? '🏆' : (PRACTICE.score >= 15 ? '🌟' : '💪');
       var praise = PRACTICE.wrong === 0 ? '一题未失，超强手感！' : (PRACTICE.right > PRACTICE.wrong ? '状态很好，继续加油！' : '多练几次就更稳啦～');

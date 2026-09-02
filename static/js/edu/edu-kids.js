@@ -95,13 +95,14 @@
       okText: '删除',
       cb: function () {
         window.requireParent(function () {
-          fetch('/edu/api/kids', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kids: [], removedIds: [kidEditId] }) })
-            .then(function (r) { return r.json(); })
-            .then(function (res) {
-              if (res.ok) { document.getElementById('eduMask').style.display = 'none'; window.Edu.Nav.enter(); }
-              else { Speech.toast(res.error || '删除失败'); }
-            })
-            .catch(function () { Speech.toast('网络异常，删除失败'); });
+          if (window.eduKids) window.eduKids.remove(kidEditId);   // 本地移除 + 按 dbId(整数)同步后端删除
+          try {
+            localStorage.removeItem('edu_record_v1_' + kidEditId);
+            localStorage.removeItem('edu_workbench_v1_' + kidEditId);
+            localStorage.removeItem('edu_pref_v1_' + kidEditId);
+          } catch (e) {}
+          document.getElementById('eduMask').style.display = 'none';
+          window.Edu.Nav.enter();
         });
       }
     });

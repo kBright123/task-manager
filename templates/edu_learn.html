@@ -21,8 +21,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/education.css', v=staticv('css/education.css')) }}">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap">
+<!-- 表情用系统 emoji 字体, 移除谷歌字体外链以加快刷新 (CSS 字体栈含 Apple/Segoe/系统 Noto 兜底) -->
 {% endblock %}
 
 {% block content %}

@@ -29,7 +29,9 @@
 - 渲染页面骨架(/edu/)
 - 提供 /edu/api/** REST 接口, 供前端读写数据。
 """
+import gzip
 import hashlib
+import io
 import json
 import logging
 import os
@@ -253,6 +255,62 @@ def tts():
                 pass
     resp = send_file(path, mimetype='audio/mpeg')
     resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+    return resp
+
+# ---- 首屏 JS 打包: 将 29 个依赖有序模块合并为一个请求 ----
+# 手机端逐个串行请求这些模块会在移动 RTT 下累加数秒延迟; 合包后一次请求即可,
+# 配合 mtime 版本号(gzip + 不可变缓存)兼顾更新与速度。
+_EDU_JS_MODULES = [
+    'edu-constants.js', 'edu-math-utils.js', 'edu-core.js', 'edu-speech.js',
+    'edu-state.js', 'edu-parent.js', 'edu-quiz-engine.js', 'edu-engine.js',
+    'edu-legacy.js', 'edu-zh.js', 'edu-math.js', 'edu-en.js',
+    'edu-paradise.js', 'edu-daily.js', 'edu-practice.js', 'edu-header.js',
+    'edu-kids.js', 'edu-nav.js', 'edu-home.js', 'edu-mine.js',
+    'edu-edit.js', 'edu-report.js', 'edu-mask.js', 'edu-wish.js',
+    'edu-badges.js', 'edu-course.js', 'edu-stats.js', 'edu-dash.js',
+    'edu-backup.js', 'edu-settings.js', 'edu-fab.js', 'edu-bootstrap.js',
+]
+_EDU_JS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static', 'js', 'edu')
+_bundle_lock = threading.Lock()
+_bundle_cache = {'mtime': 0, 'body': b'', 'size': 0}
+
+def _build_edu_bundle():
+    """拼接模块(依赖顺序), 返回 (gzip_bytes, max_mtime). 未变时走内存缓存."""
+    max_mt = 0.0
+    paths = []
+    for name in _EDU_JS_MODULES:
+        p = os.path.join(_EDU_JS_DIR, name)
+        paths.append(p)
+        try:
+            max_mt = max(max_mt, os.path.getmtime(p))
+        except OSError:
+            continue
+    with _bundle_lock:
+        if _bundle_cache['mtime'] == max_mt and _bundle_cache['body']:
+            return _bundle_cache['body'], max_mt
+        parts = []
+        for p in paths:
+            try:
+                with open(p, 'r', encoding='utf-8') as f:
+                    parts.append(f.read())
+            except OSError:
+                continue
+        raw = ('\n;\n'.join(parts)).encode('utf-8')
+        body = gzip.compress(raw, compresslevel=6)
+        _bundle_cache.update({'mtime': max_mt, 'body': body})
+        return body, max_mt
+
+
+@education_bp.route('/bundle.js')
+def edu_bundle():
+    """返回合并后的教育模块 JS(gzip). 版本号由模板 mtime 派生, 配合不可变缓存."""
+    body, max_mt = _build_edu_bundle()
+    resp = current_app.response_class(body, mimetype='application/javascript')
+    resp.headers['Content-Encoding'] = 'gzip'
+    resp.headers['Content-Length'] = str(len(body))
+    resp.headers['ETag'] = '"edu-%d"' % int(max_mt * 1000)
+    resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+    resp.headers['Vary'] = 'Accept-Encoding'
     return resp
 
 @education_bp.route('/api/bootstrap', methods=['GET', 'POST'])

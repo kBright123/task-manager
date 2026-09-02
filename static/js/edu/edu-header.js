@@ -27,33 +27,24 @@
     var isSu = (active === 'su' || active === 'practice');
     var isQuiz = (active === 'guan' || active === 'quiz');
     var lv = window.eduEngine ? window.eduEngine.diffOf(subj) : 3;
+    var lvTxt = (lv === '' || lv == null) ? '第 1 关' : ('第 ' + Number(lv) + ' 关');
     var state = Store.state;
     var passed = (state.adv && state.adv[subj] && state.adv[subj][type] && state.adv[subj][type].passed);
     var itemName = ({zh:{poem:'古诗',zi:'识字',stroke:'笔顺',pinyin:'拼音',yun:'拼音',read:'拼音',tone:'拼音',fan:'词语',liang:'词语',daily:'每日挑战'},
                      math:{calc:'口算',judge:'判断',word:'应用题',order:'排序',daily:'每日挑战'},
                      en:{word:'单词',dialogue:'对话',daily:'每日挑战'}}[subj]||{})[type] || type;
-    var modeTxt = isSu ? '极速练习' : '闯关';
+    var modeTxt = isSu ? '极速练习' : lvTxt;
     var nRight;
     if (isSu) {
       nRight = (window.PRACTICE && window.PRACTICE.active) ? (window.PRACTICE.right || 0) : 0;
-    } else {
-      nRight = quizAnsweredRight();
     }
-    var html = '<div class="qz-ctl">' +
-      '<button type="button" class="qc-exit" onclick="quitAsk()"><i class="bi bi-x-lg"></i> 退出</button>' +
+    // 答题页不提供模式切换入口(模式在首页选择), 仅以只读标签展示当前关卡
+    var modeChip = '<span class="lv-badge">' + (isSu ? '⚡ 极速练习' : ('🗺️ ' + lvTxt + ' · ' + esc(itemName))) + '</span>';
+    var html = '<div class="qc-ctl">' +
+      '<div class="qc-side">' + modeChip + (passed ? '<span class="lv-passed">✅ 已通过</span>' : '') + '</div>' +
+      '<button type="button" class="qc-exit" onclick="quitAsk()"><i class="bi bi-x-lg"></i>' + (isSu ? '退出' : '返回') + '</button>' +
       '<button type="button" class="qc-sound" id="soundToggle" onclick="toggleSpeak()" aria-label="声音">🔊</button>' +
-      '</div>' +
-      '<div class="lv-banner">'+
-      '<div class="lv-left"><span class="lv-badge">🗺️ '+modeTxt+' · '+esc(itemName)+'</span>'+
-      '<span class="lv-sub" id="lvSub">已答对 <b>'+nRight+'</b> 题</span></div>'+
-      '<div class="lv-right">'+(passed?'<span class="lv-passed">✅ 已通过本关</span>':'<span class="lv-notyet">⏳ 待通关</span>')+
-      '<span class="lv-at">难度档 '+lv+'/5</span>';
-    if (type !== 'daily'){
-      html += '<span class="pb-mini-group">'+
-        '<button type="button" class="pb-mini'+(isQuiz?' active':'')+'" onclick="window.restartQuiz()">🗺️ 闯关</button>'+
-        '<button type="button" class="pb-mini'+(isSu?' active':'')+'" onclick="window.startPractice(\''+esc(subj)+'\',\''+esc(type)+'\')">⚡ 极速练习</button></span>';
-    }
-    html += '</div></div>';
+      '</div>';
     return html;
   }
 

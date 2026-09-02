@@ -121,10 +121,10 @@
     return stateLevel(subj);
   }
 
-  function gradeQuiz(count, maxCombo, bonus) {
-    var base = count * 10;
-    var comboBonus = Math.floor(maxCombo / 3) * 5;
-    return base + comboBonus + (bonus || 0);
+  // 发星: 答对一题 +1 星; 连续答对(≥2连)的每一题再 +2 星
+  // comboBonus 由调用方按连对段累加: 每段第二个起的答对题各 +2
+  function gradeQuiz(count, comboBonus) {
+    return (count || 0) + (comboBonus || 0);
   }
 
   function seedRand(seed) {

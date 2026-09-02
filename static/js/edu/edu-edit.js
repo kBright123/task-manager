@@ -68,14 +68,15 @@
   };
 
   window.Edu.KidsMgr.mgrDeleteKid = function (id) {
-    window.requireParent(function(){
-      fetch('/edu/api/kids', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ kids:[], removedIds:[id] }) })
-        .then(function(r){ return r.json(); })
-        .then(function(res){
-          if (res.ok) { window.openKidsMgr(); Nav.renderHome(); }
-          else { Speech.toast(res.error || '删除失败'); }
-        })
-        .catch(function(){ Speech.toast('网络异常，删除失败'); });
+    window.requireParent(function () {
+      if (window.eduKids) window.eduKids.remove(id);   // 本地移除 + 按 dbId(整数)同步后端删除
+      try {
+        localStorage.removeItem('edu_record_v1_' + id);
+        localStorage.removeItem('edu_workbench_v1_' + id);
+        localStorage.removeItem('edu_pref_v1_' + id);
+      } catch (e) {}
+      window.openKidsMgr();
+      if (window.renderHome) window.renderHome();
     });
   };
 })();

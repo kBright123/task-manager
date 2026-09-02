@@ -145,35 +145,55 @@
     var remaining = Math.max(0, d.goal - d.today);
     var barW = Math.min(100, d.pct);
 
-    // ===== 区块 1: 顶部 欢迎语 + 学习模式切换 (身份/宝贝切换统一在顶部条, 避免重复) =====
+    // ===== 顶部条: 问候单行 + 副标题同行 + 等级/宝贝/声音/通知/模式 收纳 =====
     var hour = new Date().getHours();
     var greet = hour < 6 ? '夜深了' : (hour < 12 ? '早上好' : (hour < 18 ? '下午好' : '晚上好'));
     var curMode = Nav.currentMode ? Nav.currentMode() : 'workbench';
-    var modeSwitch = '<span class="mode-toggle hw-mode">' +
-      '<i class="bi bi-stars" style="color:var(--edu-muted);font-size:.85rem;"></i>' +
-      '<select id="modeSelect" class="mode-select" aria-label="学习模式" onchange="switchMode(this.value)">' +
+    var lv = Store.stateLevel ? Store.stateLevel('zh') : (d.level || 1);
+    var modeToggle = '<select id="modeSelect" class="mode-select" aria-label="学习模式" onchange="switchMode(this.value)">' +
       '<option value="workbench"' + (curMode === 'workbench' ? ' selected' : '') + '>🏫 幼小衔接</option>' +
       '<option value="paradise"' + (curMode === 'paradise' ? ' selected' : '') + '>🌈 快乐乐园</option>' +
-      '</select></span>';
-    var head = '<section class="home-welcome">' +
-      '<div class="hw-meta"><div class="hw-hello">' + greet + '！今天也要开开心心学习哦</div>' +
-      '<div class="hw-sub">坚持闯关，天天有进步 ✨</div></div>' +
-      modeSwitch +
+      '</select>';
+    var top = '<section class="home-top">' +
+      '<div class="ht-greet">' +
+        '<span class="ht-hello">' + greet + '，<b>' + esc(act.name || '宝贝') + '</b></span>' +
+        '<span class="ht-sub">今天也要开开心心学习哦</span>' +
+      '</div>' +
+      '<div class="ht-actions">' +
+        '<span class="ht-lv">⭐ Lv.' + lv + '</span>' +
+        '<button type="button" class="ht-icon" data-kid aria-label="宝贝切换" onclick="window.homeOpenKid()">' + kidAvatar(act) + '</button>' +
+        '<span class="ht-mode mode-toggle">' + modeToggle + '</span>' +
+      '</div>' +
       '</section>';
 
-    // ===== 区块 2: 中部 大「继续学习」按钮(占屏约40%) =====
+    // ===== 今日目标卡: 标题 + 激励语(单行) + 进度条与数据整合 + 继续按钮 =====
     var quote = d.today >= d.goal
-      ? '🎉 今日目标已达成，明天继续闯关攒星星！'
-      : (remaining > 0 ? '💪 再答 <b>' + remaining + '</b> 题就能突破今日目标，加油！' : '从第一题开始，答对题 + 攒星星，冲鸭！');
-    var middle = '<section class="home-continue" onclick="homeStartLearn()">' +
-      '<div class="hc-badge">🚀 继续学习</div>' +
-      '<div class="hc-title">' + esc(act.name || '宝贝') + '，准备好了吗？</div>' +
-      '<div class="hc-quote">' + quote + '</div>' +
-      '<div class="hc-track"><div class="hc-fill" style="width:' + barW + '%;"></div></div>' +
-      '<div class="hc-count"><b>' + done + '</b> / ' + d.goal + ' 题</div>' +
+      ? '🎉 今日目标已达成，继续保持！'
+      : (remaining > 0 ? '再答 <b>' + remaining + '</b> 题就能突破今日目标，加油！' : '从第一题开始，答对题 + 攒星星，冲鸭！');
+    var stStars = Store.state.stars || 0;
+    var badEm = Object.keys(Store.state.badges || {}).filter(function (k) { return Legacy && Legacy.BADGES && Legacy.BADGES[k]; })
+      .map(function (k) { return Legacy.BADGES[k].name; });
+    // 每人最多渲染前 5 枚; 前 2 枚(.hero)任何端都显示, 第 3-5 枚(.xtra)桌面显示/手机隐藏,
+    // 手机端用「+N」指示剩余枚数
+    var badHtml = badEm.slice(0, 5).map(function (nm, i) {
+      return '<span class="hg-badge' + (i < 2 ? ' hero' : ' xtra') + '">' + esc(nm) + '</span>';
+    }).join('');
+    var badMore = badEm.length > 2
+      ? '<span class="hg-more" title="共 ' + badEm.length + ' 枚勋章">+' + (badEm.length - 2) + '</span>'
+      : '';
+    var goalStats = '<div class="hg-stats">' +
+      '<span class="hg-star">⭐ 累计 ' + stStars + ' 星</span>' +
+      (badEm.length ? '<span class="hg-badges" title="已获得 ' + badEm.length + ' 枚勋章">' + badHtml + badMore + '</span>' : '') +
+      '</div>';
+    var goal = '<section class="home-goal">' +
+      '<div class="hg-head"><span class="hg-title">📊 今日学习目标</span>' +
+      '<span class="hg-count"><b>' + done + '</b> / ' + d.goal + ' 题</span></div>' +
+      '<div class="hg-quote">' + quote + '</div>' +
+      '<div class="hg-track"><div class="hc-fill" style="width:' + barW + '%;"></div></div>' +
+      goalStats +
       '</section>';
 
-    // ===== 区块 3: 下部 课程横向滑动列表 =====
+    // ===== 4 个学习入口卡: 2×2 网格, 等高不换行 =====
     var today = todayStr();
     var recs = Store.state.records || [];
     var subjN = { zh: 0, math: 0, en: 0 };
@@ -182,41 +202,86 @@
     var courses = [
       { s: 'zh', type: 'zi', em: '📖', name: '语文识字', sub: '认识新汉字', locked: false },
       { s: 'math', type: 'calc', em: '🔢', name: '数学口算', sub: '加减乘除小能手', locked: false },
-      { s: 'en', type: '', em: '🔤', name: '英语启蒙', sub: 'ABC 说起来', locked: false },
-      { s: 'daily', type: '', em: '☀️', name: '每日挑战', sub: '混合 10 题', locked: false }
+      { s: 'en', type: '', em: '🌍', name: '英语启蒙', sub: 'ABC 说起来', locked: false },
+      { s: 'daily', type: '', em: '⭐', name: '每日挑战', sub: '混合 10 题', locked: false }
     ];
     function courseStatus(c) {
       if (c.locked) return { tag: '未解锁', cls: 'locked' };
-      var lv = c.s === 'daily' ? Math.min(5, Math.max(1, Math.ceil((d.today / Math.max(1, d.goal)) * 5))) : (lvMap[c.s] || 0);
-      if (lv >= 5) return { tag: '已通关', cls: 'done' };
-      if (lv > 0) return { tag: '继续', cls: 'go' };
+      var lv0 = c.s === 'daily' ? Math.min(5, Math.max(1, Math.ceil((d.today / Math.max(1, d.goal)) * 5))) : (lvMap[c.s] || 0);
+      if (lv0 >= 5) return { tag: '已通关', cls: 'done' };
+      if (lv0 > 0) return { tag: '去学习', cls: 'go' };
       return { tag: '未开始', cls: 'todo' };
+    }
+    function courseGo(c) {
+      if (c.s === 'daily') return 'window.eduNav(\'home\');window.Edu.Workbench.quickStart(\'daily\')';
+      return 'window.Edu.Workbench.quickStart(\'' + c.s + '\'' + (c.type ? ',\'' + c.type + '\'' : '') + ')';
+    }
+    // 闯关模式: 按课程地图启动「当前所在关卡」, 通关后自动解锁下一关(随地图切换题型)
+    function courseGuan(c) {
+      if (c.s === 'daily') return courseGo(c);
+      return 'window.Edu.Course&&window.Edu.Course.launchLevel&&window.Edu.Course.launchLevel(\'' + c.s + '\',' +
+        '(window.Edu.Course.curLevelIdx(\'' + c.s + '\')||0))';
+    }
+    function courseSu(c) {
+      // 极速练习: 题型跟随课程地图当前关卡, 且按学科单位取有效题型(避免数学/英语误入识字)
+      if (c.s === 'daily') return courseGo(c);
+      var t = null;
+      if (window.Edu && window.Edu.Course && window.Edu.Course.COURSES && window.Edu.Course.COURSES[c.s]) {
+        var idx = (window.Edu.Course.curLevelIdx && window.Edu.Course.curLevelIdx(c.s)) || 0;
+        var lv = window.Edu.Course.COURSES[c.s].levels[idx];
+        if (lv && lv.t) {
+          var lt = lv.t;
+          if (c.s === 'zh') {
+            t = (lt === 'pinyin' || lt === 'yun' || lt === 'read' || lt === 'tone') ? 'pinyin' : 'zi';
+          } else if (c.s === 'math') {
+            t = (lt === 'word') ? 'word' : 'calc';
+          } else if (c.s === 'en') {
+            t = 'word_en';
+          }
+        }
+      }
+      return 'window.homePractice(\'' + c.s + '\'' + (t ? ',\'' + t + '\'' : '') + ')';
+    }
+    // 课程地图当前所在关卡
+    function courseLevel(c) {
+      if (c.s === 'daily') return null;
+      if (!(window.Edu && window.Edu.Course)) return null;
+      var idx = window.Edu.Course.curLevelIdx(c.s);
+      if (!(idx >= 0)) return null;
+      var lv = (window.Edu.Course.COURSES[c.s] || {}).levels || [];
+      if (!lv[idx]) return null;
+      return { n: idx + 1, name: lv[idx].name, em: lv[idx].em };
     }
     var courseCards = courses.map(function (c) {
       var st = courseStatus(c);
       var n = c.s === 'daily' ? d.today : subjN[c.s];
-      var prog = c.s === 'daily' ? Math.min(100, Math.round((d.today / Math.max(1, d.goal)) * 100)) : ((lvMap[c.s] || 0) / 5) * 100;
-      return '<button type="button" class="home-course' + (st.cls === 'locked' ? ' locked' : '') + '"' +
-        (st.cls === 'locked' ? ' disabled aria-disabled="true"' : ' onclick="window.Edu.Workbench.quickStart(\'' + c.s + '\'' +
-        (c.type ? ',\'' + c.type + '\'' : '') + ')"') + '>' +
+      var locked = st.cls === 'locked';
+      var lv = courseLevel(c);
+      var click = locked ? '' : ' onclick="' + courseGo(c) + '"';
+      var modes = '<span class="hc-modes"' + (locked ? '' : ' onclick="event.stopPropagation()"') + '>' +
+        '<button type="button" class="hc-mode hc-guan" onclick="' + courseGuan(c) + '">🗺️ 闯关模式</button>' +
+        '<button type="button" class="hc-mode hc-su" onclick="' + courseSu(c) + '">⚡ 极速练习</button>' +
+        '</span>';
+      var lvLine = lv
+        ? '<span class="hc-lv">' + lv.em + ' 第 ' + lv.n + ' 关 · ' + lv.name + '</span>'
+        : (c.s === 'daily' ? '<span class="hc-lv">⭐ 每日挑战</span>' : '');
+      return '<section class="home-course' + (locked ? ' locked' : '') + '"' + click + '>' +
+        '<div class="hc-main">' +
         '<span class="hc-emo">' + c.em + '</span>' +
-        '<span class="hc-info"><span class="hc-hd"><span class="hc-nm">' + c.name + '</span>' +
-        '<span class="hc-tag ' + st.cls + '">' + (st.cls === 'done' ? '已通关 🎉' : st.cls === 'locked' ? '🔒 ' + st.tag : st.tag) + '</span></span>' +
-        '<span class="hc-sb">' + c.sub + ' · 已练 ' + n + ' 题</span>' +
-        '<span class="hc-track"><span class="hc-fill" style="width:' + prog + '%;"></span></span></span>' +
-        '<i class="bi bi-chevron-right hc-arrow"></i></button>';
+        '<span class="hc-info"><span class="hc-nm">' + c.name + '</span>' +
+        '<span class="hc-lv-l">' + lvLine + '</span>' +
+        '<span class="hc-stat"><span class="hc-sb-sub">' + c.sub + '</span><span class="hc-stat-c">已练 <b>' + n + '</b> 题</span></span></span>' +
+        '</div>' +
+        modes +
+        '</section>';
     }).join('');
-    var list = '<section class="home-course-sec"><div class="home-sec-head"><h3>📚 继续练</h3>' +
-      '<span class="qs-hint">左右滑动查看更多</span></div>' +
+    var list = '<section class="home-course-sec">' +
+      '<div class="home-sec-head"><h3>📚 继续练</h3>' +
+      '<span class="hc-hint"><i class="bi bi-chevron-double-right hh-a"></i>点卡片直接开练</span></div>' +
       '<div class="home-course-scroll">' + courseCards + '</div></section>';
 
-    // 闯关地图 teaser: 展示当前旅程进度, 点按进入「闯关」课程地图页
-    var courseTeaser = '';
-    if (window.Edu.Course && window.Edu.Course.journeyTeaser) {
-      courseTeaser = window.Edu.Course.journeyTeaser();
-    }
-
-    body.innerHTML = head + middle + courseTeaser + list;
+    body.innerHTML = top + '<div class="ht-kiddrop" id="homeKidDrop"></div>' + goal + list;
+    body.classList.add('home-compact');
     anim(body);
   }
 
@@ -229,6 +294,28 @@
   window.homeStartLearn = function () {
     var act = window.eduKids ? window.eduKids.active() : null;
     if (act) kidEnter(act.id);
+  };
+  // 顶部条宝贝切换: 轻量下拉, 无独立顶栏时提供统一身份入口
+  window.homeOpenKid = function () {
+    var list = (window.eduKids ? window.eduKids.all() : []) || [];
+    var act = window.eduKids ? window.eduKids.active() : null;
+    var drop = document.getElementById('homeKidDrop');
+    if (!drop) return;
+    if (drop.classList.contains('show')) { drop.classList.remove('show'); return; }
+    var ht = '<div class="ht-kd-title">选择宝贝</div>' + list.map(function (k) {
+      var on = act && k.id === act.id;
+      return '<button type="button" class="ht-kd-item' + (on ? ' on' : '') + '" onclick="window.switchKid(\'' + k.id + '\')">' +
+        '<span class="ht-kd-ava">' + kidAvatar(k) + '</span>' +
+        '<span class="ht-kd-name">' + esc(k.name || '宝贝') + '</span>' +
+        (on ? '<i class="bi bi-check2 ht-kd-ok"></i>' : '') + '</button>';
+    }).join('') +
+      '<button type="button" class="ht-kd-add" onclick="window.kidAdd()">➕ 添加宝贝</button>';
+    drop.innerHTML = ht;
+    drop.classList.add('show');
+  };
+  window.homeCloseKid = function () {
+    var drop = document.getElementById('homeKidDrop');
+    if (drop) drop.classList.remove('show');
   };
   window.openDetail = function (which) {
     var kid = window.eduKids ? window.eduKids.active() : null;
@@ -448,6 +535,27 @@
     eduNav('learn');
     if (window.renderNav) window.renderNav();
   };
+  // 首页直达极速练习: 先切到工作台挂载对应学科面板, 再启动极速练习(避免空白页)
+  window.homePractice = function (subj, type) {
+    if (!(window.eduKids && window.eduKids.active())) { Speech.toast('请先选择宝贝'); return; }
+    Store.loadAllState();
+    Nav.prefSet('subj', subj);
+    var p = Nav.getPref();
+    p.lastSubj = subj; p.mode = 'workbench'; p.par = null;
+    if (subj === 'math') p.wbMath = type || 'calc';
+    else if (subj === 'en') p.wbEn = type || 'word';
+    else p.wbZh = type || 'zi';
+    Nav.savePref(p);
+    eduNav('learn');
+    if (window.renderNav) window.renderNav();
+    var cid = (subj === 'daily') ? 'wb-daily' : (subj === 'math') ? 'wb-math-body' : (subj === 'en') ? 'wb-en-body' : 'wb-zh-body';
+    var tries = 0;
+    (function waitShell() {
+      if (document.getElementById(cid)) { window.startPractice(subj, type); return; }
+      if (++tries > 40) return;
+      setTimeout(waitShell, 80);
+    })();
+  };
   window.Edu.Workbench.quickHome = function () { eduNav('home'); };
   // 切换外层学科面板(语文/数学/英语/每日挑战)的可见性
   window.Edu.Workbench.showSubjectSection = function (s) {
@@ -463,4 +571,16 @@
   window.Edu.Home.getPar = function () { return Nav.parNow; };
   window.Edu.Home.setSubj = function (s) { Nav.setSubj(s); };
   window.Edu.Home.setPar = function (p) { Nav.setPar(p); };
+
+  // 点击下拉外部时收起 (惰性: 仅当首页存在宝贝下拉时挂载)
+  if (typeof document !== 'undefined' && document.addEventListener && !window.__eduHomeOutClick) {
+    window.__eduHomeOutClick = true;
+    document.addEventListener('click', function (e) {
+      var drop = document.getElementById('homeKidDrop');
+      var btn = e.target && e.target.closest ? e.target.closest('.ht-icon[data-kid]') : null;
+      if (drop && drop.classList.contains('show') && !drop.contains(e.target) && !btn) {
+        drop.classList.remove('show');
+      }
+    });
+  }
 })();

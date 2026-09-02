@@ -8,7 +8,7 @@
 
   // =====================================================================
   // 游戏化课程地图与激励体系
-  // 参考 Mimi 启蒙乐园的课程地图 / 星光识字岛的闯关 // 幼小衔接工作台的积分
+  // 参考 Mimi 启蒙乐园的课程地图 / 星光识字岛的闯关 // 幼小衔接工作台
   // 每个学科是一条「旅程」, 每个关卡节点对映一个现有题型. 通关=答对>=80% 或 3星.
   // =====================================================================
 
@@ -52,11 +52,11 @@
     }
   };
 
-  // 累计星星阈值触发特殊奖励
+  // 累计星星阈值触发特殊奖励(奖励星星, 星星是唯一可兑换星愿的货币)
   var STAR_REWARDS = [
-    { at: 20, em: '🎖️', txt: '小勇士', pts: 5 },
-    { at: 50, em: '🏆', txt: '闯关先锋', pts: 10 },
-    { at: 100, em: '👑', txt: '学习星星国王', pts: 15 }
+    { at: 20, em: '🎖️', txt: '小勇士', bonus: 5 },
+    { at: 50, em: '🏆', txt: '闯关先锋', bonus: 10 },
+    { at: 100, em: '👑', txt: '学习星星国王', bonus: 15 }
   ];
 
   // ---- 工具 ----
@@ -105,26 +105,55 @@
     if (!lv) return;
     var un = unlockedCount(subj);
     if (idx >= un) { if (Speech && Speech.toast) Speech.toast('先通关前面的关卡才能解锁这里哦 🔒'); return; }
+    // 语文题型在导入面板中有子模式(声母/韵母/拼读/四声), 需落到真正的答题 type 以匹配结算
+    var quizT = zhLevelQuizType(lv.t);
     // 记录「正在闯的第几关」, 供结算时回写 course 进度
-    Store.state.courseIn = { subj: subj, idx: idx, t: lv.t, startedAt: Date.now() };
+    Store.state.courseIn = { subj: subj, idx: idx, t: quizT, startedAt: Date.now() };
     Store.state.courseInflight = 1;
     var type = lv.t;
-    if (subj === 'math') { if (window.wbMath) window.wbMath(type === 'did' ? 'calc' : type); }
-    else if (subj === 'en') { if (window.wbEn) window.wbEn(type); }
-    else if (subj === 'zh') { if (window.wbZh) window.wbZh(type); }
+    var NavP = window.Edu && window.Edu.Nav;
+    var pref = (NavP && NavP.getPref) ? NavP.getPref() : null;
+    var setPref = function (key) {
+      // 记录当前学科进学习页, 供 eduNav→wbInit 按 lastSubj 打开对应面板(避免回退到上一学科/拼音)
+      if (pref) { pref.lastSubj = subj; pref.mode = 'workbench'; pref.subj = subj; if (key) pref[key] = type; if (NavP && NavP.savePref) NavP.savePref(pref); }
+    };
+    if (subj === 'math') { if (window.wbMath) window.wbMath(type === 'did' ? 'calc' : type); setPref('wbMath'); }
+    else if (subj === 'en') { if (window.wbEn) window.wbEn(type); setPref('wbEn'); }
+    else if (subj === 'zh' && window.wbZh) {
+      if (type === 'pinyin' || type === 'yun' || type === 'read' || type === 'tone') {
+        window.wbZh('pinyin');
+        if (pref) { pref.wbZh = 'pinyin'; pref.wbPy = type; }
+        setPref();
+        if ((type === 'yun' || type === 'read' || type === 'tone') && window.wbPinyin) window.wbPinyin(type);
+      } else if (type === 'ciyu') {
+        window.wbZh('ciyu');
+        if (pref) { pref.wbZh = 'ciyu'; pref.wbCy = 'fan'; }
+        setPref();
+        if (window.wbCiyu) window.wbCiyu('fan');
+      } else {
+        window.wbZh(type);
+        if (pref) { pref.wbZh = type; }
+        setPref();
+      }
+    }
     // 进入学习页展示答题
     if (window.eduNav) window.eduNav('learn');
   }
 
-  // ---- 激励: 积分 ----
-  function addPoints(pt, label) {
-    Store.state.points = (Store.state.points || 0) + (pt || 0);
-    Store.state.pointLog = Store.state.pointLog || [];
-    Store.state.pointLog.unshift({ date: keyOf(new Date()), pts: pt || 0, label: label || '' });
-    if (Store.state.pointLog.length > 300) Store.state.pointLog.length = 300;
-    return Store.state.points;
+  // 语文关卡题型 → 实际渲染/结算的答题 type
+  function zhLevelQuizType(t) {
+    if (t === 'ciyu') return 'fan';
+    if (t === 'yun' || t === 'read' || t === 'tone' || t === 'pinyin' || t === 'zi' || t === 'poem' || t === 'stroke') return t;
+    return t;
   }
-  function totalPoints() { return Store.state.points || 0; }
+
+  // ---- 激励: 星星(唯一货币, 可兑换星愿) ----
+  // 星星主页里已积累(答题评星 addStarLog), 这里补充「通关/每日挑战/里程碑」的额外奖励星星
+  function addStarBonus(n, label) {
+    Store.state.stars = (Store.state.stars || 0) + (n || 0);
+    if (Store.addStarLog) Store.addStarLog(n);
+    return Store.state.stars;
+  }
 
   // 星星里程碑: 达到阈值给一次性点数和徽章
   function checkStarMilestones() {
@@ -135,7 +164,7 @@
     STAR_REWARDS.forEach(function (r) {
       if (stars >= r.at && !sc.rewards['star_' + r.at]) {
         sc.rewards['star_' + r.at] = Date.now();
-        addPoints(r.pts, '星星里程碑·' + r.txt);
+        addStarBonus(r.bonus, '星星里程碑·' + r.txt);
         newly.push(r);
       }
     });
@@ -162,8 +191,8 @@
     st.best = Math.max(st.best || 0, stars);
     st.passed = true;
     st.passedAt = Date.now();
-    // 通关 +3 积分
-    addPoints(3, (SUBJ_LABEL[subj] || subj) + '通关·' + (COURSES[subj].levels[idx].name));
+    // 通关 +3 星星
+    addStarBonus(3, (SUBJ_LABEL[subj] || subj) + '通关·' + (COURSES[subj].levels[idx].name));
     // 解锁下一关
     var unlocked = Math.max(p.unlocked || 1, idx + 2);
     p.unlocked = Math.min(levelCount(subj), unlocked);
@@ -207,7 +236,8 @@
       var lv = COURSES[subj] ? COURSES[subj].levels : null;
       var p0 = courseProg(subj);
       for (var k = 0; k < un && lv; k++) {
-        if (lv[k].t === type && (!p0.nodes[k] || !p0.nodes[k].passed)) { idx = k; break; }
+        var lvT = (subj === 'zh') ? zhLevelQuizType(lv[k].t) : lv[k].t;
+        if (lvT === type && (!p0.nodes[k] || !p0.nodes[k].passed)) { idx = k; break; }
       }
     }
 
@@ -229,8 +259,8 @@
         out.tryAgain = true;
       }
     } else if (passed && type === 'daily') {
-      // 每日挑战: 完成 +1 积分
-      if (pct >= 60) addPoints(1, '完成每日挑战');
+      // 每日挑战: 完成 +1 星星
+      if (pct >= 60) addStarBonus(1, '完成每日挑战');
       out.dailyDone = true;
     } else {
       // 非关卡自由练习: 不推进课程进度, 高分仍计入星星里程碑
@@ -329,7 +359,6 @@
     var act = window.eduKids ? window.eduKids.active() : null;
     var name = act ? (act.name || '宝贝') : '宝贝';
     var stars = Store.state.stars || 0;
-    var points = totalPoints();
     var streak = streakDays();
     var mapHtml = (['zh', 'math', 'en'].map(journeyHtml)).join('');
 
@@ -337,7 +366,7 @@
       var sc = stateCourse();
       var got = sc.rewards && sc.rewards['star_' + r.at];
       var reached = stars >= r.at;
-      return '<span class="cm-mil' + (reached ? ' reached' : '') + (got ? ' got' : '') + '" title="累计 ' + r.at + ' 星 · 奖励 +' + r.pts + ' 积分">' +
+      return '<span class="cm-mil' + (reached ? ' reached' : '') + (got ? ' got' : '') + '" title="累计 ' + r.at + ' 星 · 奖励 +' + r.bonus + ' 星星">' +
         r.em + ' ' + r.at + ' 星</span>';
     }).join('');
 
@@ -353,7 +382,6 @@
 
         '<div class="cm-stats">' +
           '<div class="cm-stat"><div class="v">⭐ ' + stars + '</div><div class="l">星星</div></div>' +
-          '<div class="cm-stat"><div class="v">🎯 ' + points + '</div><div class="l">积分</div></div>' +
           '<div class="cm-stat"><div class="v">🔥 ' + streak + '</div><div class="l">连续打卡</div></div>' +
         '</div>' +
 
@@ -403,9 +431,9 @@
     renderCoursePage: renderCoursePage,
     recordQuizResult: recordQuizResult,
     launchLevel: launchLevel,
+    zhLevelQuizType: zhLevelQuizType,
     journeyTeaser: journeyTeaser,
-    addPoints: addPoints,
-    totalPoints: totalPoints,
+    addStarBonus: addStarBonus,
     streakDays: streakDays,
     unlockedCount: unlockedCount,
     curLevelIdx: curLevelIdx,

@@ -86,6 +86,8 @@
     quiz.view = Math.min(snap.view || 0, snap.items.length - 1);
     quizSubject = snap.subj;
     quizOrder = snap.order || {};
+    wrongTries = {};
+    judged = {};
     window.Edu.QuizEngine.quiz = quiz;
     if (snap.type === 'daily' || snap.subj === 'daily') quizContainerId = 'wb-daily';
     else if (snap.subj === 'par') quizContainerId = 'parPlay';
@@ -116,8 +118,17 @@
   function resumeNo() {
     var mask = document.getElementById('eduMaskResume');
     if (mask) { mask.style.display = 'none'; }
+    // 取消续学: 不恢复旧进度, 而是直接起一套新题(生成新题); 本次会话内不再对该练习反复弹窗
+    var p = pendingResumeStart;
+    pendingResumeStart = null;
+    if (p) {
+      dismissedResume[p.subj + ':' + p.type] = true;
+      resumeSnap = null;
+      startFresh(p.subj, p.type, p.items, p.levelInfo);
+      return;
+    }
     if (resumeSnap) dismissedResume[resumeSnap.subj + ':' + resumeSnap.type] = true;
-    resumeSnap = null;   // 仅取消弹窗, 不开始新练习, 停留在进入前页面
+    resumeSnap = null;   // 无待起内容时仅关闭弹窗, 停留在进入前页面
   }
   function reapplyAnswers() {
     if (!quiz) return;
@@ -151,12 +162,13 @@
     if (!quiz) return;
     var total = quiz.items.length;
     var cur = Math.min((quiz.view || 0) + 1, total);
-    var pct = Math.round((cur / total) * 100);
+    var right = quizAnsweredRight();
+    var pct = total ? Math.round((right / total) * 100) : 0;
     if (dots) dots.querySelectorAll('.qz-dot').forEach(function(d, i){
-      d.classList.toggle('done', i < quiz.view);
+      d.classList.toggle('done', i < quiz.view || (quiz.answers && quiz.answers[i] !== undefined && quiz.answers[i] !== ''));
       d.classList.toggle('cur', i === quiz.view);
     });
-    if (txt) txt.textContent = '第 ' + cur + ' 题 / 共 ' + total + ' 题';
+    if (txt) txt.textContent = '已答对 ' + right + ' 题 · 共 ' + total + ' 题';
     if (bar) bar.style.width = pct + '%';
   }
 
@@ -169,12 +181,15 @@
     if (!quiz) return '';
     var total = quiz.items.length;
     var cur = Math.min((quiz.view || 0) + 1, total);
-    var pct = Math.round((cur / total) * 100);
+    var right = quizAnsweredRight();
+    var pct = total ? Math.round((right / total) * 100) : 0;
     var dots = '';
-    for (var i=0;i<total;i++) dots += '<span class="qz-dot '+(i<quiz.view?'done':'')+' '+(i===quiz.view?'cur':'')+'"></span>';
+    for (var i=0;i<total;i++) {
+      var done = (i < quiz.view || (quiz.answers && quiz.answers[i] !== undefined && quiz.answers[i] !== ''));
+      dots += '<span class="qz-dot '+(done?'done':'')+' '+(i===quiz.view?'cur':'')+'" aria-label="第'+(i+1)+'题'+(done?'已答':'未答')+'"></span>';
+    }
     return '<div class="qz-prog-top">'+
-      '<div class="qz-prog-head"><span class="qz-prog-txt" id="qzProgTxt">第 ' + cur + ' 题 / 共 ' + total + ' 题</span>'+
-      '<span class="qz-prog-pct">'+pct+'%</span></div>'+
+      '<div class="qz-prog-head"><span class="qz-prog-txt" id="qzProgTxt">已答对 ' + right + ' 题 · 共 ' + total + ' 题</span></div>'+
       '<div class="qz-track"><div class="qz-fill" id="qzProgBar" style="width:'+pct+'%"></div></div>'+
       '<div class="qz-dots" id="qzDots">'+dots+'</div>'+
       '</div>';
@@ -186,26 +201,48 @@
     var right = quizAnsweredRight();
     var allDone = (answeredCount() === total);
     var it = quiz.items[quiz.view];
-    // 选择题/排序题需要先选答案, 再点「确认答案」提交(防误操作, 支持修改)
-    var needConfirm = !!(it && it.options);
-    var hasPicked = it && it.options && quiz.answers[quiz.view] !== undefined && quiz.answers[quiz.view] !== '';
+    // 选择题/排序题已改为「点选即判, 自动进下一题」, 无需「确认答案」步骤
+    var remaining = total - answeredCount();
     var actionRow = '<div class="qz-action-bar">'+
-      '<div class="qz-stars">⭐ 已获得 <b>'+right+'</b> 颗星星</div>'+
-      '<button type="button" class="qz-finish'+(allDone ? ' ready' : '')+'" '+(allDone ? '' : 'disabled')+' onclick="window.Edu.QuizEngine.submitQuiz()">🎉 完成闯关</button>'+
+      '<div class="qz-progress">'+
+        '<div class="qz-stars">⭐ 已得 <b>'+right+'</b> 星</div>'+   // 观察15: 星星并入进度条一体的底部
+        '<span class="qz-remain">还有 <b>'+remaining+'</b> 题</span>'+
+      '</div>'+
+      (allDone
+        ? '<button type="button" class="qz-finish ready" onclick="window.Edu.QuizEngine.submitQuiz()">🎉 完成闯关</button>'
+        : '<button type="button" class="qz-finish" disabled>🎉 还差 '+remaining+' 题可完成</button>')+
       '</div>';
-    if (needConfirm) {
-      actionRow += '<div class="qz-confirm-row">'+
-        '<button type="button" class="btn-confirm" '+(hasPicked ? '' : 'disabled')+' id="qzConfirm" onclick="window.Edu.QuizEngine.confirmAnswer()">✅ 确认答案</button>'+
-        '</div>';
-    }
     return '<div class="qz-footer">'+ actionRow + '</div>';
+  }
+
+  // 听音选字: 重播按钮播放当前题目读音
+  function replaySpeak() {
+    var it = quiz && quiz.items && quiz.items[quiz.view];
+    if (it && it.listen) Speech.playSpeak(it.listen);
+  }
+
+  // 听音题自动播放: 渲染后播读音, 便于「听语音→选字」
+  function autoplayListen(i) {
+    var it = quiz.items[i];
+    if (it && it.listen) {
+      Speech.preloadTTS(it.listen);          // 预热音频, 缓解首播延迟
+      setTimeout(function(){ Speech.playSpeak(it.listen); }, 60);
+    }
   }
 
   function buildQuizCard(i) {
     var it = quiz.items[i];
-    var spk = Speech.spkBtn(it.prompt, 'qi-spk');
+    var isListen = !!it.listen;
+    var spk = isListen ? '' : Speech.spkBtn(it.prompt, 'qi-spk');
+    // 读物题(选项一个大字): 题干用大字展示目标字, 控制行用"看它不是"? 仍是"找出"引导
+    var isCharPick = !it.order && !it.input && it.options && /^[\u4e00-\u9fa5]$/.test(String(it.prompt||''));
+    var headPrompt = isCharPick ? '找一找：哪个是下面这个字？' : it.prompt;
     var h = '<div class="quiz-item" id="qi-'+i+'">';
-    h += '<div class="qi-head"><span class="qi-no">'+(i+1)+'</span><span class="qi-prompt">'+M.stripBlank(it.prompt)+'</span>'+spk+'</div>';
+    h += '<div class="qi-head"><span class="qi-no">'+(i+1)+'</span><span class="qi-prompt">'+M.stripBlank(headPrompt)+'</span>'+spk+'</div>';
+    if (isListen) {
+      // 听音选字: 不显示目标字, 用一个大大的「🔊 再听一遍」重播按钮代替
+      h += '<div class="qi-listen"><button type="button" class="qi-listen-btn" onclick="window.Edu.QuizEngine.replaySpeak()" aria-label="再听一遍">🔊</button><div class="qi-listen-hint">再听一遍</div></div>';
+    } else if (isCharPick) h += '<div class="qi-big">'+M.stripBlank(it.prompt)+'</div>';
     if (it.order) {
       h += '<div class="qi-order"><div class="qi-target" id="qo-target-'+i+'"></div>';
       h += '<div class="qi-opts" id="qo-opts-'+i+'">';
@@ -216,12 +253,22 @@
       h += '<button type="button" class="qo-clear" onclick="window.Edu.QuizEngine.clearOrder('+i+')">清空</button>';
       h += '</div>';
     } else if (it.input) {
-      h += '<div class="qi-expr">'+M.stripBlank(String(it.note||it.prompt).replace(/\s*=\s*\?+\s*$/, ''))+'</div>';
+      // 题干下方只展示与题干不同的「算式小结」(应用题模板→数字式); 口算题题干已是算式, 不重复显示
+      var exprV = String(it.note || it.prompt).replace(/\s*=\s*\?+\s*$/, '');
+      var pV = M.stripBlank(String(it.prompt));
+      var norm = function(s){ return s.split(/\s+/).join('').replace(/−/g,'-').replace(/×/g,'*').replace(/÷/g,'/'); };
+      if (norm(exprV) !== norm(pV)) {
+        h += '<div class="qi-expr">'+M.stripBlank(exprV)+'</div>';
+      }
       h += '<div class="qi-ans">'+(/\s*=\s*\?+\s*$/.test(String(it.prompt)) ? '<span class="qi-eq">＝</span>' : '')+'';
       h += '<input id="qi-in-'+i+'" class="qi-in" data-idx="'+i+'" type="number" inputmode="numeric" autocomplete="off" placeholder="?" aria-label="答案" oninput="window.Edu.QuizEngine.onQuizInput('+i+',this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();window.Edu.QuizEngine.quizInputSubmit('+i+',this.value)}">';
       h += '<button type="button" class="qi-submit" onclick="window.Edu.QuizEngine.quizInputSubmit('+i+',document.getElementById(\'qi-in-'+i+'\').value)">确认</button>';
       h += '</div></div>';
     } else {
+      // 选项题: 题干用大字突出展示(拼音/笔顺等带 big 的), 建立"看图字→选"的清晰对应
+      if (it.big != null && it.big !== '') {
+        h += '<div class="qi-big">'+M.stripBlank(String(it.big))+'</div>';
+      }
       h += '<div class="qi-opts" id="qi-opts-'+i+'">';
       (it.options||[]).forEach(function(o, oi){
         var cls = 'qo-pick';
@@ -236,6 +283,7 @@
   function renderQuiz() {
     if (!quiz || !quiz.items.length) return;
     window.Edu.FAB.quickFabSet(false);
+    document.body && document.body.classList && document.body.classList.add('quiz-live');
     if (quiz.view === undefined) quiz.view = 0;
     var container = document.getElementById(quizContainerId);
     if (!container) return;
@@ -250,6 +298,7 @@
     }
     updateQuizProg();
     syncRestTimer();
+    autoplayListen(quiz.view);
   }
 
   // 每题答错的尝试次数: 用于「再试一次」重试机会(而非答错即跳过)
@@ -270,6 +319,7 @@
     buildQuizCard: buildQuizCard,
     renderQuiz: renderQuiz,
     scheduleNext: scheduleNext,
+    replaySpeak: replaySpeak,
     restartExpr: restartExpr,
     get advTimer() { return advTimer; },
     set advTimer(v) { advTimer = v; },
@@ -331,9 +381,14 @@
     if (window.Edu.Header) window.Edu.Header.refreshQuizHeader();
   };
 
+  // 每道选择题是否已完成判定(点选即判后, 避免重复判题/重复计时跳转)
+  var judged = {};
+
   window.Edu.QuizEngine.pickOpt = function (idx, v) {
     if (!quiz || quiz.submitted) return;
-    // 仅选中答案, 不立即提交: 可修改, 需点「确认答案」才判题(防误操作)
+    // 点选即判: 点选项立即套用正确答案 → 自动进下一题; 点错的先给「再试一次」, 第二次错才揭示
+    if (judged[idx]) return;
+    var it = quiz.items[idx];
     window.Edu.QuizEngine.onQuizInput(idx, v);
     var item = document.getElementById('qi-'+idx);
     if (item) {
@@ -342,17 +397,61 @@
         b.classList.toggle('selected', b.getAttribute('data-v') === v);
       });
     }
-    var cbtn = document.getElementById('qzConfirm');
-    if (cbtn) cbtn.disabled = false;
-    // 排序题满10题时可直接确认
-    if (quiz.items[idx] && quiz.items[idx].options && quiz.items[idx].type === 'order') {
-      var joined = (quizOrder[idx]||[]).map(function(i){ return M.stripBlank(String(M.optVal(quiz.items[idx].options[i]))); }).join('');
-      if (quizOrder[idx] && quizOrder[idx].length === quiz.items[idx].options.length) {
+    if (it && it.options && it.type !== 'order') {
+      judgeChoice(idx);
+    } else if (it && it.options && it.type === 'order') {
+      // 排序题需选满全部后才判定(原有逻辑保留)
+      var joined = (quizOrder[idx]||[]).map(function(i){ return M.stripBlank(String(M.optVal(it.options[i]))); }).join('');
+      if (quizOrder[idx] && quizOrder[idx].length === it.options.length) {
         window.Edu.QuizEngine.onQuizInput(idx, joined);
-        if (cbtn) cbtn.disabled = false;
+        judgeChoice(idx);
       }
     }
   };
+
+  // 提交选择题判定: 点选即判, 答对锁定+自动进下一题; 答错给「再试一次」, 第二次才揭示正确答案
+  function judgeChoice(idx) {
+    if (!quiz || quiz.submitted || judged[idx]) return;
+    var it = quiz.items[idx];
+    if (!it || !it.options) return;
+    judged[idx] = true;
+    var val = quiz.answers && quiz.answers[idx];
+    if (val === undefined || val === '') return;
+    var ok = M.isCorrect(it, val);
+    var cbtn = document.getElementById('qzConfirm');
+    var item = document.getElementById('qi-'+idx);
+    if (it.type === 'order') {
+      // 排序题: 答对锁定并自动进下一题, 答错第二次才揭示
+      if (ok) {
+        lockOptions(idx, cbtn, '下一题 ▶');
+        showSingleFeedback(idx, true);
+        scheduleNext(1500);
+      } else {
+        wrongTries[idx] = (wrongTries[idx] || 0) + 1;
+        judged[idx] = wrongTries[idx] >= 2;
+        if (wrongTries[idx] >= 2) { lockOptions(idx, cbtn); showSingleFeedback(idx, false, true); addNextButton(); }
+        else { judged[idx] = false; showSingleFeedback(idx, false, false); if (cbtn) cbtn.disabled = true; }
+      }
+      return;
+    }
+    // 选择题: 提供「再试一次」的重试机会, 而非答错即跳过
+    if (ok) {
+      lockOptions(idx, cbtn, '下一题 ▶');
+      showSingleFeedback(idx, true);
+      scheduleNext(1500);
+    } else {
+      wrongTries[idx] = (wrongTries[idx] || 0) + 1;
+      if (wrongTries[idx] >= 2) {
+        revealCorrect(idx);
+        lockOptions(idx, cbtn);
+        showSingleFeedback(idx, false, true);
+        addNextButton();
+      } else {
+        judged[idx] = false;   // 首次答错: 保留可再试, 允许下次点选重新判定
+        showSingleFeedback(idx, false, false);
+      }
+    }
+  }
 
   window.Edu.QuizEngine.confirmAnswer = function () {
     if (!quiz || quiz.submitted) return;
@@ -369,54 +468,16 @@
       }
     }
     if (val === undefined || val === '') return;
-    var ok = M.isCorrect(it, val);
-    var cbtn = document.getElementById('qzConfirm');
-    var item = document.getElementById('qi-'+idx);
-    // 输入型题目做成: 答错给一次重试, 再错即揭示正确答案
-    if (it.options && it.type === 'order') {
-      if (ok) {
-        lockOptions(idx, cbtn, '下一题 ▶');
-        showSingleFeedback(idx, true);
-        scheduleNext(1500);
-      } else {
-        wrongTries[idx] = (wrongTries[idx] || 0) + 1;
-        if (wrongTries[idx] >= 2) { lockOptions(idx, cbtn); showSingleFeedback(idx, false, true); addNextButton(); }
-        else { showSingleFeedback(idx, false, false); if (cbtn) cbtn.disabled = true; }
-      }
+    // 兼容旧流程: 选择题已点选即判, 这里仅为排序/输入题兜底; 已判定则跳过避免重复
+    if (it.options && judged[idx]) return;
+    if (!it.options) {
+      lockOptions(idx, null, '下一题 ▶');
+      var ok2 = M.isCorrect(it, val);
+      showSingleFeedback(idx, ok2);
+      scheduleNext(1400);
       return;
     }
-    if (it.options) {
-      // 选择题: 提供「再试一次」的重试机会, 而非答错即跳过
-      if (ok) {
-        lockOptions(idx, cbtn, '下一题 ▶');
-        showSingleFeedback(idx, true);
-        scheduleNext(1500);
-      } else {
-        wrongTries[idx] = (wrongTries[idx] || 0) + 1;
-        if (wrongTries[idx] >= 2) {
-          revealCorrect(idx);
-          lockOptions(idx, cbtn);
-          showSingleFeedback(idx, false, true);
-          addNextButton();
-        } else {
-          // 第一次答错: 温和提示, 保留可选, 再给一次机会
-          showSingleFeedback(idx, false, false);
-          if (cbtn) { cbtn.disabled = true; cbtn.textContent = '再试一次'; }
-          if (item) {
-            item.querySelectorAll('.qi-opts .qo-pick').forEach(function (b) {
-              b.classList.add('picked-wrong');
-              var okB = b.getAttribute('data-v') === it.correct;
-              if (!okB) { /* 保留已选的高亮, 稍作弱化 */ }
-            });
-          }
-        }
-      }
-      return;
-    }
-    // 无 options 的输入题由 quizInputSubmit 处理
-    lockOptions(idx, cbtn, '下一题 ▶');
-    showSingleFeedback(idx, ok);
-    scheduleNext(1400);
+    judgeChoice(idx);
   };
 
   function addNextButton() {
@@ -509,8 +570,10 @@
       // 第二次答错: 揭示正确答案, 作为「教学时刻」(先给机会, 再展示答案)
       feed.className = 'qi-feed reveal';
       var correctTxt = String(it.correct == null ? '' : it.correct).split('|').join(' ');
-      feed.innerHTML = '<span>💡</span><span>正确答案是 <b>'+esc(correctTxt)+'</b></span>';
-      Speech.playSpeak('正确答案是 ' + correctTxt);
+      var wordTxt = it.listen && it.word ? String(it.word) : '';
+      feed.innerHTML = '<span>💡</span><span>正确答案是 <b>'+esc(correctTxt)+'</b>' +
+        (wordTxt ? '（听的是「<b>'+esc(wordTxt)+'</b>」）' : '') + '</span>';
+      Speech.playSpeak((wordTxt ? wordTxt : '正确答案是 ') + correctTxt);
     } else {
       // 第一次答错: 温和提示, 用「再试一次✨」鼓励重试(选项保持可选)
       feed.className = 'qi-feed gentle';
@@ -537,14 +600,17 @@
   window.Edu.QuizEngine.submitQuiz = function () {
     if (!quiz || quiz.submitted) return;
     quiz.submitted = true;
-    var right = 0, maxCombo = 0, combo = 0;
+    var right = 0, maxCombo = 0, combo = 0, comboRun = 0, comboBonus = 0;
     quiz.items.forEach(function(it, i){
       var ok = M.isCorrect(it, quiz.answers && quiz.answers[i]);
-      if (ok) { right++; combo++; maxCombo = Math.max(maxCombo, combo); }
-      else { combo = 0; }
+      if (ok) {
+        right++; combo++; maxCombo = Math.max(maxCombo, combo); comboRun++;
+        if (comboRun >= 2) comboBonus += 2; // 连续答对(≥2连)的每一题再加 2 星
+      }
+      else { combo = 0; comboRun = 0; }
       recordAnswer(quizSubject, it.type || quizSubject, it.id, it.prompt, it.correct, quiz.answers && quiz.answers[i], ok);
     });
-    var starsEarned = M.gradeQuiz(right, maxCombo);
+    var starsEarned = M.gradeQuiz(right, comboBonus);
     Store.state.stars = (Store.state.stars || 0) + starsEarned;
     Store.state.submits = (Store.state.submits || 0) + 1;
     // 今日答题数/题量上限统计(自动回写 usage[date])
@@ -555,7 +621,7 @@
     window.Edu.Parent.renderStars();
     if (window.Edu.Legacy) window.Edu.Legacy.evalBadges(quiz.items.length - right, maxCombo);
 
-    // 游戏化课程地图 / 激励结算: 评星(正确+用时短+首次尝试) + 通关解锁 + 积分 + 里程碑
+    // 游戏化课程地图 / 激励结算: 评星(正确+用时短+首次尝试) + 通关解锁 + 星星奖励 + 里程碑
     var triesUsed = 0;
     for (var ti in quiz.items) { if (wrongTries[ti]) triesUsed++; }
     var duration = (Date.now() - (quiz.startedAt || Date.now())) / 1000;
@@ -570,6 +636,7 @@
 
     clearRestTimer();
     clearQuizState();
+    document.body && document.body.classList && document.body.classList.remove('quiz-live');
     if (window.renderNav) window.renderNav();
     var container = document.getElementById(quizContainerId);
     if (container) {
@@ -581,7 +648,7 @@
         var lv = Store.stateLevel ? Store.stateLevel(quizSubject) : 1;
         unlockTxt = '<div class="qd-unlock">🚀 已解锁 <b>难度档 '+Math.min(5, lv + 1)+'</b></div>';
       }
-      // 关卡进度行: 显示本局评星 / 通关解锁 / 积分奖励
+      // 关卡进度行: 显示本局评星 / 通关解锁 / 星星奖励
       var courseLine = '';
       if (courseRes) {
         if (courseRes.passedNow) {
@@ -589,7 +656,7 @@
             '<span class="qc-stars">'+String('⭐'.repeat(courseRes.stars) || '')+'</span>' +
             '<span>恭喜通关「'+esc(courseRes.levelName)+'」</span>' +
             (courseRes.unlockedNext ? '<span class="qc-next">▶ 下一关：'+esc(courseRes.unlockedNext)+' 已解锁</span>' : '') +
-            (courseRes.milestones && courseRes.milestones.length ? '<span class="qc-mil">🎖️ '+esc(courseRes.milestones[0].txt)+' 里程碑达成（+'+courseRes.milestones[0].pts+' 积分）</span>' : '') +
+            (courseRes.milestones && courseRes.milestones.length ? '<span class="qc-mil">🎖️ '+esc(courseRes.milestones[0].txt)+' 里程碑达成（+'+courseRes.milestones[0].bonus+' 星星）</span>' : '') +
             '</div>';
         } else if (courseRes.tryAgain) {
           courseLine = '<div class="qd-course retry">' +
@@ -616,6 +683,9 @@
         unlockTxt+
         courseLine+
         '<div class="qz-action-row qd-actions">'+
+          (courseRes && courseRes.passedNow && courseRes.levelIdx >= 0
+            ? '<button type="button" class="btn-next" onclick="window.Edu.Course&&window.Edu.Course.launchLevel&&window.Edu.Course.launchLevel(\''+quizSubject+'\','+(courseRes.levelIdx+1)+')">▶ 下一关</button>'
+            : '')+
           '<button type="button" class="btn-home" onclick="window.Edu.Workbench&&window.Edu.Workbench.quickHome&&window.Edu.Workbench.quickHome()">🏠 返回首页</button>'+
           '<button type="button" class="btn-again" onclick="'+restartExpr()+'">🔁 再练一次</button>'+
         '</div></div>';
@@ -693,19 +763,16 @@
     }
   };
 
-  window.Edu.QuizEngine.startQuiz = function (subj, type, items, levelInfo) {
-    // 正在做同一套练习时再次进入(如再次点击该科目标签): 直接重新生成新题, 不弹续学遮罩
-    var isLive = !!(quiz && !quiz.submitted && quizSubject === subj && quiz.type === type);
-    if (!isLive) {
-      // 存在上次未完成练习时：给出「继续上次 / 取消」交互提示, 不自动恢复也不自动开始
-      if (hasResume(subj, type)) { showResumePrompt(); return; }
-    }
-    delete dismissedResume[subj + ':' + type];
+  // 待用户确认续学后, 取消时要能重新起一套新题(不反复弹窗)
+  var pendingResumeStart = null;
+
+  function startFresh(subj, type, items, levelInfo) {
     quizSubject = subj;
     quiz = { items: items, type: type, difficulty: levelInfo && levelInfo.difficulty, answers: {}, view: 0, submitted: false, _t: Date.now(), startedAt: Date.now() };
     window.Edu.QuizEngine.quiz = quiz;
     quizOrder = {};
     wrongTries = {};
+    judged = {};
     Store.state.courseIn = null;
     saveQuizState();
     if (type === 'daily' || subj === 'daily') quizContainerId = 'wb-daily';
@@ -715,17 +782,25 @@
     else quizContainerId = 'wb-zh-body';
     renderQuiz();
     if (window.renderNav) window.renderNav();
+  }
+
+  window.Edu.QuizEngine.startQuiz = function (subj, type, items, levelInfo) {
+    // 正在做同一套练习时再次进入(如再次点击该科目标签): 直接重新生成新题, 不弹续学遮罩
+    var isLive = !!(quiz && !quiz.submitted && quizSubject === subj && quiz.type === type);
+    if (!isLive) {
+      // 存在上次未完成练习时：给出「继续上次 / 取消」交互提示, 不自动恢复也不自动开始
+      if (hasResume(subj, type)) { pendingResumeStart = { subj: subj, type: type, items: items, levelInfo: levelInfo }; showResumePrompt(); return; }
+    }
+    delete dismissedResume[subj + ':' + type];
+    pendingResumeStart = null;
+    startFresh(subj, type, items, levelInfo);
   };
 
-  // 练习未完成时离开: 弹窗确认; 同时把最新作答实时写入 localStorage, 保证刷新/切后台不掉进度
+  // 离开页面时做最后一次保存(不弹「离开此页?」提示): 进度已随每次作答实时落盘 + 切后台时保存,
+  // 因此刷新/关闭不再需要阻塞确认; 去掉 preventDefault 即不再触发浏览器「留在此页」弹窗
   if (typeof window.addEventListener === 'function') {
-    window.addEventListener('beforeunload', function (e) {
-      if (quiz && !quiz.submitted) {
-        saveQuizState();
-        e.preventDefault();
-        e.returnValue = '';
-        return '';
-      }
+    window.addEventListener('beforeunload', function () {
+      if (quiz && !quiz.submitted) saveQuizState();
     });
   }
 

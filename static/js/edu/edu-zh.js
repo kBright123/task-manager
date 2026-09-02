@@ -204,7 +204,34 @@
       title = { zi:'识字', pinyin:'拼音', ciyu:'词语', poem:'古诗', stroke:'笔顺' }[wbZhMode] || type;
     }
     if (type === 'zi') {
-      items = C.ZI.map(function(z){ return { id:z.id, type:'zi', prompt:z.prompt, options:['天','地','人','大','小','上','下','中','日','月'].filter(function(x){return x!==z.prompt;}).slice(0,3).concat(z.prompt).sort(function(){return Math.random()-0.5;}), correct:z.prompt }; });
+      // 听音选字: 题干不显示目标字, 播放读音→从选项中选出听到的字
+      // 去重: 随机洗牌 + 抽样 QUIZ_LEN 个, 干扰项从全池随机抽, 并避免与近期(上次闯关)重复
+      // 2000 常用字主池: 题与干扰项均从该池抽取 → 彻底消除重复
+      var pool = C.ZI_2000 || C.ZI;
+      var rec = window.Edu.QuizEngine && (window.Edu.QuizEngine.recentExclude || []);
+      // 带权抽样(不重复): 越靠前(=越常用/初学者越早遇到)越优先, 近期问过的排后
+      var n = Math.min(C.QUIZ_LEN || 10, pool.length);
+      var chosen = [];
+      if (pool.length && n > 0) {
+        // 带权抽样(不重复): 常用字(靠前)权重更高 + 近期问过的排后 → 去重且初学者先遇简单字
+        var scored = pool.map(function(z, i){
+          var weight = (1000 - i) / 1000;            // 靠前更常用
+          if (rec && rec.indexOf(z.id) >= 0) weight -= 3; // 近期问过的强制排后
+          weight += Math.random();                    // 随机扰动
+          return { z: z, w: weight };
+        });
+        scored.sort(function(a, b){ return b.w - a.w; });
+        for (var k = 0; k < n && k < scored.length; k++) chosen.push(scored[k].z);
+      }
+      if (chosen.length === 0) chosen = pool.slice(0, n); // 兜底
+      items = chosen.map(function(z){
+        var distPool = (C.ZI_2000 || C.ZI).map(function(x){ return x.prompt; });
+        var word = z.ex || z.prompt;
+        return { id:z.id, type:'zi', prompt:'听一听，是哪个字？', big:'', listen:word, word:word, pinyin:z.pinyin, note:word,
+          correct:z.prompt, options:M.makeOptions(z.prompt, distPool, 4) };
+      });
+      if (window.Edu.QuizEngine) window.Edu.QuizEngine.recentExclude =
+        (window.Edu.QuizEngine.recentExclude || []).concat(chosen.map(function(z){ return z.id; })).slice(-40);
     } else if (type === 'pinyin' || type === 'yun' || type === 'read' || type === 'tone') {
       if (type === 'pinyin') {
         items = C.P_SHENG.map(function(s){ return { id:'sh_'+s.id, type:'pinyin', prompt:'「'+s.zi+'（'+s.py+'）」的声母是？', big:s.e+' '+s.zi, options:M.makeOptions(s.s, C.P_SHENG.map(function(t){return t.s;}), 4), correct:s.s, note:'声母 '+s.s }; });

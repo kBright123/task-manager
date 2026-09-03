@@ -39,6 +39,16 @@
   /* ===== 教育首页(Hub) ===== */
   .edu-hero{text-align:center;padding:16px 12px 12px;}
   .edu-hero h1{font-size:1.45rem;font-weight:900;color:var(--edu-ink);margin:0;}
+  /* 迷你宝贝切换器: 放在页面 hero 区 */
+  .kid-picker-mini{margin-top:8px;display:none;}
+  .kid-picker-mini:empty{display:none;}
+  .kid-picker-mini .kp-label{font-size:.75rem;color:var(--edu-muted);margin-bottom:6px;}
+  .kid-picker-mini .kp-list{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
+  .kid-picker-mini .kp-btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:999px;
+    background:var(--edu-surface);border:2px solid var(--edu-border);font-size:.82rem;color:var(--edu-ink);
+    transition:.15s;}
+  .kid-picker-mini .kp-btn.on{border-color:var(--edu-primary);background:var(--edu-chip);color:var(--edu-primary);}
+  .kid-picker-mini .kp-btn:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,.1);}
   .edu-hub{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:10px;}
 
   /* 页面切换 / 内容过渡动画 */

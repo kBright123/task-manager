@@ -161,10 +161,7 @@ def badges():
     return render_template('edu_badges.html')
 
 
-@education_bp.route('/stats')
-def stats():
-    """家长数据看板页面。"""
-    return render_template('edu_stats.html')
+
 
 
 # ==================== API ====================

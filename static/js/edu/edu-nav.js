@@ -152,11 +152,11 @@
     var nav = document.getElementById('eduBottomNav');
     if (!nav) return;
     var isLearn = (navNow === 'home' || navNow === 'learn');
-    var isReport = (navNow === 'stats' || navNow === 'wish');
+    var isWish = (navNow === 'wish');
     var items = [
       { act: isLearn, oc: "eduNav('home')", icon: '<i class="bi bi-house-heart"></i>', label: '学习' },
-      { act: isReport, oc: "eduNav('stats')", icon: '<i class="bi bi-bar-chart"></i>', label: '报告' },
-      { act: navNow === 'badges', oc: "eduNav('badges')", icon: '<i class="bi bi-trophy"></i>', label: '闯关' },
+      { act: navNow === 'badges', oc: "eduNav('badges')", icon: '<i class="bi bi-award"></i>', label: '勋章' },
+      { act: isWish, oc: "eduNav('wish')", icon: '<i class="bi bi-star"></i>', label: '星愿' },
       { act: navNow === 'mine', oc: "eduNav('mine')", icon: '<i class="bi bi-person"></i>', label: '我的' }
     ];
     var busy = navBusy();
@@ -243,7 +243,7 @@
 
   function getCurrentPage() {
     var saved = (function () { try { return localStorage.getItem(navKey()) || 'home'; } catch (e) { return 'home'; } })();
-    return (saved === 'learn' || saved === 'wish' || saved === 'badges' || saved === 'stats' || saved === 'mine') ? saved : 'home';
+    return (saved === 'learn' || saved === 'wish' || saved === 'badges' || saved === 'mine') ? saved : 'home';
   }
 
   function enter() {
@@ -252,7 +252,7 @@
     renderStars();
     applyContentToggles();
     var saved = lastNav();
-    var page = (saved === 'learn' || saved === 'wish' || saved === 'badges' || saved === 'stats' || saved === 'mine') ? saved : 'home';
+    var page = (saved === 'learn' || saved === 'wish' || saved === 'badges' || saved === 'mine') ? saved : 'home';
     window.eduNav(page);
   }
   window.lastNav = lastNav;

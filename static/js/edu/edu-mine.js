@@ -41,8 +41,8 @@
       : '';
 
     var actions = '<div class="mine-actions">' +
+      '<button type="button" class="mine-act mine-act-primary" onclick="openKidsMgr()"><span class="ma-emo">➕</span><span>添加宝贝</span><i class="bi bi-chevron-right"></i></button>' +
       '<button type="button" class="mine-act" onclick="openParentMode()"><span class="ma-emo">⚙️</span><span>家长设置</span><i class="bi bi-chevron-right"></i></button>' +
-      '<button type="button" class="mine-act" onclick="eduNav(\'stats\')"><span class="ma-emo">📈</span><span>学习报告</span><i class="bi bi-chevron-right"></i></button>' +
       '<button type="button" class="mine-act" onclick="openKidsMgr()"><span class="ma-emo">👤</span><span>宝贝管理</span><i class="bi bi-chevron-right"></i></button>' +
       '</div>';
 

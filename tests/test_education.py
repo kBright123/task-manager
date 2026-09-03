@@ -1509,8 +1509,8 @@ const W=global;
   W.eduNav('home');
   const n=nav._h||'';
   console.log('TAB_LEARN='+(n.indexOf('学习')>=0?'1':'0'));
-  console.log('TAB_REPORT='+(n.indexOf('报告')>=0?'1':'0'));
-  console.log('TAB_RANK='+(n.indexOf('闯关')>=0?'1':'0'));
+  console.log('TAB_BADGE='+(n.indexOf('勋章')>=0?'1':'0'));
+  console.log('TAB_WISH='+(n.indexOf('星愿')>=0?'1':'0'));
   console.log('TAB_MINE='+(n.indexOf('我的')>=0?'1':'0'));
   console.log('NO_SUBJ='+(n.indexOf('语文')<0&&n.indexOf('每日挑战')<0?'1':'0'));
   console.log('NO_HOME_TAB='+(/首页/.test(n)?'0':'1'));
@@ -1530,8 +1530,8 @@ const W=global;
     finally:
         try: os.unlink(stdin_)
         except OSError: pass
-    for probe in ('TAB_LEARN=1','TAB_REPORT=1','TAB_RANK=1','TAB_MINE=1','NO_SUBJ=1','NO_HOME_TAB=1',
-                  'MINE_NAME=1','MINE_SETTINGS=1','MINE_REPORT=1','MINE_MGR=1','MINE_STARS=1'):
+    for probe in ('TAB_LEARN=1','TAB_BADGE=1','TAB_WISH=1','TAB_MINE=1','NO_SUBJ=1','NO_HOME_TAB=1',
+                  'MINE_NAME=1','MINE_SETTINGS=1','MINE_REPORT=0','MINE_MGR=1','MINE_STARS=1'):
         assert probe in stdout, stdout
 
 

@@ -29,6 +29,20 @@
       html += '</div>';
     }
     body.innerHTML = html;
+    renderWishKidPicker();
+  }
+  function renderWishKidPicker() {
+    var picker = document.getElementById('wishKidPicker');
+    if (!picker) return;
+    var kids = window.eduKids ? window.eduKids.all() : [];
+    if (kids.length <= 1) { picker.innerHTML = ''; return; }
+    var act = window.eduKids ? window.eduKids.active() : (kids[0] || null);
+    picker.innerHTML = '<div class="kp-label">切换宝贝：</div>' +
+      '<div class="kp-list">' + kids.map(function(k){
+        var on = act && k.id === act.id;
+        return '<button type="button" class="kp-btn'+(on?' on':'')+'" onclick="window.switchKid(\''+k.id+'\')">'+
+          (k.gender==='female'?'👧':'👦')+' '+esc(k.name)+'</button>';
+      }).join('') + '</div>';
   }
 
   window.wishAdd = function () {

@@ -14,6 +14,10 @@
 
   var SUBJ_LABEL = { zh: '语文', math: '数学', en: '英语', daily: '每日' };
 
+  // 每个大关卡分成的小关卡数, 以及逐小关的基础正确率门槛(小关难度递增)
+  var STAGES_PER_BIG = 5;
+  var STAGE_THRESH = [50, 60, 70, 80, 85];
+
   // 学科课程定义: t=现有题型(用于启动答题), name/em 用于地图节点展示
   var COURSES = {
     zh: {
@@ -34,9 +38,9 @@
       levels: [
         { t: 'calc', name: '口算峡谷', em: '🧮' },
         { t: 'judge', name: '判断码头', em: '⚖️' },
-        { t: 'order', name: '排序登山道', em: '↕️' },
-        { t: 'word', name: '应用题营地', em: '📝' },
-        { t: 'calc', name: '口算加速带', em: '🚀' },
+        { t: 'order', name: '排序山道', em: '↕️' },
+        { t: 'word', name: '应用营地', em: '📝' },
+        { t: 'calc', name: '口算冲刺', em: '🚀' },
         { t: 'calc', name: '口算巅峰', em: '🏔️' }
       ]
     },
@@ -46,7 +50,7 @@
         { t: 'word', name: '单词灯塔', em: '🔤' },
         { t: 'dialogue', name: '对话港口', em: '💬' },
         { t: 'match', name: '配对小径', em: '🤝' },
-        { t: 'word', name: '单词加速带', em: '🚀' },
+        { t: 'word', name: '单词冲刺', em: '🚀' },
         { t: 'dialogue', name: '对话巅峰', em: '🏔️' }
       ]
     }
@@ -69,16 +73,34 @@
     return Store.state.course;
   }
 
-  // node 索引: 课程里第 idx 关(0 起)对应到 COURSES[subj].levels[idx]
-  function levelCount(subj) { return (COURSES[subj] && COURSES[subj].levels) ? COURSES[subj].levels.length : 0; }
+  // openMap 聚焦的学科(地图渲染后高亮并横向滚动到该学科卡片)
+  var focusSubj = null;
 
-  // 返回该学科某节点的进度对象(不存在则创建, 但 unlocked 不越过当前已解锁)
-  function nodeProg(subj, idx) {
+  // 大关卡节点(兼容旧扁平结构迁移): 每个大关含 STAGES_PER_BIG 个小关
+  //   nd.passStage : 该大关内已通关到第几小关(0..4, -1=未通过任何小关)
+  //   nd.stars     : 每小关最佳星数(arr[stage])
+  //   nd.done      : 5 个小关全部通关(下一大关解锁条件)
+  function normalizeNode(old) {
+    if (!old || typeof old.passStage === 'number') return old || makeNode(-1);
+    // 旧结构 {stars,best,passed,done}: passed 视为整大关已通关
+    var nd = makeNode(old.passed ? (STAGES_PER_BIG - 1) : -1);
+    if (old.passed) nd.done = true;
+    if (typeof old.best === 'number') { for (var s = 0; s < STAGES_PER_BIG; s++) nd.stars[s] = Math.max(nd.stars[s], old.best); }
+    return nd;
+  }
+  function makeNode(passStage) {
+    var stars = [];
+    for (var s = 0; s < STAGES_PER_BIG; s++) stars.push(0);
+    return { passStage: (passStage === undefined ? -1 : passStage), stars: stars, done: false, passedAt: 0, tries: 0 };
+  }
+  function nodeProg(subj, big) {
     var sc = stateCourse();
     sc[subj] = sc[subj] || { nodes: [], unlocked: 1, done: false };
     var nodes = sc[subj].nodes;
-    while (nodes.length <= idx) nodes.push({ stars: 0, best: 0, passed: false, done: false, tries: 0 });
-    return nodes[idx];
+    while (nodes.length <= big) nodes.push(null);
+    if (!nodes[big]) nodes[big] = makeNode(-1);
+    else nodes[big] = normalizeNode(nodes[big]);
+    return nodes[big];
   }
   function courseProg(subj) {
     var sc = stateCourse();
@@ -86,29 +108,61 @@
     return sc[subj];
   }
 
-  // 已解锁节点数(1 起): 首关总是解锁; 每通关一关解锁下一关
-  function unlockedCount(subj) {
-    var p = courseProg(subj);
-    return Math.max(1, Math.min(levelCount(subj), p.unlocked || 1));
+  // 大关卡总数
+  function levelCount(subj) { return (COURSES[subj] && COURSES[subj].levels) ? COURSES[subj].levels.length : 0; }
+
+  // 大关卡是否已解锁: 第 0 大关总是解锁, 前一大大关 5 小关全通后解锁下一大大关
+  function bigUnlocked(subj, big) {
+    if (big <= 0) return true;
+    return !!(nodeProg(subj, big - 1).done);
   }
-  function curLevelIdx(subj) {
-    // 第一个未通关且已解锁的节点为「当前位置」
-    var p = courseProg(subj);
-    var un = p.unlocked || 1;
-    for (var i = 0; i < un; i++) { if (!p.nodes[i] || !p.nodes[i].passed) return i; }
-    return Math.min(un, levelCount(subj)) - 1;
+  // 大关内第 stage 小关是否解锁: 大关本身解锁, 且上一小关已通关
+  function stageUnlocked(subj, big, stage) {
+    if (!bigUnlocked(subj, big)) return false;
+    if (stage <= 0) return true;
+    return nodeProg(subj, big).passStage + 1 >= stage;
+  }
+  // 某大关内已解锁小关数(0..5)
+  function stageUnlockedCount(subj, big) {
+    if (!bigUnlocked(subj, big)) return 0;
+    var p = nodeProg(subj, big).passStage;
+    return Math.min(STAGES_PER_BIG, Math.max(1, p + 2));
+  }
+  // 已解锁大关数(1 起)
+  function unlockedCount(subj) {
+    var n = 0;
+    for (var i = 0; i < levelCount(subj); i++) if (bigUnlocked(subj, i)) n++;
+    return Math.max(1, n);
+  }
+  // 当前位置: 第一个「已解锁且未通关」的小关 → {big, stage}; 全通则指向最后一小关
+  function curPos(subj) {
+    for (var big = 0; big < levelCount(subj); big++) {
+      if (!bigUnlocked(subj, big)) break;
+      var nd = nodeProg(subj, big);
+      if (nd.passStage < STAGES_PER_BIG - 1) return { big: big, stage: nd.passStage + 1 };
+    }
+    return { big: Math.max(0, levelCount(subj) - 1), stage: STAGES_PER_BIG - 1 };
+  }
+  function curLevelIdx(subj) { return curPos(subj).big; }
+  // 通关第 (big,stage) 后, 下一个要进入的关卡
+  function nextPos(subj, big, stage) {
+    if (stage + 1 < STAGES_PER_BIG && bigUnlocked(subj, big)) return { big: big, stage: stage + 1 };
+    if (big + 1 < levelCount(subj) && bigUnlocked(subj, big + 1)) return { big: big + 1, stage: 0 };
+    return null;
   }
 
   // 通关某一关需要的题型启动: 复用各工作台
-  function launchLevel(subj, idx) {
+  // idx=大关卡, stage=该大关内的小关卡(0..4). 未解锁(大关未解锁或小关前序未通)则提示.
+  function launchLevel(subj, idx, stage) {
     var lv = COURSES[subj].levels[idx];
     if (!lv) return;
-    var un = unlockedCount(subj);
-    if (idx >= un) { if (Speech && Speech.toast) Speech.toast('先通关前面的关卡才能解锁这里哦 🔒'); return; }
+    if (!bigUnlocked(subj, idx)) { if (Speech && Speech.toast) Speech.toast('先通关前面的关卡才能解锁这里哦 🔒'); return; }
+    stage = (typeof stage === 'number' && stage >= 0 && stage < STAGES_PER_BIG) ? stage : 0;
+    if (!stageUnlocked(subj, idx, stage)) { if (Speech && Speech.toast) Speech.toast('先通过前面的小关才能解锁这里哦 🔒'); return; }
     // 语文题型在导入面板中有子模式(声母/韵母/拼读/四声), 需落到真正的答题 type 以匹配结算
     var quizT = zhLevelQuizType(lv.t);
-    // 记录「正在闯的第几关」, 供结算时回写 course 进度
-    Store.state.courseIn = { subj: subj, idx: idx, t: quizT, startedAt: Date.now() };
+    // 记录「正在闯的第几大关/第几小关」, 供结算时回写 course 进度
+    Store.state.courseIn = { subj: subj, idx: idx, stage: stage, t: quizT, startedAt: Date.now() };
     Store.state.courseInflight = 1;
     var type = lv.t;
     var NavP = window.Edu && window.Edu.Nav;
@@ -136,7 +190,8 @@
         setPref();
       }
     }
-    // 进入学习页展示答题
+    // 进入学习页展示答题(若从全屏闯关地图进入, 先关闭覆盖层, 否则遮挡答题页)
+    if (closeMapFull) closeMapFull();
     if (window.eduNav) window.eduNav('learn');
   }
 
@@ -182,25 +237,28 @@
     return streak;
   }
 
-  // 通关关卡奖励 + 解锁下一关 + 里程碑
-  function applyPass(subj, idx, stars) {
+  // 通关某个大关的小关: 记录星级/清除推进; 每小关首次通关 +3 星星; 大关 5 小关全通则 done + 解锁下一大关
+  // 返回 { name(大关名), stageName, stars, allPassed, bigDone, next }
+  function applyPass(subj, idx, stage, stars) {
     var p = courseProg(subj);
-    var nodes = p.nodes;
-    var st = nodes[idx] || (nodes[idx] = { stars: 0, best: 0, passed: false, done: false, tries: 0 });
-    st.stars = Math.max(st.stars || 0, stars);
-    st.best = Math.max(st.best || 0, stars);
-    st.passed = true;
-    st.passedAt = Date.now();
-    // 通关 +3 星星
-    addStarBonus(3, (SUBJ_LABEL[subj] || subj) + '通关·' + (COURSES[subj].levels[idx].name));
-    // 解锁下一关
-    var unlocked = Math.max(p.unlocked || 1, idx + 2);
-    p.unlocked = Math.min(levelCount(subj), unlocked);
+    var st = nodeProg(subj, idx);
+    var bigName = COURSES[subj].levels[idx].name;
+    var isNew = st.passStage < stage;
+    st.stars[stage] = Math.max(st.stars[stage] || 0, stars);
+    st.passStage = Math.max(st.passStage || -1, stage);
+    if (stage + 1 >= STAGES_PER_BIG) {
+      st.done = true;
+      st.passedAt = Date.now();
+    }
+    // 首次通关该小关才 +3 星星(重打同一小关不重复奖励)
+    if (isNew) addStarBonus(3, (SUBJ_LABEL[subj] || subj) + '通关·' + bigName);
+    var bigDone = st.done;
     // 整科通关
     var allPassed = true;
-    for (var i = 0; i < levelCount(subj); i++) { if (!nodes[i] || !nodes[i].passed) { allPassed = false; break; } }
+    for (var i = 0; i < levelCount(subj); i++) { if (!nodeProg(subj, i).done) { allPassed = false; break; } }
     if (allPassed) p.done = true;
-    return { name: COURSES[subj].levels[idx].name, stars: stars, allPassed: allPassed };
+    var next = nextPos(subj, idx, stage);
+    return { name: bigName, stageName: '第' + (idx + 1) + '大关·第' + (stage + 1) + '小关', stage: stage, stars: stars, allPassed: allPassed, bigDone: bigDone, next: next };
   }
 
   // ---- 结算: 由答题引擎在交卷时调用 ----
@@ -223,39 +281,50 @@
     }
     if (pct === 0) stars = 0;
 
-    var passed = (pct >= 80) || (stars >= 3);
-    var out = { subj: subj, type: type, right: right, total: total, pct: pct, stars: stars, passed: passed, levelIdx: -1 };
+    var out = { subj: subj, type: type, right: right, total: total, pct: pct, stars: stars, passed: false, levelIdx: -1, stage: -1 };
 
-    // 是否正处在关卡闯关中(若直接答题启动, courseIn 缺失则尝试按题型匹配)
+    // 是否正处在关卡闯关中(若直接答题启动, courseIn 缺失则尝试按当前位置匹配)
     var inflight = Store.state.courseIn || null;
-    var idx = -1;
-    if (inflight && inflight.subj === subj && inflight.t === type) { idx = inflight.idx; }
-    else {
-      // 尝试按题型对映到当前未通关关卡
-      var un = (function(){ try { return unlockedCount(subj); } catch (e) { return 1; } })();
-      var lv = COURSES[subj] ? COURSES[subj].levels : null;
-      var p0 = courseProg(subj);
-      for (var k = 0; k < un && lv; k++) {
-        var lvT = (subj === 'zh') ? zhLevelQuizType(lv[k].t) : lv[k].t;
-        if (lvT === type && (!p0.nodes[k] || !p0.nodes[k].passed)) { idx = k; break; }
-      }
+    var idx = -1, stage = 0;
+    if (inflight && inflight.subj === subj && inflight.t === type) {
+      idx = inflight.idx;
+      stage = (typeof inflight.stage === 'number') ? inflight.stage : 0;
+    } else {
+      // 尝试按题型对映到当前未通关大关的第一未通小关
+      var cp = (function(){ try { return curPos(subj); } catch (e) { return { big: 0, stage: 0 }; } })();
+      var lvT = (subj === 'zh') ? zhLevelQuizType(COURSES[subj].levels[cp.big].t) : COURSES[subj].levels[cp.big].t;
+      if (lvT === type && stageUnlocked(subj, cp.big, cp.stage) && !nodeProg(subj, cp.big).done) { idx = cp.big; stage = cp.stage; }
     }
 
     if (idx >= 0 && COURSES[subj] && COURSES[subj].levels[idx]) {
       out.levelIdx = idx;
+      out.stage = stage;
+      // 逐小关难度递增: 通关所需正确率逐小关抬高
+      var th = STAGE_THRESH[Math.min(stage, STAGES_PER_BIG - 1)] | 0;
+      var passed = (pct >= th) || (stars >= 3);
+      out.passed = passed;
       var opts = { fast: !!fast, triesUsed: triesUsed };
       cacheTriesForLevel(subj, idx, type, opts);
       if (passed) {
-        var res = applyPass(subj, idx, stars);
+        var res = applyPass(subj, idx, stage, stars);
         out.levelName = res.name;
-        out.unlockedNext = (idx + 1 < levelCount(subj)) ? COURSES[subj].levels[idx + 1].name : null;
+        out.stageName = res.stageName;
+        out.stageNow = stage;
+        out.stageCur = Math.max(stage, nodeProg(subj, idx).passStage);
+        out.gotStars = stars;
+        out.bigDone = res.bigDone;
+        var nxt = res.next;
+        out.next = nxt || null;
+        out.unlockedNext = nxt
+          ? ((nxt.big > idx)
+              ? COURSES[subj].levels[nxt.big].name                     // 解锁下一大关
+              : '第' + (nxt.stage + 1) + '小关')                         // 同大关下一小关
+          : null;
         out.allPassed = res.allPassed;
-        out.passed = true;
         out.passedNow = true;
       } else {
-        var pn = courseProg(subj).nodes[idx];
-        if (pn) { pn.tries = (pn.tries || 0) + 1; }
-        out.passed = false;
+        var pn = nodeProg(subj, idx);
+        pn.tries = (pn.tries || 0) + 1;
         out.tryAgain = true;
       }
     } else if (passed && type === 'daily') {
@@ -290,39 +359,179 @@
   }
 
   // 单学科旅程地图(横向滚动)
-  function journeyHtml(subj) {
+  function stageChips(subj, big, lv) {
+    var nd = nodeProg(subj, big);
+    var bigLk = !bigUnlocked(subj, big);
+    var curPosP = curPos(subj);
+    var chips = [];
+    for (var s = 0; s < STAGES_PER_BIG; s++) {
+      var lk = bigLk || !stageUnlocked(subj, big, s);
+      var done = !lk && (nd.passStage >= s);
+      var isCur = !lk && !done && curPosP.big === big && curPosP.stage === s;
+      var cls = 'cm-stg' + (done ? ' done' : (isCur ? ' current' : (lk ? ' locked' : ' todo')));
+      var stars = nd.stars[s] || 0;
+      var label = '<span class="cm-stg-n">' + (s + 1) + '</span>' +
+        '<span class="cm-stg-star">' + (done ? String('⭐'.repeat(Math.max(1, stars)) || '⭐') : (lk ? '🔒' : '')) + '</span>';
+      var oc = lk ? '' : 'window.Edu.Course.launchLevel(\'' + subj + '\',' + big + ',' + s + ')';
+      chips.push('<button type="button" class="' + cls + '"' + (lk ? ' disabled aria-disabled="true"' : ' onclick="' + oc + '"') +
+        ' title="第' + (big + 1) + '大关 · 第' + (s + 1) + '小关">' + label + '</button>');
+    }
+    return '<div class="cm-stages">' + chips.join('') + '</div>';
+  }
+
+  // ---- 闯关地图: 蛇形路径视觉化 ----
+  var SNAKE_W = 1180;   // 地图逻辑宽度(px), 窄屏横向滑动
+  var SNAKE_H = 460;
+  var NODE_D = 104;      // 节点直径(≥80px, 适合手指)
+  var SNAKE_X0 = 118;     // 首节点中心 x
+  var SNAKE_DX = 150;    // 节点中心 x 间距(留足间隙让蜿蜒山路清晰可见)
+  var SNAKE_Y_A = 178;   // 第一行节点中心 y
+  var SNAKE_Y_B = 322;   // 第二行节点中心 y(蛇形)
+  var THEME_AT = [       // 大关区间 → 主题
+    { cls: 'cm-theme-forest', from: 0, to: 1 },
+    { cls: 'cm-theme-mtn', from: 2, to: 3 },
+    { cls: 'cm-theme-ocean', from: 4, to: 5 },
+    { cls: 'cm-theme-star', from: 6, to: 7 }
+  ];
+  function themeFor(big) {
+    for (var i = 0; i < THEME_AT.length; i++) if (big >= THEME_AT[i].from && big <= THEME_AT[i].to) return THEME_AT[i].cls;
+    return 'cm-theme-forest';
+  }
+  // 节点中心坐标: 蛇形交替两行
+  function snakeXY(i) {
+    var x = SNAKE_X0 + i * SNAKE_DX;
+    var y = (i % 2 === 0) ? SNAKE_Y_A : SNAKE_Y_B;
+    return { x: x, y: y };
+  }
+  // 蛇形连接路径(SVG): 相邻节点用 S 形贝塞尔相连
+  function snakePath(subj, curBig) {
+    var n = levelCount(subj);
+    var d = [], used = [];
+    for (var i = 0; i < n - 1; i++) {
+      var a = snakeXY(i), b = snakeXY(i + 1);
+      var mid = (a.y + b.y) / 2;
+      d.push('M' + a.x + ' ' + a.y + ' C' + a.x + ' ' + mid + ',' + b.x + ' ' + mid + ',' + b.x + ' ' + b.y);
+      used.push(curBig > i ? 'used' : 'todo');
+    }
+    return { path: d.join(' '), used: used };
+  }
+  // 单个大关卡节点圆
+  function snakeNode(subj, i, lv, curBig) {
+    var bigLk = !bigUnlocked(subj, i);
+    var nd = nodeProg(subj, i);
+    var bigDone = nd.done;
+    var intro = snakeXY(i);
+    var cls = 'cm-big' + (bigLk ? ' locked' : (bigDone ? ' done' : (curBig === i ? ' current' : ' open')));
+    // 节点状态标识: 已通=⭐, 当前=🌟(呼吸发光), 未解锁=🔒, 其余可达无图标
+    var badge;
+    if (bigLk) badge = '<span class="cm-node-badge lock">🔒</span>';
+    else if (curBig === i) badge = '<span class="cm-node-badge cur">🌟</span>';
+    else if (bigDone) badge = '<span class="cm-node-badge ok">⭐</span>';
+    else badge = '';
+    var short = String(lv.name || '').slice(0, 2);
+    var oc = bigLk ? '' : 'window.Edu.Course.launchLevel(\'' + subj + '\',' + i + ',' + (curBig === i ? curPosStg(subj, i) : 0) + ')';
+    var isCur = (curBig === i && !bigLk);
+    return '<div class="cm-zone' + (isCur ? ' is-cur' : '') + '" style="left:' + intro.x + 'px;top:' + intro.y + 'px;">' +
+      '<button type="button" class="' + cls + '"' + (bigLk ? ' disabled aria-disabled="true"' : ' onclick="' + oc + '"') + ' title="' + esc(lv.name) + '">' +
+        '<span class="cm-node-num">' + (i + 1) + '</span>' +
+        '<span class="cm-node-short">' + esc(short) + '</span>' +
+        badge +
+      '</button>' +
+      '<div class="cm-node-label">' + esc(lv.name) + '</div>' +
+      stageChips(subj, i, lv) +
+    '</div>';
+  }
+  // 当前大关内应继续的小关
+  function curPosStg(subj, big) {
+    var p = curPos(subj);
+    return (p.big === big) ? Math.min(STAGES_PER_BIG - 1, p.stage) : 0;
+  }
+
+  // 旅程 + 进度说明(用于地图头部/全屏顶栏): 如「小探险家登山 · 小探险家 · 已解锁 1 / 8 大关」
+  function journeyLine(subj) {
     var course = COURSES[subj];
     if (!course) return '';
-    var un = unlockedCount(subj);
-    var p = courseProg(subj);
-    var cur = curLevelIdx(subj);
-    var nodesHtml = course.levels.map(function (lv, i) {
-      var st = p.nodes[i] || { stars: 0, passed: false, done: false, best: 0 };
-      var cls;
-      var badge = '';
-      if (i >= un) { cls = 'cm-node locked'; }
-      else if (st.passed) { cls = 'cm-node done'; badge = (st.best >= 3 ? '🥇' : (st.best >= 2 ? '🥈' : '⭐')); }
-      else if (i === cur && !st.passed) { cls = 'cm-node current'; }
-      else { cls = 'cm-node todo'; }
-      var body = '<button type="button" class="' + cls + '"' +
-        (i >= un ? ' disabled aria-disabled="true"' : ' onclick="window.Edu.Course.launchLevel(\'' + subj + '\',' + i + ')"') + '>' +
-        '<span class="cm-node-em">' + lv.em + '</span>' +
-        '<span class="cm-node-name">' + esc(lv.name) + '</span>' +
-        '<span class="cm-node-stars">' + starRow(st.best || (st.passed ? 3 : 0)) + '</span>' +
-        (st.passed ? '<span class="cm-node-state">' + badge + '</span>' : (i >= un ? '<span class="cm-node-state">🔒</span>' : (i === cur ? '<span class="cm-node-here">📍 当前位置</span>' : ''))) +
-        '</button>';
-      return '<div class="cm-step">' + body +
-        (i < course.levels.length - 1 ? '<span class="cm-link"></span>' : '') + '</div>';
-    }).join('');
+    var n = levelCount(subj);
+    var done = courseProg(subj).done;
+    return course.journey + ' · ' + (done ? '🏁 已通关' : '小探险家 · 已解锁 ' + unlockedCount(subj) + ' / ' + n + ' 大关');
+  }
 
-    return '<div class="cm-course" data-subj="' + subj + '">' +
+  // 顶部进度条: 每大关一格, 已通过=金色✓, 当前任务=⭐(呼吸, 明示「下一步去哪座城堡」), 未解锁=灰锁
+  function progressBarHtml(subj) {
+    var course = COURSES[subj];
+    if (!course) return '';
+    var n = levelCount(subj);
+    var doneAll = courseProg(subj).done;
+    var curBig = Math.min(curPos(subj).big, n - 1);
+    var segs = [];
+    for (var i = 0; i < n; i++) {
+      var lv = course.levels[i] || {};
+      var nd = nodeProg(subj, i);
+      var unlocked = bigUnlocked(subj, i);
+      var isCur = (!doneAll && unlocked && !nd.done && i === curBig);
+      var cls = 'cm-pg';
+      if (nd.done) cls += ' done';
+      else if (isCur) cls += ' cur';
+      else if (!unlocked) cls += ' lock';
+      var mark = nd.done ? '✓' : (isCur ? '⭐' : '');
+      segs.push('<span class="' + cls + '" title="' + esc(lv.name || '') + '">' + (mark ? '<i>' + mark + '</i>' : '') + '</span>');
+    }
+    var hint = doneAll
+      ? '🏁 已完成全部大关！'
+      : '⭐ 下一步：去「' + esc(course.levels[curBig].name) + '」';
+    return '<div class="cm-progress">' +
+      '<div class="cm-progress-bar">' + segs.join('') + '</div>' +
+      '<div class="cm-progress-hint">' + hint + '</div>' +
+      '</div>';
+  }
+
+  function journeyHtml(subj, focus) {
+    var course = COURSES[subj];
+    if (!course) return '';
+    var n = levelCount(subj);
+    var curBig = Math.min(curPos(subj).big, n - 1);
+    var curLv = course.levels[curBig];
+    var sp = snakePath(subj, curBig);
+
+    // 蛇形节点 + 路径 + 角色指示器
+    var nodes = course.levels.map(function (lv, i) { return snakeNode(subj, i, lv, curBig); }).join('');
+    // 蜿蜒山路: 每段 = 路面(Road 底色) + 中心虚线(路标) + 已走过的金色覆盖
+    var segs = '';
+    for (var i = 0; i < sp.used.length; i++) {
+      var a = snakeXY(i), b = snakeXY(i + 1);
+      var mid = (a.y + b.y) / 2;
+      var d = 'M' + a.x + ' ' + a.y + ' C' + a.x + ' ' + mid + ',' + b.x + ' ' + mid + ',' + b.x + ' ' + b.y;
+      var st = sp.used[i];
+      segs += '<g class="cm-seg-g ' + st + '">' +
+        '<path class="cm-road" d="' + d + '"/>' +
+        '<path class="cm-center" d="' + d + '"/>' +
+        '</g>';
+    }
+    var mascot = '';
+    if (!bigUnlocked(subj, curBig)) mascot = '';
+    else {
+      var m = snakeXY(curBig);
+      mascot = '<div class="cm-mascot" style="left:' + (m.x - 24) + 'px;top:' + Math.max(6, m.y - 76) + 'px;">🧒</div>';
+    }
+
+    return '<div class="cm-course' + (focus ? ' focus' : '') + '" data-subj="' + subj + '" id="cmCourse' + subj + '">' +
       '<div class="cm-head">' +
         '<span class="cm-course-emo">' + course.emoji + '</span>' +
         '<div class="cm-course-meta"><div class="cm-course-title">' + esc(course.title) + '</div>' +
-        '<div class="cm-course-journey">' + course.journey + ' · <span class="cmi-prog">' +
-          (p.done ? '🏁 已通关' : '已解锁 ' + un + ' / ' + course.levels.length) + '</span></div></div>' +
+        '<div class="cm-course-journey ' + themeFor(curBig) + '">' + journeyLine(subj) + '</div></div>' +
       '</div>' +
-      '<div class="cm-track">' + nodesHtml + '</div>' +
+      progressBarHtml(subj) +
+      '<div class="cm-snake-wrap ' + themeFor(curBig) + '">' +
+        '<div class="cm-snake" aria-label="闯关地图，可左右滑动">' +
+        '<div class="cm-snake-inner" style="width:' + SNAKE_W + 'px;height:' + SNAKE_H + 'px;">' +
+          '<svg class="cm-path" viewBox="0 0 ' + SNAKE_W + ' ' + SNAKE_H + '" preserveAspectRatio="none" aria-hidden="true">' + segs + '</svg>' +
+          nodes + mascot +
+        '</div>' +
+      '</div>' +
+        '<div class="cm-snake-foot">' +
+          '<span class="cm-swipe-hint">◀ 左右滑动查看关卡 ▶</span>' +
+        '</div>' +
+      '</div>' +
       '</div>';
   }
 
@@ -353,6 +562,56 @@
     }).join('') + '</div>';
   }
 
+  var activeMapSubject = 'zh';
+
+  // 地图卡片内的「学科切换」标签(语文/数学/英语)。slotId: 标签点击后要重绘的地图容器 id
+  function mapTabsHtml(slotId) {
+    slotId = slotId || 'cmMapSlot';
+    return '<div class="cm-tabs">' + (['zh', 'math', 'en'].map(function (s) {
+      var c = COURSES[s];
+      var un = unlockedCount(s);
+      var done = courseProg(s).done;
+      var act = s === activeMapSubject;
+      return '<button type="button" class="cm-tab' + (act ? ' active' : '') + '" data-subj="' + s + '" onclick="window.Edu.Course.switchMapSubject(\'' + s + '\',\'' + slotId + '\')" aria-pressed="' + act + '">' +
+        '<span class="cm-tab-em">' + c.emoji + '</span>' +
+        '<span class="cm-tab-meta"><span class="cm-tab-name">' + SUBJ_LABEL[s] + ' · ' + esc(c.title.slice(0, 4)) + '</span>' +
+        '<span class="cm-tab-prog">' + (done ? '🏁 已通关' : '已解锁 ' + un + ' / ' + c.levels.length + ' 大关') + '</span></span>' +
+        '</button>';
+    })).join('') + '</div>';
+  }
+
+  // 渲染当前学科的地图(仅一张蛇形地图, 不再三科堆叠)。slotId: 地图容器 id(全屏视图用独立 id 避免与卡片冲突)
+  function mapSlotHtml(slotId) {
+    return '<div class="cm-maps" id="' + (slotId || 'cmMapSlot') + '">' + journeyHtml(activeMapSubject, true) + '</div>';
+  }
+
+  // 切换到某学科地图(仅重绘地图卡片/全屏地图内部, 不重绘整页)
+  // 切换学科地图。slotId: 地图容器 id; tabScope: 仅重绘哪个视图内的标签(class 前缀), null=全部
+  function switchMapSubject(s, slotId) {
+    if (!(s in COURSES) || s === activeMapSubject) return;
+    activeMapSubject = s;
+    slotId = slotId || 'cmMapSlot';
+    var slot = document.getElementById(slotId);
+    var scope = slot ? slot.closest('.edu-map-full, .cm-card') : null;
+    var tabsScope = scope ? scope.querySelectorAll('.cm-tab') : [];
+    var tabs = tabsScope.length ? tabsScope : document.querySelectorAll('.cm-tab');
+    for (var i = 0; i < tabs.length; i++) {
+      var on = tabs[i].getAttribute('data-subj') === s;
+      tabs[i].classList.toggle('active', on);
+      if (tabs[i].setAttribute) tabs[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    if (slot) {
+      slot.innerHTML = mapSlotHtml();
+      anim(slot);
+      var fCourse = document.getElementById('cmCourse' + s);
+      if (fCourse) {
+        setTimeout(function () {
+          try { if (fCourse.scrollIntoView) fCourse.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' }); } catch (e) {}
+        }, 100);
+      }
+    }
+  };
+
   function renderCoursePage() {
     var body = document.getElementById('eduBadgesBody');
     if (!body) return;
@@ -360,7 +619,9 @@
     var name = act ? (act.name || '宝贝') : '宝贝';
     var stars = Store.state.stars || 0;
     var streak = streakDays();
-    var mapHtml = (['zh', 'math', 'en'].map(journeyHtml)).join('');
+
+    // 进入时的学科: 优先来自首页某科的「闯关模式」入口(focusSubj)
+    if (focusSubj in COURSES) activeMapSubject = focusSubj;
 
     var milestonesHtml = STAR_REWARDS.map(function (r) {
       var sc = stateCourse();
@@ -376,7 +637,7 @@
           '<div class="cm-hero-em">🗺️</div>' +
           '<div class="cm-hero-meta">' +
             '<div class="cm-hero-t">' + esc(name) + ' 的闯关地图</div>' +
-            '<div class="cm-hero-sub">让学习像游戏一样有趣 · 通关解锁下一关，攒星星换徽章</div>' +
+            '<div class="cm-hero-sub">选一门学科学的闯关旅程，通关解锁下一关</div>' +
           '</div>' +
         '</div>' +
 
@@ -386,8 +647,9 @@
         '</div>' +
 
         '<section class="cm-card">' +
-          '<div class="cm-card-h"><span>🗺️ 课程地图</span><span class="cm-hint">左右滑动可查看每科旅程</span></div>' +
-          '<div class="cm-maps">' + mapHtml + '</div>' +
+          '<div class="cm-card-h"><span>🗺️ 课程地图</span><span class="cm-hint">点上面切学科 · 地图可左右滑动</span></div>' +
+          mapTabsHtml('cmMapSlot') +
+          mapSlotHtml('cmMapSlot') +
         '</section>' +
 
         '<section class="cm-card">' +
@@ -402,6 +664,16 @@
         '</section>' +
       '</div>';
     anim(body);
+    // 聚焦学科: 滚动到该学科地图卡片并高亮
+    if (focusSubj) {
+      var fCourse = document.getElementById('cmCourse' + focusSubj);
+      if (fCourse) {
+        setTimeout(function () {
+          try { if (fCourse.scrollIntoView) fCourse.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' }); } catch (e) {}
+        }, 120);
+      }
+      focusSubj = null;
+    }
   }
 
   function unlockedBadgeCount() {
@@ -428,6 +700,7 @@
     COURSES: COURSES,
     SUBJ_LABEL: SUBJ_LABEL,
     STAR_REWARDS: STAR_REWARDS,
+    STAGES_PER_BIG: STAGES_PER_BIG,
     renderCoursePage: renderCoursePage,
     recordQuizResult: recordQuizResult,
     launchLevel: launchLevel,
@@ -437,13 +710,75 @@
     streakDays: streakDays,
     unlockedCount: unlockedCount,
     curLevelIdx: curLevelIdx,
+    curPos: curPos,
+    nextPos: nextPos,
     nodeProg: nodeProg,
     levelCount: levelCount,
     applyPass: applyPass,
     checkStarMilestones: checkStarMilestones,
     badgePulse: badgePulse,
-    courseProg: courseProg
+    courseProg: courseProg,
+    bigUnlocked: bigUnlocked,
+    stageUnlocked: stageUnlocked,
+    stageUnlockedCount: stageUnlockedCount,
+    switchMapSubject: switchMapSubject,
+    openMap: openMap,
+    openMapFull: openMapFull,
+    closeMapFull: closeMapFull
   };
+
+  // 「闯关模式」按钮: 打开该学科的课程地图(全关卡, 可左右滑动选择已解锁小关), 并聚焦该学科
+  function openMap(subj) {
+    if (!(subj in COURSES)) subj = 'zh';
+    focusSubj = subj;
+    var NavP = window.Edu && window.Edu.Nav;
+    if (NavP && NavP.getPref) {
+      var pref = NavP.getPref();
+      if (pref) { pref.lastSubj = subj; pref.mode = 'workbench'; pref.subj = subj; if (NavP.savePref) NavP.savePref(pref); }
+    }
+    if (window.eduNav) window.eduNav('badges');
+  }
+
+  // 首页点击「闯关模式」: 打开独立全屏闯关地图页(不跳到闯关 Tab), 展示该学科的蛇形地图
+  function openMapFull(subj) {
+    if (!(subj in COURSES)) subj = 'zh';
+    activeMapSubject = subj;
+    var NavP = window.Edu && window.Edu.Nav;
+    if (NavP && NavP.getPref) {
+      var pref = NavP.getPref();
+      if (pref) { pref.lastSubj = subj; pref.mode = 'workbench'; pref.subj = subj; if (NavP.savePref) NavP.savePref(pref); }
+    }
+    var full = document.getElementById('eduMapFull');
+    if (!full) { openMap(subj); return; }
+    var tabs = document.getElementById('emfTabs');
+    var body = document.getElementById('eduMapFullBody');
+    var journey = document.getElementById('emfJourney');
+    // 全屏地图只展示当前学科, 不需要学科切换, 故不渲染学科标签
+    if (tabs) tabs.innerHTML = '';
+    if (tabs) tabs.style.display = 'none';
+    if (journey) journey.textContent = journeyLine(subj);
+    if (body) body.innerHTML = mapSlotHtml('cmMapSlotFull');
+    full.style.display = 'flex';
+    var dock = document.getElementById('eduBottomNav');
+    if (dock) dock.style.display = 'none';
+    document.documentElement.style.overflow = 'hidden';
+    document.documentElement.style.height = '100%';
+  }
+
+  // 关闭独立全屏闯关地图页, 回到来源页
+  function closeMapFull() {
+    var full = document.getElementById('eduMapFull');
+    if (full) full.style.display = 'none';
+    var body = document.getElementById('eduMapFullBody');
+    if (body) body.innerHTML = '';
+    var tabs = document.getElementById('emfTabs');
+    if (tabs) tabs.innerHTML = '';
+    if (tabs) tabs.style.display = '';
+    var dock = document.getElementById('eduBottomNav');
+    if (dock) dock.style.display = '';
+    document.documentElement.style.overflow = '';
+    document.documentElement.style.height = '';
+  }
 
   function journeyTeaser() {
     if (!Store.state.course) return '';
@@ -452,19 +787,18 @@
     for (var s in COURSES) {
       var p = courseProg(s);
       var done = 0;
-      (p.nodes || []).forEach(function (n) { if (n && n.passed) done++; });
+      (p.nodes || []).forEach(function (n) { if (n && n.done) done++; });
       if (done > bestDone) { bestDone = done; best = s; }
     }
     if (!best) best = 'zh';
     var course = COURSES[best];
-    var p = courseProg(best);
     var un = unlockedCount(best);
     var cur = curLevelIdx(best);
     var done = 0;
-    (p.nodes || []).forEach(function (n) { if (n && n.passed) done++; });
+    courseProg(best).nodes.forEach(function (n) { if (n && n.done) done++; });
     var steps = course.levels.map(function (lv, i) {
-      var st = p.nodes[i] || {};
-      var cls = i >= un ? 'done-no' : (st.passed ? 'done-yes' : (i === cur ? 'done-cur' : 'done-no'));
+      var st = nodeProg(best, i);
+      var cls = i >= un ? 'done-no' : (st.done ? 'done-yes' : (i === cur ? 'done-cur' : 'done-no'));
       return '<span class="cmt-dot ' + cls + '" title="' + esc(lv.name) + '"></span>';
     }).join('');
     return '<button type="button" class="home-cousrteaser" onclick="window.eduNav(\'badges\')">' +

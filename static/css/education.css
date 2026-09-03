@@ -1,3 +1,11 @@
+  /* 表情不随系统走: 同源自托管彩色 Emoji 字体, 避免 PC 缺少系统 emoji 字体或外网受限(GitHub/Google Fonts 不可达)时显示为空白方块 */
+  @font-face {
+    font-family: 'Noto Color Emoji';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/static/vendor/fonts/NotoColorEmoji.woff2') format('woff2');
+  }
   :root{
     --edu-bg:#fdf6ec; --edu-ink:#5a4a3a; --edu-muted:#a09483;
     --edu-primary:#ff6b4a; --edu-blue:#3b82f6; --edu-green:#22b573; --edu-gold:#f5b83d;
@@ -8,7 +16,7 @@
     --edu-result-grad:linear-gradient(135deg,#fff5ee,#ffeef2);
     --edu-score-bg:#fff6e9; --edu-score-bd:#ffd9a8; --edu-score-fg:#d98a1f;
   }
-  body.edu-page{background:linear-gradient(160deg,#fff7ec 0%,#ffeef2 45%,#eef6ff 100%);color:var(--edu-ink);min-height:100vh;font-family:-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans CJK SC","Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif;}
+  body.edu-page{background:linear-gradient(160deg,#fff7ec 0%,#ffeef2 45%,#eef6ff 100%);color:var(--edu-ink);min-height:100vh;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;}
 
   /* 暗黑模式: 跟随站点 data-theme=dark */
   html[data-theme="dark"]{
@@ -90,11 +98,8 @@
   .sm-tab.active{background:var(--edu-blue);border-color:var(--edu-blue);color:#fff;}
   .sm-tabs-sub{margin-top:-4px;padding-bottom:6px;}
   .sm-tabs-sub .sm-tab{background:var(--edu-surface);font-size:.78rem;padding:5px 12px;}
-  /* 闯关答题时: 弱化学科入口行(改小、降低对比), 专注当前关卡题目, 避免分散注意力 */
-  body.quiz-live .sm-tabs{margin-bottom:8px;opacity:.62;}
-  body.quiz-live .sm-tab{padding:4px 10px;font-size:.72rem;font-weight:500;border-radius:10px;}
-  body.quiz-live .sm-tab.active{opacity:1;filter:brightness(1.05);}
-  body.quiz-live .sm-tab:hover{opacity:.9;}
+  /* 闯关答题时: 隐藏学科入口行(类别/题型切换), 专注当前关卡题目, 顶部仅保留「关卡标签 + 返回」 */
+  body.quiz-live .sm-tabs{display:none !important;}
 
   .edu-back{display:inline-flex;align-items:center;gap:6px;color:var(--edu-ink);text-decoration:none;font-size:.9rem;border:1.5px solid var(--edu-border);background:var(--edu-surface);padding:6px 14px;border-radius:999px;transition:.15s;cursor:pointer;}
   .edu-back:hover{border-color:var(--edu-primary);color:var(--edu-primary);}
@@ -212,6 +217,7 @@
   .quiz-item .qi-expr{font-size:1.7rem;font-weight:900;color:var(--edu-ink);white-space:nowrap;letter-spacing:.04em;}
   .quiz-item .qi-ans{display:inline-flex;align-items:center;gap:8px;}
   .quiz-item .qi-eq{font-size:1.4rem;font-weight:900;color:var(--edu-muted);}
+  .quiz-item .qi-eq-text{font-size:1.7rem;font-weight:900;color:var(--edu-ink);white-space:nowrap;letter-spacing:.04em;}
   .quiz-item .qi-ans input{width:76px;font-size:1.6rem;text-align:center;padding:6px 4px;border-radius:12px;border:2px solid var(--edu-input-bd);background:var(--edu-surface);color:var(--edu-ink);caret-color:var(--edu-primary);}
   .quiz-item .qi-ans input:focus{outline:none;border-color:var(--edu-primary);box-shadow:0 0 0 3px rgba(255,107,74,.15);}
   .quiz-item .qi-ans input:disabled{opacity:.55;}
@@ -308,6 +314,22 @@
 
   /* ===== 底部 Dock 导航（全端一致：PC/iPad/手机） ===== */
   .edu-bottom-nav{position:fixed;left:50%;bottom:calc(2px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:110;display:flex;gap:2px;justify-content:center;width:100%;max-width:680px;overflow-x:auto;background:rgba(255,255,255,.72);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border-top:1.5px solid var(--edu-border);border-radius:18px 18px 0 0;padding:6px 10px calc(6px + env(safe-area-inset-bottom));box-shadow:0 -4px 24px rgba(0,0,0,.08);scrollbar-width:none;}
+
+  /* ===== 首页「闯关模式」独立全屏闯关地图页 ===== */
+  .edu-map-full{position:fixed;inset:0;z-index:160;display:flex;flex-direction:column;background:linear-gradient(160deg,#fff7ec 0%,#ffeef2 45%,#eef6ff 100%);overflow:hidden;}
+  .edu-map-full .emf-bar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1.5px solid var(--edu-border);background:rgba(255,255,255,.75);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);}
+  .edu-map-full .emf-back{flex:0 0 auto;border:1.5px solid var(--edu-border-2);background:var(--edu-surface);color:var(--edu-ink);border-radius:12px;padding:8px 16px;font-size:.9rem;font-weight:700;cursor:pointer;}
+  .edu-map-full .emf-journey{margin-left:auto;max-width:calc(100% - 92px);font-size:.82rem;font-weight:700;color:var(--edu-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .edu-map-full .emf-tabs{padding:10px 14px 0;}
+  .edu-map-full .emf-body{flex:1;overflow-y:auto;padding:12px 14px 24px;}
+  .edu-map-full .emf-body .cm-snake-wrap{margin:0 auto;margin-top:10px;}
+  /* 全屏地图顶栏已展示旅程进度, 隐藏地图头部的学科名/旅程行(标签亦不渲染) */
+  .edu-map-full .emf-body .cm-head{display:none;}
+  /* 全屏地图里标签已展示学科 emoji 与标题, 隐藏地图头部的重复 emoji */
+  .edu-map-full .emf-body .cm-head .cm-course-emo{display:none;}
+  @media (min-width:900px){
+    .edu-map-full .emf-outer{max-width:760px;margin:0 auto;}
+  }
   .edu-bottom-nav::-webkit-scrollbar{display:none;}
   .edu-bottom-nav .edu-nav-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:1 1 0;min-width:0;min-height:56px;padding:6px 4px;border:none;border-radius:16px;background:transparent;color:var(--edu-muted);font-size:.74rem;font-weight:800;cursor:pointer;transition:.13s;white-space:nowrap;}
   .edu-bottom-nav .edu-nav-btn i{font-size:1.75rem;line-height:1;}
@@ -848,6 +870,12 @@
   html[data-theme="dark"] .qz-confirm-row .btn-confirm:disabled{background:#3a3f45;color:#9aa3ad;}
   html[data-theme="dark"] .qz-track{background:#3a3f45;}
   .qz-prog-top .qz-dots{display:flex;align-items:center;gap:8px;padding-top:10px;flex-wrap:wrap;}
+  /* 关卡进度「星条」: 答对=金star, 答错=黑star, 未答=空心 ☆ */
+  .qz-prog-top .qz-stars{display:flex;align-items:center;gap:3px;flex-wrap:nowrap;overflow-x:auto;padding:6px 6px 8px;}
+  .qz-stars .qstar{font-size:1.05rem;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.12));}
+  .qz-stars .qstar.done{filter:drop-shadow(0 0 5px rgba(255,190,60,.65));}
+  .qz-stars .qstar.wrong{filter:grayscale(1) brightness(.35) drop-shadow(0 0 2px rgba(0,0,0,.4));}
+  .qz-stars .qstar.empty{filter:grayscale(1) brightness(.8) opacity(.55);}
 
   /* 选项 2×2 大卡片网格: ≤4 选项用 2×2, 5-6 用 3 列, >6 单列 */
   body.edu-page .qi-opts{display:grid;grid-template-columns:1fr;gap:14px;margin-top:8px;}
@@ -1117,25 +1145,32 @@
 
   /* 课程入口区 */
   .home-course-sec{margin-top:2px;}
-  .home-course-scroll{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0;overflow:visible;}
-  @media (min-width:1024px){
-    .home-course-scroll{grid-template-columns:repeat(4,1fr);gap:12px;}
-  }
+  /* 三科卡: auto-fit 自动铺满并等宽扩展, 窄屏单列/宽屏多列流畅过渡 */
+  .home-course-scroll{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;padding:0;overflow:visible;}
   .home-course-scroll .home-course{width:100%;}
   .home-course{display:flex;align-items:center;gap:8px;min-width:0;width:100%;min-height:0;
-    padding:10px 10px 10px 12px;border-radius:16px;border:1.5px solid var(--edu-border);
-    background:var(--edu-surface-2);color:var(--edu-ink);cursor:pointer;transition:.14s;text-align:left;
-    box-shadow:0 2px 6px rgba(180,120,60,.05);}
-  .home-course:hover{border-color:var(--edu-sky);transform:translateY(-1px);}
+    padding:12px 12px 12px 14px;border-radius:18px;border:1.5px solid rgba(255,255,255,.55);
+    color:var(--edu-ink);cursor:pointer;transition:.16s;text-align:left;
+    box-shadow:0 3px 12px rgba(80,60,40,.10);}
+  .home-course:hover{border-color:#fff;transform:translateY(-2px);box-shadow:0 6px 18px rgba(80,60,40,.16);}
   .home-course.locked{cursor:not-allowed;opacity:.6;filter:grayscale(.7);}
-  .home-course.locked:hover{transform:none;border-color:var(--edu-border);}
+  .home-course.locked:hover{transform:none;border-color:rgba(255,255,255,.55);}
+  /* 三科主题底色(柔和渐变): 语文暖橙 / 数学天蓝 / 英语翠绿 */
+  .home-course.hc-subj-zh{background:linear-gradient(135deg,#ffe8d6,#ffc6a0 55%,#ff9f5a);}
+  .home-course.hc-subj-math{background:linear-gradient(135deg,#dcebff,#b7d8ff 55%,#8fc2ff);}
+  .home-course.hc-subj-en{background:linear-gradient(135deg,#d9f7e0,#aee8c4 55%,#7fd6a0);}
+  .home-course.locked{filter:grayscale(.75) brightness(.96);}
+  html[data-theme="dark"] .home-course.hc-subj-zh{background:linear-gradient(135deg,#5a341c,#7a4425 55%,#9a5a33);}
+  html[data-theme="dark"] .home-course.hc-subj-math{background:linear-gradient(135deg,#1b3a5c,#20486f 55%,#2a5a8c);}
+  html[data-theme="dark"] .home-course.hc-subj-en{background:linear-gradient(135deg,#1c4a33,#22603f 55%,#2b7a52);}
   .hc-main{display:flex;align-items:center;gap:8px;min-width:0;flex:1;}
   .hc-emo{font-size:1.45rem;flex-shrink:0;line-height:1;}
   .hc-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;}
   .hc-nm{display:block;font-size:.96rem;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .hc-lv-l{margin-top:1px;}
+  .hc-lv-l{margin-top:1px;display:inline-flex;align-items:center;gap:6px;min-width:0;}
   .hc-lv{display:inline-flex;align-items:center;gap:3px;font-size:.72rem;font-weight:800;color:var(--edu-primary);
     background:var(--edu-soft);border-radius:999px;padding:2px 8px;line-height:1.5;width:fit-content;white-space:nowrap;}
+  .hc-count{font-size:.7rem;font-weight:700;color:var(--edu-muted);white-space:nowrap;}
   .hc-stat{display:block;font-size:.7rem;font-weight:700;color:var(--edu-muted);white-space:nowrap;
     overflow:hidden;text-overflow:ellipsis;}
   .hc-stat b{color:var(--edu-ink);font-size:.76rem;}
@@ -1158,19 +1193,16 @@
   .hc-hint .hh-a{color:var(--edu-blue);animation:hhSlide 1.4s ease-in-out infinite;}
   @keyframes hhSlide{0%,100%{transform:translateX(0);}50%{transform:translateX(4px);}}
 
-  /* 手机: 课程卡 2 列, 卡内上下布局(信息在上, 按钮成行在下), 目标卡文案略收敛 */
+  /* 手机: 三科横卡整行自适应单列铺满, 信息在左/按钮在右, 目标卡文案略收敛 */
   @media (max-width:767px){
-    .home-course-scroll{grid-template-columns:1fr 1fr;gap:8px;}
-    .home-course{flex-direction:column;align-items:stretch;gap:7px;}
-    .hc-main{gap:6px;}
-    .hc-emo{font-size:1.15rem;}
-    .hc-nm{font-size:.9rem;}
-    .hc-lv{font-size:.68rem;padding:1px 7px;}
-    .hc-stat{font-size:.68rem;}
-    .hc-sb-sub{display:none;}
-    .hc-stat-c{margin-left:0;border-left:none;padding-left:0;}
-    .hc-modes{flex-direction:row;gap:6px;}
-    .hc-mode{flex:1;min-width:0;width:100%;padding:5px 6px;font-size:.72rem;}
+    .home-course-scroll{grid-template-columns:minmax(0,1fr);gap:10px;}
+    .home-course{flex-direction:row;align-items:center;gap:8px;padding:12px 12px 12px 14px;}
+    .hc-main{gap:8px;}
+    .hc-emo{font-size:1.3rem;}
+    .hc-nm{font-size:.95rem;}
+    .hc-lv{font-size:.7rem;padding:2px 8px;}
+    .hc-modes{flex-direction:column;gap:5px;}                    /* 全宽卡 → 按钮竖直一列放右 */
+    .hc-mode{min-width:88px;padding:6px 10px;font-size:.74rem;}
     .ht-hello{font-size:1.02rem;}
     .ht-sub{font-size:.78rem;}
     .ht-lv{font-size:.8rem;}
@@ -1217,41 +1249,175 @@
   .cm-card-h .cm-hint{font-size:.78rem;font-weight:700;color:var(--edu-muted);}
   html[data-theme="dark"] .cm-card{background:var(--edu-soft);border-color:var(--edu-border);}
 
-  /* 旅程地图: 横向滚动 */
-  .cm-maps{display:flex;flex-direction:column;gap:12px;}
-  .cm-course{background:var(--edu-surface-2);border:2px solid var(--edu-border);border-radius:16px;padding:12px;}
-  .cm-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  /* 闯关地图(蛇形路径视觉化) */
+  .cm-maps{display:flex;flex-direction:column;gap:18px;}
+
+  /* 学科切换标签 */
+  .cm-tabs{display:flex;gap:8px;margin-bottom:12px;}
+  .cm-tab{flex:1;display:flex;align-items:center;gap:8px;border:2px solid var(--edu-border-2);
+    background:var(--edu-surface);border-radius:14px;padding:8px 10px;cursor:pointer;color:var(--edu-ink);
+    transition:.15s;text-align:left;}
+  .cm-tab:hover{border-color:var(--edu-blue);}
+  .cm-tab.active{background:linear-gradient(135deg,#fff3e6,#ffeef6);border-color:var(--edu-primary);
+    box-shadow:0 4px 12px rgba(255,107,74,.18);}
+  html[data-theme="dark"] .cm-tab.active{background:linear-gradient(135deg,#3a2c1e,#3a2731);}
+  .cm-tab-em{font-size:1.4rem;}
+  .cm-tab-meta{display:flex;flex-direction:column;min-width:0;}
+  .cm-tab-name{font-size:.8rem;font-weight:900;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cm-tab-prog{font-size:.7rem;color:var(--edu-muted);font-weight:800;margin-top:1px;white-space:nowrap;}
+  .cm-head{display:flex;align-items:center;gap:10px;margin:0 2px 10px;}
+  .cm-course{background:transparent;border:none;border-radius:16px;padding:0;width:100%;}
   .cm-course-emo{font-size:1.5rem;}
-  .cm-course-title{font-weight:900;color:var(--edu-ink);}
-  .cm-course-journey{font-size:.8rem;color:var(--edu-muted);}
-  .cm-track{display:flex;gap:6px;overflow-x:auto;padding:6px 2px;}
-  .cm-step{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:96px;flex-shrink:0;}
-  .cm-link{display:block;height:4px;width:16px;background:var(--edu-border-2);border-radius:2px;}
+  .cm-course-title{font-weight:900;color:var(--edu-ink);font-size:.95rem;}
+  .cm-course-journey{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:.78rem;color:var(--edu-muted);font-weight:800;}
+  .cm-swipe-hint{font-size:.72rem;color:var(--edu-muted);font-weight:700;white-space:nowrap;}
 
-  .cm-node{border:2px solid var(--edu-border-2);border-radius:16px;background:var(--edu-surface);
-    padding:12px 10px;min-width:92px;text-align:center;cursor:pointer;display:flex;flex-direction:column;gap:6px;
-    align-items:center;transition:.15s;color:var(--edu-ink);}
-  .cm-node:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(255,107,74,.15);}
-  .cm-node-em{font-size:1.6rem;}
-  .cm-node-name{font-size:.8rem;font-weight:800;line-height:1.15;}
-  .cm-node-stars{font-size:.72rem;letter-spacing:-1px;color:var(--edu-gold);}
-  .cm-node-stars .cm-star-off{color:var(--edu-border-2);filter:grayscale(1);}
-  .cm-node-state{font-size:.72rem;color:var(--edu-muted);}
+  /* 顶部闯关进度条: 一格一大关, 已过=金✓, 当前任务=⭐呼吸, 未解锁=灰; 下方提示「下一步去哪」 */
+  .cm-progress{margin:0 2px 12px;}
+  .cm-progress-bar{display:flex;align-items:stretch;gap:5px;height:14px;}
+  .cm-pg{flex:1 1 0;min-width:0;border-radius:7px;background:rgba(120,120,140,.28);position:relative;transition:.25s;}
+  .cm-pg.done{background:linear-gradient(90deg,#ffd93d,#ffb347);box-shadow:0 0 8px rgba(255,190,60,.5);}
+  .cm-pg.cur{background:linear-gradient(90deg,#ff9f43,#ff6b6b);box-shadow:0 0 10px rgba(255,120,60,.6);animation:cmProgPulse 1.6s ease-in-out infinite;}
+  .cm-pg.lock{background:repeating-linear-gradient(45deg,rgba(90,90,110,.22),rgba(90,90,110,.22) 4px,transparent 4px,transparent 8px);}
+  .cm-pg > i{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-style:normal;font-size:.8rem;line-height:1;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.35);}
+  .cm-pg.cur > i{animation:cmStarSpin 1.6s ease-in-out infinite;}
+  .cm-progress-hint{margin-top:6px;font-size:.78rem;font-weight:800;color:var(--edu-primary);}
+  html[data-theme="dark"] .cm-progress-hint{color:#ffb073;}
+  @keyframes cmProgPulse{0%,100%{filter:brightness(1);}50%{filter:brightness(1.25);}}
+  @keyframes cmStarSpin{0%,100%{transform:translate(-50%,-50%) scale(1) rotate(0);}50%{transform:translate(-50%,-50%) scale(1.3) rotate(15deg);}}
 
-  /* 已完成 */
-  .cm-node.done{border-color:var(--edu-green);background:linear-gradient(135deg,#eafff4,#e6f5ff);}
-  .cm-node.done .cm-node-state{color:var(--edu-green);font-weight:900;}
-  html[data-theme="dark"] .cm-node.done{background:linear-gradient(135deg,#143324,#1a2a3a);}
-  /* 当前位置: 呼吸光效 */
-  .cm-node.current{border-color:var(--edu-primary);background:linear-gradient(135deg,#fff1e8,#ffeef6);
-    animation:cmBreathe 1.6s ease-in-out infinite;}
-  .cm-node.current .cm-node-here{color:var(--edu-primary);font-weight:900;font-size:.72rem;}
-  html[data-theme="dark"] .cm-node.current{background:linear-gradient(135deg,#3a2a1d,#3a2731);}
-  @keyframes cmBreathe{0%,100%{box-shadow:0 0 0 0 rgba(255,107,74,.35);}50%{box-shadow:0 0 0 8px rgba(255,107,74,0);}}
-  /* 未解锁: 灰色 */
-  .cm-node.locked{border-color:var(--edu-border-2);background:var(--edu-soft);color:var(--edu-muted);cursor:not-allowed;filter:grayscale(.7);opacity:.8;}
-  html[data-theme="dark"] .cm-node.locked{background:#332e28;}
-  .cm-node.locked:hover{transform:none;box-shadow:none;}
+  /* 蛇形地图画布 */
+  .cm-snake-wrap{position:relative;border-radius:22px;overflow:hidden;
+    box-shadow:inset 0 0 60px rgba(0,0,0,.14),0 10px 26px rgba(90,120,120,.22);}
+  .cm-snake{position:relative;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;
+    width:100%;}
+  .cm-snake-inner{position:relative;z-index:2;pointer-events:none;}
+  .cm-snake-inner > *{pointer-events:none;}
+  .cm-snake-inner .cm-zone{pointer-events:auto;}
+  .cm-snake::-webkit-scrollbar{height:8px;}
+  .cm-snake::-webkit-scrollbar-thumb{background:rgba(255,255,255,.55);border-radius:999px;}
+  .cm-snake::-webkit-scrollbar-track{background:rgba(0,0,0,.08);}
+  .cm-path{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;}
+  .cm-seg-g{transition:opacity .3s;}
+  /* 路面: 厚实的蜿蜒山路, 带浅描边让道路清晰浮于场景之上 */
+  .cm-road{fill:none;stroke:rgba(255,255,255,.92);stroke-width:26;stroke-linecap:round;stroke-linejoin:round;
+    filter:drop-shadow(0 3px 4px rgba(0,0,0,.22));}
+  html[data-theme="dark"] .cm-road{stroke:rgba(60,64,72,.85);}
+  /* 中心虚线: 山路路标(白色分段), 走到哪边是已走过的金色 */
+  .cm-center{fill:none;stroke:rgba(120,120,140,.6);stroke-width:4;stroke-dasharray:1 22;stroke-linecap:round;}
+  .cm-seg-g.used .cm-center{stroke:#fff;stroke-dasharray:10 14;}
+  .cm-seg-g.used .cm-road{stroke:var(--edu-gold,#ffc34d);
+    filter:drop-shadow(0 0 8px rgba(255,190,60,.6)) drop-shadow(0 2px 3px rgba(0,0,0,.2));}
+
+  /* 主题背景(按当前大关区间): 更鲜明的场景, 底部加深营造「地面」, 前景花草/山/浪/星作装饰 */
+  .cm-snake-wrap.cm-theme-forest{background:linear-gradient(170deg,#cdf7e0 0%,#98e8b0 38%,#d9f5b6 66%,#8fcf7b 82%,#4f9c5e 100%);}
+  .cm-snake-wrap.cm-theme-mtn{background:linear-gradient(170deg,#a9c4fb 0%,#b0c0f7 34%,#cfc6ff 66%,#b39fe8 82%,#7566b8 100%);}
+  .cm-snake-wrap.cm-theme-ocean{background:linear-gradient(170deg,#9becea 0%,#62d4dc 36%,#7fe0ee 66%,#49b8d2 82%,#2279ad 100%);}
+  .cm-snake-wrap.cm-theme-star{background:linear-gradient(170deg,#1c2b66 0%,#3b4ba2 40%,#6a5fb0 70%,#3a4390 84%,#232a5e 100%);}
+  .cm-snake-wrap.cm-theme-star .cm-swipe-hint{color:#dfe6ff;}
+
+  /* 四个场景装饰槽: wrap 的 before/after + snake 的 before/after */
+  .cm-snake-wrap.cm-theme-forest:before,.cm-snake-wrap.cm-theme-forest:after,
+  .cm-snake-wrap.cm-theme-mtn:before,.cm-snake-wrap.cm-theme-mtn:after,
+  .cm-snake-wrap.cm-theme-ocean:before,.cm-snake-wrap.cm-theme-ocean:after,
+  .cm-snake-wrap.cm-theme-star:before,.cm-snake-wrap.cm-theme-star:after,
+  .cm-snake-wrap.cm-theme-forest .cm-snake:before,.cm-snake-wrap.cm-theme-forest .cm-snake:after,
+  .cm-snake-wrap.cm-theme-mtn .cm-snake:before,.cm-snake-wrap.cm-theme-mtn .cm-snake:after,
+  .cm-snake-wrap.cm-theme-ocean .cm-snake:before,.cm-snake-wrap.cm-theme-ocean .cm-snake:after,
+  .cm-snake-wrap.cm-theme-star .cm-snake:before,.cm-snake-wrap.cm-theme-star .cm-snake:after{
+    position:absolute;font-size:2.8rem;opacity:.6;pointer-events:none;z-index:0;}
+  .cm-snake-wrap.cm-theme-forest:before{content:'🌲';top:14px;left:16px;}
+  .cm-snake-wrap.cm-theme-forest:after{content:'🌳';bottom:14px;right:20px;}
+  .cm-snake-wrap.cm-theme-forest .cm-snake:before{content:'🌸';bottom:12px;left:40px;}
+  .cm-snake-wrap.cm-theme-forest .cm-snake:after{content:'🍄';top:16px;right:70px;}
+  .cm-snake-wrap.cm-theme-mtn:before{content:'🏔️';top:14px;left:16px;}
+  .cm-snake-wrap.cm-theme-mtn:after{content:'⛰️';bottom:12px;right:20px;}
+  .cm-snake-wrap.cm-theme-mtn .cm-snake:before{content:'🌥️';top:14px;right:70px;}
+  .cm-snake-wrap.cm-theme-mtn .cm-snake:after{content:'🦅';bottom:12px;left:44px;}
+  .cm-snake-wrap.cm-theme-ocean:before{content:'🌊';top:14px;right:20px;}
+  .cm-snake-wrap.cm-theme-ocean:after{content:'🐬';bottom:12px;left:18px;}
+  .cm-snake-wrap.cm-theme-ocean .cm-snake:before{content:'🏄';top:14px;left:56px;}
+  .cm-snake-wrap.cm-theme-ocean .cm-snake:after{content:'🐚';bottom:12px;right:70px;}
+  .cm-snake-wrap.cm-theme-star:before{content:'🌙';top:14px;left:20px;}
+  .cm-snake-wrap.cm-theme-star:after{content:'✨';bottom:14px;right:24px;}
+  .cm-snake-wrap.cm-theme-star .cm-snake:before{content:'⭐';top:14px;right:84px;}
+  .cm-snake-wrap.cm-theme-star .cm-snake:after{content:'🌠';bottom:12px;left:48px;}
+
+  /* 大关卡节点圆(≥80px) */
+  .cm-zone{position:absolute;top:0;left:0;display:flex;flex-direction:column;align-items:center;
+    transform:translate(-50%,-50%);z-index:2;}
+  /* 站点底座: 节点下方的落地阴影, 营造「地图上的地标站点」感 */
+  .cm-zone::after{content:'';position:absolute;top:52px;left:50%;transform:translateX(-50%);
+    width:96px;height:16px;border-radius:50%;background:rgba(0,0,0,.16);filter:blur(3px);z-index:-1;}
+  .cm-big{width:104px;height:104px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:2px;cursor:pointer;color:#fff;border:5px solid rgba(255,255,255,.95);position:relative;
+    box-shadow:0 10px 20px rgba(0,0,0,.22), inset 0 -8px 14px rgba(0,0,0,.18), inset 0 6px 12px rgba(255,255,255,.28);
+    transition:transform .18s, box-shadow .18s;padding:0;}
+  .cm-big:hover{transform:translateY(-3px) scale(1.05);box-shadow:0 16px 28px rgba(0,0,0,.28), inset 0 -8px 14px rgba(0,0,0,.18), inset 0 6px 12px rgba(255,255,255,.28);}
+  .cm-big:active{transform:scale(.96);}
+  .cm-big:disabled{cursor:not-allowed;transform:none;}
+  .cm-big.open{background:linear-gradient(135deg,#ffa878,#ff6b4a);}
+  .cm-big.done{background:linear-gradient(135deg,#ffdd7a,#f6a93d);}
+  .cm-big.locked{background:linear-gradient(135deg,#d8d0c4,#b5ac9c);filter:grayscale(.4);opacity:.92;}
+  /* 当前关卡: 放大 + 双环发光 + 原地轻微悬浮, 突出「这里就是小探险家所在」 */
+  .cm-big.current{background:linear-gradient(135deg,#ffc65c,#ff8a4a);transform:scale(1.16);
+    border-color:#fff;animation:cmCurrentFloat 2.2s ease-in-out infinite,cmCurrentGlow 1.6s ease-in-out infinite;}
+  .cm-big.current::before{content:'';position:absolute;inset:-9px;border-radius:50%;
+    border:3px solid rgba(255,255,255,.75);animation:cmCurrentRing 1.8s ease-out infinite;}
+  .cm-big.current:hover{transform:scale(1.18) translateY(-3px);}
+  .cm-node-num{position:absolute;top:-6px;right:-5px;width:27px;height:27px;border-radius:50%;
+    background:#fff;color:var(--edu-primary);font-weight:900;font-size:.82rem;
+    display:flex;align-items:center;justify-content:center;border:2px solid rgba(0,0,0,.08);
+    box-shadow:0 2px 6px rgba(0,0,0,.12);}
+  .cm-node-short{font-size:1rem;font-weight:900;line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.22));}
+  .cm-node-badge{position:absolute;bottom:-9px;left:50%;transform:translateX(-50%);width:34px;height:34px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;font-size:1.1rem;background:#fff;
+    border:2px solid rgba(0,0,0,.08);box-shadow:0 3px 8px rgba(0,0,0,.16);}
+  .cm-node-badge.ok{color:var(--edu-green);font-weight:900;}
+  .cm-node-badge.lock{font-size:.95rem;}
+  .cm-node-badge.cur{color:#ff9d2e;animation:cmBadgeGlow 1.6s ease-in-out infinite;}
+  .cm-node-label{font-size:.82rem;font-weight:900;color:#fff;background:rgba(66,58,48,.42);
+    padding:3px 12px;border-radius:999px;margin-top:10px;white-space:nowrap;backdrop-filter:blur(3px);}
+
+  /* 角色指示器(小探险家): 更大、带落地阴影与光晕, 一眼可辨当前位置 */
+  .cm-mascot{position:absolute;z-index:3;font-size:3rem;animation:cmHop 1s ease-in-out infinite;
+    filter:drop-shadow(0 6px 8px rgba(0,0,0,.28));pointer-events:none;
+    text-shadow:0 0 12px rgba(255,255,255,.6);}
+  .cm-mascot::after{content:'';position:absolute;left:50%;bottom:-8px;transform:translateX(-50%);
+    width:44px;height:12px;border-radius:50%;background:rgba(0,0,0,.18);filter:blur(3px);z-index:-1;}
+  @keyframes cmHop{0%,100%{transform:translateY(0);}50%{transform:translateY(-9px);}}
+
+  /* 5 个小关切换槽(置于节点下) */
+  .cm-zone .cm-stages{display:flex;gap:4px;margin-top:8px;padding:3px 8px;border-radius:14px;
+    background:rgba(255,255,255,.55);backdrop-filter:blur(3px);}
+  .cm-stg{width:26px;height:26px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;
+    border:2px solid var(--edu-border-2);border-radius:8px;background:var(--edu-surface);cursor:pointer;
+    color:var(--edu-ink);transition:.15s;padding:0;}
+  .cm-stg .cm-stg-n{font-size:.72rem;font-weight:900;line-height:1;}
+  .cm-stg .cm-stg-star{font-size:.4rem;line-height:1;color:var(--edu-gold);}
+  .cm-stg.todo:hover{transform:translateY(-1px);box-shadow:0 3px 8px rgba(255,107,74,.18);}
+  .cm-stg.done{border-color:var(--edu-green);background:#f3fff8;}
+  .cm-stg.done .cm-stg-n{color:var(--edu-green);}
+  html[data-theme="dark"] .cm-stg.done{background:#173528;}
+  .cm-stg.current{border-color:var(--edu-primary);background:#fff3ec;animation:cmBreathe 1.6s ease-in-out infinite;}
+  .cm-stg.current .cm-stg-n{color:var(--edu-primary);}
+  html[data-theme="dark"] .cm-stg.current{background:#3a2a1d;}
+  .cm-stg.locked{border-color:var(--edu-border-2);background:var(--edu-soft);color:var(--edu-muted);
+    cursor:not-allowed;filter:grayscale(.6);opacity:.75;}
+  .cm-stg.locked:hover{transform:none;box-shadow:none;}
+  @keyframes cmBreathe{0%,100%{box-shadow:0 0 0 0 rgba(255,107,74,.35);}50%{box-shadow:0 0 0 9px rgba(255,107,74,0);}}
+  @keyframes cmBadgeGlow{0%,100%{box-shadow:0 0 0 0 rgba(255,157,46,.55);transform:translateX(-50%) scale(1);}50%{box-shadow:0 0 0 8px rgba(255,157,46,0);transform:translateX(-50%) scale(1.12);}}
+  @keyframes cmCurrentFloat{0%,100%{transform:scale(1.16) translateY(0);}50%{transform:scale(1.16) translateY(-6px);}}
+  @keyframes cmCurrentGlow{0%,100%{box-shadow:0 0 0 0 rgba(255,180,80,.7),10px 14px 26px rgba(0,0,0,.25),inset 0 -8px 14px rgba(0,0,0,.18),inset 0 6px 12px rgba(255,255,255,.28);}50%{box-shadow:0 0 0 12px rgba(255,180,80,0),10px 14px 26px rgba(0,0,0,.25),inset 0 -8px 14px rgba(0,0,0,.18),inset 0 6px 12px rgba(255,255,255,.28);}}
+  @keyframes cmCurrentRing{0%{transform:scale(.9);opacity:.8;}100%{transform:scale(1.5);opacity:0;}}
+
+  /* 蛇形地图底栏 */
+  .cm-snake-foot{display:flex;align-items:center;justify-content:flex-end;gap:10px;
+    padding:10px 14px 6px;}
+
+  /* 闯关模式聚焦高亮 */
+  .cm-course.focus .cm-snake-wrap{outline:3px solid var(--edu-primary);outline-offset:2px;
+    box-shadow:0 6px 22px rgba(255,107,74,.28);}
 
   /* 星星里程碑 */
   .cm-milestones{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
@@ -1302,8 +1468,9 @@
     .cm-badges{grid-template-columns:repeat(auto-fill,minmax(78px,1fr));}
   }
   @media (min-width:768px){
-    .cm-maps{flex-direction:row;flex-wrap:wrap;}
-    .cm-course{flex:1 1 280px;}
+    .cm-maps{flex-direction:column;}
+    .cm-course{width:100%;}
+    .cm-snake-inner{margin:0 auto;}
   }
 
   /* 首页 闯关地图 teaser 卡片 */

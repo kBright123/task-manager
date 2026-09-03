@@ -82,13 +82,19 @@
 
   // Hydrate from backend
   if (window.eduSync) {
-    window.eduSync.hydrate().then(function () {
+    window.eduSync.hydrate().then(function (hres) {
       if (window.eduKids && window.eduKids.hasAny()) {
         var mask = document.getElementById('eduMask');
         if (mask && mask.style.display === 'flex') {
           mask.style.display = 'none';
           window.Edu.Bootstrap.bootNow();
         }
+      }
+      // 档案在另一台设备被改名的, hydration 已回填本地, 重绘姓名区让改动立即可见
+      if (hres && hres.reconciled) {
+        try {
+          if (Nav && Nav.eduNav) Nav.eduNav(Nav.getCurrentPage());
+        } catch (err) { /* 后台重绘失败不影响主流程 */ }
       }
     });
   }

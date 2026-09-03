@@ -153,7 +153,7 @@
 
   window.Edu.Practice.replaySpeak = function () {
     var it = window.Edu.Practice && window.Edu.Practice.PRACTICE && window.Edu.Practice.PRACTICE.cur;
-    if (it && it.listen && window.Speech && Speech.playSpeak) Speech.playSpeak(it.listen);
+    if (it && it.listen && window.Speech && Speech.playSpeak) Speech.playSpeak(it.listen, 1);
   };
 
   window.Edu.Practice.practiceInput = function (v) {

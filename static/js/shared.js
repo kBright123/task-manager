@@ -171,7 +171,7 @@ window.eduSync = (function () {
   // 启动时从后端恢复：孩子档案若无本地则用后端；本地孩子回填 dbId。
   function hydrate() {
     return api('POST', '/bootstrap').then(function (res) {
-      if (!res || !res.ok) return;
+      if (!res || !res.ok) return { ok: false };
       var serverKids = res.kids || [];
       var local = window.eduKids.all();
       if (!local.length && serverKids.length) {
@@ -191,6 +191,25 @@ window.eduSync = (function () {
           if (m) window.eduKids.setDbId(m.id, sk.id);
         });
       }
+      // 跨设备档案以服务端为权威: 把服务端的孩子姓名/生日/性别(可能已在别的设备改名)
+      // 覆盖回本地缓存, 保证同一账号在手机/PC显示一致(直接写本地, 不触发回推)
+      var reconciled = false;
+      serverKids.forEach(function (sk) {
+        var lm = window.eduKids.all().filter(function (k) {
+          return Number(dbIdOf(k)) === Number(sk.id);
+        })[0];
+        if (lm && (lm.name !== sk.name || Number(lm.birthYear) !== Number(sk.birthYear) || lm.gender !== sk.gender)) {
+          var d = window.eduKids.load();
+          d.list = d.list.map(function (k) {
+            if (Number(dbIdOf(k)) === Number(sk.id)) {
+              k.name = sk.name; k.birthYear = Number(sk.birthYear); k.gender = sk.gender;
+            }
+            return k;
+          });
+          window.eduKids.save(d);
+          reconciled = true;
+        }
+      });
       // 回填每个孩子的学习数据(仅当本地为空时,以后端为准)
       local.forEach(function (k) {
         if (!dbIdOf(k)) return;
@@ -200,6 +219,7 @@ window.eduSync = (function () {
           });
         });
       });
+      return { ok: true, reconciled: reconciled };
     });
   }
   return {

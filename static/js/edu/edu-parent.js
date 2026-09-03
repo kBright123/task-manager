@@ -43,10 +43,9 @@
 
   window.requireParent = function (cb) {
     if (window.Edu.Core && window.Edu.Core.requireParent) return window.Edu.Core.requireParent(cb);
-    var p = parentPwd();
-    var input = prompt('请输入4位家长口令（默认 0000）');
-    if (input === p) { cb(); return; }
-    toast('口令错误');
+    // 已去除家长口令限制: 直接放行
+    if (cb) cb();
+    return true;
   };
 
   window.pwdConfirm = function () {

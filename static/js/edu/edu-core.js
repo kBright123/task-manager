@@ -123,14 +123,9 @@
   // ---- 家长口令 ----
   function parentPwd() { var v = load(PWD_KEY); return (v && /^\d{4}$/.test(v)) ? v : '0000'; }
   function requireParent(cb) {
-    if (parentUnlocked) { cb(); return; }
-    pwdPending = cb;
-    var inp = document.getElementById('pwdInput');
-    if (inp) inp.value = '';
-    var m = document.getElementById('eduMaskPwd');
-    if (m) m.style.display = 'flex';
-    if (inp) setTimeout(function () { inp.focus(); }, 60);
-    return false;
+    // 已去除家长口令限制: 不再弹口令验证, 直接放行
+    if (cb) cb();
+    return true;
   }
   function pwdConfirm() {
     var inp = document.getElementById('pwdInput');
@@ -277,6 +272,8 @@
   window.playSpeak = function (text) {
     if (!text) return;
     if (!speakOn()) { try { save(SPEAK_ON_KEY, true); } catch (e) {} setSpeakIcon(); }
+    // 统一走 Edu.Speech 的高质量低延时实现(本地合成优先), 避免多条发音路径语义不一致
+    if (window.Edu.Speech && window.Edu.Speech.playSpeak) { window.Edu.Speech.playSpeak(text); return; }
     speak(text);
   };
   window.speak = function (t) { speak(t); };

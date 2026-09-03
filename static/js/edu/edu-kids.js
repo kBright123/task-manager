@@ -38,15 +38,15 @@
       var ysel = document.getElementById('kidYearInput');
       if (ysel) ysel.value = kid.birthYear;
       kidGenderVal = kid.gender;
-      document.getElementById('g-male').classList.toggle('active', kid.gender === 'male');
-      document.getElementById('g-female').classList.toggle('active', kid.gender === 'female');
+      document.getElementById('g-male').classList.toggle('pick', kid.gender === 'male');
+      document.getElementById('g-female').classList.toggle('pick', kid.gender === 'female');
       if (delBtn) delBtn.style.display = '';
     } else {
       kidEditId = null;
       if (nameIn) nameIn.value = '';
       kidGenderVal = 'male';
-      document.getElementById('g-male').classList.add('active');
-      document.getElementById('g-female').classList.remove('active');
+      document.getElementById('g-male').classList.add('pick');
+      document.getElementById('g-female').classList.remove('pick');
       if (delBtn) delBtn.style.display = 'none';
     }
     mask.style.display = 'flex';
@@ -54,8 +54,8 @@
 
   window.kidGender = function (g) {
     kidGenderVal = g;
-    document.getElementById('g-male').classList.toggle('active', g === 'male');
-    document.getElementById('g-female').classList.toggle('active', g === 'female');
+    document.getElementById('g-male').classList.toggle('pick', g === 'male');
+    document.getElementById('g-female').classList.toggle('pick', g === 'female');
   };
 
   window.kidAdd = function () { openKidMask('👶 添加孩子资料', '填写后即可按年龄段自动进入对应的学习内容'); };
@@ -75,6 +75,21 @@
       .then(function(res){
         if (b) { b.disabled = false; b.textContent = _t; }
         if (res.ok) {
+          // 把服务端回填的孩子注册到本地(新增场景本地尚无此孩子),
+          // 与 shared.js hydrate 的导入约定一致(id='db'+serverId), 避免新加孩子不显示。
+          (res.kids || []).forEach(function (sk) {
+            var exists = window.eduKids.all().filter(function (k) {
+              return (k.dbId && Number(k.dbId) === Number(sk.id))
+                || (k.id === sk.clientId)
+                || (k.name === sk.name && Number(k.birthYear) === Number(sk.birthYear) && k.gender === sk.gender);
+            })[0];
+            if (!exists) {
+              window.eduKids.addLocal({
+                id: 'db' + sk.id, dbId: sk.id, name: sk.name,
+                birthYear: sk.birthYear, gender: sk.gender, created: Date.now()
+              });
+            }
+          });
           document.getElementById('eduMask').style.display = 'none';
           window.Edu.Nav.enter();
         } else { Speech.toast(res.error || '保存失败'); }

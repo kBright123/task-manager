@@ -45,130 +45,41 @@
     try { localStorage.removeItem(quizStateKey()); } catch (e) {}
   }
 
-  // 上次未完成的练习快照(待用户确认是否续学)
-  var resumeSnap = null;
-  // 本次会话内已被用户「取消」的续学(subj+type), 取消后再进入该练习直接生成新题, 不再反复弹窗
-  var dismissedResume = {};
-
-  // 校验并缓存一个「可续学」的快照; 返回是否命中(不自动恢复)
-  function hasResume(subj, type) {
-    resumeSnap = null;
-    if (dismissedResume[subj + ':' + type]) return false;
-    var raw = null;
-    try { raw = localStorage.getItem(quizStateKey()); } catch (e) { return false; }
-    if (!raw || raw === 'null') return false;
-    var snap = null;
-    try { snap = JSON.parse(raw); } catch (e) { return false; }
-    if (!snap || (snap._t && (Date.now() - snap._t > 12 * 3600 * 1000))) { clearQuizState(); return false; }
-    if (snap.submitted || !snap.items || !snap.items.length) return false;
-    if (snap.subj !== subj) return false;
-    // 只恢复「同科目且同题型」的未完成练习；切换题型时生成新题，避免恢复错题型导致「类型对不上」
-    if (snap.type !== type) return false;
-    // 校验题目结构，避免恢复损坏/旧结构的题目导致页面空白「无法显示题目」
-    for (var vi = 0; vi < snap.items.length; vi++) {
-      var vit = snap.items[vi];
-      if (!vit || typeof vit.prompt !== 'string' || !vit.prompt ||
-          (vit.input === undefined && vit.order === undefined && !(vit.options && vit.options.length))) {
-        clearQuizState(); return false;
-      }
-    }
-    if (snap.view !== undefined && (snap.view < 0 || snap.view >= snap.items.length)) { clearQuizState(); return false; }
-    resumeSnap = snap;
-    return true;
-  }
-
-  // 真正执行恢复(用户在「继续上次」确认后调用)
-  function restoreNow() {
-    var snap = resumeSnap;
-    resumeSnap = null;
-    if (!snap) return false;
-    quiz = { subj: snap.subj, type: snap.type, items: snap.items, answers: snap.answers || {}, submitted: false, _t: snap._t || Date.now(), startedAt: Date.now() };
-    quiz.view = Math.min(snap.view || 0, snap.items.length - 1);
-    quizSubject = snap.subj;
-    quizOrder = snap.order || {};
-    wrongTries = {};
-    judged = {};
-    window.Edu.QuizEngine.quiz = quiz;
-    if (snap.type === 'daily' || snap.subj === 'daily') quizContainerId = 'wb-daily';
-    else if (snap.subj === 'par') quizContainerId = 'parPlay';
-    else if (snap.subj === 'math') quizContainerId = 'wb-math-body';
-    else if (snap.subj === 'en') quizContainerId = 'wb-en-body';
-    else quizContainerId = 'wb-zh-body';
-    try {
-      renderQuiz();
-      reapplyAnswers();
-    } catch (e2) { clearQuizState(); return false; }
-    if (window.Edu && window.Edu.Speech && window.Edu.Speech.toast) {
-      window.Edu.Speech.toast('已为你恢复上次的练习 🌱');
-    }
-    return true;
-  }
-
-  function showResumePrompt() {
-    var mask = document.getElementById('eduMaskResume');
-    if (!mask) { restoreNow(); return; }   // 兜底: 无覆盖层则直接续学
-    mask.style.display = 'flex';
-  }
-  function resumeYes() {
-    var mask = document.getElementById('eduMaskResume');
-    if (mask) { mask.style.display = 'none'; }
-    restoreNow();
-    if (window.renderNav) window.renderNav();
-  }
-  function resumeNo() {
-    var mask = document.getElementById('eduMaskResume');
-    if (mask) { mask.style.display = 'none'; }
-    // 取消续学: 不恢复旧进度, 而是直接起一套新题(生成新题); 本次会话内不再对该练习反复弹窗
-    var p = pendingResumeStart;
-    pendingResumeStart = null;
-    if (p) {
-      dismissedResume[p.subj + ':' + p.type] = true;
-      resumeSnap = null;
-      startFresh(p.subj, p.type, p.items, p.levelInfo);
-      return;
-    }
-    if (resumeSnap) dismissedResume[resumeSnap.subj + ':' + resumeSnap.type] = true;
-    resumeSnap = null;   // 无待起内容时仅关闭弹窗, 停留在进入前页面
-  }
-  function reapplyAnswers() {
-    if (!quiz) return;
-    var a = quiz.answers || {};
-    quiz.items.forEach(function(it, i){
-      if (String(a[i] || '') === '') return;
-      var item = document.getElementById('qi-' + i);
-      if (!item) return;
-      if (it.input) {
-        var inp = item.querySelector('input.qi-in');
-        if (inp) inp.value = a[i];
-        return;
-      }
-      if (it.options && a[i] !== undefined) {
-        item.querySelectorAll('.qi-opt .qo-pick').forEach(function(b){ b.classList.toggle('pick', b.getAttribute('data-v') === a[i]); });
-      }
-    });
-    updateQuizProg();
-    if (window.Edu.Header) window.Edu.Header.refreshQuizHeader();
-  }
-
   function answeredCount() {
     if (!quiz || !quiz.items) return 0;
     return quiz.items.filter(function(it, i){ return quiz.answers && quiz.answers[i] !== undefined && quiz.answers[i] !== ''; }).length;
   }
 
+  // 每题星星状态: done=答对(金), wrong=答错(黑), empty=未答(空心)
+  function starState(i) {
+    var it = quiz.items[i];
+    if (it.order) {
+      var o = (quiz.quizOrder && quiz.quizOrder[i]) || [];
+      if (!o.length) return 'empty';
+      return String(o.join('|')) === String(it.correct) ? 'done' : 'wrong';
+    }
+    var my = quiz.answers && quiz.answers[i];
+    if (my === undefined || String(my).trim() === '') return 'empty';
+    return M.isCorrect(it, my) ? 'done' : 'wrong';
+  }
+
+  function starRowHtml() {
+    var s = '';
+    for (var i = 0; i < quiz.items.length; i++) {
+      var st = starState(i);
+      s += '<span class="qstar ' + st + '">' + (st === 'empty' ? '☆' : '⭐') + '</span>';
+    }
+    return s;
+  }
+
   function updateQuizProg() {
-    var dots = document.getElementById('qzDots');
-    var txt = document.getElementById('qzProgTxt');
-    var bar = document.getElementById('qzProgBar');
     if (!quiz) return;
     var total = quiz.items.length;
-    var cur = Math.min((quiz.view || 0) + 1, total);
     var right = quizAnsweredRight();
     var pct = total ? Math.round((right / total) * 100) : 0;
-    if (dots) dots.querySelectorAll('.qz-dot').forEach(function(d, i){
-      d.classList.toggle('done', i < quiz.view || (quiz.answers && quiz.answers[i] !== undefined && quiz.answers[i] !== ''));
-      d.classList.toggle('cur', i === quiz.view);
-    });
-    if (txt) txt.textContent = '已答对 ' + right + ' 题 · 共 ' + total + ' 题';
+    var starsEl = document.getElementById('qzProgStars');
+    var bar = document.getElementById('qzProgBar');
+    if (starsEl) starsEl.innerHTML = starRowHtml();
     if (bar) bar.style.width = pct + '%';
   }
 
@@ -180,45 +91,31 @@
   function renderQuizProgTop() {
     if (!quiz) return '';
     var total = quiz.items.length;
-    var cur = Math.min((quiz.view || 0) + 1, total);
     var right = quizAnsweredRight();
     var pct = total ? Math.round((right / total) * 100) : 0;
-    var dots = '';
-    for (var i=0;i<total;i++) {
-      var done = (i < quiz.view || (quiz.answers && quiz.answers[i] !== undefined && quiz.answers[i] !== ''));
-      dots += '<span class="qz-dot '+(done?'done':'')+' '+(i===quiz.view?'cur':'')+'" aria-label="第'+(i+1)+'题'+(done?'已答':'未答')+'"></span>';
-    }
     return '<div class="qz-prog-top">'+
-      '<div class="qz-prog-head"><span class="qz-prog-txt" id="qzProgTxt">已答对 ' + right + ' 题 · 共 ' + total + ' 题</span></div>'+
+      '<div class="qz-stars" id="qzProgStars">'+ starRowHtml() +'</div>'+
       '<div class="qz-track"><div class="qz-fill" id="qzProgBar" style="width:'+pct+'%"></div></div>'+
-      '<div class="qz-dots" id="qzDots">'+dots+'</div>'+
       '</div>';
   }
 
   function renderQuizFooter() {
     if (!quiz) return '';
     var total = quiz.items.length;
-    var right = quizAnsweredRight();
     var allDone = (answeredCount() === total);
-    var it = quiz.items[quiz.view];
-    // 选择题/排序题已改为「点选即判, 自动进下一题」, 无需「确认答案」步骤
-    var remaining = total - answeredCount();
-    var actionRow = '<div class="qz-action-bar">'+
-      '<div class="qz-progress">'+
-        '<div class="qz-stars">⭐ 已得 <b>'+right+'</b> 星</div>'+   // 观察15: 星星并入进度条一体的底部
-        '<span class="qz-remain">还有 <b>'+remaining+'</b> 题</span>'+
-      '</div>'+
-      (allDone
-        ? '<button type="button" class="qz-finish ready" onclick="window.Edu.QuizEngine.submitQuiz()">🎉 完成闯关</button>'
-        : '<button type="button" class="qz-finish" disabled>🎉 还差 '+remaining+' 题可完成</button>')+
+    // 全部答完才出现「完成闯关」按钮; 未答完不渲染占位按钮, 避免空按钮残留
+    var btnHtml = allDone
+      ? '<button type="button" class="qz-finish ready" onclick="window.Edu.QuizEngine.submitQuiz()">🎉 完成闯关</button>'
+      : '';
+    return '<div class="qz-footer">'+
+      '<div class="qz-action-bar"><div class="qz-progress"></div>'+ btnHtml +'</div>'+
       '</div>';
-    return '<div class="qz-footer">'+ actionRow + '</div>';
   }
 
   // 听音选字: 重播按钮播放当前题目读音
   function replaySpeak() {
     var it = quiz && quiz.items && quiz.items[quiz.view];
-    if (it && it.listen) Speech.playSpeak(it.listen);
+    if (it && it.listen) Speech.playSpeak(it.listen, 1);
   }
 
   // 听音题自动播放: 渲染后播读音, 便于「听语音→选字」
@@ -237,6 +134,13 @@
     // 读物题(选项一个大字): 题干用大字展示目标字, 控制行用"看它不是"? 仍是"找出"引导
     var isCharPick = !it.order && !it.input && it.options && /^[\u4e00-\u9fa5]$/.test(String(it.prompt||''));
     var headPrompt = isCharPick ? '找一找：哪个是下面这个字？' : it.prompt;
+    // 口算题: 题干即算式, 算式并入答案行与输入框同行展示, 题干区不再重复显示算式
+    if (it.input) {
+      var _pv = M.stripBlank(String(it.prompt));
+      var _nv = String(it.note || it.prompt).replace(/\s*=\s*\?+\s*$/, '');
+      var _nm = function(s){ return s.split(/\s+/).join('').replace(/−/g,'-').replace(/×/g,'*').replace(/÷/g,'/'); };
+      if (_nm(_pv) === _nm(_nv)) headPrompt = '';
+    }
     var h = '<div class="quiz-item" id="qi-'+i+'">';
     h += '<div class="qi-head"><span class="qi-no">'+(i+1)+'</span><span class="qi-prompt">'+M.stripBlank(headPrompt)+'</span>'+spk+'</div>';
     if (isListen) {
@@ -258,10 +162,12 @@
       var pV = M.stripBlank(String(it.prompt));
       var norm = function(s){ return s.split(/\s+/).join('').replace(/−/g,'-').replace(/×/g,'*').replace(/÷/g,'/'); };
       if (norm(exprV) !== norm(pV)) {
+        // 应用题: 题干文字保留, 数字式算式单独展示
         h += '<div class="qi-expr">'+M.stripBlank(exprV)+'</div>';
       }
-      h += '<div class="qi-ans">'+(/\s*=\s*\?+\s*$/.test(String(it.prompt)) ? '<span class="qi-eq">＝</span>' : '')+'';
-      h += '<input id="qi-in-'+i+'" class="qi-in" data-idx="'+i+'" type="number" inputmode="numeric" autocomplete="off" placeholder="?" aria-label="答案" oninput="window.Edu.QuizEngine.onQuizInput('+i+',this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();window.Edu.QuizEngine.quizInputSubmit('+i+',this.value)}">';
+      h += '<div class="qi-ans">'+
+        (norm(exprV) === norm(pV) ? '<span class="qi-eq-text">'+M.stripBlank(exprV)+'</span><span class="qi-eq">＝</span>' : (/\s*=\s*\?+\s*$/.test(String(it.prompt)) ? '<span class="qi-eq">＝</span>' : ''))+
+      '<input id="qi-in-'+i+'" class="qi-in" data-idx="'+i+'" type="number" inputmode="numeric" autocomplete="off" placeholder="?" aria-label="答案" oninput="window.Edu.QuizEngine.onQuizInput('+i+',this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();window.Edu.QuizEngine.quizInputSubmit('+i+',this.value)}">';
       h += '<button type="button" class="qi-submit" onclick="window.Edu.QuizEngine.quizInputSubmit('+i+',document.getElementById(\'qi-in-'+i+'\').value)">确认</button>';
       h += '</div></div>';
     } else {
@@ -322,11 +228,7 @@
     replaySpeak: replaySpeak,
     restartExpr: restartExpr,
     get advTimer() { return advTimer; },
-    set advTimer(v) { advTimer = v; },
-    hasResume: hasResume,
-    restoreNow: restoreNow,
-    resumeYes: resumeYes,
-    resumeNo: resumeNo
+    set advTimer(v) { advTimer = v; }
   };
 
   Object.defineProperty(window.Edu.QuizEngine, 'quiz', {
@@ -368,9 +270,6 @@
     get: function () { return quizSeq; },
     set: function (v) { quizSeq = v; }
   });
-
-  window.resumeYes = resumeYes;
-  window.resumeNo = resumeNo;
 
   window.Edu.QuizEngine.onQuizInput = function (idx, val) {
     if (!quiz) return;
@@ -600,17 +499,16 @@
   window.Edu.QuizEngine.submitQuiz = function () {
     if (!quiz || quiz.submitted) return;
     quiz.submitted = true;
-    var right = 0, maxCombo = 0, combo = 0, comboRun = 0, comboBonus = 0;
+    var right = 0, maxCombo = 0, combo = 0;
     quiz.items.forEach(function(it, i){
       var ok = M.isCorrect(it, quiz.answers && quiz.answers[i]);
       if (ok) {
-        right++; combo++; maxCombo = Math.max(maxCombo, combo); comboRun++;
-        if (comboRun >= 2) comboBonus += 2; // 连续答对(≥2连)的每一题再加 2 星
+        right++; combo++; maxCombo = Math.max(maxCombo, combo);
       }
-      else { combo = 0; comboRun = 0; }
+      else { combo = 0; }
       recordAnswer(quizSubject, it.type || quizSubject, it.id, it.prompt, it.correct, quiz.answers && quiz.answers[i], ok);
     });
-    var starsEarned = M.gradeQuiz(right, comboBonus);
+    var starsEarned = M.gradeQuiz(right);
     Store.state.stars = (Store.state.stars || 0) + starsEarned;
     Store.state.submits = (Store.state.submits || 0) + 1;
     // 今日答题数/题量上限统计(自动回写 usage[date])
@@ -654,17 +552,18 @@
         if (courseRes.passedNow) {
           courseLine = '<div class="qd-course pass">' +
             '<span class="qc-stars">'+String('⭐'.repeat(courseRes.stars) || '')+'</span>' +
-            '<span>恭喜通关「'+esc(courseRes.levelName)+'」</span>' +
+            '<span>恭喜通关「'+esc(courseRes.stageName || courseRes.levelName)+'」</span>' +
             (courseRes.unlockedNext ? '<span class="qc-next">▶ 下一关：'+esc(courseRes.unlockedNext)+' 已解锁</span>' : '') +
+            (courseRes.bigDone ? '<span class="qc-next">🏁 第'+(courseRes.levelIdx+1)+'大关全部通关</span>' : '') +
             (courseRes.milestones && courseRes.milestones.length ? '<span class="qc-mil">🎖️ '+esc(courseRes.milestones[0].txt)+' 里程碑达成（+'+courseRes.milestones[0].bonus+' 星星）</span>' : '') +
             '</div>';
         } else if (courseRes.tryAgain) {
           courseLine = '<div class="qd-course retry">' +
-            '<span>还差一点点～正确率达到 80% 或拿到 3 星即可通关，再试一次吧！</span>' +
+            '<span>还差一点点～达到该小关正确率即可通关，再试一次吧！</span>' +
             '</div>';
         } else if (courseRes.dailyDone || courseRes.freePractice) {
           courseLine = '<div class="qd-course plain">' +
-            '<span>继续加油，完成闯关关卡可解锁课程地图下一关 🗺️</span>' +
+            '<span>继续加油，完成闯关关卡可解锁课程地图下一小关 🗺️</span>' +
             '</div>';
         }
       }
@@ -683,10 +582,9 @@
         unlockTxt+
         courseLine+
         '<div class="qz-action-row qd-actions">'+
-          (courseRes && courseRes.passedNow && courseRes.levelIdx >= 0
-            ? '<button type="button" class="btn-next" onclick="window.Edu.Course&&window.Edu.Course.launchLevel&&window.Edu.Course.launchLevel(\''+quizSubject+'\','+(courseRes.levelIdx+1)+')">▶ 下一关</button>'
+          (courseRes && courseRes.passedNow && courseRes.next
+            ? '<button type="button" class="btn-next" onclick="window.Edu.Course&&window.Edu.Course.launchLevel&&window.Edu.Course.launchLevel(\''+quizSubject+'\','+courseRes.next.big+','+courseRes.next.stage+')">▶ 下一关</button>'
             : '')+
-          '<button type="button" class="btn-home" onclick="window.Edu.Workbench&&window.Edu.Workbench.quickHome&&window.Edu.Workbench.quickHome()">🏠 返回首页</button>'+
           '<button type="button" class="btn-again" onclick="'+restartExpr()+'">🔁 再练一次</button>'+
         '</div></div>';
     }
@@ -763,9 +661,6 @@
     }
   };
 
-  // 待用户确认续学后, 取消时要能重新起一套新题(不反复弹窗)
-  var pendingResumeStart = null;
-
   function startFresh(subj, type, items, levelInfo) {
     quizSubject = subj;
     quiz = { items: items, type: type, difficulty: levelInfo && levelInfo.difficulty, answers: {}, view: 0, submitted: false, _t: Date.now(), startedAt: Date.now() };
@@ -785,14 +680,11 @@
   }
 
   window.Edu.QuizEngine.startQuiz = function (subj, type, items, levelInfo) {
-    // 正在做同一套练习时再次进入(如再次点击该科目标签): 直接重新生成新题, 不弹续学遮罩
+    // 正在做同一套练习时再次进入(如再次点击该科目标签): 直接重新生成新题
     var isLive = !!(quiz && !quiz.submitted && quizSubject === subj && quiz.type === type);
-    if (!isLive) {
-      // 存在上次未完成练习时：给出「继续上次 / 取消」交互提示, 不自动恢复也不自动开始
-      if (hasResume(subj, type)) { pendingResumeStart = { subj: subj, type: type, items: items, levelInfo: levelInfo }; showResumePrompt(); return; }
-    }
-    delete dismissedResume[subj + ':' + type];
-    pendingResumeStart = null;
+    if (isLive) { startFresh(subj, type, items, levelInfo); return; }
+    // 清掉可能残留的上次未完练习快照, 始终起一套新题(不再弹「续学」提示)
+    clearQuizState();
     startFresh(subj, type, items, levelInfo);
   };
 

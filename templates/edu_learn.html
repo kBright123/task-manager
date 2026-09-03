@@ -105,7 +105,7 @@
 
   <!-- ================= 星愿（家长模式） ================= -->
   <section id="eduWishPage" style="display:none;">
-    <button type="button" class="wish-back" onclick="eduNav('home')" style="margin-bottom:10px;"><i class="bi bi-arrow-left"></i> 返回首页</button>
+    
     <div class="edu-hero">
       <h1>🌟 星愿</h1>
       <p style="font-size:.95rem;color:var(--edu-muted);">用小星星兑换心愿，激励孩子坚持学习</p>
@@ -115,7 +115,7 @@
 
   <!-- ================= 荣誉墙 ================= -->
   <section id="eduBadgesPage" style="display:none;">
-    <button type="button" class="wish-back" onclick="eduNav('home')" style="margin-bottom:10px;"><i class="bi bi-arrow-left"></i> 返回首页</button>
+    
     <div class="edu-hero">
       <h1>🏅 荣誉墙</h1>
       <p style="font-size:.95rem;color:var(--edu-muted);">看看宝贝攒下了哪些成就徽章</p>
@@ -125,7 +125,7 @@
 
   <!-- ================= 家长数据看板 ================= -->
   <section id="eduStatsPage" style="display:none;">
-    <button type="button" class="wish-back" onclick="eduNav('home')" style="margin-bottom:10px;"><i class="bi bi-arrow-left"></i> 返回首页</button>
+    
     <div class="edu-hero">
       <h1>📊 家长数据看板</h1>
       <p style="font-size:.95rem;color:var(--edu-muted);">学习统计一览，帮助了解孩子进度</p>
@@ -143,6 +143,15 @@
 
   <!-- 底部导航（按学习模式动态渲染，PC/iPad/手机全端显示） -->
   <nav class="edu-bottom-nav" id="eduBottomNav"></nav>
+
+  <!-- ============ 首页「闯关模式」专用：独立全屏闯关地图 ============ -->
+  <div class="edu-map-full" id="eduMapFull" style="display:none;">
+    <div class="emf-bar">
+      <div class="emf-journey" id="emfJourney"></div>
+      <button type="button" class="emf-back" onclick="window.Edu.Course.closeMapFull()">← 返回</button>
+    </div>
+    <div class="emf-body" id="eduMapFullBody"></div>
+  </div>
 
   <!-- 进入时过渡加载动画 -->
   <div class="edu-loader" id="eduLoader" aria-hidden="true"><div class="el-ball"></div></div>
@@ -336,17 +345,7 @@
     </div>
   </div>
 
-  <!-- 续学确认 覆盖层（有上次未完成练习时给出提示, 可继续或取消） -->
-  <div class="edu-mask" id="eduMaskResume" style="display:none;">
-    <div class="edu-modal">
-      <h3>🌱 上次的练习还没做完</h3>
-      <p class="em-sub">我们帮你保存了进度，要接着上次继续做吗？</p>
-      <div class="edu-actions">
-        <button type="button" class="btn-ghost" style="flex:1;" onclick="resumeNo()">取消</button>
-        <button type="button" class="btn-soft" style="flex:1;" onclick="resumeYes()">继续上次</button>
-      </div>
-    </div>
-  </div>
+  <!-- 续学确认 覆盖层（已移除：不再弹续学提示） -->
 
   <!-- 编辑宝贝 覆盖层（✎） -->
   <div class="edu-mask" id="eduMaskKidEdit" style="display:none;">

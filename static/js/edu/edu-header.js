@@ -26,8 +26,22 @@
     subj = subj || 'zh'; type = type || 'zi';
     var isSu = (active === 'su' || active === 'practice');
     var isQuiz = (active === 'guan' || active === 'quiz');
-    var lv = window.eduEngine ? window.eduEngine.diffOf(subj) : 3;
-    var lvTxt = (lv === '' || lv == null) ? '第 1 关' : ('第 ' + Number(lv) + ' 关');
+    // 关卡标签: 闯关时使用课程进度(第几大关第几小关), 而非难度档, 避免误显示难度
+    var lvTxt;
+    if (isQuiz) {
+      var Course = window.Edu && window.Edu.Course;
+      var pos = (Course && Course.curPos) ? Course.curPos(subj) : null;
+      if (pos) {
+        lvTxt = '第 ' + (Number(pos.big) + 1) + ' 大关';
+        if (pos.stage > 0) lvTxt += ' · 第 ' + (Number(pos.stage) + 1) + ' 小关';
+      } else {
+        var _lv = window.eduEngine ? window.eduEngine.diffOf(subj) : 3;
+        lvTxt = (_lv === '' || _lv == null) ? '第 1 关' : ('第 ' + Number(_lv) + ' 关');
+      }
+    } else {
+      var lv = window.eduEngine ? window.eduEngine.diffOf(subj) : 3;
+      lvTxt = (lv === '' || lv == null) ? '第 1 关' : ('第 ' + Number(lv) + ' 关');
+    }
     var state = Store.state;
     var passed = (state.adv && state.adv[subj] && state.adv[subj][type] && state.adv[subj][type].passed);
     var itemName = ({zh:{poem:'古诗',zi:'识字',stroke:'笔顺',pinyin:'拼音',yun:'拼音',read:'拼音',tone:'拼音',fan:'词语',liang:'词语',daily:'每日挑战'},
@@ -43,7 +57,6 @@
     var html = '<div class="qc-ctl">' +
       '<div class="qc-side">' + modeChip + (passed ? '<span class="lv-passed">✅ 已通过</span>' : '') + '</div>' +
       '<button type="button" class="qc-exit" onclick="quitAsk()"><i class="bi bi-x-lg"></i>' + (isSu ? '退出' : '返回') + '</button>' +
-      '<button type="button" class="qc-sound" id="soundToggle" onclick="toggleSpeak()" aria-label="声音">🔊</button>' +
       '</div>';
     return html;
   }

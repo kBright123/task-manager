@@ -338,7 +338,6 @@
     var rate = total ? Math.round(okCount * 100 / total) : 0;
     var stars = Store.state.stars || 0;
     var wrong = (Store.state.wrong || []).length;
-    var dueN = dueWrongList().length;
     var badges = Object.keys(Store.state.badges || {}).filter(function (k) { return Legacy.BADGES[k]; }).length;
     var streak = (function () {
       var daySet = {};
@@ -382,16 +381,6 @@
         '<span class="dk-ava">' + ava + '</span><span>' + esc(k.name || '宝贝') + '</span></button>';
     }).join('') : '';
 
-    var dueList = dueWrongList().slice(0, 8);
-    var dueCard = '<div class="edu-card"><h4>🧠 今日待复习</h4>' +
-      (dueList.length
-        ? dueList.map(function (w) {
-            var shown = String(w.correct).split('|').join(' → ');
-            return '<div class="st-wrong-row"><span class="si-emoji">📕</span><span class="st-w-t">' + esc(w.prompt) + '</span><span class="st-w-m">' + (SUBJ_LABEL[w.subj] || w.subj) + ' · ' + esc(shown) + '</span></div>';
-          }).join('') + '<p class="muted" style="margin:8px 0 0;">到「错题本」即可重练</p>'
-        : '<p class="muted">今天没有待复习的题目 🎉</p>') +
-      '</div>';
-
     var adv = Store.state.adv || {};
     var mapCells = MAP_TYPES.map(function (m) {
       var rec = (adv[m.s] && adv[m.s][m.t]) || {};
@@ -425,7 +414,6 @@
         '<div class="sk"><div class="v">🔥 ' + streak + '</div><div class="l">连续打卡</div></div>' +
         '<div class="sk"><div class="v">' + badges + '</div><div class="l">徽章</div></div>' +
         '<div class="sk"><div class="v">' + todayMins + '</div><div class="l">今日分钟</div></div>' +
-        '<div class="sk"><div class="v">' + dueN + '</div><div class="l">今日待复习</div></div>' +
       '</div>' +
       '<div class="dash-grid">' +
         '<div class="edu-card"><h4>📈 正确率趋势 <span class="dash-hint">最近7天 · 每日答题</span></h4><div class="st-trend">' + trend + '</div></div>' +
@@ -437,10 +425,8 @@
         '<div class="edu-card"><h4>📉 薄弱知识点分布</h4><div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;">' +
           '<div>' + donutSvg(weakSegs) + '</div><div class="dk-legend-col">' + (donutLegend || '<p class="muted">暂无数据</p>') + '</div></div></div>' +
         '<div class="edu-card"><h4>⭐ 星星获取曲线 <span class="dash-hint">最近14天</span></h4><div class="dash-line-wrap">' + lineSvg(starCurve) + '</div></div>' +
-        '<div class="edu-card dash-rec-card"><h4>🧾 最近答题记录 <span class="dash-hint">点「回放」看错题重放</span></h4><div class="dash-recs">' + recordsTable(12) + '</div></div>' +
       '</div>' +
       mapCard +
-      dueCard +
       '</div>';
     anim(body);
   }

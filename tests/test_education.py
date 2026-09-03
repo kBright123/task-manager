@@ -391,8 +391,9 @@ global.document.getElementById=(id)=> id==='eduBadgesBody'?b:me();
 W.eduNav('badges');
 console.log('CM_WRAP='+(iH.indexOf('cm-wrap')>=0?'1':'0'));
 console.log('MAP_COURSE='+(iH.indexOf('cm-course')>=0?'1':'0'));
-console.log('NODE_CUR='+(iH.indexOf('cm-node current')>=0?'1':'0'));
-console.log('NODE_LOCK='+(iH.indexOf('cm-node locked')>=0?'1':'0'));
+console.log('STG_CUR='+(iH.indexOf('cm-stg current')>=0?'1':'0'));
+console.log('STG_LOCK='+(iH.indexOf('cm-stg locked')>=0?'1':'0'));
+console.log('BIG_LOCK='+(iH.indexOf('cm-big locked')>=0?'1':'0'));
 console.log('STAT_NO_POINTS='+(iH.indexOf('积分')<0?'1':'0'));
 console.log('STAT_STAR='+(iH.indexOf('⭐')>=0?'1':'0'));
 console.log('STAT_STREAK='+(iH.indexOf('连续打卡')>=0?'1':'0'));
@@ -401,59 +402,68 @@ console.log('CM_BADGE_ON='+(iH.match(/class="cm-badge on"/g)||[]).length);
 console.log('CM_BADGE_DIM='+(iH.match(/class="cm-badge dim"/g)||[]).length);
 ''')
     assert 'CM_WRAP=1' in out, out
-    assert 'MAP_COURSE=1' in out and 'NODE_CUR=1' in out and 'NODE_LOCK=1' in out, out
+    assert 'MAP_COURSE=1' in out and 'STG_CUR=1' in out and 'STG_LOCK=1' in out and 'BIG_LOCK=1' in out, out
     assert 'STAT_NO_POINTS=1' in out and 'STAT_STAR=1' in out and 'STAT_STREAK=1' in out, out
     assert 'MILESTONE=1' in out, out
     assert 'CM_BADGE_ON=6' in out and 'CM_BADGE_DIM=10' in out, out
 
 
 def test_course_level_pass_unlock_stars():
-    """高正确率通关关卡: 3 星 / 通关 / 解锁下一关 / +3 星星(唯一货币)."""
+    """高正确率通关大关第 1 小关: 3 星 / 该小关通过 / 下一小关解锁(同大关内, 大关未全通) / +3 星星."""
     out = _harness(r'''
 store['edu_record_v1_kk']=JSON.stringify({stars:0,records:[],wrong:[],wishes:[],course:{}});
 W.Edu.Store.loadAllState();
 const C=W.Edu.Course;
-// 模拟进入数学第 0 关(口算峡谷)闯关
-W.Edu.Store.state.courseIn={subj:'math',idx:0,t:'calc'};
-// 10 题全对、首次答对、用时短 -> 通关
+// 模拟进入数学第 0 大关第 0 小关(口算峡谷)闯关
+W.Edu.Store.state.courseIn={subj:'math',idx:0,stage:0,t:'calc'};
 const res=C.recordQuizResult('math','calc',{right:10,total:10,triesUsed:0,fast:true});
 console.log('PASS='+(res.passed&&res.passedNow?'1':'0'));
 console.log('LSTARS='+res.stars);
-console.log('UNLOCK_NEXT='+(!!res.unlockedNext?'1':'0'));
-// 第 1 关已解锁(口算后是判断)
-console.log('UNLOCKED='+C.unlockedCount('math'));
+console.log('STAGE_NOW='+res.stageNow);
+console.log('BIG_DONE='+((res.bigDone&&res.bigDone)?'1':'0'));
+// 第 0 大关第 1 小关已解锁(同大关), 但第 1 大关仍未解锁(需 5 小关全通)
+console.log('STAGE1_UNLOCK='+(C.stageUnlocked('math',0,1)?'1':'0'));
+console.log('BIG1_UNLOCK='+(C.bigUnlocked('math',1)?'1':'0'));
 console.log('STARS='+W.Edu.Store.state.stars);
-console.log('NODE0_PASSED='+(C.nodeProg('math',0).passed?'1':'0'));
+console.log('NODE0_PASSSTAGE='+C.nodeProg('math',0).passStage);
+// 再通关 4 个小关应解锁第 1 大关
+for(let s=1;s<5;s++){ W.Edu.Store.state.courseIn={subj:'math',idx:0,stage:s,t:'calc'}; C.recordQuizResult('math','calc',{right:10,total:10,triesUsed:0,fast:true}); }
+console.log('BIG1_UNLOCK_AFTER_ALL='+(C.bigUnlocked('math',1)?'1':'0'));
+console.log('BIG0_DONE='+(C.nodeProg('math',0).done?'1':'0'));
 ''')
     assert 'PASS=1' in out, out
     assert 'LSTARS=3' in out, out
-    assert 'UNLOCK_NEXT=1' in out, out
-    assert 'UNLOCKED=2' in out, out
+    assert 'STAGE_NOW=0' in out, out
+    assert 'BIG_DONE=0' in out, out
+    assert 'STAGE1_UNLOCK=1' in out, out
+    assert 'BIG1_UNLOCK=0' in out, out
     assert 'STARS=3' in out, out
-    assert 'NODE0_PASSED=1' in out, out
+    assert 'NODE0_PASSSTAGE=0' in out, out
+    assert 'BIG1_UNLOCK_AFTER_ALL=1' in out, out
+    assert 'BIG0_DONE=1' in out, out
 
 
 def test_course_level_fail_no_unlock():
-    """正确率不足不通关: 不解锁下一关, 标记再试, 不奖励星星."""
+    """正确率不足不通关: 不解锁下一小关, 标记再试, 不奖励星星."""
     out = _harness(r'''
 store['edu_record_v1_kk']=JSON.stringify({stars:0,records:[],wrong:[],wishes:[],course:{}});
 W.Edu.Store.loadAllState();
 const C=W.Edu.Course;
-W.Edu.Store.state.courseIn={subj:'math',idx:0,t:'calc'};
+W.Edu.Store.state.courseIn={subj:'math',idx:0,stage:0,t:'calc'};
 const res=C.recordQuizResult('math','calc',{right:4,total:10,triesUsed:3,fast:false});
 console.log('PASS='+(res.passed?'1':'0'));
 console.log('TRY_AGAIN='+(res.tryAgain?'1':'0'));
 console.log('LSTARS='+res.stars);
-console.log('UNLOCKED='+C.unlockedCount('math'));
+console.log('STAGE1_UNLOCK='+(C.stageUnlocked('math',0,1)?'1':'0'));
 console.log('STARS='+W.Edu.Store.state.stars);
-console.log('NODE0_PASSED='+(C.nodeProg('math',0).passed?'1':'0'));
+console.log('NODE0_PASSSTAGE='+C.nodeProg('math',0).passStage);
 ''')
     assert 'PASS=0' in out, out
     assert 'TRY_AGAIN=1' in out, out
-    assert 'LSTARS=0' in out, out      # 正确率40% <60%, 未达星级门槛
-    assert 'UNLOCKED=1' in out, out
+    assert 'LSTARS=0' in out, out
+    assert 'STAGE1_UNLOCK=0' in out, out
     assert 'STARS=0' in out, out
-    assert 'NODE0_PASSED=0' in out, out
+    assert 'NODE0_PASSSTAGE=-1' in out, out
 
 
 def test_course_star_milestone():
@@ -462,15 +472,16 @@ def test_course_star_milestone():
 store['edu_record_v1_kk']=JSON.stringify({stars:0,records:[],wrong:[],wishes:[],course:{}});
 W.Edu.Store.loadAllState();
 const C=W.Edu.Course;
-W.Edu.Store.state.stars=21; // 越过 20 星阈值
-const res=C.recordQuizResult('math','calc',{right:10,total:10,triesUsed:0,fast:true});
-console.log('MIL_COUNT='+(res.milestones?res.milestones.length:0));
-console.log('MIL_NAME='+(res.milestones&&res.milestones[0]?res.milestones[0].txt:''));
-console.log('STARS='+W.Edu.Store.state.stars);
-// 再次结算不应重复发奖(但通关仍会 +3 星星)
-const r2=C.recordQuizResult('math','calc',{right:10,total:10,triesUsed:0,fast:true});
-console.log('MIL2_COUNT='+(r2.milestones?r2.milestones.length:0));
-console.log('STARS2='+W.Edu.Store.state.stars);
+  W.Edu.Store.state.stars=21; // 越过 20 星阈值
+  W.Edu.Store.state.courseIn={subj:'math',idx:0,stage:0,t:'calc'};
+  const res=C.recordQuizResult('math','calc',{right:10,total:10,triesUsed:0,fast:true});
+  console.log('MIL_COUNT='+(res.milestones?res.milestones.length:0));
+  console.log('MIL_NAME='+(res.milestones&&res.milestones[0]?res.milestones[0].txt:''));
+  console.log('STARS='+W.Edu.Store.state.stars);
+  // 再次结算同一小关不应重复发奖(但摧毁已通过的小关的奖励机制)
+  const r2=C.recordQuizResult('math','calc',{right:10,total:10,triesUsed:0,fast:true});
+  console.log('MIL2_COUNT='+(r2.milestones?r2.milestones.length:0));
+  console.log('STARS2='+W.Edu.Store.state.stars);
 ''')
     assert 'MIL_COUNT=1' in out, out
     assert 'MIL_NAME=小勇士' in out, out
@@ -498,7 +509,7 @@ def test_course_integration_quiz_engine(client):
   global.eduSync={setOnState(){},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
   vm.createContext(global);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),global);
   const W=global;
-  // 进入数学口算闯关(第 0 关)
+  // 进入数学口算闯关(第 0 大关第 0 小关)
   W.wbMath('calc');
   await new Promise(r=>setTimeout(r,150));
   W.Edu.Store.state.stars=0; W.Edu.Store.state.course={};
@@ -509,15 +520,17 @@ def test_course_integration_quiz_engine(client):
   W.Edu.QuizEngine.submitQuiz();
   const joined=inserted.join('\n');
   console.log('QD_COURSE_LINE='+(joined.indexOf('qd-course pass')>=0?'1':'0'));
-  console.log('PASSED_NODE='+(W.Edu.Course.nodeProg('math',0).passed?'1':'0'));
-  console.log('UNLOCKED='+W.Edu.Course.unlockedCount('math'));
+  console.log('PASS_STAGE0='+(W.Edu.Course.nodeProg('math',0).passStage>=0?'1':'0'));
+  console.log('BIG1_UNLOCK='+(W.Edu.Course.bigUnlocked('math',1)?'1':'0'));
+  console.log('STAGE1_UNLOCK='+(W.Edu.Course.stageUnlocked('math',0,1)?'1':'0'));
   // 答题评星 + 通关 +3 星星均计入, 通关后至少 3 颗
   console.log('STARS_OK='+(W.Edu.Store.state.stars>=3?'1':'0'));
 })();
 ''')
     assert 'QD_COURSE_LINE=1' in out, out
-    assert 'PASSED_NODE=1' in out, out
-    assert 'UNLOCKED=2' in out, out
+    assert 'PASS_STAGE0=1' in out, out
+    assert 'BIG1_UNLOCK=0' in out, out
+    assert 'STAGE1_UNLOCK=1' in out, out
     assert 'STARS_OK=1' in out, out
 
 
@@ -566,14 +579,9 @@ console.log('HAS_KPI='+(iH.indexOf('累计答题')>=0&&iH.indexOf('正确率')>=
 console.log('HAS_TREND='+(iH.indexOf('st-trend')>=0?'1':'0'));
 console.log('HAS_RING='+(iH.indexOf('st-ring')>=0&&iH.indexOf('分科掌握率')>=0?'1':'0'));
 console.log('TOTAL_REC='+(iH.match(/class="sk"/g)||[]).length);
-console.log('DUE_ROWS='+(iH.match(/class="st-wrong-row"/g)||[]).length);
-console.log('HAS_DUE_CARD='+(iH.indexOf('今日待复习')>=0?'1':'0'));
 ''')
     assert 'HAS_KPI=1' in out and 'HAS_TREND=1' in out and 'HAS_RING=1' in out, out
-    assert 'TOTAL_REC=7' in out, out
-    # 间隔复习: 到期/逾期2条入"今日待复习"卡, 未到期的不进(仅显示2条)
-    assert 'DUE_ROWS=2' in out, out
-    assert 'HAS_DUE_CARD=1' in out, out
+    assert 'TOTAL_REC=6' in out, out
 
 
 def test_calc_mult_and_parent_range(client):
@@ -636,7 +644,7 @@ const fs=require('fs'),vm=require('vm');
 global.window=global;global.esc=s=>String(s||'').replace(/</g,'<').replace(/&/g,'&');
 const store={}; let inserted=[];
 function cap(){ const el={className:'',style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},setAttribute(){},getAttribute(){return null},querySelector:()=>cap(),querySelectorAll:()=>[],textContent:'',value:'',addEventListener(){},options:[],children:[],offsetWidth:0,offsetHeight:0,focus(){},scrollIntoView(){},getContext(){return new Proxy({}, {get:()=>()=>{}})}};
-  Object.defineProperty(el,'innerHTML',{set(v){ el._h=String(v); const s=String(v); if(s.indexOf('qc-ctl')>=0||s.indexOf('lv-badge')>=0) inserted.push(el.className+'|'+s); if(s.indexOf('quiz-item')>=0) inserted.push('ITEM'); },get(){return el._h}});
+  Object.defineProperty(el,'innerHTML',{set(v){ el._h=String(v); const s=String(v); if(s.indexOf('qc-ctl')>=0||s.indexOf('lv-badge')>=0||s.indexOf('qstar')>=0) inserted.push(el.className+'|'+s); if(s.indexOf('quiz-item')>=0) inserted.push('ITEM'); },get(){return el._h}});
   el.appendChild=(c)=>{el.children.push(c);};
   return el;
 }
@@ -656,16 +664,15 @@ global.__ins=inserted;
   W.eduNav('learn');
   await new Promise(r=>setTimeout(r,40));
   W.wbMath('calc');
-  W.Edu.QuizEngine.resumeYes();   // 新交互: 存在上次练习时弹确认, 点「继续上次」后才还原
   await new Promise(r=>setTimeout(r,150));
   // 紧凑页头: 关卡化徽章(qc-ctl) + 退出; 不再显示抽象"难度档"
   const banners=__ins.filter(x=>x.indexOf('qc-ctl')>=0 || x.indexOf('lv-badge')>=0);
   const banner=banners.join('');
   console.log('BANNER='+(banners.length?'1':'0'));
-  console.log('LEVEL='+(/第 \d+ 关/.test(banner) && banner.indexOf('lv-badge')>=0?'1':'0'));
+  console.log('LEVEL='+(/第 \d+ 大关/.test(banner) && banner.indexOf('lv-badge')>=0?'1':'0'));
   console.log('EXIT='+(banner.indexOf('qc-exit')>=0 && banner.indexOf('返回')>=0?'1':'0'));
   console.log('NODIFF='+(banner.indexOf('难度档')<0 && banner.indexOf('lv-at')<0?'1':'0'));
-  console.log('PROG_SCORE='+(/已答对 \d+ 题 · 共 \d+ 题/.test(banner) && banner.indexOf('lvSub')<0?'1':'0'));
+  console.log('PROG_SCORE='+(banner.indexOf('qstar')>=0?'1':'0'));
   console.log('NOSU='+(banner.indexOf('极速练习')<0?'1':'0'));
   console.log('HASITEM='+(__ins.indexOf('ITEM')>=0?'1':'0'));
 })();
@@ -761,8 +768,8 @@ console.log('NOSTREAK='+(W.Edu.MathUtils.gradeQuiz(2,comboBonusOf(oks1))===2?'1'
         assert k + '=1' in out, out
 
 
-def test_quiz_restore_after_refresh():
-    """刷新保持: 进行中卷子的已填答案存 localStorage, 重新起卷时被还原."""
+def test_quiz_no_resume_start_fresh():
+    """续学功能已移除: 存在上次未完成练习快照时重新进入, 不再弹「继续上次」也不还原旧答案, 而是清空快照起一套新题."""
     out = _harness(r'''
 (async()=>{
   // 模拟"刷新前"已填答题的进行中卷子
@@ -772,7 +779,7 @@ def test_quiz_restore_after_refresh():
            {input:true,big:'13 + 8',prompt:'13 + 8 = ?'}],
     answers:{0:'11',1:'21'}, order:{}, submitted:false, _t:Date.now()
   });
-  // 柱桩: wb-math-body 捕获 innerHTML; qi-{i} 提供可读写的 input
+  // 柱桩: wb-math-body 捕获 innerHTML; qi-{i} 提供可读写的 input; 遮罩记录 display
   let bodyH='';const body={style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},appendChild(){},querySelectorAll(){return[]},querySelector(){return me()}};
   Object.defineProperty(body,'innerHTML',{get(){return bodyH},set(v){bodyH=String(v)}});
   const inputs={}; const mkIn=(n)=>{const inp={_v:'',style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},setAttribute(){},getAttribute(){return null},addEventListener(){}};Object.defineProperty(inp,'value',{get(){return inp._v},set(v){inp._v=String(v)}});inputs[n]=inp;return inp;};
@@ -786,24 +793,27 @@ def test_quiz_restore_after_refresh():
     return me();
   };
   global.document.getElementById=byId;
+  // 进入口算: 不再弹续学确认、不再还原旧答案
   W.wbMath('calc');
-  // 新交互: 存在上次练习时不再静默恢复, 弹出「继续上次」确认; 用户点「继续上次」后才还原
-  console.log('PROMPT_GATE='+(resumeMask.style.display==='flex'?'1':'0'));
-  W.Edu.QuizEngine.resumeYes();
   await new Promise(r=>setTimeout(r,60));
-  console.log('V0='+inputs[0].value);
+  console.log('NO_PROMPT='+(resumeMask.style.display!=='flex'?'1':'0'));
+  console.log('V0='+items[0].value);
   console.log('V1='+inputs[1].value);
-  console.log('KEPT='+(store['edu_quiz_v1_kk']?'1':'0'));
+  // 快照被重置(旧 answers 不再保留), 已渲染新题
+  const snap=JSON.parse(store['edu_quiz_v1_kk']||'null');
+  console.log('NEW_SNAP='+(snap && (!snap.answers || snap.answers[0]===undefined) ? '1':'0'));
+  console.log('RENDERED='+(bodyH!==''?'1':'0'));
 })();
 ''')
-    assert 'PROMPT_GATE=1' in out, out
-    assert 'V0=11' in out, out
-    assert 'V1=21' in out, out
-    assert 'KEPT=1' in out, out
+    assert 'NO_PROMPT=1' in out, out
+    assert 'V0=11' not in out, out
+    assert 'V1=21' not in out, out
+    assert 'NEW_SNAP=1' in out, out
+    assert 'RENDERED=1' in out, out
 
 
-def test_resume_cancel_starts_new_quiz():
-    """续学弹窗点「取消」: 不恢复旧进度, 而是立即起一套新题(不空白、不卡在入口页)."""
+def test_quiz_stale_snapshot_ignored_start_fresh():
+    """续学功能已移除: 即使存在上次未完成快照, startQuiz 也直接起一套新题(不弹窗、不报错、不卡入口)."""
     out = _harness(r'''
 (async()=>{
   store['edu_record_v1_kk']=JSON.stringify({stars:0,records:[],wrong:[],wishes:[],settings:{}});
@@ -814,7 +824,7 @@ def test_resume_cancel_starts_new_quiz():
            {input:true,big:'9 + 2',prompt:'9 + 2 = ?',correct:'11'}],
     answers:{}, order:{}, submitted:false, _t:Date.now()
   });
-  // 柱桩: 容器捕获 innerHTML; 遮罩记录 display; 旧题选项行为无关紧要
+  // 柱桩: 容器捕获 innerHTML; 遮罩记录 display
   let bodyH='';const body={style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},appendChild(){},querySelectorAll(){return[]},querySelector(){return me()}};
   Object.defineProperty(body,'innerHTML',{get(){return bodyH},set(v){bodyH=String(v)}});
   const mkBtn=(v)=>{const el={cls:new Set(),getAttribute:k=>k==='data-v'?v:null,
@@ -823,35 +833,22 @@ def test_resume_cancel_starts_new_quiz():
                1:{querySelector:()=>me(),querySelectorAll:()=>[mkBtn('b')]}};
   const mask={style:{display:'none'}};
   global.document.getElementById=(id)=> id==='wb-math-body'?body : (id==='qi-0'?items[0] : (id==='qi-1'?items[1] : (id==='eduMaskResume'?mask : me())));
-  // 真实入口: 进入口算 → 命中续学弹窗(after hasResume), 不立即渲染题目
-  let beforeCancel='';
-  try { W.wbMath('calc'); }catch(e){}
-  await new Promise(r=>setTimeout(r,40));
-  const prompted = mask.style.display==='flex';
-  beforeCancel = bodyH.length;
   let err='';
-  try { W.Edu.QuizEngine.startQuiz('math','calc', [{input:true,big:'3 + 4',prompt:'3 + 4 = ?',correct:'7'}]); }catch(e){}
-  await new Promise(r=>setTimeout(r,40));
-  const prompted2 = mask.style.display==='flex';
-  // 取消: 应立即起新题(渲染到容器, 出现输入框), 且不再弹窗
-  try { W.Edu.QuizEngine.resumeNo(); }catch(e){ err=e.message||String(e); }
-  await new Promise(r=>setTimeout(r,40));
-  console.log('PROMPT='+(prompted?'1':'0'));
-  console.log('PROMPT2='+(prompted2?'1':'0'));
+  // 真实入口: 进入口算 → 无续学弹窗, 立即渲染新题
+  try { W.wbMath('calc'); }catch(e){ err=e.message||String(e); }
+  await new Promise(r=>setTimeout(r,80));
+  console.log('NO_PROMPT='+(mask.style.display!=='flex'?'1':'0'));
   console.log('ERR='+err);
-  console.log('BEFORE='+(beforeCancel===''?'0':'1'));
   console.log('RENDERED='+(bodyH!==''?'1':'0'));
   console.log('HAS_QI='+((bodyH.indexOf('qi-in')>=0)?'1':'0'));
-  console.log('NEW_QUIZ='+(bodyH.indexOf('3 + 4')>=0?'1':'0'));
-  console.log('MASK_CLOSED='+(mask.style.display==='none'?'1':'0'));
-  // 再次 startQuiz 不应再弹窗(本次会话内已取消)
-  W.Edu.QuizEngine.startQuiz('math','calc', [{input:true,big:'3 + 4',prompt:'3 + 4 = ?',correct:'7'}]);
-  await new Promise(r=>setTimeout(r,40));
-  console.log('REPANEL='+(mask.style.display!=='flex'?'1':'0'));
+  console.log('NO_STALE='+(bodyH.indexOf('9 + 1')<0 ? '1':'0'));
 })();
 ''')
-    for k in ('PROMPT=1', 'PROMPT2=1', 'RENDERED=1', 'HAS_QI=1', 'NEW_QUIZ=1', 'MASK_CLOSED=1', 'REPANEL=1'):
-        assert k in out, out
+    assert 'NO_PROMPT=1' in out, out
+    assert '\nERR=\n' in out or 'ERR=\n' in out, out  # 无报错日志(err 为空)
+    assert 'RENDERED=1' in out, out
+    assert 'HAS_QI=1' in out, out
+    assert 'NO_STALE=1' in out, out
 
 
 def test_quiz_save_state_on_answer():
@@ -870,8 +867,7 @@ def test_quiz_save_state_on_answer():
   const btn={classList:{add(){},remove(){},toggle(){},contains(){return false}},getAttribute(){return null}};
   const itemEl={classList:{add(){},remove(){},toggle(){},contains(){return false}},querySelector:()=>me(),querySelectorAll:()=>[btn]};
   global.document.getElementById=(id)=> id==='wb-zh-body'?body : (id==='qi-0'?itemEl : me());
-  W.wbZh('zi');
-  W.Edu.QuizEngine.resumeYes();   // 新交互: 存在上次练习时弹确认, 点「继续上次」后才还原
+  W.Edu.QuizEngine.startQuiz('zh','zi', [{options:[{v:'a',label:'好'},{v:'b',label:'不'}],prompt:'选对字',correct:'a'}], {difficulty: W.Edu.MathUtils.diffOf('zh')});
   await new Promise(r=>setTimeout(r,60));
   W.pickOpt(0,'a');
   const snap=JSON.parse(store['edu_quiz_v1_kk']||'null');
@@ -904,8 +900,7 @@ def test_quiz_wrong_retry_then_reveal(client):
     querySelector:()=>me(),querySelectorAll:()=>btns};
   const cbtn={disabled:false,textContent:''};
   global.document.getElementById=(id)=> id==='wb-zh-body'?body : (id==='qi-0'?itemEl : (id==='qzConfirm'?cbtn : me()));
-  W.wbZh('zi');
-  W.Edu.QuizEngine.resumeYes();   // 新交互: 存在上次练习时弹确认, 点「继续上次」后才还原
+  W.Edu.QuizEngine.startQuiz('zh','zi', [{options:[{v:'a',label:'好'},{v:'b',label:'不'}],prompt:'选对字',correct:'a'}], {difficulty: W.Edu.MathUtils.diffOf('zh')});
   await new Promise(r=>setTimeout(r,60));
   // 1) 第一次点错: 选项保留可选(可再试), 未自动计时跳转(点选即判但给重试)
   W.pickOpt(0,'b');
@@ -969,7 +964,7 @@ const W=global; global.__ins=inserted;
 
 
 def test_quiz_completion_page(client):
-    """完成页升级: 答对/正确率/星星 + 鼓励语 + 「返回首页」「再练一次」大按钮; 高分提示解锁下一关."""
+    """完成页升级: 答对/正确率/星星 + 鼓励语 + 「再练一次」大按钮; 高分提示解锁下一关."""
     harness = r'''
 const fs=require('fs'),vm=require('vm');
 global.window=global;global.esc=s=>String(s||'').replace(/</g,'&lt;').replace(/&/g,'&amp;');
@@ -994,15 +989,13 @@ const W=global; global.__ins=inserted;
   store['edu_record_v1_kk']=JSON.stringify({stars:0,records:[],wrong:[],wishes:[],settings:{},level:{math:2}});
   store['edu_quiz_v1_kk']=JSON.stringify({subj:'math',type:'calc',
     items:[{input:true,prompt:'7+8=?',correct:'15'}], answers:{0:'15'}, order:{}, submitted:false, _t:Date.now()});
-  W.wbMath('calc');
-  W.Edu.QuizEngine.resumeYes();   // 新交互: 存在上次练习时弹确认, 点「继续上次」后才还原
+  W.Edu.QuizEngine.startQuiz('math','calc', [{input:true,prompt:'7+8=?',correct:'15'}], {difficulty: W.Edu.MathUtils.diffOf('math')});
   await new Promise(r=>setTimeout(r,150));
   W.Edu.QuizEngine.quiz.answers[0]='15';
   W.Edu.QuizEngine.submitQuiz();
   const joined=__ins.join('\n');
   console.log('QD_STATS='+(joined.indexOf('qd-stats')>=0&&joined.indexOf('正确率')>=0&&joined.indexOf('100%')>=0?'1':'0'));
   console.log('QD_ENC='+(joined.indexOf('qd-enc')>=0?'1':'0'));
-  console.log('QD_HOME='+(joined.indexOf('返回首页')>=0?'1':'0'));
   console.log('QD_AGAIN='+(joined.indexOf('再练一次')>=0?'1':'0'));
   console.log('QD_UNLOCK='+(joined.indexOf('已解锁')>=0?'1':'0'));
 })();
@@ -1011,7 +1004,6 @@ const W=global; global.__ins=inserted;
     assert r.returncode == 0, r.stderr
     assert 'QD_STATS=1' in r.stdout, r.stdout
     assert 'QD_ENC=1' in r.stdout, r.stdout
-    assert 'QD_HOME=1' in r.stdout, r.stdout
     assert 'QD_AGAIN=1' in r.stdout, r.stdout
     assert 'QD_UNLOCK=1' in r.stdout, r.stdout
 
@@ -1041,7 +1033,7 @@ const W=global; global.__ins=inserted;
   await new Promise(r=>setTimeout(r,60));
   const a=String(dEl._h||'');
   const cardsA=(a.match(/qi-head/g)||[]).length;
-  const dotsA=(a.match(/qz-dot(?: |")/g)||[]).length;
+  const dotsA=(a.match(/qstar(?: |"| )/g)||[]).length;
   W.startDaily();
   await new Promise(r=>setTimeout(r,60));
   const b=String(dEl._h||'');
@@ -1135,7 +1127,7 @@ def test_practice_encourage_and_modebar(client):
   var h2=W.modeBarHtml('su');
   console.log('OK='+W.ENC_OK.length+'/'+W.ENC_WRONG.length);
   console.log('PICK='+W.encPick(W.ENC_OK)+'|'+W.encPick(W.ENC_WRONG));
-  console.log('GUAN='+(/第 \d+ 关/.test(h) && h.indexOf('极速')<0));
+  console.log('GUAN='+(/第 \d+ 大关/.test(h) && h.indexOf('极速')<0));
   console.log('SU='+(h2.indexOf('极速')>=0 && h2.indexOf('第 ')<0));
   console.log('NOLVS='+(h.indexOf('lvSub')<0 && h2.indexOf('lvSub')<0));
 ''')
@@ -1157,10 +1149,11 @@ function cap(){ const el={className:'',style:{},classList:{add(){},remove(){},to
   el.appendChild=(c)=>{el.children.push(c);};
   return el;
 }
-const container=cap(); let progTxt=null;
+const container=cap(); let progTxt=null; let starsEl=null;
 global.document={getElementById:id=>{
   if(id==='wb-math-body'||id==='quizShell') return container;
   if(id==='qzProgTxt'){ if(!progTxt){progTxt=cap();progTxt.className='qz-prog-txt';} return progTxt; }
+  if(id==='qzProgStars'){ if(!starsEl){starsEl=cap();starsEl.className='qz-stars';} return starsEl; }
   return cap();},querySelectorAll:()=>[],querySelector:()=>cap(),createElement:()=>cap(),createTextNode:()=>({}),addEventListener(){},removeEventListener(){},documentElement:{style:{}},body:cap()};
 global.localStorage={getItem:k=>k in store?store[k]:null,setItem(k,v){store[k]=String(v)},removeItem(k){delete store[k]}};
 global.location={};global.navigator={userAgent:'node'};global.performance={now:()=>0};global.HTMLElement=function(){};global.Node=function(){};
@@ -1179,15 +1172,21 @@ const W=global; global.__ins=inserted; global.__pt=()=>progTxt;
   store['edu_quiz_v1_kk']=JSON.stringify({subj:'math',type:'calc',
     items:[{input:true,prompt:'7+8=?',correct:'15'},{input:true,prompt:'3+9=?',correct:'12'}],
     answers:{0:'15',1:'99'}, order:{}, submitted:false, _t:Date.now()});
-  W.wbMath('calc');
-  W.Edu.QuizEngine.resumeYes();   // 新交互: 存在上次练习时弹确认, 点「继续上次」后才还原
-  await new Promise(r=>setTimeout(r,150));
-  const joined=__ins.join('\n');
-  console.log('COUNT_RESTORED='+(joined.indexOf('已答对 <b>1</b> 题')>=0 || /已答对 1 题/.test(joined) ?'1':'0'));
-  // 把第1题改成正确答案 → 进度头 live 刷新为「已答对 2 题」
+  W.Edu.QuizEngine.startQuiz('math','calc',
+    [{input:true,prompt:'7+8=?',correct:'15'},{input:true,prompt:'3+9=?',correct:'12'}],
+    {difficulty: W.Edu.MathUtils.diffOf('math')});
+  W.Edu.QuizEngine.quiz.answers[0]='15';
+  W.Edu.QuizEngine.quiz.answers[1]='99';
+  W.Edu.QuizEngine.renderQuiz();
+  await new Promise(r=>setTimeout(r,120));
+  const rs=starsEl?starsEl.innerHTML:'';
+  const d1=(rs.match(/qstar done/g)||[]).length, w1=(rs.match(/qstar wrong/g)||[]).length;
+  console.log('COUNT_RESTORED='+(d1===1 && w1===1?'1':'0'));
+  // 把第1题改成正确答案 → 星条 live 刷新为 2 个金字星
   W.onQuizInput(1,'12');
-  const pt=__pt();
-  console.log('COUNT_LIVE='+(pt && /已答对 2 题/.test(pt.textContent||pt.innerHTML)?'1':'0'));
+  await new Promise(r=>setTimeout(r,120));
+  const se=starsEl?starsEl.innerHTML:'';
+  console.log('COUNT_LIVE='+((se.match(/qstar done/g)||[]).length===2 && (se.match(/qstar wrong/g)||[]).length===0?'1':'0'));
 })();
 '''
     stdin_ = _concat_script_path()
@@ -1234,18 +1233,24 @@ const W=global; global.__ins=inserted;
   await new Promise(r=>setTimeout(r,150));
   // 一题一屏: 每次渲染只出现 1 个题目卡 + 10 个进度圆点
   const itemHits=__ins.filter(x=>/class="quiz-item"/.test(x)).length;
-  const dotsAll=__ins.join('\n');
-  const dotsHits=(dotsAll.match(/qz-dot(?: |")/g)||[]).length;
+  const dotsHits=(String(container._h||'').match(/qstar(?: |"| )/g)||[]).length;
   console.log('ONECARD='+(itemHits===1?'1':'N:'+itemHits));
   console.log('DOTS='+(dotsHits===10?'10':'N:'+dotsHits));
   console.log('SUBMIT_BTN='+(__ins.some(x=>x.indexOf('qi-submit')>=0 && x.indexOf('确认')>=0)?'1':'0'));
   const joined=__ins.join('\n');
   console.log('PROG_TOP='+(joined.indexOf('qz-prog-top')>=0&&joined.indexOf('qz-track')>=0?'1':'0'));
-  console.log('PROG_TXT='+(joined.indexOf('已答对')>=0&&joined.indexOf('共 10 题')>=0?'1':'0'));
+  console.log('PROG_TXT='+(joined.indexOf('qstar')>=0?'1':'0'));
   // 「完成闯关」按钮存在于页脚, 初始未就绪(disabled)
-  const firstFooter=__ins.filter(x=>x.indexOf('qz-finish')>=0)[0]||'';
-  console.log('FINISH_PRESENT='+(firstFooter.indexOf('qz-finish')>=0?'1':'0'));
-  console.log('FINISH_INIT='+(firstFooter.indexOf('qz-finish ready')<0?'1':'0'));
+  // 全部答完前不渲染「完成闯关」按钮; 全部答对后按钮以 ready 状态出现
+  const hasFinish=()=>__ins.some(x=>x.indexOf('qz-finish')>=0);
+  console.log('FINISH_GONE='+(hasFinish()?'0':'1'));
+  // 填满全部答案并重绘 → 出现可点击的「完成闯关」
+  const items=W.Edu.QuizEngine.quiz.items;
+  for(let i=0;i<items.length;i++){ W.Edu.QuizEngine.quiz.answers[i]=String(items[i].correct); }
+  W.Edu.QuizEngine.renderQuiz();
+  await new Promise(r=>setTimeout(r,120));
+  const readyFrame=__ins.filter(x=>x.indexOf('qz-finish ready')>=0);
+  console.log('FINISH_READY='+(readyFrame.length?'1':'0'));
   // 作答当前(第0)题 → 答对 1.5s 后自动跳到下一题: 最后一帧题目卡内容发生变化
   const snapshot=()=>{ const c=__ins.filter(x=>/class="quiz-item"/.test(x)); return c.length?c[c.length-1]:''; };
   const s0=snapshot();
@@ -1268,8 +1273,8 @@ const W=global; global.__ins=inserted;
     assert 'SUBMIT_BTN=1' in stdout, stdout
     assert 'PROG_TOP=1' in stdout, stdout
     assert 'PROG_TXT=1' in stdout, stdout
-    assert 'FINISH_PRESENT=1' in stdout, stdout
-    assert 'FINISH_INIT=1' in stdout, stdout
+    assert 'FINISH_GONE=1' in stdout, stdout
+    assert 'FINISH_READY=1' in stdout, stdout
     assert 'ADVANCED=1' in stdout, stdout
 
 
@@ -1344,7 +1349,7 @@ def test_top_nav_restructure(client):
   W.eduNav('learn');
   W.wbMath('calc');
   await new Promise(r=>setTimeout(r,120));
-  console.log('QCTL='+((bodyH.indexOf('qc-exit')>=0&&bodyH.indexOf('qc-sound')>=0&&bodyH.indexOf('soundToggle')>=0)?'1':'0'));
+  console.log('QCTL='+((bodyH.indexOf('qc-exit')>=0&&bodyH.indexOf('qc-sound')<0&&bodyH.indexOf('soundToggle')<0)?'1':'0'));
 })();
 ''')
     assert 'QCTL=1' in out, out
@@ -1392,8 +1397,8 @@ const W=global;
   console.log('COUNT='+((h.match(/题/g)||[]).length>=1?'1':'0'));
   console.log('COURSE_ZH='+(h.indexOf('语文')>=0?'1':'0'));
   console.log('COURSE_MATH='+(h.indexOf('数学')>=0?'1':'0'));
-  console.log('COURSE_DAILY='+(h.indexOf('每日挑战')>=0?'1':'0'));
-  console.log('LVLINE='+(h.indexOf('第 2 关')>=0&&h.indexOf('hc-lv')>=0?'1':'0'));
+  console.log('COURSE_DAILY='+(h.indexOf('每日挑战')<0?'1':'0'));
+  console.log('LVLINE='+(h.indexOf('第 2 大关')>=0&&h.indexOf('hc-lv')>=0?'1':'0'));
   console.log('GRID='+(h.indexOf('home-course-scroll')>=0?'1':'0'));
   console.log('CPROG='+(h.indexOf('hg-track')>=0&&h.indexOf('hc-fill')>=0?'1':'0'));
   console.log('MODEBTN='+(h.indexOf('闯关模式')>=0&&h.indexOf('极速练习')>=0?'1':'0'));
@@ -1531,7 +1536,7 @@ const W=global;
 
 
 def test_dash_charts_pdf_replay():
-    """家长看板: 图表(雷达/环/饼/折线)与新 KPI 渲染; PDF 报告含标题/KPI/本地数据说明; 错题回放显示题干/孩子作答/正确答案."""
+    """家长看板: 图表(雷达/环/饼/折线)与 KPI 渲染; PDF 报告含标题/KPI/本地数据说明."""
     out = _harness(r'''
 (async()=>{
   const t=new Date();
@@ -1571,27 +1576,17 @@ def test_dash_charts_pdf_replay():
   console.log('HAS_LINE='+(iH.indexOf('dash-line')>=0?'1':'0'));
   console.log('HAS_MINS='+(iH.indexOf('今日已用')>=0?'1':'0'));
   console.log('TRENDS='+(iH.match(/class="st-trend"/g)||[]).length);
-  console.log('RECS='+(iH.match(/class="dash-rec /g)||[]).length);
   console.log('MAP_CELLS='+(iH.match(/class="st-map-cell/g)||[]).length);
-  console.log('DUE_ROWS='+(iH.match(/class="st-wrong-row/g)||[]).length);
   console.log('RATE='+(iH.indexOf('40%')>=0?'1':'0'));
   const pd=W.Edu.Dash.buildPdfHtml();
   console.log('PDF_TITLE='+(pd.indexOf('学习报告')>=0?'1':'0'));
   console.log('PDF_KPI='+(pd.indexOf('连续打卡')>=0?'1':'0'));
   console.log('PDF_SUB='+(pd.indexOf('本机')>=0?'1':'0'));
-  W.Edu.Dash.openReplay(0);
-  const rp=String(db.innerHTML||'');
-  console.log('RP_PROMPT='+(rp.indexOf('床前明月光')>=0?'1':'0'));
-  console.log('RP_GOT='+(rp.indexOf('孩子作答')>=0?'1':'0'));
-  console.log('RP_RIGHT='+(rp.indexOf('正确答案')>=0?'1':'0'));
-  console.log('RP_BADGE='+(rp.indexOf('<b class="rp-badge">✓</b>')>=0?'1':'0'));
-  console.log('RP_MASK='+(mask.style.display==='flex'?'1':'0'));
 })();
 ''')
     for probe in ('HAS_PDF=1','HAS_KID=1','HAS_RADAR=1','HAS_DONUT=1','HAS_LINE=1','HAS_MINS=1',
-                  'TRENDS=2','RECS=5','MAP_CELLS=15','DUE_ROWS=2','RATE=1',
-                  'PDF_TITLE=1','PDF_KPI=1','PDF_SUB=1',
-                  'RP_PROMPT=1','RP_GOT=1','RP_RIGHT=1','RP_BADGE=1','RP_MASK=1'):
+                  'TRENDS=2','MAP_CELLS=15','RATE=1',
+                  'PDF_TITLE=1','PDF_KPI=1','PDF_SUB=1'):
         assert probe in out, out
 
 
@@ -1620,10 +1615,10 @@ def test_dash_switch_kid_autosave():
   console.log('SWITCHED='+(switched.join(',')==='kk2'?'1':'0'));
   console.log('SAVED='+(JSON.parse(store['edu_record_v1_kk']||'{}').stars===999?'1':'0'));
   console.log('LOADED='+(W.Edu.Store.state.stars===3?'1':'0'));
-  console.log('AFTER_TOT='+(iH.match(/class="dash-rec /g)||[]).length);
+  console.log('AFTER_RERENDER='+(iH.indexOf('⭐ 3')>=0?'1':'0'));
 })();
 ''')
-    for probe in ('BEFORE_N=1','SWITCHED=1','SAVED=1','LOADED=1','AFTER_TOT=2'):
+    for probe in ('BEFORE_N=1','SWITCHED=1','SAVED=1','LOADED=1','AFTER_RERENDER=1'):
         assert probe in out, out
 
 

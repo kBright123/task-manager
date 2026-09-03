@@ -202,8 +202,7 @@
     var courses = [
       { s: 'zh', type: 'zi', em: '📖', name: '语文识字', sub: '认识新汉字', locked: false },
       { s: 'math', type: 'calc', em: '🔢', name: '数学口算', sub: '加减乘除小能手', locked: false },
-      { s: 'en', type: '', em: '🌍', name: '英语启蒙', sub: 'ABC 说起来', locked: false },
-      { s: 'daily', type: '', em: '⭐', name: '每日挑战', sub: '混合 10 题', locked: false }
+      { s: 'en', type: '', em: '🌍', name: '英语启蒙', sub: 'ABC 说起来', locked: false }
     ];
     function courseStatus(c) {
       if (c.locked) return { tag: '未解锁', cls: 'locked' };
@@ -214,13 +213,13 @@
     }
     function courseGo(c) {
       if (c.s === 'daily') return 'window.eduNav(\'home\');window.Edu.Workbench.quickStart(\'daily\')';
-      return 'window.Edu.Workbench.quickStart(\'' + c.s + '\'' + (c.type ? ',\'' + c.type + '\'' : '') + ')';
+      // 点击卡片默认进入该学科的独立全屏闯关地图
+      return 'window.Edu.Course&&window.Edu.Course.openMapFull&&window.Edu.Course.openMapFull(\'' + c.s + '\')';
     }
-    // 闯关模式: 按课程地图启动「当前所在关卡」, 通关后自动解锁下一关(随地图切换题型)
+    // 闯关模式: 打开该学科的独立全屏闯关地图(左右滑动选择已解锁小关), 由地图进入各小关
     function courseGuan(c) {
       if (c.s === 'daily') return courseGo(c);
-      return 'window.Edu.Course&&window.Edu.Course.launchLevel&&window.Edu.Course.launchLevel(\'' + c.s + '\',' +
-        '(window.Edu.Course.curLevelIdx(\'' + c.s + '\')||0))';
+      return 'window.Edu.Course&&window.Edu.Course.openMapFull&&window.Edu.Course.openMapFull(\'' + c.s + '\')';
     }
     function courseSu(c) {
       // 极速练习: 题型跟随课程地图当前关卡, 且按学科单位取有效题型(避免数学/英语误入识字)
@@ -242,15 +241,15 @@
       }
       return 'window.homePractice(\'' + c.s + '\'' + (t ? ',\'' + t + '\'' : '') + ')';
     }
-    // 课程地图当前所在关卡
+    // 课程地图当前所在关卡(大关·小关)
     function courseLevel(c) {
       if (c.s === 'daily') return null;
       if (!(window.Edu && window.Edu.Course)) return null;
-      var idx = window.Edu.Course.curLevelIdx(c.s);
-      if (!(idx >= 0)) return null;
+      var pos = window.Edu.Course.curPos ? window.Edu.Course.curPos(c.s) : null;
+      if (!pos) return null;
       var lv = (window.Edu.Course.COURSES[c.s] || {}).levels || [];
-      if (!lv[idx]) return null;
-      return { n: idx + 1, name: lv[idx].name, em: lv[idx].em };
+      if (!lv[pos.big]) return null;
+      return { n: pos.big + 1, s: pos.stage + 1, name: lv[pos.big].name, em: lv[pos.big].em };
     }
     var courseCards = courses.map(function (c) {
       var st = courseStatus(c);
@@ -262,15 +261,17 @@
         '<button type="button" class="hc-mode hc-guan" onclick="' + courseGuan(c) + '">🗺️ 闯关模式</button>' +
         '<button type="button" class="hc-mode hc-su" onclick="' + courseSu(c) + '">⚡ 极速练习</button>' +
         '</span>';
-      var lvLine = lv
-        ? '<span class="hc-lv">' + lv.em + ' 第 ' + lv.n + ' 关 · ' + lv.name + '</span>'
-        : (c.s === 'daily' ? '<span class="hc-lv">今日 ' + Math.min(d.today, d.goal) + '/' + d.goal + ' 题</span>' : '');
-      return '<section class="home-course' + (locked ? ' locked' : '') + '"' + click + '>' +
+      // 单行状态: 进行中显示当前关卡, 每日显示进度, 未开始显示简介
+      var lvText = lv
+        ? '第 ' + lv.n + ' 大关' + (lv.name ? ' · ' + lv.name : '')
+        : (c.s === 'daily' ? '今日 ' + Math.min(d.today, d.goal) + '/' + d.goal + ' 题' : c.sub);
+      return '<section class="home-course hc-subj-' + (c.s || '') + (locked ? ' locked' : '') + '"' + click + '>' +
         '<div class="hc-main">' +
         '<span class="hc-emo">' + c.em + '</span>' +
-        '<span class="hc-info"><span class="hc-nm">' + c.name + '</span>' +
-        '<span class="hc-lv-l">' + lvLine + '</span>' +
-        '<span class="hc-stat"><span class="hc-sb-sub">' + c.sub + '</span><span class="hc-stat-c">已练 <b>' + n + '</b> 题</span></span></span>' +
+        '<span class="hc-info">' +
+        '<span class="hc-nm">' + c.name + '</span>' +
+        '<span class="hc-lv-l"><span class="hc-lv">' + esc(lvText) + '</span>' +
+        '<span class="hc-count">已练 ' + n + ' 题</span></span></span>' +
         '</div>' +
         modes +
         '</section>';

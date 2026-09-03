@@ -36,9 +36,9 @@
     if (on) window.Edu.Speech.playSpeak('声音已开启');
   };
 
-  window.Edu.Speech.playSpeak = function (text) {
+  window.Edu.Speech.playSpeak = function (text, force) {
     if (!text) return;
-    if (speakOn()) speak(text);
+    if (speakOn()) speak(text, force);
   };
 
   function ttLang(t) {
@@ -83,47 +83,78 @@
     } catch (e) {}
   }
 
-  // 本地语音合成兜底(浏览器内置, 冷启动慢、质量一般; 仅当网络 TTS 失败时使用)
-  var synthOnFallback = false;
-  function speechSynth(text) {
-    if (typeof speechSynthesis === 'undefined') return;
-    var u = new SpeechSynthesisUtterance(text);
-    u.lang = ttLang(text) === 'zh' ? 'zh-CN' : 'en-US';
-    u.rate = 1.0;
-    var vs = speechSynthesis.getVoices();
-    var v = zhVoice || vs.find(function(x){ return /zh.*CN/i.test(x.lang); });
-    if (v) u.voice = v;
-    speechSynthesis.cancel();
-    speechSynthesis.speak(u);
-  }
-
-  // 网络 TTS 优先(edge-tts 高音质, 服务端缓存同源 mp3), 失败才回退本地语音合成
-  function playNetWithFallback(text) {
+  // 网络 TTS(edge-tts 高音质, 服务端缓存同源 mp3) 带超时: 仅在本地合成不可用/失败时兜底
+  function playNetTimed(text, onFail) {
     var url = ttsUrl(text);
     stopNetAudio();
     var a = new Audio(url);
-    var usedNet = false;
-    a.oncanplaythrough = function(){ if (!usedNet) { usedNet = true; } };
-    a.onended = function(){ stopNetAudio(); synthOnFallback = false; };
-    a.onerror = function(){ stopNetAudio(); speechSynth(text); };
-    var p = a.play();
-    if (p && p.catch) {
-      p.catch(function(){ stopNetAudio(); speechSynth(text); });
-    } else {
-      synthOnFallback = true;
+    var done = false;
+    function finish(fn) {
+      if (done) return;
+      done = true;
+      clearTimeout(timer2);
+      fn();
     }
+    var timer2 = setTimeout(function(){ finish(function(){ stopNetAudio(); onFail && onFail(); }); }, 1800);
+    a.oncanplaythrough = function(){ finish(function(){ stopNetAudio(); }); };
+    a.onerror = function(){ finish(function(){ stopNetAudio(); onFail && onFail(); }); };
+    a.onended = function(){ clearTimeout(timer2); stopNetAudio(); };
+    var p = a.play();
+    if (p && p.catch) p.catch(function(){ finish(function(){ stopNetAudio(); onFail && onFail(); }); });
     netAudio = a;
     if (typeof netAudioUrl === 'string') netAudioUrl = url;
   }
 
-  function speak(text) {
+  function hasZhVoice() {
+    if (typeof speechSynthesis === 'undefined') return 'none';
+    try {
+      var vs = speechSynthesis.getVoices();
+      return (zhVoice || vs.some(function(x){ return /zh/i.test(x.lang); })) ? 'yes' : 'no';
+    } catch (e) { return 'no'; }
+  }
+
+  // 纯本地合成(即时、离线): 有可用语音时近乎零延迟
+  function speechSynthNow(text) {
+    if (typeof speechSynthesis === 'undefined') { window.Edu.Speech.toast('无法播放语音'); return false; }
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = ttLang(text) === 'zh' ? 'zh-CN' : 'en-US';
+    u.rate = 1.0;
+    var v = zhVoice || (function(){
+      var a=speechSynthesis.getVoices(); return a.find(function(x){ return /zh.*CN/i.test(x.lang); }) || a.find(function(x){ return /zh/i.test(x.lang); }) || null;
+    })();
+    if (v) u.voice = v;
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+    return true;
+  }
+
+  // 主播放入口: 本地合成优先(即时低延时), 网络高音质 TTS 兜底
+  function speak(text, force) {
     if (!text || !speakOn()) return;
     var t = M.mathToSpeak(String(text));
     var now = Date.now();
-    if (t === lastSpeakText && now - lastSpeakAt < 1200) return;
+    // force=1 用于「🔊 再听一遍」等显式重播: 忽略去重, 用户点了就该重放
+    if (!force && t === lastSpeakText && now - lastSpeakAt < 1200) return;
     lastSpeakText = t; lastSpeakAt = now;
-    // 优先网络高音质 TTS; 若浏览器无本地合成且网络失败, 静默跳过
-    playNetWithFallback(t);
+    // 先尝试本地合成: 冷启动/无语音引擎时可能在几百毫秒内不触发 onstart, 再转网络 TTS
+    if (hasZhVoice() !== 'yes') { playNetTimed(t, function(){ window.Edu.Speech.toast('网络语音不可用, 且本机无语音引擎'); }); return; }
+    var started = false;
+    var fb;
+    try {
+      fb = setTimeout(function(){ if (!started) playNetTimed(t, function(){}); }, 800);
+      var u = new SpeechSynthesisUtterance(t);
+      u.lang = 'zh-CN';
+      u.rate = 1.0;
+      var v = zhVoice || (speechSynthesis.getVoices() || []).find(function(x){ return /zh/i.test(x.lang); });
+      if (v) u.voice = v;
+      u.onstart = function(){ started = true; if (fb) clearTimeout(fb); stopNetAudio(); };
+      u.onerror = function(){ if (fb) clearTimeout(fb); playNetTimed(t, function(){}); };
+      speechSynthesis.cancel();
+      speechSynthesis.speak(u);
+    } catch (e) {
+      if (fb) clearTimeout(fb);
+      playNetTimed(t, function(){});
+    }
   }
 
   function spkBtn(text, cls) {

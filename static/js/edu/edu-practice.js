@@ -22,13 +22,16 @@
     if (type === 'judge') { var q2 = M.makeCalc(range, nocarry, allowMult); return M.makeJudgeItem(q2, PRACTICE.idx); }
     if (type === 'word') { var q3 = C.WORD_PLUS[Math.floor(Math.random()*C.WORD_PLUS.length)]; if (Math.random()<0.5) q3 = C.WORD_MINUS[Math.floor(Math.random()*C.WORD_MINUS.length)]; return M.makeWordItem(q3); }
     if (type === 'zi') {
-      // 与闯关「识字」一致: 2000 常用字池 + 听音选字(播放词语语音, 隐藏目标字)
+      // 与闯关「识字」一致: 2000 常用字池 + 听音选词(播放词语语音, 隐藏目标词)
       var pool = C.ZI_2000 || C.ZI;
       var z = pool[Math.floor(Math.random()*pool.length)];
       var word = z.ex || z.prompt;
-      var dist = (C.ZI_2000 || C.ZI).map(function(x){ return x.prompt; });
-      return { id:z.id, type:'zi', prompt:'听一听，是哪个字？', listen:word, word:word, pinyin:z.pinyin,
-        options:M.makeOptions(z.prompt, dist, 4), correct:z.prompt };
+      var wordPool = pool.map(function(x){ return x.ex || x.prompt; });
+      var otherWords = wordPool.filter(function(w){ return w !== word; });
+      // 预合成语音
+      if (window.Speech && Speech.preloadTTS) Speech.preloadTTS(word);
+      return { id:z.id, type:'zi', prompt:'听一听，是哪个词？', listen:word, word:word, pinyin:z.pinyin,
+        options:M.makeOptions(word, otherWords, 4), correct:word };
     }
     if (type === 'pinyin') { var p = C.P_READ[Math.floor(Math.random()*C.P_READ.length)]; return { id:'read_'+p.id, type:'pinyin', prompt:'「'+p.zi+'」这个字怎么读？', big:p.e+' '+p.zi, options:M.makeOptions(p.py, C.P_READ.map(function(t){return t.py;}), 3), correct:p.py, note:p.py }; }
     if (type === 'word_en') { var w = C.WORDS[Math.floor(Math.random()*C.WORDS.length)]; return { id:w.id, type:'word_en', prompt:w.cn, options:C.WORDS.filter(function(x){return x.id!==w.id;}).slice(0,3).map(function(x){return x.word;}).concat(w.word).sort(function(){return Math.random()-0.5;}), correct:w.word }; }

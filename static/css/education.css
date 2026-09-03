@@ -1387,24 +1387,24 @@
     width:44px;height:12px;border-radius:50%;background:rgba(0,0,0,.18);filter:blur(3px);z-index:-1;}
   @keyframes cmHop{0%,100%{transform:translateY(0);}50%{transform:translateY(-9px);}}
 
-  /* 5 个小关切换槽(置于节点下) */
-  .cm-zone .cm-stages{display:flex;gap:4px;margin-top:8px;padding:3px 8px;border-radius:14px;
-    background:rgba(255,255,255,.55);backdrop-filter:blur(3px);}
-  .cm-stg{width:26px;height:26px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;
-    border:2px solid var(--edu-border-2);border-radius:8px;background:var(--edu-surface);cursor:pointer;
-    color:var(--edu-ink);transition:.15s;padding:0;}
-  .cm-stg .cm-stg-n{font-size:.72rem;font-weight:900;line-height:1;}
-  .cm-stg .cm-stg-star{font-size:.4rem;line-height:1;color:var(--edu-gold);}
-  .cm-stg.todo:hover{transform:translateY(-1px);box-shadow:0 3px 8px rgba(255,107,74,.18);}
-  .cm-stg.done{border-color:var(--edu-green);background:#f3fff8;}
-  .cm-stg.done .cm-stg-n{color:var(--edu-green);}
-  html[data-theme="dark"] .cm-stg.done{background:#173528;}
-  .cm-stg.current{border-color:var(--edu-primary);background:#fff3ec;animation:cmBreathe 1.6s ease-in-out infinite;}
-  .cm-stg.current .cm-stg-n{color:var(--edu-primary);}
-  html[data-theme="dark"] .cm-stg.current{background:#3a2a1d;}
-  .cm-stg.locked{border-color:var(--edu-border-2);background:var(--edu-soft);color:var(--edu-muted);
-    cursor:not-allowed;filter:grayscale(.6);opacity:.75;}
-  .cm-stg.locked:hover{transform:none;box-shadow:none;}
+  /* 小关 = 山路上的小圆点: 每大关 5 个, 沿通往城堡的路段排布 */
+  .cm-dots{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;}
+  .cm-dot{position:absolute;width:28px;height:28px;border-radius:50%;transform:translate(-50%,-50%);
+    display:flex;align-items:center;justify-content:center;font-size:.74rem;font-weight:900;cursor:pointer;
+    border:2.5px solid rgba(255,255,255,.95);transition:.15s;pointer-events:auto;padding:0;line-height:1;
+    box-shadow:0 2px 5px rgba(0,0,0,.22), inset 0 1px 3px rgba(0,0,0,.12);}
+  .cm-dot.todo{background:#fff;color:var(--edu-ink);}
+  .cm-dot.todo:hover{transform:translate(-50%,-50%) scale(1.15);filter:brightness(.96);}
+  .cm-dot.done{background:var(--edu-green,#3aa964);color:#fff;border-color:#fff;}
+  .cm-dot.done::after{content:'⭐';font-size:.6rem;position:absolute;top:-7px;right:-6px;}
+  .cm-dot.current{background:var(--edu-primary,#ff6b4a);color:#fff;animation:cmDotGlow 1.5s ease-in-out infinite;
+    width:32px;height:32px;font-size:.82rem;border-color:#ffd9a0;}
+  html[data-theme="dark"] .cm-dot.todo{background:#eef1f6;color:#26303a;}
+  html[data-theme="dark"] .cm-dot.done{background:#2f8f5b;}
+  .cm-dot.locked{background:rgba(255,255,255,.9);color:var(--edu-muted);cursor:not-allowed;
+    filter:grayscale(.7);opacity:.6;box-shadow:none}
+  @keyframes cmDotGlow{0%,100%{box-shadow:0 0 0 0 rgba(255,107,74,.55),0 2px 6px rgba(0,0,0,.25);}
+    50%{box-shadow:0 0 0 8px rgba(255,107,74,0),0 2px 6px rgba(0,0,0,.25);}}
   @keyframes cmBreathe{0%,100%{box-shadow:0 0 0 0 rgba(255,107,74,.35);}50%{box-shadow:0 0 0 9px rgba(255,107,74,0);}}
   @keyframes cmBadgeGlow{0%,100%{box-shadow:0 0 0 0 rgba(255,157,46,.55);transform:translateX(-50%) scale(1);}50%{box-shadow:0 0 0 8px rgba(255,157,46,0);transform:translateX(-50%) scale(1.12);}}
   @keyframes cmCurrentFloat{0%,100%{transform:scale(1.16) translateY(0);}50%{transform:scale(1.16) translateY(-6px);}}

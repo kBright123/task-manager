@@ -359,26 +359,6 @@
   }
 
   // 单学科旅程地图(横向滚动)
-  function stageChips(subj, big, lv) {
-    var nd = nodeProg(subj, big);
-    var bigLk = !bigUnlocked(subj, big);
-    var curPosP = curPos(subj);
-    var chips = [];
-    for (var s = 0; s < STAGES_PER_BIG; s++) {
-      var lk = bigLk || !stageUnlocked(subj, big, s);
-      var done = !lk && (nd.passStage >= s);
-      var isCur = !lk && !done && curPosP.big === big && curPosP.stage === s;
-      var cls = 'cm-stg' + (done ? ' done' : (isCur ? ' current' : (lk ? ' locked' : ' todo')));
-      var stars = nd.stars[s] || 0;
-      var label = '<span class="cm-stg-n">' + (s + 1) + '</span>' +
-        '<span class="cm-stg-star">' + (done ? String('⭐'.repeat(Math.max(1, stars)) || '⭐') : (lk ? '🔒' : '')) + '</span>';
-      var oc = lk ? '' : 'window.Edu.Course.launchLevel(\'' + subj + '\',' + big + ',' + s + ')';
-      chips.push('<button type="button" class="' + cls + '"' + (lk ? ' disabled aria-disabled="true"' : ' onclick="' + oc + '"') +
-        ' title="第' + (big + 1) + '大关 · 第' + (s + 1) + '小关">' + label + '</button>');
-    }
-    return '<div class="cm-stages">' + chips.join('') + '</div>';
-  }
-
   // ---- 闯关地图: 蛇形路径视觉化 ----
   var SNAKE_W = 1180;   // 地图逻辑宽度(px), 窄屏横向滑动
   var SNAKE_H = 460;
@@ -402,6 +382,38 @@
     var x = SNAKE_X0 + i * SNAKE_DX;
     var y = (i % 2 === 0) ? SNAKE_Y_A : SNAKE_Y_B;
     return { x: x, y: y };
+  }
+  // 三次贝塞尔插值: 与 snakePath 的 S 形路径一致 (0≤t≤1)
+  function bezPt(a, b, mid, t) {
+    var u = 1 - t;
+    var w0 = u * u * u, w1 = 3 * u * u * t, w2 = 3 * u * t * t, w3 = t * t * t;
+    return {
+      x: w0 * a.x + w1 * a.x + w2 * b.x + w3 * b.x,
+      y: w0 * a.y + w1 * mid + w2 * mid + w3 * b.y
+    };
+  }
+  // 大关 i 的 5 个小关, 作为山路上的小圆点, 沿「通往该城堡」的路段依次排布 (t 由小到大逼近城堡)
+  function stageDots(subj, i) {
+    var nd = nodeProg(subj, i);
+    var bigLk = !bigUnlocked(subj, i);
+    var cur = curPos(subj);
+    var end = snakeXY(i);
+    var a = (i > 0) ? snakeXY(i - 1) : { x: 0, y: end.y };   // 首个城堡：从地图左缘笔直进入
+    var mid = (a.y + end.y) / 2;
+    var dots = [];
+    for (var s = 0; s < STAGES_PER_BIG; s++) {
+      var t = 0.12 + 0.13 * s;                       // 0.12..0.64, 留在城堡圆之前的可见路段
+      var p = bezPt(a, end, mid, t);
+      var lk = bigLk || !stageUnlocked(subj, i, s);
+      var done = !lk && (nd.passStage >= s);
+      var isCur = !lk && !done && cur.big === i && cur.stage === s;
+      var cls = 'cm-dot' + (done ? ' done' : (isCur ? ' current' : (lk ? ' locked' : ' todo')));
+      var oc = lk ? '' : 'window.Edu.Course.launchLevel(\'' + subj + '\',' + i + ',' + s + ')';
+      dots.push('<button type="button" class="' + cls + '" style="left:' + Math.round(p.x) + 'px;top:' + Math.round(p.y) + 'px;"' +
+        (lk ? ' disabled aria-disabled="true"' : ' onclick="' + oc + '"') +
+        ' title="第' + (i + 1) + '大关 · 第' + (s + 1) + '小关">' + (s + 1) + '</button>');
+    }
+    return dots.join('');
   }
   // 蛇形连接路径(SVG): 相邻节点用 S 形贝塞尔相连
   function snakePath(subj, curBig) {
@@ -438,7 +450,6 @@
         badge +
       '</button>' +
       '<div class="cm-node-label">' + esc(lv.name) + '</div>' +
-      stageChips(subj, i, lv) +
     '</div>';
   }
   // 当前大关内应继续的小关
@@ -495,6 +506,8 @@
 
     // 蛇形节点 + 路径 + 角色指示器
     var nodes = course.levels.map(function (lv, i) { return snakeNode(subj, i, lv, curBig); }).join('');
+    // 小关 = 山路上的小圆点: 每大关 5 个, 沿通往该城堡的路段排布(位于道路层之上、城堡圆之下)
+    var dots = '<div class="cm-dots">' + course.levels.map(function (lv, i) { return stageDots(subj, i); }).join('') + '</div>';
     // 蜿蜒山路: 每段 = 路面(Road 底色) + 中心虚线(路标) + 已走过的金色覆盖
     var segs = '';
     for (var i = 0; i < sp.used.length; i++) {
@@ -525,7 +538,7 @@
         '<div class="cm-snake" aria-label="闯关地图，可左右滑动">' +
         '<div class="cm-snake-inner" style="width:' + SNAKE_W + 'px;height:' + SNAKE_H + 'px;">' +
           '<svg class="cm-path" viewBox="0 0 ' + SNAKE_W + ' ' + SNAKE_H + '" preserveAspectRatio="none" aria-hidden="true">' + segs + '</svg>' +
-          nodes + mascot +
+          dots + nodes + mascot +
         '</div>' +
       '</div>' +
         '<div class="cm-snake-foot">' +
@@ -645,12 +658,6 @@
           '<div class="cm-stat"><div class="v">⭐ ' + stars + '</div><div class="l">星星</div></div>' +
           '<div class="cm-stat"><div class="v">🔥 ' + streak + '</div><div class="l">连续打卡</div></div>' +
         '</div>' +
-
-        '<section class="cm-card">' +
-          '<div class="cm-card-h"><span>🗺️ 课程地图</span><span class="cm-hint">点上面切学科 · 地图可左右滑动</span></div>' +
-          mapTabsHtml('cmMapSlot') +
-          mapSlotHtml('cmMapSlot') +
-        '</section>' +
 
         '<section class="cm-card">' +
           '<div class="cm-card-h"><span>🎖️ 星星里程碑</span></div>' +

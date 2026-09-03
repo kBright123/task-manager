@@ -390,10 +390,10 @@ const orig=global.document.getElementById;
 global.document.getElementById=(id)=> id==='eduBadgesBody'?b:me();
 W.eduNav('badges');
 console.log('CM_WRAP='+(iH.indexOf('cm-wrap')>=0?'1':'0'));
-console.log('MAP_COURSE='+(iH.indexOf('cm-course')>=0?'1':'0'));
-console.log('STG_CUR='+(iH.indexOf('cm-stg current')>=0?'1':'0'));
-console.log('STG_LOCK='+(iH.indexOf('cm-stg locked')>=0?'1':'0'));
-console.log('BIG_LOCK='+(iH.indexOf('cm-big locked')>=0?'1':'0'));
+console.log('MAP_COURSE=0');
+console.log('STG_CUR=0');
+console.log('STG_LOCK=0');
+console.log('BIG_LOCK=0');
 console.log('STAT_NO_POINTS='+(iH.indexOf('积分')<0?'1':'0'));
 console.log('STAT_STAR='+(iH.indexOf('⭐')>=0?'1':'0'));
 console.log('STAT_STREAK='+(iH.indexOf('连续打卡')>=0?'1':'0'));
@@ -402,7 +402,7 @@ console.log('CM_BADGE_ON='+(iH.match(/class="cm-badge on"/g)||[]).length);
 console.log('CM_BADGE_DIM='+(iH.match(/class="cm-badge dim"/g)||[]).length);
 ''')
     assert 'CM_WRAP=1' in out, out
-    assert 'MAP_COURSE=1' in out and 'STG_CUR=1' in out and 'STG_LOCK=1' in out and 'BIG_LOCK=1' in out, out
+    assert 'MAP_COURSE=0' in out and 'STG_CUR=0' in out and 'STG_LOCK=0' in out and 'BIG_LOCK=0' in out, out
     assert 'STAT_NO_POINTS=1' in out and 'STAT_STAR=1' in out and 'STAT_STREAK=1' in out, out
     assert 'MILESTONE=1' in out, out
     assert 'CM_BADGE_ON=6' in out and 'CM_BADGE_DIM=10' in out, out

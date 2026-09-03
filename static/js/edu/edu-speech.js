@@ -19,7 +19,7 @@
   }
 
   function speakOn() {
-    try { return localStorage.getItem(C.SPEAK_ON_KEY) === 'true'; } catch(e){ return false; }
+    try { var v = localStorage.getItem(C.SPEAK_ON_KEY); return v !== 'false'; } catch(e){ return true; }
   }
 
   function setSpeakIcon() {
@@ -38,7 +38,10 @@
 
   window.Edu.Speech.playSpeak = function (text, force) {
     if (!text) return;
-    if (speakOn()) speak(text, force);
+    if (speakOn()) {
+      if (force) playSpeakForceNet(text);  // 用户主动点击: 强制网络 TTS(有用户交互, 绕过自动播放拦截)
+      else speak(text, force);            // 自动播放: 本地优先+兜底
+    }
   };
 
   function ttLang(t) {
@@ -76,7 +79,7 @@
 
   // 预加载 TTS 音频(浏览器走 HTTP 缓存), 缓解「语音首播 3 秒+ 延迟」
   function preloadTTS(text) {
-    if (!text) return;
+    if (!text || typeof window === 'undefined' || typeof window.Audio === 'undefined') return;
     try {
       var a = new Audio(ttsUrl(text));
       if (typeof a.preload === 'string') a.preload = 'auto';
@@ -84,6 +87,34 @@
   }
 
   // 网络 TTS(edge-tts 高音质, 服务端缓存同源 mp3) 带超时: 仅在本地合成不可用/失败时兜底
+  function playNetTimed(text, onFail) {
+    if (typeof window === 'undefined' || typeof window.Audio === 'undefined') { onFail && onFail('not_browser'); return; }
+    var url = ttsUrl(text);
+    stopNetAudio();
+    var a = new Audio(url);
+    var done = false;
+    function finish(fn) {
+      if (done) return;
+      done = true;
+      clearTimeout(timer2);
+      fn();
+    }
+    var timer2 = setTimeout(function(){ finish(function(){ stopNetAudio(); onFail && onFail(); }); }, 5000);
+    a.oncanplaythrough = function(){ finish(function(){ stopNetAudio(); }); };
+    a.onerror = function(){ finish(function(){ stopNetAudio(); onFail && onFail(); }); };
+    a.onended = function(){ clearTimeout(timer2); stopNetAudio(); };
+    var p = a.play();
+    if (p && p.catch) p.catch(function(){ finish(function(){ stopNetAudio(); onFail && onFail(); }); });
+    netAudio = a;
+    if (typeof netAudioUrl === 'string') netAudioUrl = url;
+  }
+
+  function hasAnyVoice() {
+    if (typeof speechSynthesis === 'undefined') return false;
+    try { return speechSynthesis.getVoices().length > 0; } catch (e) { return false; }
+  }
+
+  // 网络 TTS: 仅在本地合成失败时兜底
   function playNetTimed(text, onFail) {
     var url = ttsUrl(text);
     stopNetAudio();
@@ -95,66 +126,95 @@
       clearTimeout(timer2);
       fn();
     }
-    var timer2 = setTimeout(function(){ finish(function(){ stopNetAudio(); onFail && onFail(); }); }, 1800);
+    var timer2 = setTimeout(function(){ finish(function(){ stopNetAudio(); onFail && onFail('network_timeout'); }); }, 10000);
     a.oncanplaythrough = function(){ finish(function(){ stopNetAudio(); }); };
-    a.onerror = function(){ finish(function(){ stopNetAudio(); onFail && onFail(); }); };
+    a.onerror = function(){ finish(function(){ stopNetAudio(); onFail && onFail('network_error'); }); };
     a.onended = function(){ clearTimeout(timer2); stopNetAudio(); };
     var p = a.play();
-    if (p && p.catch) p.catch(function(){ finish(function(){ stopNetAudio(); onFail && onFail(); }); });
+    if (p && p.catch) p.catch(function(){ finish(function(){ stopNetAudio(); onFail && onFail('autoplay_blocked'); }); });
     netAudio = a;
     if (typeof netAudioUrl === 'string') netAudioUrl = url;
   }
 
-  function hasZhVoice() {
-    if (typeof speechSynthesis === 'undefined') return 'none';
+  // 用户点击触发的网络 TTS(有用户交互, 可绕过自动播放策略)
+  function playNetTTSUserGesture(text) {
+    if (typeof window === 'undefined' || typeof window.Audio === 'undefined') return;
+    var url = ttsUrl(text);
+    stopNetAudio();
+    var a = new Audio(url);
+    var played = false;
+    a.oncanplaythrough = function(){ played = true; };
+    a.onerror = function(){ stopNetAudio(); if (!played) window.Edu.Speech.toast('网络语音加载失败'); };
+    a.onended = function(){ stopNetAudio(); };
+    var p = a.play();
+    if (p && p.catch) p.catch(function(){
+      stopNetAudio();
+      if (!played) window.Edu.Speech.toast('浏览器拦截播放, 请再次点击');
+    });
+    netAudio = a;
+  }
+
+  // 预加载网络音频到缓存(不播放)
+  function preloadNetTTS(text) {
+    if (typeof window === 'undefined' || typeof window.Audio === 'undefined') return;
     try {
-      var vs = speechSynthesis.getVoices();
-      return (zhVoice || vs.some(function(x){ return /zh/i.test(x.lang); })) ? 'yes' : 'no';
-    } catch (e) { return 'no'; }
+      var a = new Audio(ttsUrl(text));
+      a.preload = 'auto';
+      a.onerror = function(){}; // 静默忽略预加载错误
+    } catch (e) {}
   }
 
-  // 纯本地合成(即时、离线): 有可用语音时近乎零延迟
-  function speechSynthNow(text) {
-    if (typeof speechSynthesis === 'undefined') { window.Edu.Speech.toast('无法播放语音'); return false; }
-    var u = new SpeechSynthesisUtterance(text);
-    u.lang = ttLang(text) === 'zh' ? 'zh-CN' : 'en-US';
-    u.rate = 1.0;
-    var v = zhVoice || (function(){
-      var a=speechSynthesis.getVoices(); return a.find(function(x){ return /zh.*CN/i.test(x.lang); }) || a.find(function(x){ return /zh/i.test(x.lang); }) || null;
-    })();
-    if (v) u.voice = v;
-    speechSynthesis.cancel();
-    speechSynthesis.speak(u);
-    return true;
-  }
-
-  // 主播放入口: 本地合成优先(即时低延时), 网络高音质 TTS 兜底
+  // 主播放入口: 本地合成优先, 失败/超时自动切网络 TTS
   function speak(text, force) {
-    if (!text || !speakOn()) return;
+    if (!text || !speakOn() || typeof window === 'undefined' || typeof window.Audio === 'undefined') return;
     var t = M.mathToSpeak(String(text));
     var now = Date.now();
-    // force=1 用于「🔊 再听一遍」等显式重播: 忽略去重, 用户点了就该重放
     if (!force && t === lastSpeakText && now - lastSpeakAt < 1200) return;
     lastSpeakText = t; lastSpeakAt = now;
-    // 先尝试本地合成: 冷启动/无语音引擎时可能在几百毫秒内不触发 onstart, 再转网络 TTS
-    if (hasZhVoice() !== 'yes') { playNetTimed(t, function(){ window.Edu.Speech.toast('网络语音不可用, 且本机无语音引擎'); }); return; }
+
+    // 先预加载网络音频(后台缓存), 以便兜底时秒开
+    preloadNetTTS(t);
+
+    // 尝试本地合成: 给足 3 秒让 speechSynthesis 启动(桌面端冷启动较慢)
     var started = false;
     var fb;
+    function fallback(reason) {
+      if (fb) clearTimeout(fb);
+      // 自动兜底网络 TTS(可能被自动播放策略拦截)
+      playNetTimed(t, function(err){
+        if (err === 'autoplay_blocked') {
+          // 静默失败, 留给用户点按钮时的 user-gesture 重试
+        } else if (err === 'network_timeout') {
+          window.Edu.Speech.toast('网络语音超时');
+        } else {
+          window.Edu.Speech.toast('语音暂时不可用');
+        }
+      });
+    }
     try {
-      fb = setTimeout(function(){ if (!started) playNetTimed(t, function(){}); }, 800);
+      fb = setTimeout(function(){ if (!started) fallback('local_timeout'); }, 3000);
       var u = new SpeechSynthesisUtterance(t);
-      u.lang = 'zh-CN';
+      u.lang = ttLang(t) === 'zh' ? 'zh-CN' : 'en-US';
       u.rate = 1.0;
-      var v = zhVoice || (speechSynthesis.getVoices() || []).find(function(x){ return /zh/i.test(x.lang); });
+      var vs = speechSynthesis.getVoices();
+      var v = zhVoice || vs.find(function(x){ return /zh.*CN/i.test(x.lang); }) || vs.find(function(x){ return /zh/i.test(x.lang); });
       if (v) u.voice = v;
       u.onstart = function(){ started = true; if (fb) clearTimeout(fb); stopNetAudio(); };
-      u.onerror = function(){ if (fb) clearTimeout(fb); playNetTimed(t, function(){}); };
+      u.onerror = function(e){ if (fb) clearTimeout(fb); fallback('local_error'); };
       speechSynthesis.cancel();
       speechSynthesis.speak(u);
     } catch (e) {
       if (fb) clearTimeout(fb);
-      playNetTimed(t, function(){});
+      fallback('local_exception');
     }
+  }
+
+  // 供按钮点击调用: 强制走网络 TTS(有用户交互, 成功率最高)
+  function playSpeakForceNet(text) {
+    if (!text || !speakOn()) return;
+    var t = M.mathToSpeak(String(text));
+    lastSpeakText = t; lastSpeakAt = Date.now();
+    playNetTTSUserGesture(t);
   }
 
   function spkBtn(text, cls) {
@@ -182,6 +242,7 @@
   window.Edu.Speech.preloadTTS = preloadTTS;
   window.Edu.Speech.speakOn = speakOn;
   window.Edu.Speech.encPick = encPick;
+  window.Edu.Speech.playSpeakForceNet = playSpeakForceNet;
   window.encPick = encPick;
   window.toggleSpeak = window.Edu.Speech.toggleSpeak;
 

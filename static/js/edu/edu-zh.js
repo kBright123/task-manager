@@ -204,31 +204,33 @@
       title = { zi:'识字', pinyin:'拼音', ciyu:'词语', poem:'古诗', stroke:'笔顺' }[wbZhMode] || type;
     }
     if (type === 'zi') {
-      // 听音选字: 题干不显示目标字, 播放读音→从选项中选出听到的字
-      // 去重: 随机洗牌 + 抽样 QUIZ_LEN 个, 干扰项从全池随机抽, 并避免与近期(上次闯关)重复
-      // 2000 常用字主池: 题与干扰项均从该池抽取 → 彻底消除重复
+      // 听音选词: 题干不显示目标词, 播放词语读音→从选项中选出听到的词
+      // 选项使用 2000 常用字的例词, 而非单字, 更贴合真实听音场景
       var pool = C.ZI_2000 || C.ZI;
       var rec = window.Edu.QuizEngine && (window.Edu.QuizEngine.recentExclude || []);
-      // 带权抽样(不重复): 越靠前(=越常用/初学者越早遇到)越优先, 近期问过的排后
       var n = Math.min(C.QUIZ_LEN || 10, pool.length);
       var chosen = [];
       if (pool.length && n > 0) {
-        // 带权抽样(不重复): 常用字(靠前)权重更高 + 近期问过的排后 → 去重且初学者先遇简单字
         var scored = pool.map(function(z, i){
-          var weight = (1000 - i) / 1000;            // 靠前更常用
-          if (rec && rec.indexOf(z.id) >= 0) weight -= 3; // 近期问过的强制排后
-          weight += Math.random();                    // 随机扰动
+          var weight = (1000 - i) / 1000;
+          if (rec && rec.indexOf(z.id) >= 0) weight -= 3;
+          weight += Math.random();
           return { z: z, w: weight };
         });
         scored.sort(function(a, b){ return b.w - a.w; });
         for (var k = 0; k < n && k < scored.length; k++) chosen.push(scored[k].z);
       }
-      if (chosen.length === 0) chosen = pool.slice(0, n); // 兜底
+      if (chosen.length === 0) chosen = pool.slice(0, n);
+      // 词语池: 用于生成干扰项
+      var wordPool = chosen.map(function(z){ return z.ex || z.prompt; });
       items = chosen.map(function(z){
-        var distPool = (C.ZI_2000 || C.ZI).map(function(x){ return x.prompt; });
         var word = z.ex || z.prompt;
-        return { id:z.id, type:'zi', prompt:'听一听，是哪个字？', big:'', listen:word, word:word, pinyin:z.pinyin, note:word,
-          correct:z.prompt, options:M.makeOptions(z.prompt, distPool, 4) };
+        // 预合成语音(后台请求 TTS API, 利用浏览器/服务端缓存), 游戏时秒开
+        if (window.Speech && Speech.preloadTTS) Speech.preloadTTS(word);
+        // 选项从词语池抽取(去重), 确保是词语而非单字
+        var otherWords = wordPool.filter(function(w){ return w !== word; });
+        return { id:z.id, type:'zi', prompt:'听一听，是哪个词？', big:'', listen:word, word:word, pinyin:z.pinyin, note:word,
+          correct:word, options:M.makeOptions(word, otherWords, 4) };
       });
       if (window.Edu.QuizEngine) window.Edu.QuizEngine.recentExclude =
         (window.Edu.QuizEngine.recentExclude || []).concat(chosen.map(function(z){ return z.id; })).slice(-40);

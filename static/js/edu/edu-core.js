@@ -236,7 +236,7 @@
       'https://translate.googleapis.com/translate_tts?ie=UTF-8&client=tw-ob&tl=' + (lang === 'zh' ? 'zh-CN' : 'en') + '&q=' + encodeURIComponent(t)
     ]);
   }
-  function speakOn() { try { return load(SPEAK_ON_KEY) === true; } catch (e) { return false; } }
+  function speakOn() { try { var v = load(SPEAK_ON_KEY); return v !== false; } catch (e) { return true; } }
   function speak(text) {
     if (!text || !speakOn()) return;
     var t = mathToSpeak(String(text));

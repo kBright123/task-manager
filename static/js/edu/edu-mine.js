@@ -2,12 +2,11 @@
   'use strict';
   var Store = window.Edu.Store;
 
-  function esc(s) { return String(s === undefined || s === null ? '' : s).replace(/</g, '&lt;').replace(/&/g, '&amp;'); }
+  function esc(s) { return String(s === undefined || s === null ? '' : s).replace(/</g, '<').replace(/&/g, '&'); }
 
   function avaOf(k) {
     if (!k) return '🧒';
-    var g = k.gender === 'female' ? '👧' : '👦';
-    return g;
+    return k.gender === 'female' ? '👧' : '👦';
   }
   function levelOf(k) {
     if (!k) return 1;
@@ -26,25 +25,70 @@
     var goal = s && s.goal ? s.goal : 5;
     var name = act ? (act.name || '宝贝') : '宝贝';
 
-    var kidSwitch = kids.length > 1
-      ? '<div class="mine-kids">' +
-      '<div class="mine-kids-head"><h3>👨‍👩‍👧‍👦 宝贝</h3>' +
-      '<a href="javascript:void(0)" class="mgr-link" onclick="openKidsMgr()">管理</a></div>' +
-      '<div class="mine-kid-scroll">' + kids.map(function (k) {
-        var on = act && k.id === act.id;
-        return '<button type="button" class="mine-kid' + (on ? ' on' : '') + '" onclick="window.switchKid(\'' + k.id + '\')">' +
-          '<span class="mine-kid-ava">' + avaOf(k) + '</span>' +
-          '<span class="mine-kid-name">' + esc(k.name || '宝贝') + '</span>' +
-          (on ? '<span class="mine-kid-cur">学习中</span>' : '') +
-          '</button>';
-      }).join('') + '</div></div>'
-      : '';
-
-    var actions = '<div class="mine-actions">' +
-      '<button type="button" class="mine-act mine-act-primary" onclick="openKidsMgr()"><span class="ma-emo">➕</span><span>添加宝贝</span><i class="bi bi-chevron-right"></i></button>' +
-      '<button type="button" class="mine-act" onclick="openParentMode()"><span class="ma-emo">⚙️</span><span>家长设置</span><i class="bi bi-chevron-right"></i></button>' +
-      '<button type="button" class="mine-act" onclick="openKidsMgr()"><span class="ma-emo">👤</span><span>宝贝管理</span><i class="bi bi-chevron-right"></i></button>' +
+    // 统一的宝贝区域：当前宝贝 + 管理入口
+    var kidsHtml = '';
+    if (act) {
+      kidsHtml = '<div class="mine-kid-card">' +
+        '<button type="button" class="mine-kid-main" onclick="openKidsMgr()">' +
+          '<span class="mk-ava">' + avaOf(act) + '</span>' +
+          '<div class="mk-info">' +
+            '<span class="mk-name">' + esc(name) + '</span>' +
+            '<span class="mk-sub">今日目标 ' + goal + ' 题 · Lv.' + levelOf(act) + '</span>' +
+          '</div>' +
+          '<span class="mk-chevron"><i class="bi bi-chevron-right"></i></span>' +
+        '</button>' +
+        '<button type="button" class="mine-kid-mgr" onclick="openKidsMgr()">' +
+          '<i class="bi bi-people"></i> 管理宝贝' +
+        '</button>' +
       '</div>';
+    } else {
+      kidsHtml = '<div class="mine-kid-card empty">' +
+        '<button type="button" class="mine-kid-main" onclick="openKidsMgr()">' +
+          '<span class="mk-ava">🧒</span>' +
+          '<div class="mk-info"><span class="mk-name">暂无宝贝</span><span class="mk-sub">点击添加第一个宝贝</span></div>' +
+          '<span class="mk-plus">+</span>' +
+        '</button>' +
+      '</div>';
+    }
+
+    // 设置分组
+    var settingsHtml = '<div class="mine-settings">' +
+      '<div class="ms-group">' +
+        '<h4>学习设置</h4>' +
+        '<button type="button" class="ms-item" onclick="openParentMode()">' +
+          '<span class="ms-icon">📚</span><span>课程与难度</span><i class="bi bi-chevron-right"></i>' +
+        '</button>' +
+        '<button type="button" class="ms-item" onclick="openParentMode(\'eye\')">' +
+          '<span class="ms-icon">👁️</span><span>护眼提醒</span><i class="bi bi-chevron-right"></i>' +
+        '</button>' +
+        '<button type="button" class="ms-item" onclick="openParentMode(\'daily\')">' +
+          '<span class="ms-icon">📅</span><span>每日题量/时长</span><i class="bi bi-chevron-right"></i>' +
+        '</button>' +
+      '</div>' +
+      '<div class="ms-group">' +
+        '<h4>声音与显示</h4>' +
+        '<button type="button" class="ms-item" onclick="openParentMode(\'sound\')">' +
+          '<span class="ms-icon">🔊</span><span>朗读与音效</span><i class="bi bi-chevron-right"></i>' +
+        '</button>' +
+        '<button type="button" class="ms-item" onclick="openParentMode(\'font\')">' +
+          '<span class="ms-icon">🔤</span><span>字体大小</span><i class="bi bi-chevron-right"></i>' +
+        '</button>' +
+      '</div>' +
+      '<div class="ms-group">' +
+        '<h4>账号与数据</h4>' +
+        '<button type="button" class="ms-item" onclick="exportBackup()">' +
+          '<span class="ms-icon">📤</span><span>导出备份</span><i class="bi bi-chevron-right"></i>' +
+        '</button>' +
+        '<button type="button" class="ms-item" onclick="document.getElementById(\'backupFile\').click()">' +
+          '<span class="ms-icon">📥</span><span>导入备份</span><i class="bi bi-chevron-right"></i>' +
+        '</button>' +
+        '<button type="button" class="ms-item danger" onclick="openResetConfirm()">' +
+          '<span class="ms-icon">🗑️</span><span>重置所有数据</span><i class="bi bi-chevron-right"></i>' +
+        '</button>' +
+      '</div>' +
+    '</div>';
+
+    var hiddenFile = '<input type="file" id="backupFile" accept=".json,application/json" style="display:none;" onchange="importBackup()">';
 
     body.innerHTML =
       '<div class="mine-head">' +
@@ -53,7 +97,9 @@
         '<div class="mine-sub">今日目标 ' + goal + ' 题 · Lv.' + levelOf(act) + '</div></div>' +
         '<div class="mine-stars">⭐ ' + stars + '</div>' +
       '</div>' +
-      kidSwitch + actions +
+      kidsHtml +
+      settingsHtml +
+      hiddenFile +
       '<p class="mine-foot">幼小衔接 · 快乐学习乐园</p>';
   }
 

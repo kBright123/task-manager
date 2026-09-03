@@ -1517,9 +1517,9 @@ const W=global;
   W.eduNav('mine');
   const m=mineBody._h||'';
   console.log('MINE_NAME='+(m.indexOf('我的')>=0||m.indexOf('小米')>=0?'1':'0'));
-  console.log('MINE_SETTINGS='+(m.indexOf('家长设置')>=0?'1':'0'));
+  console.log('MINE_SETTINGS='+(m.indexOf('课程与难度')>=0?'1':'0'));
   console.log('MINE_REPORT='+(m.indexOf('学习报告')>=0?'1':'0'));
-  console.log('MINE_MGR='+(m.indexOf('宝贝管理')>=0?'1':'0'));
+  console.log('MINE_MGR='+(m.indexOf('管理宝贝')>=0?'1':'0'));
   console.log('MINE_STARS='+(m.indexOf('⭐')>=0?'1':'0'));
 })();
 '''

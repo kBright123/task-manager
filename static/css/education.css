@@ -100,6 +100,8 @@
   .sm-tabs-sub .sm-tab{background:var(--edu-surface);font-size:.78rem;padding:5px 12px;}
   /* 闯关答题时: 隐藏学科入口行(类别/题型切换), 专注当前关卡题目, 顶部仅保留「关卡标签 + 返回」 */
   body.quiz-live .sm-tabs{display:none !important;}
+  /* 闯关完成弹窗时: 隐藏学科入口行, 专注结算界面 */
+  body.quiz-complete .sm-tabs{display:none !important;}
 
   .edu-back{display:inline-flex;align-items:center;gap:6px;color:var(--edu-ink);text-decoration:none;font-size:.9rem;border:1.5px solid var(--edu-border);background:var(--edu-surface);padding:6px 14px;border-radius:999px;transition:.15s;cursor:pointer;}
   .edu-back:hover{border-color:var(--edu-primary);color:var(--edu-primary);}

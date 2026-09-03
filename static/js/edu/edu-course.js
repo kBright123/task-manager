@@ -392,7 +392,7 @@
       y: w0 * a.y + w1 * mid + w2 * mid + w3 * b.y
     };
   }
-  // 大关 i 的 5 个小关, 作为山路上的小圆点, 沿「通往该城堡」的路段依次排布 (t 由小到大逼近城堡)
+// 大关 i 的 5 个小关, 作为山路上的小石头, 沿「通往该城堡」的路段依次排布 (t 由小到大逼近城堡)
   function stageDots(subj, i) {
     var nd = nodeProg(subj, i);
     var bigLk = !bigUnlocked(subj, i);
@@ -400,6 +400,9 @@
     var end = snakeXY(i);
     var a = (i > 0) ? snakeXY(i - 1) : { x: 0, y: end.y };   // 首个城堡：从地图左缘笔直进入
     var mid = (a.y + end.y) / 2;
+    // 石头 emoji 池: 每大关不同石头, 增加视觉辨识度
+    var stones = ['🪨','🗿','🏔️','🪵','🌰','🍂','🍄','🌻','🌲','🌳','🌴','🌵','🪸','🐚','🪷','🪻'];
+    var base = (i * 7) % stones.length;
     var dots = [];
     for (var s = 0; s < STAGES_PER_BIG; s++) {
       var t = 0.12 + 0.13 * s;                       // 0.12..0.64, 留在城堡圆之前的可见路段
@@ -409,9 +412,10 @@
       var isCur = !lk && !done && cur.big === i && cur.stage === s;
       var cls = 'cm-dot' + (done ? ' done' : (isCur ? ' current' : (lk ? ' locked' : ' todo')));
       var oc = lk ? '' : 'window.Edu.Course.launchLevel(\'' + subj + '\',' + i + ',' + s + ')';
+      var stone = stones[(base + s) % stones.length];
       dots.push('<button type="button" class="' + cls + '" style="left:' + Math.round(p.x) + 'px;top:' + Math.round(p.y) + 'px;"' +
         (lk ? ' disabled aria-disabled="true"' : ' onclick="' + oc + '"') +
-        ' title="第' + (i + 1) + '大关 · 第' + (s + 1) + '小关">' + (s + 1) + '</button>');
+        ' title="第' + (i + 1) + '大关 · 第' + (s + 1) + '小关">' + stone + '</button>');
     }
     return dots.join('');
   }

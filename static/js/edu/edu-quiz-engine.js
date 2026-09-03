@@ -188,6 +188,7 @@
 
   function renderQuiz() {
     if (!quiz || !quiz.items.length) return;
+    document.body && document.body.classList && document.body.classList.remove('quiz-complete');
     window.Edu.FAB.quickFabSet(false);
     document.body && document.body.classList && document.body.classList.add('quiz-live');
     if (quiz.view === undefined) quiz.view = 0;
@@ -535,6 +536,7 @@
     clearRestTimer();
     clearQuizState();
     document.body && document.body.classList && document.body.classList.remove('quiz-live');
+    document.body && document.body.classList && document.body.classList.add('quiz-complete');
     if (window.renderNav) window.renderNav();
     var container = document.getElementById(quizContainerId);
     if (container) {
@@ -616,6 +618,7 @@
 
   window.Edu.QuizEngine.restartQuiz = function () {
     if (!quiz) return;
+    document.body && document.body.classList && document.body.classList.remove('quiz-complete');
     var subj = quizSubject, type = quiz.type, diff = quiz.difficulty;
     quiz = null;
     window.Edu.QuizEngine.quiz = null;

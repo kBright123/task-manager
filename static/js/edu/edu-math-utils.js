@@ -140,9 +140,16 @@
 
   function makeOptions(correct, distractors, count, labelFn) {
     var opts = [{v:String(correct), label:labelFn?labelFn(correct):String(correct), correct:true}];
-    var pool = distractors.slice();
+    // 去重干扰项, 并排除正确答案
+    var seen = new Set([String(correct)]);
+    var pool = [];
+    for (var d of distractors) {
+      var v = String(d);
+      if (!seen.has(v)) { seen.add(v); pool.push(v); }
+    }
+    // 洗牌
     for (var i=pool.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=pool[i];pool[i]=pool[j];pool[j]=t; }
-    for (var k=0;k<Math.min(count-1,pool.length);k++) opts.push({v:String(pool[k]), label:labelFn?labelFn(pool[k]):String(pool[k]), correct:false});
+    for (var k=0;k<Math.min(count-1,pool.length);k++) opts.push({v:pool[k], label:labelFn?labelFn(pool[k]):pool[k], correct:false});
     for (var m=opts.length-1;m>0;m--){ var n=Math.floor(Math.random()*(m+1)); var t2=opts[m];opts[m]=opts[n];opts[n]=t2; }
     return opts;
   }

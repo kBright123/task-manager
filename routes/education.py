@@ -262,10 +262,11 @@ _EDU_JS_MODULES = [
     'edu-state.js', 'edu-parent.js', 'edu-quiz-engine.js', 'edu-engine.js',
     'edu-legacy.js', 'edu-zh.js', 'edu-math.js', 'edu-en.js',
     'edu-paradise.js', 'edu-daily.js', 'edu-practice.js', 'edu-header.js',
-    'edu-kids.js', 'edu-nav.js', 'edu-home.js', 'edu-mine.js',
-    'edu-edit.js', 'edu-report.js', 'edu-mask.js', 'edu-wish.js',
-    'edu-badges.js', 'edu-course.js', 'edu-stats.js', 'edu-dash.js',
-    'edu-backup.js', 'edu-settings.js', 'edu-fab.js', 'edu-bootstrap.js',
+    'edu-kids.js', 'edu-nav.js', 'edu-home.js',
+    'edu-edit.js', 'edu-backup.js', 'edu-settings.js', 'edu-report.js',
+    'edu-mask.js', 'edu-wish.js', 'edu-badges.js', 'edu-course.js',
+    'edu-stats.js', 'edu-dash.js', 'edu-fab.js', 'edu-bootstrap.js',
+    'edu-mine.js',
 ]
 _EDU_JS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static', 'js', 'edu')
 _bundle_lock = threading.Lock()

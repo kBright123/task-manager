@@ -25,31 +25,24 @@
     var goal = s && s.goal ? s.goal : 5;
     var name = act ? (act.name || '宝贝') : '宝贝';
 
-    // 统一的宝贝区域：当前宝贝 + 管理入口
-    var kidsHtml = '';
-    if (act) {
-      kidsHtml = '<div class="mine-kid-card">' +
-        '<button type="button" class="mine-kid-main" onclick="openKidsMgr()">' +
-          '<span class="mk-ava">' + avaOf(act) + '</span>' +
-          '<div class="mk-info">' +
-            '<span class="mk-name">' + esc(name) + '</span>' +
-            '<span class="mk-sub">今日目标 ' + goal + ' 题 · Lv.' + levelOf(act) + '</span>' +
+    // 宝贝管理入口：有宝贝显示"管理宝贝"，无宝贝显示"添加宝贝"
+    var kidsHtml = kids.length > 0
+      ? '<button type="button" class="mine-kid-link" onclick="openKidsMgr()">' +
+          '<span class="mkl-ava">' + avaOf(act) + '</span>' +
+          '<div class="mkl-info">' +
+            '<span class="mkl-title">管理宝贝</span>' +
+            '<span class="mkl-sub">' + kids.length + ' 个宝贝 · 当前 ' + esc(name) + '</span>' +
           '</div>' +
-          '<span class="mk-chevron"><i class="bi bi-chevron-right"></i></span>' +
-        '</button>' +
-        '<button type="button" class="mine-kid-mgr" onclick="openKidsMgr()">' +
-          '<i class="bi bi-people"></i> 管理宝贝' +
-        '</button>' +
-      '</div>';
-    } else {
-      kidsHtml = '<div class="mine-kid-card empty">' +
-        '<button type="button" class="mine-kid-main" onclick="openKidsMgr()">' +
-          '<span class="mk-ava">🧒</span>' +
-          '<div class="mk-info"><span class="mk-name">暂无宝贝</span><span class="mk-sub">点击添加第一个宝贝</span></div>' +
-          '<span class="mk-plus">+</span>' +
-        '</button>' +
-      '</div>';
-    }
+          '<span class="mkl-chevron"><i class="bi bi-chevron-right"></i></span>' +
+        '</button>'
+      : '<button type="button" class="mine-kid-link empty" onclick="openKidsMgr()">' +
+          '<span class="mkl-ava">🧒</span>' +
+          '<div class="mkl-info">' +
+            '<span class="mkl-title">添加宝贝</span>' +
+            '<span class="mkl-sub">点击添加第一个宝贝</span>' +
+          '</div>' +
+          '<span class="mkl-plus">+</span>' +
+        '</button>';
 
     // 设置分组
     var settingsHtml = '<div class="mine-settings">' +

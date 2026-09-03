@@ -1020,7 +1020,7 @@
     background:linear-gradient(135deg,#fff8e6,#ffeef2);border:1.5px solid #ffd9a8;border-radius:16px;
     padding:14px 16px;margin-bottom:14px;font-size:.98rem;font-weight:800;color:var(--edu-ink);line-height:1.6;}
 
-  /* 我的页: 个人资料头 + 宝贝卡片 + 设置分组 */
+/* 我的页: 个人资料头 + 宝贝管理链接 + 设置分组 */
   .mine-head{display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,#fff,#f4f7ff);
     border:2px solid var(--edu-border);border-radius:24px;padding:20px;margin-bottom:16px;}
   .mine-ava-big{width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,#ffd93d,#ff9f43);
@@ -1031,18 +1031,19 @@
   .mine-stars{font-size:1.2rem;font-weight:900;color:var(--edu-sun);background:#fff8e6;border:1.5px solid #ffe3a3;
     padding:8px 14px;border-radius:999px;white-space:nowrap;}
 
-  /* 宝贝卡片: 当前宝贝 + 管理入口 */
-  .mine-kid-card{background:var(--edu-surface);border:2px solid var(--edu-border);border-radius:20px;padding:16px;margin-bottom:16px;}
-  .mine-kid-card.empty .mine-kid-main{min-height:80px;justify-content:center;}
-  .mine-kid-main{display:flex;align-items:center;gap:14px;width:100%;min-height:68px;padding:4px 0;border:none;background:transparent;cursor:pointer;text-align:left;}
-  .mk-ava{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#ffe3a3,#ffd93d);display:flex;align-items:center;justify-content:center;font-size:2rem;flex-shrink:0;}
-  .mk-info{display:flex;flex-direction:column;gap:2px;min-width:0;}
-  .mk-name{font-size:1.2rem;font-weight:900;color:var(--edu-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .mk-sub{font-size:.85rem;font-weight:700;color:var(--edu-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .mk-chevron{margin-left:auto;color:var(--edu-muted);font-size:1.2rem;}
-  .mk-plus{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#ffd93d,#ff9f43);color:#fff;font-size:1.8rem;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;}
-  .mine-kid-mgr{display:block;width:100%;margin-top:10px;padding:10px 16px;border-radius:12px;background:var(--edu-soft);border:2px dashed var(--edu-border-2);color:var(--edu-blue);font-size:.95rem;font-weight:800;cursor:pointer;text-align:center;transition:.14s;}
-  .mine-kid-mgr:hover{background:#fff8e6;border-color:var(--edu-sun);color:var(--edu-sun);}
+  /* 宝贝管理链接: 单行卡片，点击进入管理 */
+  .mine-kid-link{display:flex;align-items:center;gap:14px;width:100%;min-height:64px;padding:10px 16px;
+    border:none;border-radius:16px;background:var(--edu-surface);border:2px solid var(--edu-border);
+    color:var(--edu-ink);font-size:1rem;font-weight:800;cursor:pointer;text-align:left;transition:.14s;}
+  .mine-kid-link:hover{border-color:var(--edu-sky);background:var(--edu-soft);}
+  .mine-kid-link.empty{justify-content:center;background:linear-gradient(135deg,#fff8e6,#ffeef2);border-color:#ffd9a8;}
+  .mkl-ava{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#ffe3a3,#ffd93d);display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0;}
+  .mine-kid-link.empty .mkl-ava{width:48px;height:48px;font-size:1.8rem;background:linear-gradient(135deg,#ffd93d,#ff9f43);color:#fff;}
+  .mkl-info{display:flex;flex-direction:column;gap:2px;min-width:0;}
+  .mkl-title{font-size:1.1rem;font-weight:900;color:var(--edu-ink);}
+  .mkl-sub{font-size:.85rem;font-weight:700;color:var(--edu-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .mkl-chevron{margin-left:auto;color:var(--edu-muted);font-size:1.2rem;}
+  .mkl-plus{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#ffd93d,#ff9f43);color:#fff;font-size:1.5rem;display:flex;align-items:center;justify-content:center;}
 
   /* 设置分组 */
   .mine-settings{display:flex;flex-direction:column;gap:16px;}
@@ -1059,10 +1060,10 @@
   .mine-foot{text-align:center;font-size:.82rem;font-weight:700;color:var(--edu-muted);margin:22px 0 4px;}
 
   html[data-theme="dark"] .mine-head{background:linear-gradient(135deg,#2a3140,#242a38);border-color:var(--edu-border);}
-  html[data-theme="dark"] .mine-kid-card{background:var(--edu-soft);border-color:var(--edu-border);}
-  html[data-theme="dark"] .mk-ava{background:linear-gradient(135deg,#4a3a1a,#3a2f17);}
-  html[data-theme="dark"] .mine-kid-mgr{background:#2a261a;border-color:var(--edu-border-2);}
-  html[data-theme="dark"] .mine-kid-mgr:hover{background:#3a2f17;border-color:var(--edu-sun);}
+  html[data-theme="dark"] .mine-kid-link{background:var(--edu-soft);border-color:var(--edu-border);}
+  html[data-theme="dark"] .mine-kid-link:hover{background:#2a3140;border-color:var(--edu-sky);}
+  html[data-theme="dark"] .mine-kid-link.empty{background:linear-gradient(135deg,#3a2f17,#2f2a1a);border-color:#b8955a;}
+  html[data-theme="dark"] .mkl-ava{background:linear-gradient(135deg,#4a3a1a,#3a2f17);}
   html[data-theme="dark"] .ms-group{background:var(--edu-soft);border-color:var(--edu-border);}
   html[data-theme="dark"] .ms-group h4{background:#222838;border-color:var(--edu-border);}
   html[data-theme="dark"] .ms-item{border-color:var(--edu-border-2);color:var(--edu-ink);}

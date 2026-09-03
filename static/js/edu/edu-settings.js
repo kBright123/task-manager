@@ -168,6 +168,7 @@
   window.Edu.Settings.confirmOk = window.confirmOk;
   window.Edu.Settings.confirmCancel = window.confirmCancel;
   window.Edu.Settings.openReset = window.openReset;
+  window.Edu.Settings.openResetConfirm = window.openReset; // 兼容 mine 页调用
   window.Edu.Settings.resetGo = window.resetGo;
   window.Edu.Settings.resetCancel = window.resetCancel;
   window.Edu.Settings.lockParentMode = window.lockParentMode;

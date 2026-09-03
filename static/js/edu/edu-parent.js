@@ -69,10 +69,17 @@
     window.Edu.Parent.pwdPending = null;
   };
 
-  window.openParentMode = function () {
-    window.Edu.Parent.pwdPending = function(){
-      if (window.Edu.Settings && window.Edu.Settings.openSettings) window.Edu.Settings.openSettings();
-    };
-    window.requireParent(function(){});
+  window.openParentMode = function (tab) {
+    window.requireParent(function(){
+      if (window.Edu.Settings && window.Edu.Settings.openSettings) {
+        window.Edu.Settings.openSettings();
+        if (tab) {
+          setTimeout(function(){
+            var el = document.getElementById('set' + tab.charAt(0).toUpperCase() + tab.slice(1));
+            if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
+          }, 100);
+        }
+      }
+    });
   };
 })();

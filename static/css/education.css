@@ -1163,8 +1163,10 @@
   .ht-hello b{color:var(--edu-primary);}
   .ht-sub{font-size:.85rem;font-weight:600;color:var(--edu-muted);white-space:nowrap;}
   .ht-actions{display:flex;align-items:center;gap:6px;flex-shrink:0;}
-  .ht-lv{font-size:.85rem;font-weight:900;color:var(--edu-sun,#f5b83d);background:#fff8e6;
-    border:1.5px solid #ffe3a3;border-radius:999px;padding:3px 9px;white-space:nowrap;}
+  .ht-chip{display:inline-flex;align-items:center;font-size:.82rem;font-weight:900;white-space:nowrap;
+    border-radius:999px;padding:3px 9px;}
+  .ht-star{color:var(--edu-sun,#f5b83d);background:#fff8e6;border:1.5px solid #ffe3a3;}
+  .ht-fire{color:#ff7043;background:#fff1ec;border:1.5px solid #ffcdbc;}
   .ht-icon{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;
     border-radius:50%;background:var(--edu-surface-2);border:1.5px solid var(--edu-border);
     color:var(--edu-ink);font-size:1.05rem;cursor:pointer;transition:.12s;line-height:1;}
@@ -1198,8 +1200,12 @@
   .hg-count{font-size:.9rem;font-weight:800;background:rgba(255,255,255,.22);border-radius:999px;
     padding:3px 11px;white-space:nowrap;font-variant-numeric:tabular-nums;}
   .hg-count b{font-size:1.02rem;}
-  .hg-quote{font-size:.92rem;font-weight:700;margin:7px 0 8px;white-space:nowrap;
-    overflow:hidden;text-overflow:ellipsis;line-height:1.35;}
+  .hg-stage{display:flex;align-items:center;justify-content:space-between;gap:8px;
+    margin:7px 0 8px;font-size:.9rem;font-weight:800;white-space:nowrap;}
+  .hg-stage-txt{overflow:hidden;text-overflow:ellipsis;line-height:1.35;}
+  .hg-stage-txt b{color:#fff05a;}
+  .hg-pct{flex-shrink:0;font-variant-numeric:tabular-nums;background:rgba(255,255,255,.22);
+    border-radius:999px;padding:1px 9px;font-size:.78rem;}
   .hg-track{width:100%;height:11px;border-radius:999px;background:rgba(0,0,0,.22);overflow:hidden;}
   .hg-track .hc-fill{height:100%;border-radius:999px;background:var(--edu-sun,#ffd93d);
     transition:width .35s ease;display:block;}
@@ -1269,9 +1275,11 @@
   .home-course.locked .hc-mode{pointer-events:none;opacity:.5;}
   .home-sec-head{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 10px;}
   .home-sec-head h3{font-size:1.02rem;font-weight:900;color:var(--edu-ink);margin:0;white-space:nowrap;}
-  .hc-hint{display:inline-flex;align-items:center;gap:4px;font-size:.78rem;font-weight:700;
-    color:var(--edu-muted);white-space:nowrap;}
-  .hc-hint .hh-a{color:var(--edu-blue);animation:hhSlide 1.4s ease-in-out infinite;}
+  .home-continue{display:inline-flex;align-items:center;gap:6px;border:none;background:transparent;
+    color:var(--edu-primary);font-size:1.02rem;font-weight:900;cursor:pointer;padding:6px 14px;
+    border-radius:999px;transition:.12s;white-space:nowrap;}
+  .home-continue:hover{background:var(--edu-chip);}
+  .home-continue .hh-a{font-size:1rem;animation:hhSlide 1.4s ease-in-out infinite;}
   @keyframes hhSlide{0%,100%{transform:translateX(0);}50%{transform:translateX(4px);}}
 
   /* 手机: 三科横卡整行自适应单列铺满, 两行展示(上行学科关卡 / 下行题数+双按钮) */
@@ -1288,14 +1296,15 @@
     .hc-foot{padding:6px 9px;border-radius:12px;}
     .ht-hello{font-size:1.02rem;}
     .ht-sub{font-size:.78rem;}
-    .ht-lv{font-size:.8rem;}
+    .ht-chip{font-size:.74rem;padding:2px 8px;}
     .ht-mode .mode-select{font-size:.86rem;}
     .ht-icon,.ht-kd-item,.ht-kd-add{min-width:48px;min-height:48px;}
     /* 手机: 收紧目标卡统计, 勋章仅显示前 2 枚避免换行过高 */
     .home-goal{padding:12px 14px 11px;border-radius:18px;}
     .hg-title{font-size:.95rem;}
     .hg-count{font-size:.84rem;padding:2px 10px;}
-    .hg-quote{font-size:.86rem;margin:6px 0 7px;}
+    .hg-stage{font-size:.84rem;margin:6px 0 7px;}
+    .hg-pct{font-size:.72rem;padding:0 8px;}
     .hg-track{height:10px;}
     .hg-stats{margin-top:7px;gap:5px;}
     .hg-star{font-size:.76rem;padding:2px 9px;}

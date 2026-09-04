@@ -28,21 +28,39 @@
   function kidLevel(k) {
     return Math.max(1, (window.eduKids && window.eduKids.ageOf ? window.eduKids.ageOf(k && k.birthYear) : 6));
   }
-  // 统一的问候页头: 早上好/{名字}/今天也要开开心心学习哦 + ⭐ Lv + 宝贝切换
+  // 单行动态问候: 去成人化, 用 emoji/小探险家口吻, 不再带说教副标题
+  function greetLine(actName) {
+    var hour = new Date().getHours();
+    var name = esc(actName || '宝贝');
+    if (hour < 6) return '🌙 夜深啦，' + name + ' 该休息咯';
+    if (hour < 12) return '☀️ 早上好呀，' + name + ' 小探险家！';
+    if (hour < 18) return '🌤️ 下午好呀，' + name + ' 小探险家！';
+    return '🌙 晚上好呀，' + name + ' 小探险家！';
+  }
+  // 顶部星星 chip: 强调「已获得」, 0 星时引导闯关赢星星
+  function starChipHtml(stars) {
+    var s = Number(stars) || 0;
+    return '<span class="ht-chip ht-star">' + (s > 0 ? '⭐ 已获得 ' + s + ' 颗星星' : '继续闯关赢星星✨') + '</span>';
+  }
+  // 顶部打卡 chip: 🔥 打卡第 N 天
+  function fireChipHtml(streak) {
+    return '<span class="ht-chip ht-fire">🔥 打卡第 ' + (Number(streak) || 0) + ' 天</span>';
+  }
+  // 统一的问候页头: 单行动态问候 + ⭐星星/🔥打卡 + 宝贝切换
   // 用于 学习/勋章/星愿/我的 各页, 避免反复出现重复大标题。
   function welcomeBarHtml(act, dropId, subtitle) {
     var kids = window.eduKids ? window.eduKids.all() : [];
-    var hour = new Date().getHours();
-    var greet = hour < 6 ? '夜深了' : (hour < 12 ? '早上好' : (hour < 18 ? '下午好' : '晚上好'));
     var actName = act ? (act.name || '宝贝') : '宝贝';
-    var sub = subtitle || '今天也要开开心心学习哦';
+    var stars = Store.state && Store.state.stars || 0;
+    var streak = loginStreak(Store.state && Store.state.records || []) || 0;
+    var sub = subtitle ? '<span class="ht-sub">' + esc(subtitle) + '</span>' : '';
     var top = '<section class="home-top">' +
       '<div class="ht-greet">' +
-        '<span class="ht-hello">' + greet + '，<b>' + esc(actName) + '</b></span>' +
-        '<span class="ht-sub">' + esc(sub) + '</span>' +
+        '<span class="ht-hello">' + greetLine(actName) + '</span>' +
+        sub +
       '</div>' +
       '<div class="ht-actions">' +
-        '<span class="ht-lv">⭐ ' + (Store.state && Store.state.stars || 0) + ' 星 · 连续打卡 ' + (loginStreak(Store.state && Store.state.records || []) || 0) + ' 天</span>' +
+        starChipHtml(stars) + fireChipHtml(streak) +
         '<button type="button" class="ht-icon" data-kid aria-label="宝贝切换" onclick="window.homeOpenKid(\'' + dropId + '\')">' +
           kidAvatar(act) + '</button>' +
       '</div>' +
@@ -60,6 +78,9 @@
   window.Edu.Home.welcomeBarHtml = welcomeBarHtml;
   window.Edu.Home.renderWelcomeInto = renderWelcomeInto;
   window.Edu.Home.kidAvatar = kidAvatar;
+  window.Edu.Home.greetLine = greetLine;
+  window.Edu.Home.starChipHtml = starChipHtml;
+  window.Edu.Home.fireChipHtml = fireChipHtml;
   window.renderWelcomeInto = renderWelcomeInto;
 
   function loginStreak(recs) {
@@ -179,31 +200,29 @@
     var remaining = Math.max(0, d.goal - d.today);
     var barW = Math.round(Math.min(100, d.today * 100 / Math.max(1, d.goal)));
 
-    // ===== 顶部条: 问候单行 + 副标题同行 + 等级/宝贝/声音/通知/模式 收纳 =====
-    var hour = new Date().getHours();
-    var greet = hour < 6 ? '夜深了' : (hour < 12 ? '早上好' : (hour < 18 ? '下午好' : '晚上好'));
+    // ===== 顶部条: 单行动态问候 + ⭐星星/🔥打卡 + 宝贝/模式 收纳 =====
     var curMode = Nav.currentMode ? Nav.currentMode() : 'workbench';
     var modeToggle = '<select id="modeSelect" class="mode-select" aria-label="学习模式" onchange="switchMode(this.value)">' +
       '<option value="workbench"' + (curMode === 'workbench' ? ' selected' : '') + '>🏫 幼小衔接</option>' +
       '<option value="paradise"' + (curMode === 'paradise' ? ' selected' : '') + '>🌈 快乐乐园</option>' +
       '</select>';
     var top = '<section class="home-top">' +
-      '<div class="ht-greet">' +
-        '<span class="ht-hello">' + greet + '，<b>' + esc(act.name || '宝贝') + '</b></span>' +
-        '<span class="ht-sub">今天也要开开心心学习哦</span>' +
-      '</div>' +
+      '<div class="ht-greet"><span class="ht-hello">' + greetLine(act.name || '宝贝') + '</span></div>' +
       '<div class="ht-actions">' +
-        '<span class="ht-lv">⭐ ' + (Store.state.stars || 0) + ' 星 · 连续打卡 ' + (d.streak || 0) + ' 天</span>' +
+        starChipHtml(Store.state.stars || 0) + fireChipHtml(d.streak || 0) +
         '<button type="button" class="ht-icon" data-kid aria-label="宝贝切换" onclick="window.homeOpenKid()">' + kidAvatar(act) + '</button>' +
         '<span class="ht-mode mode-toggle">' + modeToggle + '</span>' +
       '</div>' +
       '</section>';
 
-    // ===== 今日目标卡: 标题 + 激励语(单行) + 进度条与数据整合 + 继续按钮 =====
-    var quote = d.today >= d.goal
-      ? '🎉 今日目标已达成，继续保持！'
-      : (remaining > 0 ? '再答 <b>' + remaining + '</b> 题就能突破今日目标，加油！' : '从第一题开始，答对题 + 攒星星，冲鸭！');
-    // 最近获得勋章(按时序倒序取前 3)展示在今日目标: 前 2 枚(.hero)任何端都显示, 第 3 枚(.xtra)桌面显示/手机隐藏,
+    // ===== 今日任务卡: 🌱 今日任务 + 种子→发芽→开花 进度插画 + 进度条 =====
+    var stageNode;
+    if (barW >= 100) stageNode = '🌸 <b>今日任务达成！</b>';
+    else if (barW >= 67) stageNode = '🌼 快开出小花啦，继续加油';
+    else if (barW >= 34) stageNode = '🌿 小苗苗茁壮成长中';
+    else if (barW > 0) stageNode = '🌱 破土发芽啦，宝贝真棒';
+    else stageNode = '🌰 播下一颗种子，开始闯关吧';
+    // 最近获得勋章(按时序倒序取前 3)展示在今日任务: 前 2 枚(.hero)任何端都显示, 第 3 枚(.xtra)桌面显示/手机隐藏,
     // 手机端用「+N」指示剩余枚数
     var badList = Object.keys(Store.state.badges || {})
       .filter(function (k) { return Legacy && Legacy.BADGES && Legacy.BADGES[k]; })
@@ -219,9 +238,10 @@
       (badList.length ? '<span class="hg-badges" title="已获得 ' + badList.length + ' 枚勋章">' + badHtml + badMore + '</span>' : '') +
       '</div>';
     var goal = '<section class="home-goal">' +
-      '<div class="hg-head"><span class="hg-title">📊 今日学习目标</span>' +
-      '<span class="hg-count"><b>' + done + '</b> / ' + d.goal + ' 题</span></div>' +
-      '<div class="hg-quote">' + quote + '</div>' +
+      '<div class="hg-head"><span class="hg-title">🌱 今日任务：完成 ' + d.goal + ' 题</span>' +
+      '<span class="hg-count"><b>' + done + '</b> / ' + d.goal + '</span></div>' +
+      '<div class="hg-stage"><span class="hg-stage-txt">' + stageNode + '</span>' +
+        '<span class="hg-pct">' + barW + '%</span></div>' +
       '<div class="hg-track"><div class="hc-fill" style="width:' + barW + '%;"></div></div>' +
       goalStats +
       '</section>';
@@ -317,8 +337,7 @@
         '</section>';
     }).join('');
     var list = '<section class="home-course-sec">' +
-      '<div class="home-sec-head"><h3>📚 继续练</h3>' +
-      '<span class="hc-hint"><i class="bi bi-chevron-double-right hh-a"></i>点卡片直接开练</span></div>' +
+      '<div class="home-sec-head"><button type="button" class="home-continue" onclick="window.homeContinue()">🚀 继续闯关 <i class="bi bi-chevron-double-right hh-a"></i></button></div>' +
       '<div class="home-course-scroll">' + courseCards + '</div></section>';
 
     body.innerHTML = top + '<div class="ht-kiddrop" id="homeKidDrop"></div>' + goal + list;
@@ -335,6 +354,16 @@
   window.homeStartLearn = function () {
     var act = window.eduKids ? window.eduKids.active() : null;
     if (act) kidEnter(act.id);
+  };
+  // 「🚀 继续闯关」: 进入当前进度最多学科的全屏闯关地图
+  window.homeContinue = function () {
+    var lvMap = (Store.state.level || {});
+    var best = 'math', bestV = -1;
+    ['zh', 'math', 'en'].forEach(function (s) {
+      var v = Number(lvMap[s]) || 0;
+      if (v > bestV) { bestV = v; best = s; }
+    });
+    if (window.Edu && window.Edu.Course && window.Edu.Course.openMapFull) window.Edu.Course.openMapFull(best);
   };
   // 顶部条宝贝切换: 轻量下拉, 无独立顶栏时提供统一身份入口
   window.openKidDrop = function (dropId) {
@@ -509,6 +538,7 @@
     renderHome: renderHome,
     homePickKid: window.homePickKid,
     homeStartLearn: window.homeStartLearn,
+    homeContinue: window.homeContinue,
     homeEditKid: window.homeEditKid,
     openDetail: window.openDetail,
     openKidsMgr: window.openKidsMgr,

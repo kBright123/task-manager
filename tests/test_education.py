@@ -1397,11 +1397,11 @@ const W=global;
   // 问候语按小时变化(跨夜时测试会命中「夜深了」), 昼间/夜间问候均视为有效
   console.log('GREET='+((h.indexOf('早上好')>=0||h.indexOf('下午好')>=0||h.indexOf('晚上好')>=0||h.indexOf('夜深了')>=0)?'1':'0'));
   console.log('MODE='+(h.indexOf('幼小衔接')>=0&&h.indexOf('mode-select')>=0?'1':'0'));
-  console.log('STAR_LV='+(h.indexOf('连续打卡')>=0?'1':'0'));
+  console.log('STAR_LV='+(h.indexOf('打卡第')>=0?'1':'0'));
   console.log('NO_LV='+(h.indexOf('⭐ Lv.')<0?'1':'0'));
   console.log('NO_HGSTAR='+(h.indexOf('hg-star')<0?'1':'0'));
   console.log('BADGE_NM='+(h.indexOf('第一颗星')>=0&&h.indexOf('十星小达人')>=0?'1':'0'));
-  console.log('CONTINUE='+(h.indexOf('home-goal')>=0&&h.indexOf('今日学习目标')>=0?'1':'0'));
+  console.log('CONTINUE='+(h.indexOf('home-goal')>=0&&h.indexOf('今日任务')>=0?'1':'0'));
   console.log('TRK='+(h.indexOf('hg-track')>=0?'1':'0'));
   console.log('COUNT='+((h.match(/题/g)||[]).length>=1?'1':'0'));
   console.log('COURSE_ZH='+(h.indexOf('语文')>=0?'1':'0'));
@@ -1415,7 +1415,7 @@ const W=global;
   console.log('NO_GO='+(h.indexOf('去学习')<0&&h.indexOf('继续 →')<0?'1':'0'));
   console.log('NO_KIDROW='+(h.indexOf('hw-kid')<0?'1':'0'));
   console.log('NO_AVA='+(h.indexOf('hw-ava')<0?'1':'0'));
-  console.log('GREET2='+(h.indexOf('今天也要开开心心学习哦')>=0?'1':'0'));
+  console.log('GREET2='+(h.indexOf('小探险家')>=0||h.indexOf('该休息咯')>=0?'1':'0'));
   console.log('NO_SLOGAN='+(h.indexOf('坚持闯关，天天有进步')<0?'1':'0'));
   console.log('LBAR='+(h.indexOf('home-sec-head')>=0?'1':'0'));
 })();
@@ -1453,7 +1453,7 @@ def test_home_course_teaser():
   W.eduNav('home');
   console.log('NO_TEASER='+(iH.indexOf('home-cousrteaser')<0?'1':'0'));
   console.log('NO_MAP_TXT='+(iH.indexOf('闯关地图')<0?'1':'0'));
-  console.log('HAS_GOAL='+(iH.indexOf('今日学习目标')>=0?'1':'0'));
+  console.log('HAS_GOAL='+(iH.indexOf('今日任务')>=0?'1':'0'));
   console.log('HAS_GRID='+(iH.indexOf('home-course-scroll')>=0?'1':'0'));
 })();
 ''')

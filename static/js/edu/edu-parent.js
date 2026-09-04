@@ -22,14 +22,16 @@
       for (var i=0;i<5;i++) html += '<i class="bi bi-star-fill" style="color:'+(i<stars?'#ffd93d':'var(--edu-border-2)')+';font-size:.85rem;margin-right:2px;"></i>';
       bar.innerHTML = html;
     }
-    // 同步刷新各页顶部「⭐ N 星 · 连续打卡 X 天」文本(welcomeBarHtml 生成的只读节点)
+    // 同步刷新各页顶部「⭐ 已获得 N 颗星星 + 🔥 打卡第 N 天」文本(welcomeBarHtml 生成的只读节点)
     var recs = Store.state.records || [];
     var streak = 0;
     if (typeof window.Edu.Home === 'object' && window.Edu.Home.loginStreak) streak = window.Edu.Home.loginStreak(recs) || 0;
-    var nodes = document.querySelectorAll('.ht-lv');
-    for (var j=0;j<nodes.length;j++) {
-      nodes[j].textContent = '⭐ ' + stars + ' 星 · 连续打卡 ' + streak + ' 天';
-    }
+    var starChip = stars > 0 ? ('⭐ 已获得 ' + stars + ' 颗星星') : '继续闯关赢星星✨';
+    var fireChip = '🔥 打卡第 ' + streak + ' 天';
+    var nodes = document.querySelectorAll('.ht-star');
+    for (var j = 0; j < nodes.length; j++) nodes[j].textContent = starChip;
+    var fires = document.querySelectorAll('.ht-fire');
+    for (var k = 0; k < fires.length; k++) fires[k].textContent = fireChip;
   }
 
   window.Edu.Parent = {

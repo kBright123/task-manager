@@ -1275,11 +1275,10 @@
   .home-course.locked .hc-mode{pointer-events:none;opacity:.5;}
   .home-sec-head{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 10px;}
   .home-sec-head h3{font-size:1.02rem;font-weight:900;color:var(--edu-ink);margin:0;white-space:nowrap;}
-  .home-continue{display:inline-flex;align-items:center;gap:6px;border:none;background:transparent;
-    color:var(--edu-primary);font-size:1.02rem;font-weight:900;cursor:pointer;padding:6px 14px;
-    border-radius:999px;transition:.12s;white-space:nowrap;}
-  .home-continue:hover{background:var(--edu-chip);}
-  .home-continue .hh-a{font-size:1rem;animation:hhSlide 1.4s ease-in-out infinite;}
+  .home-continue-head{display:inline-flex;align-items:center;gap:6px;border:none;background:none;
+    color:var(--edu-primary);font-size:1.02rem;font-weight:900;padding:4px 2px;cursor:pointer;white-space:nowrap;}
+  .home-continue-head:hover{color:var(--edu-primary-dark,var(--edu-primary));opacity:.85;}
+  .home-continue-head .hh-a{font-size:1rem;color:var(--edu-primary);animation:hhSlide 1.4s ease-in-out infinite;}
   @keyframes hhSlide{0%,100%{transform:translateX(0);}50%{transform:translateX(4px);}}
 
   /* 手机: 三科横卡整行自适应单列铺满, 两行展示(上行学科关卡 / 下行题数+双按钮) */

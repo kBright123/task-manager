@@ -593,7 +593,9 @@
   };
 
   function recordAnswer(subj, type, qid, prompt, correct, got, ok) {
-    var rec = { t:Date.now(), subj:subj, type:type, qid:qid, prompt:prompt, correct:correct, got:got, ok:ok };
+    var now = new Date();
+    var dkey = now.getFullYear() + '-' + ('0' + (now.getMonth()+1)).slice(-2) + '-' + ('0'+now.getDate()).slice(-2);
+    var rec = { t:Date.now(), date:dkey, subj:subj, type:type, qid:qid, prompt:prompt, correct:correct, got:got, ok:ok };
     Store.state.records = Store.state.records || [];
     Store.state.records.unshift(rec);
     if (Store.state.records.length > 500) Store.state.records.length = 500;

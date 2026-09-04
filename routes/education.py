@@ -263,7 +263,7 @@ _EDU_JS_MODULES = [
     'edu-legacy.js', 'edu-zh.js', 'edu-math.js', 'edu-en.js',
     'edu-paradise.js', 'edu-daily.js', 'edu-practice.js', 'edu-header.js',
     'edu-kids.js', 'edu-nav.js', 'edu-home.js',
-    'edu-edit.js', 'edu-backup.js', 'edu-settings.js', 'edu-report.js',
+    'edu-edit.js', 'edu-settings.js', 'edu-report.js',
     'edu-mask.js', 'edu-wish.js', 'edu-badges.js', 'edu-course.js',
     'edu-stats.js', 'edu-dash.js', 'edu-fab.js', 'edu-bootstrap.js',
     'edu-mine.js',

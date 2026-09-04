@@ -143,7 +143,7 @@
     var d = homeDashData(act);
     var done = Math.min(d.today, d.goal);
     var remaining = Math.max(0, d.goal - d.today);
-    var barW = Math.min(100, d.pct);
+    var barW = Math.round(Math.min(100, d.today * 100 / Math.max(1, d.goal)));
 
     // ===== 顶部条: 问候单行 + 副标题同行 + 等级/宝贝/声音/通知/模式 收纳 =====
     var hour = new Date().getHours();
@@ -195,9 +195,14 @@
 
     // ===== 4 个学习入口卡: 2×2 网格, 等高不换行 =====
     var today = todayStr();
+    function rKey(r) {
+      if (r.date) return r.date;
+      var dt = r.t ? new Date(r.t) : new Date();
+      return dt.getFullYear() + '-' + ('0' + (dt.getMonth()+1)).slice(-2) + '-' + ('0'+dt.getDate()).slice(-2);
+    }
     var recs = Store.state.records || [];
     var subjN = { zh: 0, math: 0, en: 0 };
-    recs.forEach(function (r) { if (r.date === today && subjN[r.subj] !== undefined) subjN[r.subj]++; });
+    recs.forEach(function (r) { if (rKey(r) === today && subjN[r.subj] !== undefined) subjN[r.subj]++; });
     var lvMap = (Store.state.level || {});
     var courses = [
       { s: 'zh', type: 'zi', em: '📖', name: '语文识字', sub: '认识新汉字', locked: false },

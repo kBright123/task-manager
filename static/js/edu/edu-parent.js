@@ -72,10 +72,10 @@
   window.openParentMode = function (tab) {
     window.requireParent(function(){
       if (window.Edu.Settings && window.Edu.Settings.openSettings) {
-        window.Edu.Settings.openSettings();
+        window.Edu.Settings.openSettings(tab || 'course');
         if (tab) {
           setTimeout(function(){
-            var map = { eye: 'setEyeMin', daily: 'setDailyQ', sound: 'setSound', font: 'setFont' };
+            var map = { eye: 'setEyeMin', course: 'setRange', sound: 'setSound' };
             var el = map[tab] ? document.getElementById(map[tab]) : null;
             if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
           }, 100);

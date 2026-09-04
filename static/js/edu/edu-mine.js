@@ -44,44 +44,45 @@
           '<span class="mkl-plus">+</span>' +
         '</button>';
 
+    // 护眼提醒 / 朗读与音效 为单字段设置 → 在我的页就地修改, 不弹框
+    var eyeVal = s && s.eyeMin ? s.eyeMin : 20;
+    var REST = [5, 10, 15, 20, 30, 45, 60];
+    var eyeOpts = REST.map(function (m) {
+      return '<option value="' + m + '"' + (m === eyeVal ? ' selected' : '') + '>' + m + ' 分钟' + (m === 20 ? '（推荐）' : '') + '</option>';
+    }).join('');
+    var soundOn = !s || s.sound !== false;
+    var soundToggle =
+      '<button type="button" class="ms-toggle" aria-pressed="' + (soundOn ? 'true' : 'false') + '" onclick="toggleSoundInline(' + (soundOn ? 'false' : 'true') + ')">' +
+        '<span class="ms-toggle-knob"></span>' +
+        '<span class="ms-toggle-label">' + (soundOn ? '已开启' : '已关闭') + '</span>' +
+      '</button>';
+
     // 设置分组
     var settingsHtml = '<div class="mine-settings">' +
       '<div class="ms-group">' +
         '<h4>学习设置</h4>' +
-        '<button type="button" class="ms-item" onclick="openParentMode()">' +
+        '<button type="button" class="ms-item" onclick="openParentMode(\'course\')">' +
           '<span class="ms-icon">📚</span><span>课程与难度</span><i class="bi bi-chevron-right"></i>' +
         '</button>' +
-        '<button type="button" class="ms-item" onclick="openParentMode(\'eye\')">' +
-          '<span class="ms-icon">👁️</span><span>护眼提醒</span><i class="bi bi-chevron-right"></i>' +
-        '</button>' +
-        '<button type="button" class="ms-item" onclick="openParentMode(\'daily\')">' +
-          '<span class="ms-icon">📅</span><span>每日题量/时长</span><i class="bi bi-chevron-right"></i>' +
-        '</button>' +
+        '<div class="ms-item ms-inline-row">' +
+          '<span class="ms-icon">👁️</span><span>护眼提醒</span>' +
+          '<span class="ms-inline-ctl"><select class="ms-select" id="mineEyeMin" aria-label="护眼提醒间隔" onchange="setEyeInline(this.value)">' + eyeOpts + '</select></span>' +
+        '</div>' +
       '</div>' +
       '<div class="ms-group">' +
         '<h4>声音与显示</h4>' +
-        '<button type="button" class="ms-item" onclick="openParentMode(\'sound\')">' +
-          '<span class="ms-icon">🔊</span><span>朗读与音效</span><i class="bi bi-chevron-right"></i>' +
-        '</button>' +
-        '<button type="button" class="ms-item" onclick="openParentMode(\'font\')">' +
-          '<span class="ms-icon">🔤</span><span>字体大小</span><i class="bi bi-chevron-right"></i>' +
-        '</button>' +
+        '<div class="ms-item ms-inline-row">' +
+          '<span class="ms-icon">🔊</span><span>朗读与音效</span>' +
+          '<span class="ms-inline-ctl">' + soundToggle + '</span>' +
+        '</div>' +
       '</div>' +
       '<div class="ms-group">' +
         '<h4>账号与数据</h4>' +
-        '<button type="button" class="ms-item" onclick="exportBackup()">' +
-          '<span class="ms-icon">📤</span><span>导出备份</span><i class="bi bi-chevron-right"></i>' +
-        '</button>' +
-        '<button type="button" class="ms-item" onclick="document.getElementById(\'backupFile\').click()">' +
-          '<span class="ms-icon">📥</span><span>导入备份</span><i class="bi bi-chevron-right"></i>' +
-        '</button>' +
         '<button type="button" class="ms-item danger" onclick="openResetConfirm()">' +
           '<span class="ms-icon">🗑️</span><span>重置所有数据</span><i class="bi bi-chevron-right"></i>' +
         '</button>' +
       '</div>' +
     '</div>';
-
-    var hiddenFile = '<input type="file" id="backupFile" accept=".json,application/json" style="display:none;" onchange="importBackup()">';
 
     body.innerHTML =
       '<div class="mine-head">' +
@@ -92,7 +93,6 @@
       '</div>' +
       kidsHtml +
       settingsHtml +
-      hiddenFile +
       '<p class="mine-foot">幼小衔接 · 快乐学习乐园</p>';
   }
 

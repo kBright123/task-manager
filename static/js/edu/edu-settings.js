@@ -8,9 +8,8 @@
 
   // =====================================================================
   // 设置中心(第四批升级):
-  //   · 学习设置(难度/每日限额)        · 护眼时长(默认20分钟)
-  //   · 音效开关(Speech)              · 字体大小(小/中/大)
-  //   · 家长口令修改                   · 数据导出/导入备份(匿名)
+  //   · 学习设置(难度)                     · 护眼时长(默认20分钟)
+  //   · 音效开关(Speech)                  · 家长口令修改
   //   · 重置进度: 勾选「我已知晓」二次确认(eduMaskReset)
   //   · 危险操作: 输入指定文字确认(eduMaskConfirm, 如删除宝贝)
   // =====================================================================
@@ -18,69 +17,110 @@
   var confirmExpect = '';
   var confirmCb = null;
 
-  function applyFont(f) {
-    var root = document.documentElement;
-    if (!root) return;
-    var cls = 'edu-font-s';
-    if (f === 'l') cls = 'edu-font-l';
-    else if (!f || f === 'm') cls = 'edu-font-m';
-    root.className = root.className.replace(/\bedu-font-[sml]\b/g, '').trim();
-    root.classList.add(cls);
-  }
   window.Edu.Settings = window.Edu.Settings || {};
-  window.Edu.Settings.applyFont = applyFont;
 
-  // ---- 弹出设置(回填当前值) ----
-  window.openSettings = function () {
+  var SCREENS = {
+    course: { title: '📚 课程与难度', sub: '调整口算范围、难度开关与内容入口' },
+    eye:    { title: '👁️ 护眼提醒',   sub: '连续作答后提醒休息的间隔时长' },
+    sound:  { title: '🔊 朗读与音效', sub: '控制朗读与音效的开关' }
+  };
+  var CURRENT_SCREEN = 'course';
+
+  function qsa(sel) {
+    return (typeof document.querySelectorAll === 'function') ? document.querySelectorAll(sel) : [];
+  }
+
+  function showScreen(screen) {
+    var name = SCREENS[screen] ? screen : 'course';
+    CURRENT_SCREEN = name;
+    var screens = qsa('.set-screen');
+    for (var i = 0; i < screens.length; i++) {
+      screens[i].style.display = (screens[i].getAttribute && screens[i].getAttribute('data-screen') === name) ? '' : 'none';
+    }
+    var t = document.getElementById('setTitle');
+    if (t) t.textContent = SCREENS[name].title;
+    var sub = document.getElementById('setSub');
+    if (sub) sub.textContent = SCREENS[name].sub;
+  }
+
+  // ---- 弹出设置(回填当前值, 仅显示对应屏幕) ----
+  window.openSettings = function (screen) {
     var mask = document.getElementById('eduMaskSet');
     if (!mask) return;
+    showScreen(screen);
     var s = Store.curSettings();
-    document.getElementById('setRange').value = s.range || 0;
-    document.getElementById('setNoCarry').checked = !!s.nocarry;
-    document.getElementById('setMult').checked = !!s.mult;
-    document.getElementById('setDailyQ').value = s.dailyQ || 0;
-    document.getElementById('setDailyMin').value = s.dailyMin || 0;
-    document.getElementById('setPwd').value = '';
-    document.getElementById('setTrace').checked = (s.show && s.show.trace) !== false;
-    document.getElementById('setPar').checked = (s.show && s.show.par) !== false;
-    // 新增: 护眼/音效/字体
-    var eye = document.getElementById('setEyeMin');
-    if (eye) eye.value = s.eyeMin || C.REST_DEFAULT;
-    var snd = document.getElementById('setSound');
-    if (snd) snd.checked = s.sound !== false;
-    var ft = document.getElementById('setFont');
-    if (ft) ft.value = s.font || 'm';
+    var el;
+    if ((el = document.getElementById('setRange'))) el.value = s.range || 0;
+    if ((el = document.getElementById('setNoCarry'))) el.checked = !!s.nocarry;
+    if ((el = document.getElementById('setMult'))) el.checked = !!s.mult;
+    if ((el = document.getElementById('setTrace'))) el.checked = (s.show && s.show.trace) !== false;
+    if ((el = document.getElementById('setPar'))) el.checked = (s.show && s.show.par) !== false;
+    if ((el = document.getElementById('setPwd'))) el.value = '';
+    if ((el = document.getElementById('setEyeMin'))) el.value = s.eyeMin || C.REST_DEFAULT;
+    if ((el = document.getElementById('setSound'))) el.checked = s.sound !== false;
     mask.style.display = 'flex';
   };
 
   window.setSave = function () {
     var s = Store.curSettings();
-    s.range = parseInt(document.getElementById('setRange').value, 10) || 0;
-    s.nocarry = document.getElementById('setNoCarry').checked;
-    s.mult = document.getElementById('setMult').checked;
-    s.dailyQ = parseInt(document.getElementById('setDailyQ').value, 10) || 0;
-    s.dailyMin = parseInt(document.getElementById('setDailyMin').value, 10) || 0;
-    s.show = s.show || {};
-    s.show.trace = document.getElementById('setTrace').checked;
-    s.show.par = document.getElementById('setPar').checked;
-    // 护眼/音效/字体
-    var eye = document.getElementById('setEyeMin');
-    if (eye) s.eyeMin = Math.min(60, Math.max(5, parseInt(eye.value, 10) || C.REST_DEFAULT));
-    var snd = document.getElementById('setSound');
-    if (snd) {
-      s.sound = snd.checked;
-      try { localStorage.setItem(C.SPEAK_ON_KEY, snd.checked ? 'true' : 'false'); } catch (e) {}
-      if (window.Edu.Speech && window.Edu.Speech.setSpeakIcon) window.Edu.Speech.setSpeakIcon();
+    var screen = CURRENT_SCREEN;
+    var el;
+    // 课程与难度屏幕
+    if (screen === 'course') {
+      if ((el = document.getElementById('setRange'))) s.range = parseInt(el.value, 10) || 0;
+      if ((el = document.getElementById('setNoCarry'))) s.nocarry = el.checked;
+      if ((el = document.getElementById('setMult'))) s.mult = el.checked;
+      s.show = s.show || {};
+      if ((el = document.getElementById('setTrace'))) s.show.trace = el.checked;
+      if ((el = document.getElementById('setPar'))) s.show.par = el.checked;
     }
-    var ft = document.getElementById('setFont');
-    if (ft) { s.font = ft.value || 'm'; applyFont(s.font); }
-    var pwd = document.getElementById('setPwd').value;
-    if (pwd && /^\d{4}$/.test(pwd)) localStorage.setItem(C.PWD_KEY, pwd);
-    else if (pwd) { Speech.toast('口令需为4位数字'); return; }
+    // 护眼提醒屏幕
+    if (screen === 'eye') {
+      if ((el = document.getElementById('setEyeMin'))) s.eyeMin = Math.min(60, Math.max(5, parseInt(el.value, 10) || C.REST_DEFAULT));
+    }
+    // 朗读与音效屏幕
+    if (screen === 'sound') {
+      if ((el = document.getElementById('setSound'))) {
+        s.sound = el.checked;
+        try { localStorage.setItem(C.SPEAK_ON_KEY, el.checked ? 'true' : 'false'); } catch (e) {}
+        if (window.Edu.Speech && window.Edu.Speech.setSpeakIcon) window.Edu.Speech.setSpeakIcon();
+      }
+    }
+    // 家长口令(所有屏幕通用)
+    if ((el = document.getElementById('setPwd'))) {
+      var pwd = el.value;
+      if (pwd && /^\d{4}$/.test(pwd)) localStorage.setItem(C.PWD_KEY, pwd);
+      else if (pwd) { Speech.toast('口令需为4位数字'); return; }
+    }
     Store.mergeSet(s);
     Store.saveState();
     document.getElementById('eduMaskSet').style.display = 'none';
+    if (window.renderMine) window.renderMine();
     Speech.toast('设置已保存');
+    if (screen === 'course' && window.applyContentToggles) window.applyContentToggles();
+  };
+
+  // 我的页内联修改: 护眼提醒 / 朗读与音效(单字段直接就地修改, 不弹框)
+  window.setEyeInline = function (val) {
+    var s = Store.curSettings();
+    s.eyeMin = Math.min(60, Math.max(5, parseInt(val, 10) || C.REST_DEFAULT));
+    Store.mergeSet(s);
+    Store.saveState();
+    if (window.renderMine) window.renderMine();
+    Speech.toast('护眼时长已更新');
+  };
+
+  window.toggleSoundInline = function (on) {
+    var s = Store.curSettings();
+    s.sound = !!on;
+    if (on !== undefined && typeof on === 'boolean') {
+      try { localStorage.setItem(C.SPEAK_ON_KEY, on ? 'true' : 'false'); } catch (e) {}
+    }
+    Store.mergeSet(s);
+    Store.saveState();
+    if (window.Edu.Speech && window.Edu.Speech.setSpeakIcon) window.Edu.Speech.setSpeakIcon();
+    if (window.renderMine) window.renderMine();
+    Speech.toast(on ? '已开启朗读与音效' : '已关闭朗读与音效');
   };
 
   // ---- 危险操作: 输入指定文字确认 ----

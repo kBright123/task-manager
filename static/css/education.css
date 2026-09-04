@@ -1060,6 +1060,22 @@
   .ms-item.danger{color:#e04a4a;}
   .ms-item.danger:hover{background:#fff0f0;}
 
+  /* 我的页内联设置(单字段就地修改) */
+  .ms-inline-row{min-height:56px;padding:8px 16px;cursor:default;border-bottom:1px solid var(--edu-border-2);display:flex;align-items:center;gap:14px;background:transparent;}
+  .ms-inline-row:hover{background:var(--edu-soft);}
+  .ms-inline-row .ms-icon{font-size:1.3rem;width:30px;text-align:center;}
+  .ms-inline-ctl{margin-left:auto;display:inline-flex;align-items:center;}
+  .ms-select{font-size:.92rem;font-weight:800;color:var(--edu-ink);background:var(--edu-surface-2);border:1.5px solid var(--edu-border);border-radius:10px;padding:6px 8px;}
+  .ms-toggle{display:inline-flex;align-items:center;gap:7px;cursor:pointer;border:none;background:transparent;padding:0;}
+  .ms-toggle .ms-toggle-knob{width:44px;height:24px;border-radius:999px;position:relative;background:var(--edu-soft);border:1.5px solid var(--edu-border);transition:.18s;}
+  .ms-toggle[aria-pressed="true"] .ms-toggle-knob{background:#34b473;border-color:#2c9a5f;}
+  .ms-toggle .ms-toggle-knob::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.18s;}
+  .ms-toggle[aria-pressed="true"] .ms-toggle-knob::after{transform:translateX(20px);}
+  .ms-toggle-label{font-size:.85rem;font-weight:800;color:var(--edu-muted);}
+  html[data-theme="dark"] .ms-inline-row{border-color:var(--edu-border-2);color:var(--edu-ink);}
+  html[data-theme="dark"] .ms-inline-row:hover{background:#2a3140;}
+  html[data-theme="dark"] .ms-select{background:#2a3140;border-color:var(--edu-border);color:var(--edu-ink);}
+
   .mine-foot{text-align:center;font-size:.82rem;font-weight:700;color:var(--edu-muted);margin:22px 0 4px;}
 
   html[data-theme="dark"] .mine-head{background:linear-gradient(135deg,#2a3140,#242a38);border-color:var(--edu-border);}

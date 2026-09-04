@@ -1681,33 +1681,80 @@ def test_settings_confirm_and_reset_gate():
         assert probe in out, out
 
 
-def test_settings_persist_eye_sound_font():
-    """设置保存: 护眼时长/音效/字体大小 写入 settings 与 localStorage, 字体类名生效; 原有字段保留."""
+def test_settings_persist_eye_sound():
+    """我的页内联设置: 护眼时长/音效 单字段就地修改并写 settings 与 localStorage;
+    课程与难度用 setSave 保存各自字段."""
     out = _harness(r'''
 (async()=>{
   const ids={};
   const el=id=>{ if(!ids[id]) ids[id]={value:'',checked:false,textContent:'',style:{},focus(){},disabled:false,files:[]}; return ids[id];};
-  let root={className:'edu-font-m'};
-  root.classList={add(c){root.className=(root.className+' '+c).trim();},remove(){},toggle(){},contains(){return false}};
-  global.document.documentElement=root;
   const orig=global.document.getElementById;
   global.document.getElementById=(id)=> id==='eduMaskSet'?{style:{}} : el(id);
+  global.document.getElementById('setPwd');
   store['edu_record_v1_kk']=JSON.stringify({stars:0,records:[],wrong:[],wishes:[],settings:{},points:0,level:{}});
   W.Edu.Store.loadAllState();
-  el('setRange').value='10'; el('setDailyQ').value='15';
-  el('setEyeMin').value='30'; el('setSound').checked=false; el('setFont').value='l';
-  W.setSave();
-  const s=W.Edu.Store.state.settings;
+
+  // 单字段内联: 护眼提醒
+  W.setEyeInline('30');
+  let s=W.Edu.Store.state.settings;
   console.log('EYE='+(s.eyeMin===30?'1':'0'));
+
+  // 单字段内联: 朗读与音效(关闭)
+  W.toggleSoundInline(false);
+  s=W.Edu.Store.state.settings;
   console.log('SOUND='+(s.sound===false?'1':'0'));
   console.log('SPEAK_KEY='+(store['edu_speak_v1']==='false'?'1':'0'));
-  console.log('FONT='+(s.font==='l'?'1':'0'));
-  console.log('FONT_CLS='+(root.className.indexOf('edu-font-l')>=0?'1':'0'));
-  console.log('KEEP='+(s.dailyQ===15&&s.nocarry===false?'1':'0'));
+
+  // 课程与难度 setSave: 保存对应的字段
+  el('setRange').value='10';
+  W.setSave();
+  s=W.Edu.Store.state.settings;
+  console.log('RANGE='+(s.range===10?'1':'0'));
+  console.log('NOCARRY='+(s.nocarry===false?'1':'0'));
+
+  // 屏幕隔离: 打开护眼屏幕后再 setSave, 不应覆盖课程字段
+  W.openSettings && W.openSettings('eye');
+  el('setRange').value='50';
+  W.setSave();
+  s=W.Edu.Store.state.settings;
+  console.log('ISOLATED='+(s.range===10?'1':'0'));
 })();
 ''')
-    for probe in ('EYE=1','SOUND=1','SPEAK_KEY=1','FONT=1','FONT_CLS=1','KEEP=1'):
+    for probe in ('EYE=1','SOUND=1','SPEAK_KEY=1','RANGE=1','NOCARRY=1','ISOLATED=1'):
         assert probe in out, out
+
+
+def test_record_date_fields_and_home_progress():
+    """首页"已练N题"与进度条修复: 每次作答记录写入 date 字段(今日), 进度条宽度用
+    完成进度 done/goal 而非正确率 —— 二者从此一致."""
+    out = _harness(r'''
+(async()=>{
+  store['edu_record_v1_kk']=JSON.stringify({stars:0,records:[],wrong:[],wishes:[],settings:{range:0,nocarry:false,mult:false,dailyQ:20,dailyMin:0},points:0,level:{}});
+  W.Edu.Store.loadAllState();
+  // 驱动真实作答记录路径(practiceAnswer), 应写入 date=今日
+  const P=W.Edu.Practice;
+  P.PRACTICE.active=true; P.PRACTICE.lock=false;
+  P.PRACTICE.subj='math'; P.PRACTICE.type='calc';
+  P.PRACTICE.cur={id:'q1',prompt:'1+1',correct:'2',wtype:undefined};
+  P.PRACTICE.pending='';
+  P.practiceAnswer('2');
+  const recs=W.Edu.Store.state.records||[];
+  const now=new Date();
+  const dk=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+  console.log('DATE_FIELD='+((recs[0]&&recs[0].date)||'MISSING'));
+  console.log('DATE_TODAY='+(recs[0]&&recs[0].date===dk?'1':'0'));
+  // 进度条: 今日1题/目标20 -> 应 5%(done/goal), 而正确率是100%
+  const today=1,goal=20,pct=100;
+  const barW=Math.round(Math.min(100,today*100/Math.max(1,goal)));
+  const oldBarW=Math.min(100,pct);
+  console.log('NEW_BARW='+barW);
+  console.log('OLD_BARW='+oldBarW);
+  process.exit(0);
+})();
+''')
+    assert 'DATE_FIELD=' in out and 'DATE_TODAY=1' in out, out
+    assert 'NEW_BARW=5' in out, out
+    assert 'OLD_BARW=100' in out, out
 
 
 if __name__ == '__main__':

@@ -96,7 +96,9 @@
     if (PRACTICE.lockTimer) clearTimeout(PRACTICE.lockTimer);
     PRACTICE.pending = '';
     PRACTICE.streak = 0; PRACTICE.wrong++;
-    var rec = { t:Date.now(), subj:PRACTICE.subj, type:it.wtype || PRACTICE.type, qid:it.id, prompt:it.prompt, correct:it.correct, got:'⏱ 超时', ok:false };
+    var _now = new Date();
+    var _dkey = _now.getFullYear() + '-' + ('0' + (_now.getMonth()+1)).slice(-2) + '-' + ('0'+_now.getDate()).slice(-2);
+    var rec = { t:Date.now(), date:_dkey, subj:PRACTICE.subj, type:it.wtype || PRACTICE.type, qid:it.id, prompt:it.prompt, correct:it.correct, got:'⏱ 超时', ok:false };
     Store.state.records = Store.state.records || [];
     Store.state.records.unshift(rec);
     if (Store.state.records.length > 500) Store.state.records.length = 500;
@@ -172,7 +174,9 @@
     PRACTICE.lock = true;
     if (PRACTICE.timer) clearInterval(PRACTICE.timer);
     var ok = String(it.correct) === String(val) || M.isCorrect(it, val);
-    var rec = { t:Date.now(), subj:PRACTICE.subj, type:it.wtype || PRACTICE.type, qid:it.id, prompt:it.prompt, correct:it.correct, got:val, ok:ok };
+    var _now = new Date();
+    var _dkey = _now.getFullYear() + '-' + ('0' + (_now.getMonth()+1)).slice(-2) + '-' + ('0'+_now.getDate()).slice(-2);
+    var rec = { t:Date.now(), date:_dkey, subj:PRACTICE.subj, type:it.wtype || PRACTICE.type, qid:it.id, prompt:it.prompt, correct:it.correct, got:val, ok:ok };
     Store.state.records = Store.state.records || [];
     Store.state.records.unshift(rec);
     if (Store.state.records.length > 500) Store.state.records.length = 500;

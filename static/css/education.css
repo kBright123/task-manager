@@ -192,6 +192,8 @@
   .qz-finish{min-height:42px;padding:0 20px;border:none;border-radius:999px;background:var(--edu-border-2);color:#fff;font-size:.9rem;font-weight:800;cursor:not-allowed;transition:.3s;}
   .qz-finish.ready{background:linear-gradient(135deg,#ff9f43,#ff6b6b);cursor:pointer;animation:qzBreathe 2s ease-in-out infinite;}
   @keyframes qzBreathe{0%,100%{box-shadow:0 4px 14px rgba(255,107,107,.3);}50%{box-shadow:0 4px 30px rgba(255,107,107,.65);}}
+  /* 底部操作栏内的累计星星: 与「完成闯关」同一行居左, 不单独占行 */
+  .qz-cumstars{display:inline-flex;align-items:center;gap:4px;font-size:.82rem;font-weight:800;color:#b7791f;background:linear-gradient(135deg,#fff3d6,#ffe1ae);border:1.5px solid #ffd9a8;border-radius:999px;padding:6px 12px;white-space:nowrap;}
 
   .quiz-grid{display:grid;grid-template-columns:1fr;gap:0 14px;align-items:start;}
   @media (min-width: 720px){

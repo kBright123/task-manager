@@ -103,12 +103,17 @@
     if (!quiz) return '';
     var total = quiz.items.length;
     var allDone = (answeredCount() === total);
+    // 累计获得的星星: 展示在底部操作栏左侧, 与「完成闯关」同一行, 不单独占行
+    var cumStars = (Store.state && Store.state.stars) || 0;
+    var cumHtml = cumStars > 0
+      ? '<span class="qz-cumstars">⭐ 累计 '+cumStars+' 颗</span>'
+      : '';
     // 全部答完才出现「完成闯关」按钮; 未答完不渲染占位按钮, 避免空按钮残留
     var btnHtml = allDone
       ? '<button type="button" class="qz-finish ready" onclick="window.Edu.QuizEngine.submitQuiz()">🎉 完成闯关</button>'
       : '';
     return '<div class="qz-footer">'+
-      '<div class="qz-action-bar"><div class="qz-progress"></div>'+ btnHtml +'</div>'+
+      '<div class="qz-action-bar">'+ cumHtml +'<div class="qz-progress"></div>'+ btnHtml +'</div>'+
       '</div>';
   }
 

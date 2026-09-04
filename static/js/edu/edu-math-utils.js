@@ -64,12 +64,17 @@
     var op = ops[Math.floor(randFn() * ops.length)];
     var a,b;
     if (op === '+') {
-      a = Math.floor(randFn() * max); b = Math.floor(randFn() * (max - a + 1));
+      // 加法: a,b 都 >=1 且结果非 0, 并让和不超过 max
+      var aMax = Math.max(1, max - 1);
+      a = Math.floor(randFn() * aMax) + 1;
+      b = Math.floor(randFn() * Math.max(1, max - a)) + 1;
       if (nocarry && (a%10 + b%10 >= 10)) return makeCalc(max, nocarry, allowMult, randFn);
       return { a:a, b:b, op:'+', correct:a+b, expr:a+'+'+b };
     }
     if (op === '-') {
-      a = Math.floor(randFn() * max) + 1; b = Math.floor(randFn() * a);
+      // 减法: 被减数 a 在 [2, max] 内且 >=2, 减数 b 在 [1, a-1], 保证 a-b 非 0
+      a = Math.floor(randFn() * Math.max(1, max - 1)) + 2;
+      b = Math.floor(randFn() * (a - 1)) + 1;
       if (nocarry && (a%10 < b%10)) return makeCalc(max, nocarry, allowMult, randFn);
       return { a:a, b:b, op:'-', correct:a-b, expr:a+'-'+b };
     }

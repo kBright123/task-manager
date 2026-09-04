@@ -206,10 +206,20 @@ def _fetch_tts(text, le, vkey=None):
             async def _run():
                 c = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
                 await c.save(tmp)
-            asyncio.run(_run())
-            with open(tmp, 'rb') as f:
-                data = f.read()
-            if len(data) <= 500:
+            # 网络调用带超时, 避免单一请求挂起阻塞 dev server(single-thread), 也避免客户端长时间等待
+            import asyncio as _asyncio
+            # 瞬时网络抖动可能失败, 重试一次再放弃
+            for _attempt in range(2):
+                try:
+                    _asyncio.run(_asyncio.wait_for(_run(), timeout=15))
+                    with open(tmp, 'rb') as f:
+                        data = f.read()
+                    if len(data) > 500:
+                        break
+                except _asyncio.TimeoutError:
+                    data = None
+                except Exception:
+                    data = None
                 data = None
         finally:
             try:

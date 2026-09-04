@@ -187,41 +187,46 @@
     if (!stageUnlocked(subj, idx, stage)) { if (Speech && Speech.toast) Speech.toast('先通过前面的小关才能解锁这里哦 🔒'); return; }
     // 语文题型在导入面板中有子模式(声母/韵母/拼读/四声), 需落到真正的答题 type 以匹配结算
     var quizT = zhLevelQuizType(lv.t);
+    var type = lv.t;
+    var NavP = window.Edu && window.Edu.Nav;
+    var pref = (NavP && NavP.getPref) ? NavP.getPref() : null;
+    // 记录当前学科进学习页, 供 eduNav→wbInit 按 lastSubj 打开对应面板(避免回退到上一学科/拼音)
+    var setPref = (function (origPref) {
+      return function (key) {
+        if (origPref) { origPref.lastSubj = subj; origPref.mode = 'workbench'; origPref.subj = subj; if (key) origPref[key] = type; if (NavP && NavP.savePref) NavP.savePref(origPref); }
+      };
+    })(pref);
+    setPref(subj === 'math' ? 'wbMath' : (subj === 'en' ? 'wbEn' : (type === 'pinyin' || type === 'yun' || type === 'read' || type === 'tone' ? null : (type === 'ciyu' || type === 'liang' ? null : 'wbZh'))));
+    if (type === 'pinyin' || type === 'yun' || type === 'read' || type === 'tone') { if (pref) { pref.wbZh = 'pinyin'; pref.wbPy = type; } setPref(); }
+    else if (type === 'ciyu' || type === 'liang') { if (pref) { pref.wbZh = 'ciyu'; pref.wbCy = type === 'liang' ? 'liang' : 'fan'; } setPref(); }
+
+    // 进入学习页展示答题(若从全屏闯关地图进入, 先关闭覆盖层, 否则遮挡答题页)。
+    // 注意: eduNav('learn') 内部会 Store.loadAllState() 重读持久化状态, 从而清空内存里
+    // 的 courseIn. 因此闯关上下文(含关卡难度 cfg)必须在 eduNav 之后再写入并启动题型,
+    // 否则 wbInit 重渲染时会读取已被清空的 courseIn 而回落默认难度.
+    if (closeMapFull) closeMapFull();
+    if (window.eduNav) window.eduNav('learn');
+
     // 记录「正在闯的第几大关/第几小关」, 供结算时回写 course 进度
     Store.state.courseIn = { subj: subj, idx: idx, stage: stage, t: quizT, startedAt: Date.now() };
     // 关卡难度自动递增: 由大关主题 + 小关进度算出, 答题器据此生成对应难度题目
     var mcfg = autoMathCfg(subj, idx, stage);
     if (mcfg) Store.state.courseIn.cfg = mcfg;
     Store.state.courseInflight = 1;
-    var type = lv.t;
-    var NavP = window.Edu && window.Edu.Nav;
-    var pref = (NavP && NavP.getPref) ? NavP.getPref() : null;
-    var setPref = function (key) {
-      // 记录当前学科进学习页, 供 eduNav→wbInit 按 lastSubj 打开对应面板(避免回退到上一学科/拼音)
-      if (pref) { pref.lastSubj = subj; pref.mode = 'workbench'; pref.subj = subj; if (key) pref[key] = type; if (NavP && NavP.savePref) NavP.savePref(pref); }
-    };
-    if (subj === 'math') { if (window.wbMath) window.wbMath(type === 'did' ? 'calc' : type); setPref('wbMath'); }
-    else if (subj === 'en') { if (window.wbEn) window.wbEn(type); setPref('wbEn'); }
+
+    if (subj === 'math') { if (window.wbMath) window.wbMath(type === 'did' ? 'calc' : type); }
+    else if (subj === 'en') { if (window.wbEn) window.wbEn(type); }
     else if (subj === 'zh' && window.wbZh) {
       if (type === 'pinyin' || type === 'yun' || type === 'read' || type === 'tone') {
         window.wbZh('pinyin');
-        if (pref) { pref.wbZh = 'pinyin'; pref.wbPy = type; }
-        setPref();
         if ((type === 'yun' || type === 'read' || type === 'tone') && window.wbPinyin) window.wbPinyin(type);
       } else if (type === 'ciyu' || type === 'liang') {
         window.wbZh('ciyu');
-        if (pref) { pref.wbZh = 'ciyu'; pref.wbCy = type === 'liang' ? 'liang' : 'fan'; }
-        setPref();
         if (window.wbCiyu) window.wbCiyu(type === 'liang' ? 'liang' : 'fan');
       } else {
         window.wbZh(type);
-        if (pref) { pref.wbZh = type; }
-        setPref();
       }
     }
-    // 进入学习页展示答题(若从全屏闯关地图进入, 先关闭覆盖层, 否则遮挡答题页)
-    if (closeMapFull) closeMapFull();
-    if (window.eduNav) window.eduNav('learn');
   }
 
   // 语文关卡题型 → 实际渲染/结算的答题 type
@@ -830,11 +835,12 @@
     full.className = 'edu-map-full ' + subjTheme(subj);
     full.style.display = 'flex';
     // 立即(同步)按视口缩放蛇形画布: 避免先以 1680×560 原尺寸渲染再缩小造成闪烁.
-    // 同步读取 client* 会触发一次同步排版, 首帧即为缩放后尺寸.
+    // 用 window 视口尺寸而非 clientHeight, 避免触发一次性同步 reflow(点击更快);
+    // 全屏遮罩为 position:fixed 铺满视口, 故视口尺寸即可代表可用尺寸.
     var inner = body.querySelector('.cm-snake-inner');
     var wrap = body.querySelector('.cm-snake');
-    var availW = body ? body.clientWidth : window.innerWidth;
-    var availH = body ? body.clientHeight : (window.innerHeight - 80);
+    var availW = window.innerWidth;
+    var availH = window.innerHeight - 60;
     if (inner && wrap && availW >= 720) {
       var k = Math.min(availW / SNAKE_W, availH / SNAKE_H);
       k = Math.max(0.25, Math.min(1.6, k));

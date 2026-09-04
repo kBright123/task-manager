@@ -677,6 +677,8 @@
     quizOrder = {};
     wrongTries = {};
     judged = {};
+    // 一套新题开始即视为离开上一个闯关上下文(结算靠 recordQuizResult 的 curPos 回退即可);
+    // 关卡难度 cfg 已在 launchLevel(eduNav 之后)写入并由 wbRenderMath 在 startQuiz 前读取, 故此处可安全置空.
     Store.state.courseIn = null;
     saveQuizState();
     if (type === 'daily' || subj === 'daily') quizContainerId = 'wb-daily';

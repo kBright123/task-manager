@@ -105,41 +105,106 @@
   // 网络 TTS(edge-tts 高音质, 服务端缓存同源 mp3) 带超时: 仅在本地合成不可用/失败时兜底
   function playNetTimed(text, onFail) {
     var url = ttsUrl(text);
-    stopNetAudio();
-    var a = new Audio(url);
-    var done = false;
-    function finish(fn) {
+    var attempts = 0, MAX_ATTEMPTS = 2, T_TIMEOUT = 12000;
+    var done = false, played = false, current = null, cleanTimer = null;
+
+    function finish(ok, err) {
       if (done) return;
       done = true;
-      clearTimeout(timer2);
-      fn();
+      if (cleanTimer) clearTimeout(cleanTimer);
+      if (current) { try { current.onerror = current.oncanplaythrough = current.onended = null; } catch (e) {} }
+      if (!ok) { stopNetAudio(); if (onFail) onFail(err || 'network_error'); }
     }
-    var timer2 = setTimeout(function(){ finish(function(){ stopNetAudio(); onFail && onFail('network_timeout'); }); }, 10000);
-    a.oncanplaythrough = function(){ finish(function(){ stopNetAudio(); }); };
-    a.onerror = function(){ finish(function(){ stopNetAudio(); onFail && onFail('network_error'); }); };
-    a.onended = function(){ clearTimeout(timer2); stopNetAudio(); };
-    var p = a.play();
-    if (p && p.catch) p.catch(function(){ finish(function(){ stopNetAudio(); onFail && onFail('autoplay_blocked'); }); });
-    netAudio = a;
-    if (typeof netAudioUrl === 'string') netAudioUrl = url;
+
+    function attempt() {
+      if (done || attempts >= MAX_ATTEMPTS) { if (!done) finish(false, 'network_error'); return; }
+      attempts++;
+      var a = new Audio(url);
+      current = a;
+      function failOnce(err) {
+        if (done) return;
+        // 出错/未播放成功 → 清理后重试一次
+        try { a.onerror = a.oncanplaythrough = a.onended = a.onloadeddata = null; a.pause(); a.src = ''; } catch (e) {}
+        a = null;
+        if (attempts < MAX_ATTEMPTS) {
+          if (cleanTimer) clearTimeout(cleanTimer);
+          attempt();
+        } else {
+          finish(false, err);
+        }
+      }
+      a.onerror = function(){ failOnce('network_error'); };
+      a.onloadeddata = function(){ played = true; };
+      a.oncanplaythrough = function(){
+        if (cleanTimer) clearTimeout(cleanTimer);
+        if (done) return;
+        played = true;
+        var p = a.play();
+        if (p && p.catch) p.catch(function(){});
+      };
+      a.onended = function(){
+        if (done) return;
+        finish(true);
+        stopNetAudio();
+      };
+      if (cleanTimer) clearTimeout(cleanTimer);
+      cleanTimer = setTimeout(function(){ failOnce(played ? 'autoplay_blocked' : 'network_timeout'); }, T_TIMEOUT);
+      try { a.load(); } catch (e) {}
+      netAudio = a;
+    }
+    attempt();
   }
 
   // 用户点击触发的网络 TTS(有用户交互, 可绕过自动播放策略)
+  // 强化: 超时 + 失败重试(重新建 Audio 元素), 降低「有概率网络失败」
   function playNetTTSUserGesture(text) {
     if (typeof window === 'undefined' || typeof window.Audio === 'undefined') return;
     var url = ttsUrl(text);
     stopNetAudio();
-    var a = new Audio(url);
-    var played = false;
-    a.oncanplaythrough = function(){ played = true; };
-    a.onerror = function(){ stopNetAudio(); if (!played) window.Edu.Speech.toast('网络语音加载失败'); };
-    a.onended = function(){ stopNetAudio(); };
-    var p = a.play();
-    if (p && p.catch) p.catch(function(){
-      stopNetAudio();
-      if (!played) window.Edu.Speech.toast('浏览器拦截播放, 请再次点击');
-    });
-    netAudio = a;
+    var attempts = 0, MAX_ATTEMPTS = 2, T_TIMEOUT = 12000;
+    var played = false, done = false;
+
+    function finish(ok, msg) {
+      if (done) return;
+      done = true;
+      if (cleanTimer) clearTimeout(cleanTimer);
+      if (!ok) { stopNetAudio(); if (msg) window.Edu.Speech.toast(msg); }
+    }
+
+    var cleanTimer = null;
+
+    function attempt() {
+      if (done || attempts >= MAX_ATTEMPTS) return;
+      attempts++;
+      var a = new Audio(url);
+      // 出错/超时 → 清理后重试
+      function fail() {
+        if (done) return;
+        a.onerror = a.oncanplaythrough = a.onended = a.onloadeddata = null;
+        try { a.pause(); a.src = ''; } catch (e) {}
+        if (attempts < MAX_ATTEMPTS) {
+          if (cleanTimer) clearTimeout(cleanTimer);
+          attempt();
+        } else {
+          finish(false, played ? '' : '网络语音加载失败，请再点一次');
+        }
+      }
+      a.onerror = fail;
+      a.onended = function(){ stopNetAudio(); };
+      a.onloadeddata = function(){ played = true; };
+      // 首次尝试成功进入可播放状态即视为成功, 开始播放并保持
+      a.oncanplaythrough = function(){
+        played = true;
+        if (cleanTimer) clearTimeout(cleanTimer);
+        var p = a.play();
+        if (p && p.catch) p.catch(function(){});
+      };
+      if (cleanTimer) clearTimeout(cleanTimer);
+      cleanTimer = setTimeout(fail, T_TIMEOUT);
+      try { a.load(); } catch (e) {}
+      netAudio = a;
+    }
+    attempt();
   }
 
   // 预加载网络音频到缓存(不播放)

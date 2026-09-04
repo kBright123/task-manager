@@ -236,7 +236,7 @@
   .quiz-item .qi-ans{display:inline-flex;align-items:center;gap:8px;}
   .quiz-item .qi-eq{font-size:1.4rem;font-weight:900;color:var(--edu-muted);}
   .quiz-item .qi-eq-text{font-size:1.7rem;font-weight:900;color:var(--edu-ink);white-space:nowrap;letter-spacing:.04em;}
-  .quiz-item .qi-ans input{width:76px;font-size:1.6rem;text-align:center;padding:6px 4px;border-radius:12px;border:2px solid var(--edu-input-bd);background:var(--edu-surface);color:var(--edu-ink);caret-color:var(--edu-primary);}
+  .quiz-item .qi-ans input{width:76px;font-size:1.7rem;font-family:inherit;font-weight:900;text-align:center;height:54px;line-height:1;padding:0 6px;border-radius:12px;border:2px solid var(--edu-input-bd);background:var(--edu-surface);color:var(--edu-ink);caret-color:var(--edu-primary);box-sizing:border-box;appearance:none;-webkit-appearance:none;-moz-appearance:textfield;}
   .quiz-item .qi-ans input:focus{outline:none;border-color:var(--edu-primary);box-shadow:0 0 0 3px rgba(255,107,74,.15);}
   .quiz-item .qi-ans input:disabled{opacity:.55;}
   .quiz-item .qi-submit{min-height:48px;padding:0 18px;border:none;border-radius:14px;background:linear-gradient(135deg,var(--edu-primary),#ff8a55);color:#fff;font-size:1rem;font-weight:800;cursor:pointer;transition:.15s;box-shadow:0 3px 10px rgba(255,107,74,.3);}
@@ -1035,6 +1035,11 @@
   @media (min-width:768px) and (max-width:1024px){
     body.edu-page .qi-opts .qo-pick{min-height:84px;font-size:1.45rem;}
     .qz-confirm-row .btn-confirm,.qz-confirm-row .btn-empty{min-height:64px;font-size:1.15rem;}
+    body.edu-page .quiz-item .qi-ans input{height:60px;font-size:1.9rem;}
+    /* 去掉 iOS 数字步进按钮, 让数字更居中且字体更干净 */
+    body.edu-page .quiz-item .qi-ans input::-webkit-outer-spin-button,
+    body.edu-page .quiz-item .qi-ans input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+    body.edu-page .quiz-item .qi-ans input[type=number]{-moz-appearance:textfield;}
   }
   /* 桌面/PC(管理后台): 左侧导航 200-240px + 主内容区 1200px 居中 */
   @media (min-width:1201px){

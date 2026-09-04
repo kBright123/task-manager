@@ -75,7 +75,8 @@
         window.Edu.Settings.openSettings();
         if (tab) {
           setTimeout(function(){
-            var el = document.getElementById('set' + tab.charAt(0).toUpperCase() + tab.slice(1));
+            var map = { eye: 'setEyeMin', daily: 'setDailyQ', sound: 'setSound', font: 'setFont' };
+            var el = map[tab] ? document.getElementById(map[tab]) : null;
             if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
           }, 100);
         }

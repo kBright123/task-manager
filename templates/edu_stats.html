@@ -266,23 +266,6 @@
           <option value="l">大号（护眼）</option>
         </select>
       </div>
-      <div class="edu-field">
-        <label>💾 数据备份（仅保存在本机，导出内容不含姓名）</label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button type="button" class="btn-soft" style="flex:1;" onclick="exportBackup()">导出备份</button>
-          <button type="button" class="btn-soft" style="flex:1;" onclick="document.getElementById('backupFile').click()">导入备份</button>
-          <input type="file" id="backupFile" accept=".json,application/json" style="display:none;" onchange="importBackup()">
-        </div>
-        <p class="muted" style="margin:4px 0 0;">匿名 JSON 备份，不含姓名/全名，可随时导回。</p>
-      </div>
-      <div class="edu-field danger-zone">
-        <label>⚠️ 危险操作</label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button type="button" id="setResetBtn" class="btn-danger btn-sm" style="flex:1;" onclick="openReset()">重置所有进度</button>
-          <button type="button" class="btn-ghost btn-sm" style="flex:1;" onclick="lockParentMode()">锁定家长模式</button>
-        </div>
-        <p class="muted" style="margin:4px 0 0;">重置将清空全部宝贝数据，需要勾选「我已知晓」二次确认。</p>
-      </div>
       <div class="edu-actions">
         <button type="button" class="btn-soft" style="flex:1;" onclick="setSave()">保存设置</button>
       </div>

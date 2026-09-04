@@ -39,13 +39,23 @@
       // 听力/词义识别: 播放单词读音(可再次点听), 不重复取样, 从全词库随机干扰项
       var lPool = M.shuffle(C.WORDS);
       var lCns = C.WORDS.map(function(x){ return x.cn; });
+      // 本轮题组内已用过的选项值(含各题正确项与干扰项), 避免同一选项在多次题目里反复出现
+      var usedOpts = {};
       for (var k2=0;k2<n;k2++) {
         var wl = lPool[k2 % lPool.length];
+        var used = [wl.cn].concat(Object.keys(usedOpts));
+        var dist = M.sampleExclude(lCns, used, 3);
+        // 词库有限时放宽: 兜底从全池(仅排除本项正确词)补足 3 个干扰项, 尽量降低但不杜绝跨题重复
+        if (dist.length < 3) {
+          dist = M.sampleExclude(lCns, [wl.cn], 3 - dist.length).concat(dist);
+        }
+        usedOpts[wl.cn] = 1;
+        for (var di=0; di<dist.length; di++) usedOpts[dist[di]] = 1;
         items.push({
           id: wl.id, type:'listen', listen: wl.word, word: wl.word, emoji: wl.emoji,
           prompt: wl.emoji + ' 听一听，选出正确的意思',
           big: wl.word, note: wl.word + ' = ' + wl.cn,
-          options: M.makeOptions(wl.cn, M.sampleExclude(lCns, [wl.cn], 3), 4), correct: wl.cn
+          options: M.makeOptions(wl.cn, dist, 4), correct: wl.cn
         });
         if (Speech && Speech.preloadTTS) Speech.preloadTTS(wl.word);
       }

@@ -841,7 +841,9 @@
     var wrap = body.querySelector('.cm-snake');
     var availW = window.innerWidth;
     var availH = window.innerHeight - 60;
-    if (inner && wrap && availW >= 720) {
+    // 仅宽屏桌面才整体缩放铺满; 窄屏与平板(含 iPad 竖/横屏)保持画布原生宽度, 靠 .cm-snake 横向滚动,
+    // 避免 iPad(竖屏 ~768px) 被缩到最小且 overflow:hidden 导致无法左右滚动.
+    if (inner && wrap && availW >= 1100) {
       var k = Math.min(availW / SNAKE_W, availH / SNAKE_H);
       k = Math.max(0.25, Math.min(1.6, k));
       inner.style.width = SNAKE_W + 'px';

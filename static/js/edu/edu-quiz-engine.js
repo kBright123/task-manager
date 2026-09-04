@@ -142,11 +142,15 @@
       if (_nm(_pv) === _nm(_nv)) headPrompt = '';
     }
     var h = '<div class="quiz-item" id="qi-'+i+'">';
-    h += '<div class="qi-head"><span class="qi-no">'+(i+1)+'</span><span class="qi-prompt">'+M.stripBlank(headPrompt)+'</span>'+spk+'</div>';
     if (isListen) {
-      // 听音选字: 不显示目标字, 用一个大大的「🔊 再听一遍」重播按钮代替
-      h += '<div class="qi-listen"><button type="button" class="qi-listen-btn" onclick="window.Edu.QuizEngine.replaySpeak()" aria-label="再听一遍">🔊</button><div class="qi-listen-hint">再听一遍</div></div>';
-    } else if (isCharPick) h += '<div class="qi-big">'+M.stripBlank(it.prompt)+'</div>';
+      // 听音选字: 🔊 重播按键内联到题干同一行(与其它题朗读键样式统一)
+      h += '<div class="qi-head"><span class="qi-no">'+(i+1)+'</span><span class="qi-prompt">'+M.stripBlank(headPrompt)+'</span>' +
+        '<button type="button" class="qi-listen-btn inline" onclick="window.Edu.QuizEngine.replaySpeak()" aria-label="再听一遍">🔊</button>' +
+        '<span class="qi-listen-hint">再听一遍</span></div>';
+    } else {
+      h += '<div class="qi-head"><span class="qi-no">'+(i+1)+'</span><span class="qi-prompt">'+M.stripBlank(headPrompt)+'</span>'+spk+'</div>';
+    }
+    if (isCharPick) h += '<div class="qi-big">'+M.stripBlank(it.prompt)+'</div>';
     if (it.order) {
       h += '<div class="qi-order"><div class="qi-target" id="qo-target-'+i+'"></div>';
       h += '<div class="qi-opts" id="qo-opts-'+i+'">';

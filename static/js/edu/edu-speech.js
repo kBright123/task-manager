@@ -104,34 +104,6 @@
 
   // 网络 TTS(edge-tts 高音质, 服务端缓存同源 mp3) 带超时: 仅在本地合成不可用/失败时兜底
   function playNetTimed(text, onFail) {
-    if (typeof window === 'undefined' || typeof window.Audio === 'undefined') { onFail && onFail('not_browser'); return; }
-    var url = ttsUrl(text);
-    stopNetAudio();
-    var a = new Audio(url);
-    var done = false;
-    function finish(fn) {
-      if (done) return;
-      done = true;
-      clearTimeout(timer2);
-      fn();
-    }
-    var timer2 = setTimeout(function(){ finish(function(){ stopNetAudio(); onFail && onFail(); }); }, 5000);
-    a.oncanplaythrough = function(){ finish(function(){ stopNetAudio(); }); };
-    a.onerror = function(){ finish(function(){ stopNetAudio(); onFail && onFail(); }); };
-    a.onended = function(){ clearTimeout(timer2); stopNetAudio(); };
-    var p = a.play();
-    if (p && p.catch) p.catch(function(){ finish(function(){ stopNetAudio(); onFail && onFail(); }); });
-    netAudio = a;
-    if (typeof netAudioUrl === 'string') netAudioUrl = url;
-  }
-
-  function hasAnyVoice() {
-    if (typeof speechSynthesis === 'undefined') return false;
-    try { return speechSynthesis.getVoices().length > 0; } catch (e) { return false; }
-  }
-
-  // 网络 TTS: 仅在本地合成失败时兜底
-  function playNetTimed(text, onFail) {
     var url = ttsUrl(text);
     stopNetAudio();
     var a = new Audio(url);
@@ -237,7 +209,8 @@
     if (!text) return '';
     // 不安全: JSON.stringify 会产生双引号, 与 HTML 属性定界符冲突 => 用单引号定界并转义文本
     var arg = String(text).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, ' ').replace(/"/g, '&quot;');
-    return '<button type="button" class="qi-spk '+(cls||'')+'" onclick="window.Edu.Speech.playSpeak(\''+arg+'\')" aria-label="朗读"><i class="bi bi-volume-up"></i></button>';
+    // 用户点击: 有用户手势, 强制走网络 TTS(绕过自动播放拦截), 保证能出声
+    return '<button type="button" class="qi-spk '+(cls||'')+'" onclick="window.Edu.Speech.playSpeakForceNet(\''+arg+'\')" aria-label="朗读">🔊</button>';
   }
 
   // 极速练习/闯关鼓励语音: 答对/答错随机一句, 每次一个; 避免连续两次相同

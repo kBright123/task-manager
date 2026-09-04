@@ -60,9 +60,10 @@
     var spk = Speech.spkBtn(it.prompt, 'qi-spk');
     var h = '<div class="quiz-item active" style="margin-top:10px;">';
     if (it.listen) {
-      // 听音选字(识字极速/闯关同款): 不显示目标字, 🔊 重播 + 自动播放词语语音
-      h += '<div class="qi-head"><span class="qi-no">'+(PRACTICE.idx+1)+'</span><span class="qi-prompt">'+M.stripBlank(it.prompt)+'</span></div>';
-      h += '<div class="qi-listen"><button type="button" class="qi-listen-btn" onclick="window.Edu.Practice.replaySpeak()" aria-label="再听一遍">🔊</button><div class="qi-listen-hint">再听一遍</div></div>';
+      // 听音选字(识字极速/闯关同款): 🔊 重播内联到题干同一行
+      h += '<div class="qi-head"><span class="qi-no">'+(PRACTICE.idx+1)+'</span><span class="qi-prompt">'+M.stripBlank(it.prompt)+'</span>' +
+        '<button type="button" class="qi-listen-btn inline" onclick="window.Edu.Practice.replaySpeak()" aria-label="再听一遍">🔊</button>' +
+        '<span class="qi-listen-hint">再听一遍</span></div>';
     } else {
       h += '<div class="qi-head"><span class="qi-no">'+(PRACTICE.idx+1)+'</span><span class="qi-prompt">'+M.stripBlank(it.prompt)+'</span>'+spk+'</div>';
     }

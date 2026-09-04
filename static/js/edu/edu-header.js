@@ -49,20 +49,7 @@
                      math:{calc:'口算',judge:'判断',word:'应用题',order:'排序',daily:'每日挑战'},
                      en:{word:'单词',dialogue:'对话',daily:'每日挑战'}}[subj]||{})[type] || type;
     // 答题页不提供模式切换入口(模式在首页选择), 仅以只读标签展示当前关卡
-    var modeChip;
-    if (isQuiz && pos) {
-      var STAGES = (Course && Course.STAGES_PER_BIG) || 5;
-      var stageRow = '';
-      for (var i = 0; i < STAGES; i++) {
-        stageRow += (i < pos.stage) ? '✅' : (i === pos.stage ? '⭐' : '☆');
-      }
-      modeChip = '<span class="lv-badge">🗺️ ' + lvTxt + ' · ' + esc(itemName) + '</span>' +
-        '<span class="qc-stage-row">' + stageRow + '</span>';
-    } else if (isSu) {
-      modeChip = '<span class="lv-badge">⚡ 极速练习</span>';
-    } else {
-      modeChip = '<span class="lv-badge">🗺️ ' + lvTxt + ' · ' + esc(itemName) + '</span>';
-    }
+    var modeChip = '<span class="lv-badge">' + (isSu ? '⚡ 极速练习' : ('🗺️ ' + lvTxt + ' · ' + esc(itemName))) + '</span>';
     var html = '<div class="qc-ctl">' +
       '<div class="qc-side">' + modeChip + (passed ? '<span class="lv-passed">✅ 已通过</span>' : '') + '</div>' +
       '<button type="button" class="qc-exit" onclick="quitAsk()"><i class="bi bi-x-lg"></i>' + (isSu ? '退出' : '返回') + '</button>' +

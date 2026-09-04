@@ -143,7 +143,6 @@
   .qz-ctl,.qc-ctl{display:flex;align-items:center;gap:10px;margin:0 0 10px;}
   .qc-ctl .qc-side{display:flex;align-items:center;gap:10px;margin-right:auto;}
   .qc-ctl .qc-side .lv-badge{background:linear-gradient(135deg,var(--edu-blue),var(--edu-primary));color:#fff;padding:5px 14px;border-radius:999px;font-weight:800;font-size:.92rem;box-shadow:0 3px 10px rgba(77,150,255,.28);}
-  .qc-ctl .qc-side .qc-stage-row{font-size:.82rem;letter-spacing:3px;white-space:nowrap;line-height:1;}
   .qc-ctl .lv-passed{font-weight:800;font-size:.85rem;color:var(--edu-gray,#6b7280);border:1.5px solid var(--edu-border);border-radius:999px;padding:3px 10px;background:var(--edu-surface);}
   .qc-ctl .qc-exit{margin-left:auto;display:inline-flex;align-items:center;gap:4px;background:var(--edu-soft);border:1.5px solid var(--edu-border);border-radius:999px;padding:5px 12px;font-size:.74rem;font-weight:700;color:var(--edu-muted);cursor:pointer;transition:.12s;}
   .qc-ctl .qc-exit:hover{border-color:var(--edu-primary);color:var(--edu-primary);}

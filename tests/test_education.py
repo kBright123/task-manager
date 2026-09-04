@@ -918,7 +918,7 @@ def test_quiz_wrong_retry_then_reveal(client):
 
 
 def test_quiz_wrong_input_needs_next():
-    """输入题答错: 揭示正确答案并显示「下一题 ▶」按钮, 不自动跳转; 点按钮才前进."""
+    """输入题答错: 前两次不揭示(给两次重答机会), 第三次答错才揭示正确答案并显示「下一题 ▶」; 不自动跳转."""
     harness = r'''
 const fs=require('fs'),vm=require('vm');
 global.window=global;global.esc=s=>String(s||'').replace(/</g,'&lt;').replace(/&/g,'&amp;');
@@ -945,22 +945,38 @@ const W=global; global.__ins=inserted;
   await new Promise(r=>setTimeout(r,150));
   const curOf=()=>{ const m=__ins.filter(x=>/共 \d+ 题/.test(x)); return m.length?m[m.length-1]:''; };
   const p0=curOf();
-  W.quizInputSubmit(0,'999');
-  await new Promise(r=>setTimeout(r,400));
-  const joined=__ins.join('\n');
-  const hasReveal=joined.indexOf('正确答案是')>=0;
-  const hasNext=joined.indexOf('下一题 ▶')>=0;
+  W.quizInputSubmit(0,'999');   // 第1次答错 → 只提示再试, 不揭示, 输入框保持可再答
+  await new Promise(r=>setTimeout(r,350));
+  const jAfter1=__ins.join('\n');
+  const reveal1=jAfter1.indexOf('正确答案是')>=0;
+  const next1=jAfter1.indexOf('下一题 ▶')>=0;
+  const enabledAfter1 = !inp0.disabled;
+  W.quizInputSubmit(0,'888');   // 第2次答错 → 仍不揭示, 继续给机会
+  await new Promise(r=>setTimeout(r,350));
+  const jAfter2=__ins.join('\n');
+  const reveal2=jAfter2.indexOf('正确答案是')>=0;
+  W.quizInputSubmit(0,'777');   // 第3次答错 → 揭示正确答案 + 下一题 ▶
+  await new Promise(r=>setTimeout(r,350));
+  const jAfter3=__ins.join('\n');
+  const reveal3=jAfter3.indexOf('正确答案是')>=0;
+  const hasNext=jAfter3.indexOf('下一题 ▶')>=0;
   const p1=curOf();
-  console.log('REVEAL='+(hasReveal?'1':'0'));
+  console.log('NO_REVEAL_1='+(reveal1?'0':'1'));
+  console.log('NO_REVEAL_2='+(reveal2?'0':'1'));
+  console.log('REVEAL_3='+(reveal3?'1':'0'));
   console.log('NEXT_BTN='+(hasNext?'1':'0'));
   console.log('NO_AUTO='+(p0===p1?'1':'0'));
+  console.log('INPUT_ENABLED_1='+(enabledAfter1?'1':'0'));
 })();
 '''
     r = subprocess.run(['node', '-e', out_body, _concat_script_path()], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
-    assert 'REVEAL=1' in r.stdout, r.stdout
+    assert 'NO_REVEAL_1=1' in r.stdout, r.stdout
+    assert 'NO_REVEAL_2=1' in r.stdout, r.stdout
+    assert 'REVEAL_3=1' in r.stdout, r.stdout
     assert 'NEXT_BTN=1' in r.stdout, r.stdout
     assert 'NO_AUTO=1' in r.stdout, r.stdout
+    assert 'INPUT_ENABLED_1=1' in r.stdout, r.stdout
 
 
 def test_quiz_completion_page(client):

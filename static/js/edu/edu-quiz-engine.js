@@ -650,15 +650,24 @@
     var it = quiz.items[idx];
     if (it && it.input && String(quiz.answers[idx]||'').trim()) {
       var inp = document.getElementById('qi-in-'+idx);
-      if (inp) inp.disabled = true;
       var ok = M.isCorrect(it, quiz.answers[idx]);
-      // 输入题: 答对自动跳下一题(1.5s + 星星动画); 答错揭示正确答案并显示「下一题 ▶」, 不自动跳转
+      // 输入题: 答对自动跳下一题(1.5s + 星星动画); 答错先给「两次再答机会」,
+      // 每次答错不清空/锁定, 温和提示继续再试; 第三次仍 才 揭示正确答案并显示「下一题 ▶」
       if (ok) {
+        if (inp) inp.disabled = true;
         showSingleFeedback(idx, true);
         scheduleNext(1500);
       } else {
-        showSingleFeedback(idx, false, true);
-        addNextButton();
+        wrongTries[idx] = (wrongTries[idx] || 0) + 1;
+        if (wrongTries[idx] >= 3) {
+          if (inp) inp.disabled = true;
+          showSingleFeedback(idx, false, true);
+          addNextButton();
+        } else {
+          if (inp) inp.value = '';
+          if (inp) inp.focus();
+          showSingleFeedback(idx, false, false);
+        }
       }
     }
   };

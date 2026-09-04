@@ -23,7 +23,9 @@
       Object.keys(target || {}).forEach(function (k) { delete target[k]; });
       Object.assign(target, data);
       var a = window.eduKids ? window.eduKids.active() : null;
-      if (a && a.id === kidId && dkey === 'workbench' && Nav && Nav.eduNav) {
+      // 仅当当前/恢复页是首页时自动进入学习页; 若用户在 勋章/星愿/我的 等页, 不打断其所在页
+      if (a && a.id === kidId && dkey === 'workbench' && Nav && Nav.eduNav &&
+          (!Nav.getCurrentPage || Nav.getCurrentPage() === 'home')) {
         Nav.eduNav('learn');
       }
     });

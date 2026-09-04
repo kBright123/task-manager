@@ -7,6 +7,7 @@
   function renderWish() {
     var body = document.getElementById('eduWishBody');
     if (!body) return;
+    renderWelcomeInto('wishWelcome', '攒星星，兑换你想要的小心愿');
     var wishes = Store.state.wishes || [];
     var stars = Store.state.stars || 0;
     var html = '<div class="wish-summary" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding:12px;background:linear-gradient(135deg,#fff3d6,#ffe1ae);border-radius:12px;border:1.5px solid #ffd9a8;">'+

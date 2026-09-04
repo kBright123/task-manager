@@ -68,9 +68,25 @@
     tryNext();
   }
 
+  // 音色清单(与后端 _TTS_VOICES 对应): id -> 中文名
+  var TTS_VOICES = [
+    { id: 'xiaoxiao', name: '晓晓 · 温暖女声' },
+    { id: 'xiaoyi', name: '小艺 · 活泼' },
+    { id: 'yunxi', name: '云希 · 清晰' },
+    { id: 'yunyang', name: '云扬 · 沉稳' }
+  ];
+
+  function curVoice() {
+    try {
+      var s = window.Edu && window.Edu.Store && window.Edu.Store.curSettings ? window.Edu.Store.curSettings() : null;
+      if (s && s.voice) return s.voice;
+    } catch (e) {}
+    return 'xiaoxiao';
+  }
+
   function ttsUrl(text) {
     var le = ttLang(text);
-    return '/edu/api/tts?text=' + encodeURIComponent(text) + '&lang=' + le;
+    return '/edu/api/tts?text=' + encodeURIComponent(text) + '&lang=' + le + '&v=' + curVoice();
   }
 
   function playNetTTS(text) {
@@ -243,7 +259,11 @@
   window.Edu.Speech.speakOn = speakOn;
   window.Edu.Speech.encPick = encPick;
   window.Edu.Speech.playSpeakForceNet = playSpeakForceNet;
+  window.Edu.Speech.TTS_VOICES = TTS_VOICES;
+  window.Edu.Speech.curVoice = curVoice;
   window.encPick = encPick;
+  // 别名: 部分模块(practice 等)用 window.Speech 判读/调用语音
+  window.Speech = window.Edu.Speech;
   window.toggleSpeak = window.Edu.Speech.toggleSpeak;
 
   // 轻量 toast 提示(供各模块统一调用)

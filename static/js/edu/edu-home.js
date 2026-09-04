@@ -28,6 +28,40 @@
   function kidLevel(k) {
     return Math.max(1, (window.eduKids && window.eduKids.ageOf ? window.eduKids.ageOf(k && k.birthYear) : 6));
   }
+  // 统一的问候页头: 早上好/{名字}/今天也要开开心心学习哦 + ⭐ Lv + 宝贝切换
+  // 用于 学习/勋章/星愿/我的 各页, 避免反复出现重复大标题。
+  function welcomeBarHtml(act, dropId, subtitle) {
+    var kids = window.eduKids ? window.eduKids.all() : [];
+    var hour = new Date().getHours();
+    var greet = hour < 6 ? '夜深了' : (hour < 12 ? '早上好' : (hour < 18 ? '下午好' : '晚上好'));
+    var actName = act ? (act.name || '宝贝') : '宝贝';
+    var sub = subtitle || '今天也要开开心心学习哦';
+    var top = '<section class="home-top">' +
+      '<div class="ht-greet">' +
+        '<span class="ht-hello">' + greet + '，<b>' + esc(actName) + '</b></span>' +
+        '<span class="ht-sub">' + esc(sub) + '</span>' +
+      '</div>' +
+      '<div class="ht-actions">' +
+        '<span class="ht-lv">⭐ ' + (Store.state && Store.state.stars || 0) + ' 星 · 连续打卡 ' + (loginStreak(Store.state && Store.state.records || []) || 0) + ' 天</span>' +
+        '<button type="button" class="ht-icon" data-kid aria-label="宝贝切换" onclick="window.homeOpenKid(\'' + dropId + '\')">' +
+          kidAvatar(act) + '</button>' +
+      '</div>' +
+      '</section>' +
+      '<div class="ht-kiddrop" id="' + dropId + '"></div>';
+    return top;
+  }
+  function renderWelcomeInto(containerId, subtitle) {
+    var host = document.getElementById(containerId);
+    if (!host) return;
+    var act = window.eduKids ? window.eduKids.active() : null;
+    host.innerHTML = welcomeBarHtml(act || {}, containerId + 'Dr', subtitle);
+  }
+  window.Edu.Home = window.Edu.Home || {};
+  window.Edu.Home.welcomeBarHtml = welcomeBarHtml;
+  window.Edu.Home.renderWelcomeInto = renderWelcomeInto;
+  window.Edu.Home.kidAvatar = kidAvatar;
+  window.renderWelcomeInto = renderWelcomeInto;
+
   function loginStreak(recs) {
     var daySet = {};
     (recs || []).forEach(function (r) { if (r.date) daySet[r.date] = 1; });
@@ -149,7 +183,6 @@
     var hour = new Date().getHours();
     var greet = hour < 6 ? '夜深了' : (hour < 12 ? '早上好' : (hour < 18 ? '下午好' : '晚上好'));
     var curMode = Nav.currentMode ? Nav.currentMode() : 'workbench';
-    var lv = Store.stateLevel ? Store.stateLevel('zh') : (d.level || 1);
     var modeToggle = '<select id="modeSelect" class="mode-select" aria-label="学习模式" onchange="switchMode(this.value)">' +
       '<option value="workbench"' + (curMode === 'workbench' ? ' selected' : '') + '>🏫 幼小衔接</option>' +
       '<option value="paradise"' + (curMode === 'paradise' ? ' selected' : '') + '>🌈 快乐乐园</option>' +
@@ -160,7 +193,7 @@
         '<span class="ht-sub">今天也要开开心心学习哦</span>' +
       '</div>' +
       '<div class="ht-actions">' +
-        '<span class="ht-lv">⭐ Lv.' + lv + '</span>' +
+        '<span class="ht-lv">⭐ ' + (Store.state.stars || 0) + ' 星 · 连续打卡 ' + (d.streak || 0) + ' 天</span>' +
         '<button type="button" class="ht-icon" data-kid aria-label="宝贝切换" onclick="window.homeOpenKid()">' + kidAvatar(act) + '</button>' +
         '<span class="ht-mode mode-toggle">' + modeToggle + '</span>' +
       '</div>' +
@@ -170,20 +203,20 @@
     var quote = d.today >= d.goal
       ? '🎉 今日目标已达成，继续保持！'
       : (remaining > 0 ? '再答 <b>' + remaining + '</b> 题就能突破今日目标，加油！' : '从第一题开始，答对题 + 攒星星，冲鸭！');
-    var stStars = Store.state.stars || 0;
-    var badEm = Object.keys(Store.state.badges || {}).filter(function (k) { return Legacy && Legacy.BADGES && Legacy.BADGES[k]; })
-      .map(function (k) { return Legacy.BADGES[k].name; });
-    // 每人最多渲染前 5 枚; 前 2 枚(.hero)任何端都显示, 第 3-5 枚(.xtra)桌面显示/手机隐藏,
+    // 最近获得勋章(按时序倒序取前 3)展示在今日目标: 前 2 枚(.hero)任何端都显示, 第 3 枚(.xtra)桌面显示/手机隐藏,
     // 手机端用「+N」指示剩余枚数
-    var badHtml = badEm.slice(0, 5).map(function (nm, i) {
-      return '<span class="hg-badge' + (i < 2 ? ' hero' : ' xtra') + '">' + esc(nm) + '</span>';
+    var badList = Object.keys(Store.state.badges || {})
+      .filter(function (k) { return Legacy && Legacy.BADGES && Legacy.BADGES[k]; })
+      .map(function (k) { return { name: Legacy.BADGES[k].name, t: Number(Store.state.badges[k]) || 0 }; })
+      .sort(function (a, b) { return b.t - a.t; });
+    var badHtml = badList.slice(0, 3).map(function (b, i) {
+      return '<span class="hg-badge' + (i < 2 ? ' hero' : ' xtra') + '">' + esc(b.name) + '</span>';
     }).join('');
-    var badMore = badEm.length > 2
-      ? '<span class="hg-more" title="共 ' + badEm.length + ' 枚勋章">+' + (badEm.length - 2) + '</span>'
+    var badMore = badList.length > 3
+      ? '<span class="hg-more" title="共 ' + badList.length + ' 枚勋章">+' + (badList.length - 3) + '</span>'
       : '';
     var goalStats = '<div class="hg-stats">' +
-      '<span class="hg-star">⭐ 累计 ' + stStars + ' 星</span>' +
-      (badEm.length ? '<span class="hg-badges" title="已获得 ' + badEm.length + ' 枚勋章">' + badHtml + badMore + '</span>' : '') +
+      (badList.length ? '<span class="hg-badges" title="已获得 ' + badList.length + ' 枚勋章">' + badHtml + badMore + '</span>' : '') +
       '</div>';
     var goal = '<section class="home-goal">' +
       '<div class="hg-head"><span class="hg-title">📊 今日学习目标</span>' +
@@ -302,11 +335,11 @@
     if (act) kidEnter(act.id);
   };
   // 顶部条宝贝切换: 轻量下拉, 无独立顶栏时提供统一身份入口
-  window.homeOpenKid = function () {
+  window.openKidDrop = function (dropId) {
+    var drop = document.getElementById(dropId || 'homeKidDrop');
+    if (!drop) return;
     var list = (window.eduKids ? window.eduKids.all() : []) || [];
     var act = window.eduKids ? window.eduKids.active() : null;
-    var drop = document.getElementById('homeKidDrop');
-    if (!drop) return;
     if (drop.classList.contains('show')) { drop.classList.remove('show'); return; }
     var ht = '<div class="ht-kd-title">选择宝贝</div>' + list.map(function (k) {
       var on = act && k.id === act.id;
@@ -318,6 +351,9 @@
       '<button type="button" class="ht-kd-add" onclick="window.kidAdd()">➕ 添加宝贝</button>';
     drop.innerHTML = ht;
     drop.classList.add('show');
+  };
+  window.homeOpenKid = function (dropId) {
+    window.openKidDrop(dropId || 'homeKidDrop');
   };
   window.homeCloseKid = function () {
     var drop = document.getElementById('homeKidDrop');

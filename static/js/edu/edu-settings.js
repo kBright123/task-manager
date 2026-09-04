@@ -9,8 +9,7 @@
   // =====================================================================
   // 设置中心(第四批升级):
   //   · 学习设置(难度)                     · 护眼时长(默认20分钟)
-  //   · 音效开关(Speech)                  · 家长口令修改
-  //   · 重置进度: 勾选「我已知晓」二次确认(eduMaskReset)
+  //   · 音效开关(Speech)                   · 重置进度: 勾选「我已知晓」二次确认(eduMaskReset)
   //   · 危险操作: 输入指定文字确认(eduMaskConfirm, 如删除宝贝)
   // =====================================================================
 
@@ -55,7 +54,6 @@
     if ((el = document.getElementById('setMult'))) el.checked = !!s.mult;
     if ((el = document.getElementById('setTrace'))) el.checked = (s.show && s.show.trace) !== false;
     if ((el = document.getElementById('setPar'))) el.checked = (s.show && s.show.par) !== false;
-    if ((el = document.getElementById('setPwd'))) el.value = '';
     if ((el = document.getElementById('setEyeMin'))) el.value = s.eyeMin || C.REST_DEFAULT;
     if ((el = document.getElementById('setSound'))) el.checked = s.sound !== false;
     mask.style.display = 'flex';
@@ -85,12 +83,6 @@
         try { localStorage.setItem(C.SPEAK_ON_KEY, el.checked ? 'true' : 'false'); } catch (e) {}
         if (window.Edu.Speech && window.Edu.Speech.setSpeakIcon) window.Edu.Speech.setSpeakIcon();
       }
-    }
-    // 家长口令(所有屏幕通用)
-    if ((el = document.getElementById('setPwd'))) {
-      var pwd = el.value;
-      if (pwd && /^\d{4}$/.test(pwd)) localStorage.setItem(C.PWD_KEY, pwd);
-      else if (pwd) { Speech.toast('口令需为4位数字'); return; }
     }
     Store.mergeSet(s);
     Store.saveState();
@@ -193,15 +185,6 @@
     if (mask) mask.style.display = 'none';
   };
 
-  // ---- 家长模式保险(锁定) ----
-  window.lockParentMode = function () {
-    window.Edu.Parent.parentUnlocked = false;
-    window.Edu.Parent.pwdPending = null;
-    var b = document.getElementById('parentLocked');
-    if (b) b.textContent = '已锁定';
-    Speech.toast('家长模式已锁定');
-  };
-
   window.Edu.Settings.openSettings = window.openSettings;
   window.Edu.Settings.setSave = window.setSave;
   window.Edu.Settings.openConfirm = window.openConfirm;
@@ -212,7 +195,6 @@
   window.Edu.Settings.openResetConfirm = window.openReset;
   window.Edu.Settings.resetGo = window.resetGo;
   window.Edu.Settings.resetCancel = window.resetCancel;
-  window.Edu.Settings.lockParentMode = window.lockParentMode;
 
   // 兼容旧调用(第三批测试仍指向 resetAll)
   window.Edu.Settings.resetAll = window.resetGo;

@@ -9,7 +9,6 @@
   C.DEFAULT_SET = { range: 0, nocarry: false, mult: false, dailyQ: 20, dailyMin: 0, show: { trace: true, par: true }, eyeMin: 20, font: 'm', sound: true };
   C.REST_DEFAULT = 20;   // 护眼时长默认(分钟)
   C.SPEAK_ON_KEY = 'edu_speak_v1';
-  C.PWD_KEY = 'edu_parent_pwd_v1';
   C.PRACTICE_SECS = 20;
 
   C.LEITNER_DAYS = [1, 3, 7, 14, 30];

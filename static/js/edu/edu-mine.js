@@ -17,12 +17,10 @@
   function renderMine() {
     var body = document.getElementById('eduMineBody');
     if (!body) return;
+    renderWelcomeInto('mineWelcome', '管理宝贝与个性化设置');
     var kids = window.eduKids ? window.eduKids.all() : [];
     var act = window.eduKids ? window.eduKids.active() : (kids[0] || null);
-    var stars = 0;
-    try { stars = (Store.state && Store.state.stars) || 0; } catch (e) {}
     var s = Store.curSettings();
-    var goal = s && s.goal ? s.goal : 5;
     var name = act ? (act.name || '宝贝') : '宝贝';
 
     // 宝贝管理入口：有宝贝显示"管理宝贝"，无宝贝显示"添加宝贝"
@@ -56,6 +54,20 @@
         '<span class="ms-toggle-knob"></span>' +
         '<span class="ms-toggle-label">' + (soundOn ? '已开启' : '已关闭') + '</span>' +
       '</button>';
+    // 音色选择: 与后端 edge-tts 音色一致; 可选择 + 试听
+    var Voice = window.Edu.Speech;
+    var voices = (Voice && Voice.TTS_VOICES) || [];
+    var curV = (Voice && Voice.curVoice) ? Voice.curVoice() : 'xiaoxiao';
+    var voiceOpts = '<option value="">（默认 · 晓晓）</option>' + voices.map(function (v) {
+      return '<option value="' + v.id + '"' + (v.id === curV ? ' selected' : '') + '>' + v.name + '</option>';
+    }).join('');
+    var voiceRow = '<div class="ms-item ms-inline-row">' +
+      '<span class="ms-icon">🎙️</span><span>朗读音色</span>' +
+      '<span class="ms-inline-ctl">' +
+        '<select class="ms-select" id="mineVoice" aria-label="朗读音色" onchange="setVoiceInline(this.value)">' + voiceOpts + '</select>' +
+        '<button type="button" class="ms-voice-preview" aria-label="试听音色" onclick="previewVoice()"><i class="bi bi-play-circle"></i></button>' +
+      '</span>' +
+    '</div>';
 
     // 设置分组
     var settingsHtml = '<div class="mine-settings">' +
@@ -75,6 +87,7 @@
           '<span class="ms-icon">🔊</span><span>朗读与音效</span>' +
           '<span class="ms-inline-ctl">' + soundToggle + '</span>' +
         '</div>' +
+        voiceRow +
       '</div>' +
       '<div class="ms-group">' +
         '<h4>账号与数据</h4>' +
@@ -85,12 +98,6 @@
     '</div>';
 
     body.innerHTML =
-      '<div class="mine-head">' +
-        '<div class="mine-ava-big">' + avaOf(act) + '</div>' +
-        '<div class="mine-meta"><div class="mine-name">' + esc(name) + '</div>' +
-        '<div class="mine-sub">今日目标 ' + goal + ' 题 · Lv.' + levelOf(act) + '</div></div>' +
-        '<div class="mine-stars">⭐ ' + stars + '</div>' +
-      '</div>' +
       kidsHtml +
       settingsHtml +
       '<p class="mine-foot">幼小衔接 · 快乐学习乐园</p>';
@@ -98,4 +105,22 @@
 
   window.Edu.Mine = { renderMine: renderMine, avaOf: avaOf, levelOf: levelOf };
   window.renderMine = renderMine;
+  window.setVoiceInline = function (val) {
+    var s = Store.curSettings();
+    s.voice = val || 'xiaoxiao';
+    Store.mergeSet(s);
+    Store.saveState();
+    if (window.renderMine) window.renderMine();
+    var nm = '默认';
+    var voices = (window.Edu.Speech && window.Edu.Speech.TTS_VOICES) || [];
+    for (var i = 0; i < voices.length; i++) if (voices[i].id === (val || 'xiaoxiao')) nm = voices[i].name;
+    if (window.Edu.Speech && window.Edu.Speech.toast) window.Edu.Speech.toast('已选择音色：' + nm);
+  };
+  window.previewVoice = function () {
+    var S = window.Edu.Speech;
+    if (!S || !S.playSpeakForceNet) return;
+    if (!Store.curSettings().sound) { S.toast && S.toast('请先开启朗读与音效'); return; }
+    S.playSpeakForceNet('小朋友，你好呀！');
+    if (S.toast) S.toast('试听当前音色');
+  };
 })();

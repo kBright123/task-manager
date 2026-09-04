@@ -1,7 +1,6 @@
 (function () {
   'use strict';
   var C = window.Edu.Constants;
-  var M = window.Edu.MathUtils;
   var Store = window.Edu.Store;
 
   function endOfToday() { var t = new Date(); t.setHours(23, 59, 59, 999); return t.getTime(); }
@@ -43,19 +42,51 @@
     var newly = [];
     var s = Store.state;
     if (!s.badges) s.badges = {};
+    var got = function (k) { return !!(s.badges && s.badges[k]); };
+    var take = function (k) { if (got(k)) return; s.badges[k] = Date.now(); newly.push(k); };
 
-    if (s.submits === 1 && !s.badges.first_win) { s.badges.first_win = Date.now(); newly.push('first_win'); }
-    if (comboRun >= 3 && !s.badges.streak_3) { s.badges.streak_3 = Date.now(); newly.push('streak_3'); }
-    if (comboRun >= 5 && !s.badges.streak_5) { s.badges.streak_5 = Date.now(); newly.push('streak_5'); }
+    var stars = s.stars || 0;
+    var submits = s.submits || 0;
+    if (stars >= 1) take('s1');
+    if (stars >= 10) take('s10');
+    if (stars >= 50) take('s50');
+    if (submits >= 100) take('r100');
+    if (comboRun >= 5) take('c5');
+    if (comboRun >= 10) take('c10');
 
-    var subjRight = { zh:0, math:0, en:0 };
-    (s.records || []).forEach(function(r){ if (r.ok && subjRight[r.subj] !== undefined) subjRight[r.subj]++; });
-    if (subjRight.math >= 50 && !s.badges.math_50) { s.badges.math_50 = Date.now(); newly.push('math_50'); }
-    if (subjRight.zh >= 50 && !s.badges.zh_50) { s.badges.zh_50 = Date.now(); newly.push('zh_50'); }
-    if (subjRight.en >= 50 && !s.badges.en_50) { s.badges.en_50 = Date.now(); newly.push('en_50'); }
+    // 连续打卡: 依据做题记录出现的连续天数
+    var daySet = {};
+    function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+    (s.records || []).forEach(function (r) { if (r && r.date) daySet[r.date] = 1; });
+    var d = new Date(), dayK = pad2(d.getFullYear()) + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+    var streak = 0;
+    if (!daySet[dayK]) d = new Date(d.getTime() - 86400000);
+    dayK = pad2(d.getFullYear()) + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+    while (daySet[dayK]) { streak++; d = new Date(d.getTime() - 86400000); dayK = pad2(d.getFullYear()) + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+    if (streak >= 7) take('d7');
+    else if (streak >= 3) take('d3');
 
-    if (s.stars >= 100 && !s.badges.star_100) { s.badges.star_100 = Date.now(); newly.push('star_100'); }
-    if (s.stars >= 500 && !s.badges.star_500) { s.badges.star_500 = Date.now(); newly.push('star_500'); }
+    if (submits >= 1) take('z1');
+    if (submits >= 10) take('z10');
+    if (submits >= 25) take('z25');
+
+    // 各学科累计答对
+    var subjRight = { zh: 0, math: 0, en: 0 };
+    (s.records || []).forEach(function (r) { if (r && r.ok && subjRight[r.subj] !== undefined) subjRight[r.subj]++; });
+    if (subjRight.math >= 30) take('m5');
+    if (subjRight.zh >= 20) take('f20');
+
+    // 乐园玩满 5 次: 极速练习完成次数
+    if (((s.wb && s.wb.done) || []).length >= 5) take('p10');
+
+    // 全面发展: 语文 / 数学 / 英语 / 乐园 都练过(乐园记入 wb.done)
+    var hasSubj = {};
+    (s.records || []).forEach(function (r) { if (r && r.subj) hasSubj[r.subj] = 1; });
+    if (hasSubj.zh && hasSubj.math && hasSubj.en && ((s.wb && s.wb.done) || []).length >= 1) take('all');
+
+    // 错题清零: 无任何逾期错题(全部消灭)
+    var rest = dueWrongList();
+    if (rest.length === 0 && ((s.wrong || []).length > 0 || submits > 0)) take('w0');
 
     if (newly.length) { Store.saveState(); badgeReveal(newly); }
   }
@@ -70,8 +101,7 @@
       el.className = 'badge-reveal';
       el.innerHTML = '<div class="badge-icon">'+b.name.split(' ')[0]+'</div><div class="badge-text"><div class="badge-name">'+b.name+'</div><div class="badge-desc">'+b.desc+'</div></div>';
       host.appendChild(el);
-      setTimeout(function(){ el.classList.add('show'); }, 50);
-      setTimeout(function(){ el.classList.remove('show'); setTimeout(function(){ el.remove(); }, 300); }, 3000);
+      setTimeout(function(){ if (el.classList) el.classList.remove('show'); setTimeout(function(){ if (el.remove) el.remove(); }, 300); }, 3000);
     });
   }
 

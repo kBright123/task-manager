@@ -29,11 +29,6 @@
   var quizOrder = {};
   var quizView = 0;
 
-  // 家长态 / 偏好
-  var PWD_KEY = 'edu_parent_pwd_v1';
-  var parentUnlocked = false;
-  var pwdPending = null;
-
   // 当前科目/页面/模式
   var navNow = 'home';
   var subjNow = 'zh';
@@ -120,38 +115,12 @@
     return null;
   }
 
-  // ---- 家长口令 ----
-  function parentPwd() { var v = load(PWD_KEY); return (v && /^\d{4}$/.test(v)) ? v : '0000'; }
+  // ---- 家长操作(已去除口令, 直接放行) ----
   function requireParent(cb) {
-    // 已去除家长口令限制: 不再弹口令验证, 直接放行
     if (cb) cb();
     return true;
   }
-  function pwdConfirm() {
-    var inp = document.getElementById('pwdInput');
-    var val = (inp ? inp.value : '').replace(/\s+/g, '');
-    if (val === parentPwd()) {
-      parentUnlocked = true;
-      var m = document.getElementById('eduMaskPwd');
-      if (m) m.style.display = 'none';
-      if (inp) inp.value = '';
-      var cb = pwdPending; pwdPending = null;
-      if (cb) cb();
-      toast('家长确认通过');
-    } else {
-      if (inp) inp.value = '';
-      toast('口令不正确');
-    }
-  }
-  function pwdCancel() {
-    pwdPending = null;
-    var m = document.getElementById('eduMaskPwd');
-    if (m) m.style.display = 'none';
-  }
   window.requireParent = requireParent;
-  window.pwdConfirm = pwdConfirm;
-  window.pwdCancel = pwdCancel;
-  window.parentPwd = parentPwd;
 
   // ---- toast / 星星 ----
   var toastT = null;
@@ -319,10 +288,7 @@
     usageForToday: usageForToday,
     minsUsed: minsUsed,
     checkLimit: checkLimit,
-    parentPwd: parentPwd,
     requireParent: requireParent,
-    pwdConfirm: pwdConfirm,
-    pwdCancel: pwdCancel,
     toast: toast,
     ensureDay: ensureDay,
     speaking: { speak: speak, speakOn: speakOn, mathToSpeak: mathToSpeak, numCn: numCn, spkBtn: spkBtn, stripBlank: stripBlank, setSpeakIcon: setSpeakIcon },
@@ -336,8 +302,7 @@
     quizOrder: quizOrder,
     childId: childId,
     stateKeyFor: stateKeyFor,
-    wbKeyFor: wbKeyFor,
-    parentUnlocked: parentUnlocked
+    wbKeyFor: wbKeyFor
   };
 
   window.state = state;
@@ -352,7 +317,6 @@
   window.checkLimit = checkLimit;
   window.todayStr = todayStr;
   window.esc = esc;
-  window.parentPwd = parentPwd;
   window.anim = anim;
   window.stateLevel = stateLevel;
   window.setLevel = setLevel;

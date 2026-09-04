@@ -159,10 +159,9 @@
       { act: isWish, oc: "eduNav('wish')", icon: '<i class="bi bi-star"></i>', label: '星愿' },
       { act: navNow === 'mine', oc: "eduNav('mine')", icon: '<i class="bi bi-person"></i>', label: '我的' }
     ];
-    var busy = navBusy();
     nav.innerHTML = items.map(function (it) {
-      var cls = 'edu-nav-btn' + (it.act ? ' active' : '') + (busy ? ' disabled' : '');
-      return '<button type="button" class="' + cls + '"' + (busy ? ' disabled' : '') + ' onclick="' + it.oc + '">' +
+      var cls = 'edu-nav-btn' + (it.act ? ' active' : '');
+      return '<button type="button" class="' + cls + '" onclick="' + it.oc + '">' +
         it.icon + '<span>' + it.label + '</span></button>';
     }).join('');
   }
@@ -209,7 +208,8 @@
     if (window.eduKids) window.eduKids.setActive(id);
     var drop = document.getElementById('kidPickDrop');
     if (drop) drop.classList.remove('show');
-    enter();
+    // 停留在当前页切换宝贝, 不跳回首页
+    window.eduNav(navNow);
   };
   window.toggleKidDrop = function () {
     var drop = document.getElementById('kidPickDrop');

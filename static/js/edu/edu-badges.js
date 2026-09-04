@@ -19,6 +19,7 @@
   function renderBadges() {
     var body = document.getElementById('eduBadgesBody');
     if (!body) return;
+    renderWelcomeInto('badgesWelcome', '闯关赢星星，集齐你的勋章');
     var keys = Object.keys(Legacy.BADGES);
     var unlocked = 0;
     for (var i=0;i<keys.length;i++) if (Store.state.badges && Store.state.badges[keys[i]]) unlocked++;

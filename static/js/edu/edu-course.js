@@ -489,13 +489,24 @@
     return (p.big === big) ? Math.min(STAGES_PER_BIG - 1, p.stage) : 0;
   }
 
-  // 旅程 + 进度说明(用于地图头部/全屏顶栏): 如「小探险家登山 · 小探险家 · 已解锁 1 / 8 大关」
+  // 旅程 + 进度说明(用于地图头部/全屏顶栏): 如「小探险家登山 · 已解锁 1 / 8 大关」
   function journeyLine(subj) {
     var course = COURSES[subj];
     if (!course) return '';
     var n = levelCount(subj);
     var done = courseProg(subj).done;
-    return course.journey + ' · ' + (done ? '🏁 已通关' : '小探险家 · 已解锁 ' + unlockedCount(subj) + ' / ' + n + ' 大关');
+    return course.journey + ' · ' + (done ? '🏁 已通关' : '已解锁 ' + unlockedCount(subj) + ' / ' + n + ' 大关');
+  }
+
+  // 下一步指引提示(与旅程合并为一行, 避免重复描述): 如「⭐ 下一步：去「识字起航」」
+  function nextHint(subj) {
+    var course = COURSES[subj];
+    if (!course) return '';
+    var n = levelCount(subj);
+    var doneAll = courseProg(subj).done;
+    if (doneAll) return '🏁 已完成全部大关！';
+    var curBig = Math.min(curPos(subj).big, n - 1);
+    return '⭐ 下一步：去「' + esc(course.levels[curBig].name) + '」';
   }
 
   // 顶部进度条: 每大关一格, 已通过=金色✓, 当前任务=⭐(呼吸, 明示「下一步去哪座城堡」), 未解锁=灰锁
@@ -505,24 +516,11 @@
     var n = levelCount(subj);
     var doneAll = courseProg(subj).done;
     var curBig = Math.min(curPos(subj).big, n - 1);
-    var segs = [];
-    for (var i = 0; i < n; i++) {
-      var lv = course.levels[i] || {};
-      var nd = nodeProg(subj, i);
-      var unlocked = bigUnlocked(subj, i);
-      var isCur = (!doneAll && unlocked && !nd.done && i === curBig);
-      var cls = 'cm-pg';
-      if (nd.done) cls += ' done';
-      else if (isCur) cls += ' cur';
-      else if (!unlocked) cls += ' lock';
-      var mark = nd.done ? '✓' : (isCur ? '⭐' : '');
-      segs.push('<span class="' + cls + '" title="' + esc(lv.name || '') + '">' + (mark ? '<i>' + mark + '</i>' : '') + '</span>');
-    }
+    // 按需求去掉大关点阵进度条, 仅保留「下一步」指引一行
     var hint = doneAll
       ? '🏁 已完成全部大关！'
       : '⭐ 下一步：去「' + esc(course.levels[curBig].name) + '」';
     return '<div class="cm-progress">' +
-      '<div class="cm-progress-bar">' + segs.join('') + '</div>' +
       '<div class="cm-progress-hint">' + hint + '</div>' +
       '</div>';
   }
@@ -660,10 +658,8 @@
   function renderCoursePage() {
     var body = document.getElementById('eduBadgesBody');
     if (!body) return;
-    var act = window.eduKids ? window.eduKids.active() : null;
-    var name = act ? (act.name || '宝贝') : '宝贝';
+    if (typeof window.renderWelcomeInto === 'function') window.renderWelcomeInto('badgesWelcome', '闯关赢星星，集齐你的勋章');
     var stars = Store.state.stars || 0;
-    var streak = streakDays();
 
     // 进入时的学科: 优先来自首页某科的「闯关模式」入口(focusSubj)
     if (focusSubj in COURSES) activeMapSubject = focusSubj;
@@ -678,19 +674,6 @@
 
     body.innerHTML =
       '<div class="cm-wrap">' +
-        '<div class="cm-hero">' +
-          '<div class="cm-hero-em">🗺️</div>' +
-          '<div class="cm-hero-meta">' +
-            '<div class="cm-hero-t">' + esc(name) + ' 的闯关地图</div>' +
-            '<div class="cm-hero-sub">选一门学科学的闯关旅程，通关解锁下一关</div>' +
-          '</div>' +
-        '</div>' +
-
-        '<div class="cm-stats">' +
-          '<div class="cm-stat"><div class="v">⭐ ' + stars + '</div><div class="l">星星</div></div>' +
-          '<div class="cm-stat"><div class="v">🔥 ' + streak + '</div><div class="l">连续打卡</div></div>' +
-        '</div>' +
-
         '<section class="cm-card">' +
           '<div class="cm-card-h"><span>🎖️ 星星里程碑</span></div>' +
           '<div class="cm-milestones">' + milestonesHtml + '</div>' +
@@ -747,6 +730,8 @@
     journeyTeaser: journeyTeaser,
     addStarBonus: addStarBonus,
     streakDays: streakDays,
+    journeyLine: journeyLine,
+    nextHint: nextHint,
     unlockedCount: unlockedCount,
     curLevelIdx: curLevelIdx,
     curPos: curPos,
@@ -795,8 +780,11 @@
     // 全屏地图只展示当前学科, 不需要学科切换, 故不渲染学科标签
     if (tabs) tabs.innerHTML = '';
     if (tabs) tabs.style.display = 'none';
-    if (journey) journey.textContent = journeyLine(subj);
+    // 旅程 + 下一步指引合并为一行, 去除「小探险家 ·」重复描述(内联 ⭐ 提示由 CSS 隐藏)
+    if (journey) journey.textContent = journeyLine(subj) + '　' + nextHint(subj);
     if (body) body.innerHTML = mapSlotHtml('cmMapSlotFull');
+    // 学科主题背景铺满整个全屏地图(含顶栏/进度提示), 而非仅地图盒子
+    full.className = 'edu-map-full ' + subjTheme(subj);
     full.style.display = 'flex';
     // 让蛇形画布垂直撑满全屏剩余视口(学科背景真铺满)
     setTimeout(function () {

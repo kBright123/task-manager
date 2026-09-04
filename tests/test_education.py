@@ -403,7 +403,7 @@ console.log('CM_BADGE_DIM='+(iH.match(/class="cm-badge dim"/g)||[]).length);
 ''')
     assert 'CM_WRAP=1' in out, out
     assert 'MAP_COURSE=0' in out and 'STG_CUR=0' in out and 'STG_LOCK=0' in out and 'BIG_LOCK=0' in out, out
-    assert 'STAT_NO_POINTS=1' in out and 'STAT_STAR=1' in out and 'STAT_STREAK=1' in out, out
+    assert 'STAT_NO_POINTS=1' in out and 'STAT_STAR=1' in out and 'STAT_STREAK=0' in out, out
     assert 'MILESTONE=1' in out, out
     assert 'CM_BADGE_ON=6' in out and 'CM_BADGE_DIM=10' in out, out
 
@@ -1080,7 +1080,7 @@ def test_daily_mixed_subjects(client):
 
 
 def test_edu_tts_endpoint(client):
-    """语音接口: 同源 mp3 返回 + 内容缓存 + 语言自判(不依赖外网)."""
+    """语音接口: 同源 mp3 返回 + 内容缓存 + 语言自判 + 音色选择(不依赖外网)."""
     import hashlib
     import os
     import routes.education as edu
@@ -1088,8 +1088,8 @@ def test_edu_tts_endpoint(client):
     cache_dir = os.path.join(app.instance_path, 'tts')
     os.makedirs(cache_dir, exist_ok=True)
     keys = []
-    for le, txt in (('zh', '你好'), ('en', 'apple')):
-        k = hashlib.sha1((le + '|' + txt).encode('utf-8')).hexdigest()[:24]
+    for le, vk, txt in (('zh', '', '你好'), ('en', '', 'apple'), ('zh', 'xiaoyi', '你好')):
+        k = hashlib.sha1((le + '|' + vk + '|' + txt).encode('utf-8')).hexdigest()[:24]
         keys.append(os.path.join(cache_dir, k + '.mp3'))
         try:
             os.remove(keys[-1])
@@ -1097,7 +1097,7 @@ def test_edu_tts_endpoint(client):
             pass
     calls = []
     orig = edu._fetch_tts
-    edu._fetch_tts = lambda text, le: (calls.append((text, le)) or b'ID3hello')
+    edu._fetch_tts = lambda text, le, vkey=None: (calls.append((text, le, vkey or '')) or b'ID3hello')
     try:
         r = client.get('/edu/api/tts?text=%E4%BD%A0%E5%A5%BD')
         assert r.status_code == 200, r.status_code
@@ -1106,10 +1106,17 @@ def test_edu_tts_endpoint(client):
         # 命中磁盘缓存: 不再外呼
         r2 = client.get('/edu/api/tts?text=%E4%BD%A0%E5%A5%BD')
         assert r2.status_code == 200 and r2.data == r.data
-        assert calls == [('你好', 'zh')], calls
+        assert calls == [('你好', 'zh', '')], calls
         # 英文自判 → en
         r3 = client.get('/edu/api/tts?text=apple')
-        assert r3.status_code == 200 and calls == [('你好', 'zh'), ('apple', 'en')], calls
+        assert r3.status_code == 200 and calls == [('你好', 'zh', ''), ('apple', 'en', '')], calls
+        # 指定音色 → 独立缓存, 再外呼一次
+        r4 = client.get('/edu/api/tts?text=%E4%BD%A0%E5%A5%BD&v=xiaoyi')
+        assert r4.status_code == 200 and r4.data[:3] == b'ID3'
+        assert calls[-1] == ('你好', 'zh', 'xiaoyi'), calls
+        # 无效音色 → 回落默认
+        r5 = client.get('/edu/api/tts?text=%E4%BD%A0%E5%A5%BD&v=zzz')
+        assert r5.status_code == 200, r5.status_code
         assert client.get('/edu/api/tts').status_code == 400
     finally:
         edu._fetch_tts = orig
@@ -1390,7 +1397,9 @@ const W=global;
   // 问候语按小时变化(跨夜时测试会命中「夜深了」), 昼间/夜间问候均视为有效
   console.log('GREET='+((h.indexOf('早上好')>=0||h.indexOf('下午好')>=0||h.indexOf('晚上好')>=0||h.indexOf('夜深了')>=0)?'1':'0'));
   console.log('MODE='+(h.indexOf('幼小衔接')>=0&&h.indexOf('mode-select')>=0?'1':'0'));
-  console.log('STAR_LV='+(h.indexOf('⭐ Lv.')>=0?'1':'0'));
+  console.log('STAR_LV='+(h.indexOf('连续打卡')>=0?'1':'0'));
+  console.log('NO_LV='+(h.indexOf('⭐ Lv.')<0?'1':'0'));
+  console.log('NO_HGSTAR='+(h.indexOf('hg-star')<0?'1':'0'));
   console.log('BADGE_NM='+(h.indexOf('第一颗星')>=0&&h.indexOf('十星小达人')>=0?'1':'0'));
   console.log('CONTINUE='+(h.indexOf('home-goal')>=0&&h.indexOf('今日学习目标')>=0?'1':'0'));
   console.log('TRK='+(h.indexOf('hg-track')>=0?'1':'0'));
@@ -1418,7 +1427,7 @@ const W=global;
     finally:
         try: os.unlink(stdin_)
         except OSError: pass
-    for probe in ('GREET=1','MODE=1','STAR_LV=1','CONTINUE=1','TRK=1','COUNT=1',
+    for probe in ('GREET=1','MODE=1','STAR_LV=1','NO_LV=1','NO_HGSTAR=1','CONTINUE=1','TRK=1','COUNT=1',
                   'COURSE_ZH=1','COURSE_MATH=1','COURSE_DAILY=1','NO_KIDROW=1','NO_AVA=1','LVLINE=1',
                   'GREET2=1','LBAR=1','NO_SLOGAN=1',
                   'GRID=1','CPROG=1','MODEBTN=1','NO_TAG=1','NO_GO=1','BADGE_NM=1'):
@@ -1452,7 +1461,7 @@ def test_home_course_teaser():
         assert probe in out, out
 
 def test_dock_busy_guard():
-    """答题(Dock守卫): 起卷/极速练习进行中底部导航置灰禁用, 结束/交卷后恢复可点."""
+    """答题(Dock守卫): 按需求 dock 不再置灰禁用，答题/极速练习进行中底部导航仍保持彩色可点."""
     out = _harness(r'''
 (async()=>{
   let bodyH='';const body={style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},appendChild(){},querySelector(){return me()},querySelectorAll(){return[]},scrollIntoView(){},focus(){}};
@@ -1465,22 +1474,22 @@ def test_dock_busy_guard():
   W.eduNav('learn');
   W.wbMath('calc');
   await new Promise(r=>setTimeout(r,90));
-  console.log('DOCK_DISABLED='+(navH.indexOf('disabled')>=0?'1':'0'));
+  console.log('DOCK_ENABLED1='+(navH.indexOf('disabled')<0?'1':'0'));
   W.startPractice('math','calc');
   await new Promise(r=>setTimeout(r,40));
-  console.log('DOCK_DISABLED2='+(navH.indexOf('disabled')>=0?'1':'0'));
+  console.log('DOCK_ENABLED2='+(navH.indexOf('disabled')<0?'1':'0'));
   await new Promise(r=>setTimeout(r,1200));
   const c1=W.PRACTICE.cur.correct;
   W.practiceAnswer(c1);
   await new Promise(r=>setTimeout(r,1200));
   W.stopPractice();
-  console.log('DOCK_ENABLED='+(navH.indexOf('disabled')<0?'1':'0'));
+  console.log('DOCK_ENABLED3='+(navH.indexOf('disabled')<0?'1':'0'));
   process.exit(0);
 })();
 ''')
-    assert 'DOCK_DISABLED=1' in out, out
-    assert 'DOCK_DISABLED2=1' in out, out
-    assert 'DOCK_ENABLED=1' in out, out
+    assert 'DOCK_ENABLED1=1' in out, out
+    assert 'DOCK_ENABLED2=1' in out, out
+    assert 'DOCK_ENABLED3=1' in out, out
 
 
 def test_bottom_nav_fixed_4tab_and_mine():
@@ -1531,7 +1540,7 @@ const W=global;
         try: os.unlink(stdin_)
         except OSError: pass
     for probe in ('TAB_LEARN=1','TAB_BADGE=1','TAB_WISH=1','TAB_MINE=1','NO_SUBJ=1','NO_HOME_TAB=1',
-                  'MINE_NAME=1','MINE_SETTINGS=1','MINE_REPORT=0','MINE_MGR=1','MINE_STARS=1'):
+                  'MINE_NAME=1','MINE_SETTINGS=1','MINE_REPORT=0','MINE_MGR=1','MINE_STARS=0'):
         assert probe in stdout, stdout
 
 

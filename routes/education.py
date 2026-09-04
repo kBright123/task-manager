@@ -173,10 +173,19 @@ def _tts_lang(text):
     return 'zh' if han >= lat else 'en'
 
 
-_EDGE_VOICE = {'zh': 'zh-CN-XiaoyiNeural', 'en': 'en-US-AnaNeural'}
+_EDGE_VOICE = {'zh': 'zh-CN-XiaoxiaoNeural', 'en': 'en-US-AnaNeural'}
+
+# 可在「我的 → 朗读与音效」选择的音色(语文/中文朗读): 温和、慢速、儿童友好, 避免短促
+_TTS_VOICES = {
+    'xiaoxiao': {'voice': 'zh-CN-XiaoxiaoNeural', 'rate': '-4%', 'pitch': '+8Hz', 'label': '晓晓 · 温暖女声'},
+    'xiaoyi':   {'voice': 'zh-CN-XiaoyiNeural',   'rate': '-2%', 'pitch': '+10Hz', 'label': '小艺 · 活泼'},
+    'yunxi':    {'voice': 'zh-CN-YunxiNeural',    'rate': '-1%', 'pitch': '+2Hz',  'label': '云希 · 清晰'},
+    'yunyang':  {'voice': 'zh-CN-YunyangNeural',  'rate': '-1%', 'pitch': '+2Hz',  'label': '云扬 · 沉稳'},
+}
+_TTS_VOICE_DEFAULT = 'xiaoxiao'
 
 
-def _fetch_tts(text, le):
+def _fetch_tts(text, le, vkey=None):
     """在线获取 mp3: 优先 edge-tts(微软在线, 质量高不限流), 失败回退有道词典 TTS."""
     data = None
     try:
@@ -186,8 +195,16 @@ def _fetch_tts(text, le):
         fd, tmp = tempfile.mkstemp(suffix='.mp3')
         os.close(fd)
         try:
+            vconf = (vkey and le == 'zh' and _TTS_VOICES.get(vkey)) or None
+            if vconf:
+                voice, rate, pitch = vconf['voice'], vconf['rate'], vconf['pitch']
+            else:
+                voice = _EDGE_VOICE.get(le, 'zh-CN-XiaoxiaoNeural')
+                rate = '-4%' if le == 'zh' else '0%'
+                pitch = '+8Hz' if le == 'zh' else '0Hz'
+
             async def _run():
-                c = edge_tts.Communicate(text, _EDGE_VOICE.get(le, 'zh-CN-XiaoyiNeural'), rate='+12%', pitch='+8Hz')
+                c = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
                 await c.save(tmp)
             asyncio.run(_run())
             with open(tmp, 'rb') as f:
@@ -231,7 +248,10 @@ def tts():
     le = request.args.get('le') or ''
     if le not in ('zh', 'en'):
         le = _tts_lang(text)
-    key = hashlib.sha1((le + '|' + text).encode('utf-8')).hexdigest()[:24]
+    vkey = request.args.get('v') or ''
+    if vkey not in _TTS_VOICES:
+        vkey = ''
+    key = hashlib.sha1((le + '|' + vkey + '|' + text).encode('utf-8')).hexdigest()[:24]
     cache_dir = os.path.join(current_app.instance_path, 'tts')
     try:
         os.makedirs(cache_dir, exist_ok=True)
@@ -239,7 +259,7 @@ def tts():
         cache_dir = None
     path = os.path.join(cache_dir, key + '.mp3') if cache_dir else None
     if not (path and os.path.isfile(path)):
-        data = _fetch_tts(text, le)
+        data = _fetch_tts(text=text, le=le, vkey=vkey or None)
         if not data:
             abort(502, description='TTS 服务不可用')
         if path:
@@ -265,8 +285,7 @@ _EDU_JS_MODULES = [
     'edu-kids.js', 'edu-nav.js', 'edu-home.js',
     'edu-edit.js', 'edu-settings.js', 'edu-report.js',
     'edu-mask.js', 'edu-wish.js', 'edu-badges.js', 'edu-course.js',
-    'edu-stats.js', 'edu-dash.js', 'edu-fab.js', 'edu-bootstrap.js',
-    'edu-mine.js',
+    'edu-stats.js', 'edu-dash.js', 'edu-fab.js', 'edu-mine.js', 'edu-bootstrap.js',
 ]
 _EDU_JS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static', 'js', 'edu')
 _bundle_lock = threading.Lock()

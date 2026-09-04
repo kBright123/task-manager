@@ -1,17 +1,8 @@
 (function () {
   'use strict';
-  var C = window.Edu.Constants;
   var Store = window.Edu.Store;
 
-  var PWD_KEY = C.PWD_KEY;
-  var parentUnlocked = false;
-  var pwdPending = null;
   var toastT = null;
-
-  function parentPwd() {
-    var v = localStorage.getItem(PWD_KEY);
-    return (v && /^\d{4}$/.test(v)) ? v : '0000';
-  }
 
   function toast(msg) {
     var el = document.getElementById('eduToast');
@@ -33,12 +24,8 @@
   }
 
   window.Edu.Parent = {
-    parentPwd: parentPwd,
-    parentUnlocked: parentUnlocked,
-    pwdPending: pwdPending,
     toast: toast,
-    renderStars: renderStars,
-    PWD_KEY: PWD_KEY
+    renderStars: renderStars
   };
 
   window.requireParent = function (cb) {
@@ -46,27 +33,6 @@
     // 已去除家长口令限制: 直接放行
     if (cb) cb();
     return true;
-  };
-
-  window.pwdConfirm = function () {
-    if (window.Edu.Core && window.Edu.Core.pwdConfirm) return window.Edu.Core.pwdConfirm();
-    var inp = document.getElementById('pwdInput');
-    if (!inp) return;
-    if (inp.value === parentPwd()) {
-      window.Edu.Parent.parentUnlocked = true;
-      if (window.Edu.Parent.pwdPending) { window.Edu.Parent.pwdPending(); window.Edu.Parent.pwdPending = null; }
-      var mask = document.getElementById('eduMaskPwd');
-      if (mask) mask.style.display = 'none';
-    } else {
-      toast('口令错误');
-    }
-  };
-
-  window.pwdCancel = function () {
-    if (window.Edu.Core && window.Edu.Core.pwdCancel) return window.Edu.Core.pwdCancel();
-    var mask = document.getElementById('eduMaskPwd');
-    if (mask) mask.style.display = 'none';
-    window.Edu.Parent.pwdPending = null;
   };
 
   window.openParentMode = function (tab) {

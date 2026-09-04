@@ -106,29 +106,19 @@
   <!-- ================= 星愿（家长模式） ================= -->
   <section id="eduWishPage" style="display:none;">
     
-    <div class="edu-hero">
-      <h1>🌟 星愿</h1>
-      <p style="font-size:.95rem;color:var(--edu-muted);">用小星星兑换心愿，激励孩子坚持学习</p>
-    </div>
+    <div id="wishWelcome" class="page-welcome"></div>
     <div id="eduWishBody"></div>
   </section>
 
   <!-- ================= 勋章墙 ================= -->
   <section id="eduBadgesPage" style="display:none;">
     
-    <div class="edu-hero">
-      <h1>🏅 勋章墙</h1>
-      <p style="font-size:.95rem;color:var(--edu-muted);">看看宝贝攒下了哪些成就勋章</p>
-      <div class="kid-picker-mini" id="badgesKidPicker"></div>
-    </div>
+    <div id="badgesWelcome" class="page-welcome"></div>
     <div id="eduBadgesBody"></div>
   </section>
 
   <section id="eduMinePage" style="display:none;">
-    <div class="edu-hero">
-      <h1>👤 我的</h1>
-      <p style="font-size:.95rem;color:var(--edu-muted);">宝贝信息与家长设置</p>
-    </div>
+    <div id="mineWelcome" class="page-welcome"></div>
     <div id="eduMineBody"></div>
   </section>
 
@@ -208,11 +198,6 @@
           </div>
           <p class="muted" style="margin:4px 0 0;">关闭后对应入口自动隐藏，孩子专注课内练习。</p>
         </div>
-        <div class="edu-field">
-          <label>家长口令（4 位数字，保护家长操作）</label>
-          <input type="password" id="setPwd" maxlength="4" inputmode="numeric" placeholder="例如 1234" style="letter-spacing:2px;">
-          <p class="muted" style="margin:4px 0 0;">星愿新增/删除、重置数据、家长控制操作需输入此口令。</p>
-        </div>
       </div>
       <div class="set-screen" data-screen="eye" style="display:none;">
         <div class="edu-field">
@@ -242,18 +227,6 @@
     </div>
   </div>
 
-  <!-- 家长口令确认 覆盖层 -->
-  <div class="edu-mask" id="eduMaskPwd" style="display:none;">
-    <div class="edu-modal">
-      <h3>🔒 家长确认</h3>
-      <p class="em-sub">请输入 4 位家长口令（默认 0000，可在「家长控制」修改）</p>
-      <div class="edu-field">
-        <input type="password" id="pwdInput" maxlength="4" inputmode="numeric" placeholder="••••" style="letter-spacing:6px;text-align:center;font-size:1.2rem;" onkeydown="if(event.key==='Enter'){pwdConfirm();}">
-      </div>
-      <div class="edu-actions">
-        <button type="button" class="btn-ghost" style="flex:1;" onclick="pwdCancel()">取消</button>
-        <button type="button" class="btn-soft" style="flex:1;" onclick="pwdConfirm()">确认</button>
-      </div>
     </div>
   </div>
 

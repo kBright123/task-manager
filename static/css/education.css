@@ -160,13 +160,12 @@
   body.edu-page .btn-primary{background:linear-gradient(135deg,var(--edu-sky,#4D96FF),#3b6fd4);color:#fff;border:none;box-shadow:0 4px 14px rgba(77,150,255,.35);cursor:pointer;}
   body.edu-page .btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(77,150,255,.45);}
   /* 极速练习: HUD + 倒计时条 + 即时反馈 */
-  .pr-hud{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--edu-surface);border:2px solid var(--edu-border);border-radius:14px;padding:10px 16px;margin-bottom:10px;}
-  .pr-hud .pr-score{font-weight:800;font-size:1rem;color:var(--edu-ink);}
-  .pr-hud .pr-score b{color:var(--edu-primary);font-size:1.2rem;}
-  .pr-hud .pr-streak{font-weight:800;font-size:.95rem;color:var(--edu-hot);animation:prPop .25s ease;}
-  .pr-hud .pr-sec{margin-left:auto;font-weight:800;color:var(--edu-muted);font-variant-numeric:tabular-nums;}
-  .pr-hud .pr-sec b{font-size:1.15rem;color:var(--edu-hot);}
-  .pr-hud .pr-stop{margin-left:auto;}
+  .pr-hud{display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:rgba(255,255,255,.92);border:1.5px solid var(--edu-border);border-radius:12px;padding:7px 14px;margin-bottom:8px;}
+  .pr-hud .pr-stars{font-weight:800;font-size:.95rem;color:var(--edu-ink);}
+  .pr-hud .pr-stars b{color:#f6a91b;font-size:1.2rem;}
+  .pr-hud .pr-num{font-weight:700;font-size:.88rem;color:var(--edu-muted);}
+  .pr-hud .pr-num:first-of-type b{color:#2fae6a;}
+  .pr-hud .pr-num:last-of-type b{color:#e0605c;}
   .pr-bar{height:8px;border-radius:8px;background:var(--edu-border);overflow:hidden;margin:-2px 0 12px;}
   .pr-bar i{display:block;height:100%;width:100%;border-radius:8px;background:linear-gradient(90deg,#ffb020,#ff7a2f);transition:width .25s linear;}
   .pr-bar i.pr-hot{background:linear-gradient(90deg,#ff5a5a,#ff2020);}
@@ -329,12 +328,32 @@
 
   /* ===== 首页「闯关模式」独立全屏闯关地图页 ===== */
   .edu-map-full{position:fixed;inset:0;z-index:160;display:flex;flex-direction:column;background:linear-gradient(160deg,#fff7ec 0%,#ffeef2 45%,#eef6ff 100%);overflow:hidden;}
-  .edu-map-full .emf-bar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1.5px solid var(--edu-border);background:rgba(255,255,255,.75);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);}
-  .edu-map-full .emf-back{flex:0 0 auto;border:1.5px solid var(--edu-border-2);background:var(--edu-surface);color:var(--edu-ink);border-radius:12px;padding:8px 16px;font-size:.9rem;font-weight:700;cursor:pointer;}
+  /* 全屏闯关地图: 学科主题背景铺满整屏(含顶栏/进度提示区域), 与闯关地图内主题一致 */
+  .edu-map-full.cm-theme-zh{background:
+      radial-gradient(circle at 12px 12px, rgba(255,255,255,.5) 2px, transparent 2.8px) 0 0/30px 30px repeat,
+      radial-gradient(120% 220% at 20% 0%, #f4fbff 0%, #d6f2d8 38%, #aee59c 58%, #7fce78 80%, #55b464 100%);}
+  .edu-map-full.cm-theme-math{background:
+      radial-gradient(circle at 6px 6px, rgba(255,255,255,.85) 1.5px, transparent 1.9px) 0 0/34px 34px repeat,
+      radial-gradient(120% 220% at 30% 10%, #dde8ff 0%, #aabffa 34%, #7f96ec 56%, #5a70d4 78%, #4651ae 100%);}
+  .edu-map-full.cm-theme-en{background:
+      radial-gradient(circle at 8px 14px, rgba(255,255,255,.8) 2.4px, transparent 2.9px) 0 0/26px 40px repeat,
+      radial-gradient(130% 230% at 25% 0%, #eafcff 0%, #c8f3f5 30%, #99e3e6 50%, #58c2ce 72%, #2f9ebc 100%);}
+  .edu-map-full .emf-bar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1.5px solid var(--edu-border);background:transparent;border-bottom-color:transparent;}
+  .edu-map-full .emf-back{flex:0 0 auto;border:1.5px solid var(--edu-border-2);background:rgba(255,255,255,.5);color:var(--edu-ink);border-radius:12px;padding:8px 16px;font-size:.9rem;font-weight:700;cursor:pointer;}
   .edu-map-full .emf-journey{margin-left:auto;max-width:calc(100% - 92px);font-size:.82rem;font-weight:700;color:var(--edu-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .edu-map-full .emf-body .cm-progress-hint{display:none;}
+  .edu-map-full.cm-theme-zh .emf-journey{color:#1f5a2e;}
+  .edu-map-full.cm-theme-en .emf-journey{color:#0e5d87;}
+  .edu-map-full.cm-theme-math .emf-journey{color:#4651ae;}
+  .edu-map-full.cm-theme-math .emf-back{background:rgba(255,255,255,.65);color:#4651ae;border-color:rgba(58,80,177,.6);}
   .edu-map-full .emf-tabs{padding:10px 14px 0;}
   .edu-map-full .emf-body{flex:1;overflow-y:auto;padding:12px 14px 24px;}
   .edu-map-full .emf-body .cm-snake-wrap{margin:0 auto;margin-top:10px;width:100%;min-height:100%;}
+  /* 全屏地图里地图盒不再自带背景色, 直接透出整屏学科主题(避免拼接缝隙) */
+  .edu-map-full .emf-body .cm-snake-wrap{background:transparent;}
+  .edu-map-full .emf-body .cm-snake-wrap.cm-theme-zh .cm-swipe-hint{color:#1f5a2e;opacity:.75;}
+  .edu-map-full .emf-body .cm-snake-wrap.cm-theme-math .cm-swipe-hint{color:#4651ae;}
+  .edu-map-full .emf-body .cm-snake-wrap.cm-theme-en .cm-swipe-hint{color:#0e5d87;opacity:.8;}
   /* 全屏地图: 蛇形区域垂直撑满剩余视口, 让学科背景真铺满全屏 */
   .edu-map-full .emf-body .cm-snake{height:auto;min-height:60vh;}
   .edu-map-full .emf-body .cm-snake-inner{height:100%;position:relative;}
@@ -1066,6 +1085,8 @@
   .ms-inline-row .ms-icon{font-size:1.3rem;width:30px;text-align:center;}
   .ms-inline-ctl{margin-left:auto;display:inline-flex;align-items:center;}
   .ms-select{font-size:.92rem;font-weight:800;color:var(--edu-ink);background:var(--edu-surface-2);border:1.5px solid var(--edu-border);border-radius:10px;padding:6px 8px;}
+  .ms-inline-ctl .ms-voice-preview{width:34px;height:34px;margin-left:6px;border:none;border-radius:50%;background:#ffe9c7;color:#b26a1f;font-size:1.15rem;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex:none;transition:.15s;}
+  .ms-inline-ctl .ms-voice-preview:active{transform:scale(.9);}
   .ms-toggle{display:inline-flex;align-items:center;gap:7px;cursor:pointer;border:none;background:transparent;padding:0;}
   .ms-toggle .ms-toggle-knob{width:44px;height:24px;border-radius:999px;position:relative;background:var(--edu-soft);border:1.5px solid var(--edu-border);transition:.18s;}
   .ms-toggle[aria-pressed="true"] .ms-toggle-knob{background:#34b473;border-color:#2c9a5f;}
@@ -1128,6 +1149,8 @@
   .home-compact section{margin-bottom:14px;}
 
   /* 顶部条: 问候单行 + 操作收纳 */
+  /* 统一问候页头容器 (学习/勋章/星愿/我的) */
+  .page-welcome{margin:0 0 6px;}
   .home-top{display:flex;align-items:center;justify-content:space-between;gap:10px;
     padding:10px 0 2px;position:relative;}
   .ht-greet{display:flex;align-items:baseline;gap:8px;min-width:0;flex-wrap:nowrap;}
@@ -1198,14 +1221,24 @@
   .home-course:hover{border-color:#fff;transform:translateY(-2px);box-shadow:0 6px 18px rgba(80,60,40,.16);}
   .home-course.locked{cursor:not-allowed;opacity:.6;filter:grayscale(.7);}
   .home-course.locked:hover{transform:none;border-color:rgba(255,255,255,.55);}
-  /* 三科主题底色(柔和渐变): 语文暖橙 / 数学天蓝 / 英语翠绿 */
-  .home-course.hc-subj-zh{background:linear-gradient(135deg,#ffe8d6,#ffc6a0 55%,#ff9f5a);}
-  .home-course.hc-subj-math{background:linear-gradient(135deg,#dcebff,#b7d8ff 55%,#8fc2ff);}
-  .home-course.hc-subj-en{background:linear-gradient(135deg,#d9f7e0,#aee8c4 55%,#7fd6a0);}
+  /* 三科主题底色: 与闯关地图对应学科背景一致(语文·森林山谷 / 数学·星际几何 / 英语·海洋岛屿) */
+  .home-course.hc-subj-zh{background:
+      radial-gradient(circle at 12px 12px, rgba(255,255,255,.5) 2px, transparent 2.8px) 0 0/30px 30px repeat,
+      radial-gradient(120% 220% at 20% 0%, #f4fbff 0%, #d6f2d8 38%, #aee59c 58%, #7fce78 80%, #55b464 100%);}
+  .home-course.hc-subj-math{background:
+      radial-gradient(circle at 6px 6px, rgba(255,255,255,.85) 1.5px, transparent 1.9px) 0 0/34px 34px repeat,
+      radial-gradient(120% 220% at 30% 10%, #dde8ff 0%, #aabffa 34%, #7f96ec 56%, #5a70d4 78%, #4651ae 100%);}
+  .home-course.hc-subj-en{background:
+      radial-gradient(circle at 8px 14px, rgba(255,255,255,.8) 2.4px, transparent 2.9px) 0 0/26px 40px repeat,
+      radial-gradient(130% 230% at 25% 0%, #eafcff 0%, #c8f3f5 30%, #99e3e6 50%, #58c2ce 72%, #2f9ebc 100%);}
   .home-course.locked{filter:grayscale(.75) brightness(.96);}
-  html[data-theme="dark"] .home-course.hc-subj-zh{background:linear-gradient(135deg,#5a341c,#7a4425 55%,#9a5a33);}
-  html[data-theme="dark"] .home-course.hc-subj-math{background:linear-gradient(135deg,#1b3a5c,#20486f 55%,#2a5a8c);}
-  html[data-theme="dark"] .home-course.hc-subj-en{background:linear-gradient(135deg,#1c4a33,#22603f 55%,#2b7a52);}
+  /* 内容区加半透明白底, 保证深色背景(数学星际)下文字/按钮仍清晰 */
+  .home-course.hc-subj-zh .hc-main,
+  .home-course.hc-subj-math .hc-main,
+  .home-course.hc-subj-en .hc-main{background:rgba(255,255,255,.78);border-radius:12px;padding:7px 9px;margin-right:2px;}
+  .home-course.hc-subj-zh .hc-modes,
+  .home-course.hc-subj-math .hc-modes,
+  .home-course.hc-subj-en .hc-modes{align-self:center;background:rgba(255,255,255,.72);border-radius:11px;padding:4px 6px;}
   .hc-main{display:flex;align-items:center;gap:8px;min-width:0;flex:1;}
   .hc-emo{font-size:1.45rem;flex-shrink:0;line-height:1;}
   .hc-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;}

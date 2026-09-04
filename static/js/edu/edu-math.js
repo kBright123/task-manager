@@ -19,14 +19,25 @@
     var s = Store.curSettings();
     var nocarry = s.nocarry || (wbMathMode === 'calc' && diff <= 2);
     var allowMult = s.mult || diff >= 5;
+    var ops = null;
+    // 闯关模式: 难度由关卡主题 + 小关进度自动决定(无需家长手动设置)
+    var courseIn = Store.state.courseIn;
+    if (courseIn && courseIn.cfg && Store.state.courseInflight) {
+      range = courseIn.cfg.max;
+      nocarry = !!courseIn.cfg.nocarry;
+      ops = courseIn.cfg.ops;
+      allowMult = ops.indexOf('×') >= 0 || ops.indexOf('÷') >= 0;
+    }
     var items = [];
     var n = C.QUIZ_LEN;
     if (type === 'calc') {
-      for (var i=0;i<n;i++) { var q = M.makeCalc(range, nocarry, allowMult); items.push(M.makeCalcItem(q)); }
+      for (var i=0;i<n;i++) { var q = M.makeCalc(range, nocarry, allowMult, null, ops); items.push(M.makeCalcItem(q)); }
     } else if (type === 'judge') {
-      for (var j=0;j<n;j++) { var q2 = M.makeCalc(range, nocarry, allowMult); items.push(M.makeJudgeItem(q2, j)); }
+      for (var j=0;j<n;j++) { var q2 = M.makeCalc(range, nocarry, allowMult, null, ops); items.push(M.makeJudgeItem(q2, j)); }
     } else if (type === 'word') {
-      for (var k=0;k<n;k++) { var q3 = C.WORD_PLUS[Math.floor(Math.random()*C.WORD_PLUS.length)]; if (Math.random()<0.5) q3 = C.WORD_MINUS[Math.floor(Math.random()*C.WORD_MINUS.length)]; items.push(M.makeWordItem(q3)); }
+      var usedKeys = {};
+      var wRange = Math.max(10, range || 20);
+      for (var k=0;k<n;k++) { items.push(M.makeWordAuto(wRange, usedKeys)); }
     } else if (type === 'order') {
       for (var m=0;m<n;m++) {
         var arr = [M.randInt(10)+1, M.randInt(10)+1, M.randInt(10)+1, M.randInt(10)+1];

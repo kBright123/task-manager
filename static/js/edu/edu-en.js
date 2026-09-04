@@ -16,18 +16,39 @@
     var items = [];
     var n = C.QUIZ_LEN;
     if (type === 'word') {
+      // 不重复取样: 打乱词库逐题取正确词, 干扰项从全词库随机抽(不含该正确词)
+      var wordPool = M.shuffle(C.WORDS);
+      var allWords = C.WORDS.map(function(x){ return x.word; });
       for (var i=0;i<n;i++) {
-        var w = C.WORDS[Math.floor(Math.random()*C.WORDS.length)];
-        items.push({ id:w.id, type:'word', prompt:w.cn, options:C.WORDS.filter(function(x){return x.id!==w.id;}).slice(0,3).map(function(x){return x.word;}).concat(w.word).sort(function(){return Math.random()-0.5;}), correct:w.word });
+        var w = wordPool[i % wordPool.length];
+        items.push({ id:w.id, type:'word', prompt:w.cn,
+          options:M.makeOptions(w.word, M.sampleExclude(allWords, [w.word], 3), 4), correct:w.word });
       }
     } else if (type === 'dialogue') {
+      var diaPool = M.shuffle(C.DIALOGUES);
+      var allEn = C.DIALOGUES.map(function(x){ return x.en; });
       for (var j=0;j<n;j++) {
-        var d = C.DIALOGUES[Math.floor(Math.random()*C.DIALOGUES.length)];
-        items.push({ id:d.id, type:'dialogue', prompt:d.cn, options:C.DIALOGUES.filter(function(x){return x.id!==d.id;}).slice(0,3).map(function(x){return x.en;}).concat(d.en).sort(function(){return Math.random()-0.5;}), correct:d.en });
+        var d = diaPool[j % diaPool.length];
+        items.push({ id:d.id, type:'dialogue', prompt:d.cn,
+          options:M.makeOptions(d.en, M.sampleExclude(allEn, [d.en], 3), 4), correct:d.en });
       }
     } else if (type === 'match') {
       renderMatch(body);
       return;
+    } else if (type === 'listen') {
+      // 听力/词义识别: 播放单词读音(可再次点听), 不重复取样, 从全词库随机干扰项
+      var lPool = M.shuffle(C.WORDS);
+      var lCns = C.WORDS.map(function(x){ return x.cn; });
+      for (var k2=0;k2<n;k2++) {
+        var wl = lPool[k2 % lPool.length];
+        items.push({
+          id: wl.id, type:'listen', listen: wl.word, word: wl.word, emoji: wl.emoji,
+          prompt: wl.emoji + ' 听一听，选出正确的意思',
+          big: wl.word, note: wl.word + ' = ' + wl.cn,
+          options: M.makeOptions(wl.cn, M.sampleExclude(lCns, [wl.cn], 3), 4), correct: wl.cn
+        });
+        if (Speech && Speech.preloadTTS) Speech.preloadTTS(wl.word);
+      }
     }
     QuizEngine.startQuiz('en', type, items, { difficulty: diff });
   }

@@ -197,10 +197,10 @@
     if (!body) return;
     var type, title, items;
     if (wbZhMode === 'trace') { traceRender(body); return; }
-    if (wbZhMode === 'poem' || wbZhMode === 'zi' || wbZhMode === 'stroke' || wbZhMode === 'pinyin' || wbZhMode === 'ciyu') {
+    if (wbZhMode === 'poem' || wbZhMode === 'zi' || wbZhMode === 'stroke' || wbZhMode === 'pinyin' || wbZhMode === 'ciyu' || wbZhMode === 'liang') {
       type = wbZhMode;
       if (wbZhMode === 'pinyin') type = (wbPinyinMode === 'yun') ? 'yun' : ((wbPinyinMode === 'read') ? 'read' : ((wbPinyinMode === 'tone') ? 'tone' : 'pinyin'));
-      if (wbZhMode === 'ciyu') type = (wbCiyuMode === 'liang') ? 'liang' : 'fan';
+      if (wbZhMode === 'ciyu' || wbZhMode === 'liang') type = (wbCiyuMode === 'liang') ? 'liang' : 'fan';
       title = { zi:'识字', pinyin:'拼音', ciyu:'词语', poem:'古诗', stroke:'笔顺' }[wbZhMode] || type;
     }
     if (type === 'zi') {

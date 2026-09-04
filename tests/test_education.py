@@ -1526,7 +1526,7 @@ const W=global;
   W.eduNav('mine');
   const m=mineBody._h||'';
   console.log('MINE_NAME='+(m.indexOf('我的')>=0||m.indexOf('小米')>=0?'1':'0'));
-  console.log('MINE_SETTINGS='+(m.indexOf('课程与难度')>=0?'1':'0'));
+  console.log('MINE_SETTINGS='+(m.indexOf('课程与难度')>=0?'0':'1'));
   console.log('MINE_REPORT='+(m.indexOf('学习报告')>=0?'1':'0'));
   console.log('MINE_MGR='+(m.indexOf('管理宝贝')>=0?'1':'0'));
   console.log('MINE_STARS='+(m.indexOf('⭐')>=0?'1':'0'));
@@ -1692,7 +1692,7 @@ def test_settings_confirm_and_reset_gate():
 
 def test_settings_persist_eye_sound():
     """我的页内联设置: 护眼时长/音效 单字段就地修改并写 settings 与 localStorage;
-    课程与难度用 setSave 保存各自字段."""
+    课程与难度已移除(难度由每个小关卡自动决定), 不再持久化 range/nocarry 字段."""
     out = _harness(r'''
 (async()=>{
   const ids={};
@@ -1714,22 +1714,21 @@ def test_settings_persist_eye_sound():
   console.log('SOUND='+(s.sound===false?'1':'0'));
   console.log('SPEAK_KEY='+(store['edu_speak_v1']==='false'?'1':'0'));
 
-  // 课程与难度 setSave: 保存对应的字段
-  el('setRange').value='10';
-  W.setSave();
+  // 课程与难度已移除: 难度由每个小关卡自动决定, 不再读取 range/nocarry/mult 设置
   s=W.Edu.Store.state.settings;
-  console.log('RANGE='+(s.range===10?'1':'0'));
-  console.log('NOCARRY='+(s.nocarry===false?'1':'0'));
+  console.log('NO_RANGE='+(s.range===undefined||s.range===0?'1':'0'));
+  console.log('NO_NOCARRY='+(s.nocarry? '0':'1'));
 
-  // 屏幕隔离: 打开护眼屏幕后再 setSave, 不应覆盖课程字段
+  // 打开护眼屏幕再 setSave: 不应写回已删除的课程字段, 且护眼时长保留
   W.openSettings && W.openSettings('eye');
-  el('setRange').value='50';
+  el('setEyeMin').value='30';
   W.setSave();
   s=W.Edu.Store.state.settings;
-  console.log('ISOLATED='+(s.range===10?'1':'0'));
+  console.log('EYE_KEPT='+(s.eyeMin===30?'1':'0'));
+  console.log('ISOLATED='+(s.range===undefined||s.range===0?'1':'0'));
 })();
 ''')
-    for probe in ('EYE=1','SOUND=1','SPEAK_KEY=1','RANGE=1','NOCARRY=1','ISOLATED=1'):
+    for probe in ('EYE=1','SOUND=1','SPEAK_KEY=1','NO_RANGE=1','NO_NOCARRY=1','EYE_KEPT=1','ISOLATED=1'):
         assert probe in out, out
 
 

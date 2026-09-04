@@ -54,6 +54,25 @@
         '<span class="ms-toggle-knob"></span>' +
         '<span class="ms-toggle-label">' + (soundOn ? '已开启' : '已关闭') + '</span>' +
       '</button>';
+    var show = s && s.show ? s.show : {};
+    var traceOn = show.trace !== false;
+    var parOn = show.par !== false;
+    var contentRow = '<div class="ms-item ms-inline-row">' +
+      '<span class="ms-icon">✍️</span><span>描红练习</span>' +
+      '<span class="ms-inline-ctl">' +
+        '<button type="button" class="ms-toggle" aria-pressed="' + (traceOn ? 'true' : 'false') + '" onclick="toggleContentInline(\'trace\', ' + (traceOn ? 'false' : 'true') + ')">' +
+          '<span class="ms-toggle-knob"></span><span class="ms-toggle-label">' + (traceOn ? '已开启' : '已关闭') + '</span>' +
+        '</button>' +
+      '</span>' +
+    '</div>' +
+    '<div class="ms-item ms-inline-row">' +
+      '<span class="ms-icon">🎠</span><span>快乐乐园</span>' +
+      '<span class="ms-inline-ctl">' +
+        '<button type="button" class="ms-toggle" aria-pressed="' + (parOn ? 'true' : 'false') + '" onclick="toggleContentInline(\'par\', ' + (parOn ? 'false' : 'true') + ')">' +
+          '<span class="ms-toggle-knob"></span><span class="ms-toggle-label">' + (parOn ? '已开启' : '已关闭') + '</span>' +
+        '</button>' +
+      '</span>' +
+    '</div>';
     // 音色选择: 与后端 edge-tts 音色一致; 可选择 + 试听
     var Voice = window.Edu.Speech;
     var voices = (Voice && Voice.TTS_VOICES) || [];
@@ -72,22 +91,17 @@
     // 设置分组
     var settingsHtml = '<div class="mine-settings">' +
       '<div class="ms-group">' +
-        '<h4>学习设置</h4>' +
-        '<button type="button" class="ms-item" onclick="openParentMode(\'course\')">' +
-          '<span class="ms-icon">📚</span><span>课程与难度</span><i class="bi bi-chevron-right"></i>' +
-        '</button>' +
+        '<h4>学习体验</h4>' +
         '<div class="ms-item ms-inline-row">' +
           '<span class="ms-icon">👁️</span><span>护眼提醒</span>' +
           '<span class="ms-inline-ctl"><select class="ms-select" id="mineEyeMin" aria-label="护眼提醒间隔" onchange="setEyeInline(this.value)">' + eyeOpts + '</select></span>' +
         '</div>' +
-      '</div>' +
-      '<div class="ms-group">' +
-        '<h4>声音与显示</h4>' +
         '<div class="ms-item ms-inline-row">' +
           '<span class="ms-icon">🔊</span><span>朗读与音效</span>' +
           '<span class="ms-inline-ctl">' + soundToggle + '</span>' +
         '</div>' +
         voiceRow +
+        contentRow +
       '</div>' +
       '<div class="ms-group">' +
         '<h4>账号与数据</h4>' +
@@ -115,6 +129,18 @@
     var voices = (window.Edu.Speech && window.Edu.Speech.TTS_VOICES) || [];
     for (var i = 0; i < voices.length; i++) if (voices[i].id === (val || 'xiaoxiao')) nm = voices[i].name;
     if (window.Edu.Speech && window.Edu.Speech.toast) window.Edu.Speech.toast('已选择音色：' + nm);
+  };
+  // 内容开关(描红/快乐乐园)就地修改: 不再走「课程与难度」面板
+  window.toggleContentInline = function (key, on) {
+    var s = Store.curSettings();
+    s.show = s.show || {};
+    s.show[key] = !!on;
+    Store.mergeSet(s);
+    Store.saveState();
+    if (window.renderMine) window.renderMine();
+    if (window.applyContentToggles) window.applyContentToggles();
+    var label = (key === 'trace') ? '描红练习' : '快乐乐园';
+    if (window.Edu.Speech && window.Edu.Speech.toast) window.Edu.Speech.toast((on ? '已开启' : '已关闭') + label);
   };
   window.previewVoice = function () {
     var S = window.Edu.Speech;

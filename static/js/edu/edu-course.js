@@ -19,6 +19,8 @@
   var STAGE_THRESH = [50, 60, 70, 80, 85];
 
   // 学科课程定义: t=现有题型(用于启动答题), name/em 用于地图节点展示
+  //   cfg(数学): 关卡主题难度配置 {max: 最大数值, ops: 允许运算, nocarry: 是否禁进位退位}
+  //   每个大关内 5 个小关难度自动递增(范围按小关进度逐步放开), 无需家长手动设置
   var COURSES = {
     zh: {
       title: '语文识字之旅', emoji: '📖', journey: '小探险家登山', startEm: '🧗',
@@ -28,20 +30,26 @@
         { t: 'yun', name: '韵母城堡', em: '🔡' },
         { t: 'read', name: '拼读加油站', em: '🗣️' },
         { t: 'tone', name: '四声小调', em: '🎵' },
-        { t: 'ciyu', name: '词语列车', em: '🗂️' },
+        { t: 'ciyu', name: '反义词列车', em: '🔄' },
+        { t: 'liang', name: '量词小站', em: '📦' },
         { t: 'poem', name: '古诗山川', em: '📜' },
-        { t: 'stroke', name: '笔顺工坊', em: '✍️' }
+        { t: 'stroke', name: '笔顺工坊', em: '✍️' },
+        { t: 'zi', name: '常用字星球', em: '🌍' }
       ]
     },
     math: {
       title: '数学探险岛', emoji: '🔢', journey: '小火车前进', startEm: '🚂',
       levels: [
-        { t: 'calc', name: '口算峡谷', em: '🧮' },
-        { t: 'judge', name: '判断码头', em: '⚖️' },
-        { t: 'order', name: '排序山道', em: '↕️' },
-        { t: 'word', name: '应用营地', em: '📝' },
-        { t: 'calc', name: '口算冲刺', em: '🚀' },
-        { t: 'calc', name: '口算巅峰', em: '🏔️' }
+        { t: 'calc', name: '糖果加减乐园', em: '🍬', cfg: { max: 10, ops: ['+', '-'], nocarry: true } },
+        { t: 'calc', name: '小桥加减镇', em: '🌉', cfg: { max: 20, ops: ['+', '-'], nocarry: true } },
+        { t: 'calc', name: '进位闯关岛', em: '🏝️', cfg: { max: 20, ops: ['+', '-'] } },
+        { t: 'calc', name: '山丘加减路', em: '⛰️', cfg: { max: 50, ops: ['+', '-'] } },
+        { t: 'judge', name: '聪明判断站', em: '🧠', cfg: { max: 50, ops: ['+', '-'] } },
+        { t: 'order', name: '排队小火车', em: '🚃' },
+        { t: 'calc', name: '口诀乘法森林', em: '🌲', cfg: { max: 9, ops: ['×'] } },
+        { t: 'calc', name: '除法宝藏洞', em: '💎', cfg: { max: 9, ops: ['÷'] } },
+        { t: 'word', name: '生活应用山谷', em: '🏞️' },
+        { t: 'calc', name: '数学巅峰城堡', em: '🏰', cfg: { max: 100, ops: ['+', '-', '×', '÷'] } }
       ]
     },
     en: {
@@ -50,11 +58,29 @@
         { t: 'word', name: '单词灯塔', em: '🔤' },
         { t: 'dialogue', name: '对话港口', em: '💬' },
         { t: 'match', name: '配对小径', em: '🤝' },
+        { t: 'listen', name: '单词回声谷', em: '🎧' },
+        { t: 'dialogue', name: '问候接力', em: '🙋' },
+        { t: 'word', name: '美食单词街', em: '🍔' },
+        { t: 'dialogue', name: '礼貌用语站', em: '😊' },
+        { t: 'match', name: '配对彩虹桥', em: '🌈' },
         { t: 'word', name: '单词冲刺', em: '🚀' },
         { t: 'dialogue', name: '对话巅峰', em: '🏔️' }
       ]
     }
   };
+
+  // 关卡难度自动配置: 由「大关主题 cfg + 当前小关进度」决定, 无需家长手动设置
+  // 返回 {max, ops, nocarry}|null(仅数学/calc 类关卡有意义)
+  function autoMathCfg(subj, idx, stage) {
+    var lv = COURSES[subj] && COURSES[subj].levels[idx];
+    if (!lv || !lv.cfg) return null;
+    var c = lv.cfg;
+    var max = c.max || 20;
+    // 小关难度递增: 范围随小关 0..4 逐步放宽(0.5→1.0), 但不超过该大关上限
+    var base = Math.max(6, Math.round(max * (0.5 + 0.1 * (stage || 0))));
+    var eff = Math.min(max, base);
+    return { max: eff, ops: c.ops || ['+', '-'], nocarry: !!c.nocarry };
+  }
 
   // 累计星星阈值触发特殊奖励(奖励星星, 星星是唯一可兑换星愿的货币)
   var STAR_REWARDS = [
@@ -163,6 +189,9 @@
     var quizT = zhLevelQuizType(lv.t);
     // 记录「正在闯的第几大关/第几小关」, 供结算时回写 course 进度
     Store.state.courseIn = { subj: subj, idx: idx, stage: stage, t: quizT, startedAt: Date.now() };
+    // 关卡难度自动递增: 由大关主题 + 小关进度算出, 答题器据此生成对应难度题目
+    var mcfg = autoMathCfg(subj, idx, stage);
+    if (mcfg) Store.state.courseIn.cfg = mcfg;
     Store.state.courseInflight = 1;
     var type = lv.t;
     var NavP = window.Edu && window.Edu.Nav;
@@ -179,11 +208,11 @@
         if (pref) { pref.wbZh = 'pinyin'; pref.wbPy = type; }
         setPref();
         if ((type === 'yun' || type === 'read' || type === 'tone') && window.wbPinyin) window.wbPinyin(type);
-      } else if (type === 'ciyu') {
+      } else if (type === 'ciyu' || type === 'liang') {
         window.wbZh('ciyu');
-        if (pref) { pref.wbZh = 'ciyu'; pref.wbCy = 'fan'; }
+        if (pref) { pref.wbZh = 'ciyu'; pref.wbCy = type === 'liang' ? 'liang' : 'fan'; }
         setPref();
-        if (window.wbCiyu) window.wbCiyu('fan');
+        if (window.wbCiyu) window.wbCiyu(type === 'liang' ? 'liang' : 'fan');
       } else {
         window.wbZh(type);
         if (pref) { pref.wbZh = type; }
@@ -800,15 +829,30 @@
     // 学科主题背景铺满整个全屏地图(含顶栏/进度提示), 而非仅地图盒子
     full.className = 'edu-map-full ' + subjTheme(subj);
     full.style.display = 'flex';
-    // 让蛇形画布垂直撑满全屏剩余视口(学科背景真铺满)
-    setTimeout(function () {
-      var inner = document.querySelector('#eduMapFullBody .cm-snake-inner');
-      var wrap = document.querySelector('#eduMapFullBody .cm-snake-wrap');
-      if (inner && wrap) {
-        var rect = wrap.getBoundingClientRect();
-        if (rect.height > 40) inner.style.height = rect.height + 'px';
-      }
-    }, 60);
+    // 立即(同步)按视口缩放蛇形画布: 避免先以 1680×560 原尺寸渲染再缩小造成闪烁.
+    // 同步读取 client* 会触发一次同步排版, 首帧即为缩放后尺寸.
+    var inner = body.querySelector('.cm-snake-inner');
+    var wrap = body.querySelector('.cm-snake');
+    var availW = body ? body.clientWidth : window.innerWidth;
+    var availH = body ? body.clientHeight : (window.innerHeight - 80);
+    if (inner && wrap && availW >= 720) {
+      var k = Math.min(availW / SNAKE_W, availH / SNAKE_H);
+      k = Math.max(0.25, Math.min(1.6, k));
+      inner.style.width = SNAKE_W + 'px';
+      inner.style.height = SNAKE_H + 'px';
+      inner.style.transform = 'scale(' + k + ')';
+      inner.style.transformOrigin = 'top left';
+      inner.style.marginBottom = (-(SNAKE_H * (1 - k))) + 'px';
+      wrap.style.width = Math.round(SNAKE_W * k) + 'px';
+      wrap.style.height = Math.round(SNAKE_H * k) + 'px';
+      wrap.style.margin = '0 auto';
+      wrap.style.overflow = 'hidden';
+      if (body) { body.style.display = 'flex'; body.style.alignItems = 'center'; }
+    } else if (inner && wrap) {
+      // 手机窄屏: 保持原横向滑动 + 高度撑满
+      var rectW = wrap.getBoundingClientRect();
+      if (rectW.height > 40) inner.style.height = rectW.height + 'px';
+    }
     var dock = document.getElementById('eduBottomNav');
     if (dock) dock.style.display = 'none';
     document.documentElement.style.overflow = 'hidden';

@@ -42,10 +42,25 @@
 
   function randInt(n) { return Math.floor(Math.random()*n); }
 
-  function makeCalc(max, nocarry, allowMult, rnd) {
+  function shuffle(a) {
+    var b = a.slice();
+    for (var i=b.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=b[i];b[i]=b[j];b[j]=t; }
+    return b;
+  }
+
+  // 从 pool 中随机取 n 个, 排除 exclude 中的取值(避免正确项重复/作选项)
+  function sampleExclude(pool, exclude, n) {
+    var ex = exclude || [];
+    var arr = pool.filter(function(x){ return ex.indexOf(x) < 0; });
+    return shuffle(arr).slice(0, n);
+  }
+
+  function makeCalc(max, nocarry, allowMult, rnd, ops) {
     var randFn = rnd || function(){ return Math.random(); };
-    var ops = ['+','-'];
-    if (allowMult) ops.push('×','÷');
+    if (!ops || !ops.length) {
+      ops = ['+','-'];
+      if (allowMult) ops.push('×','÷');
+    }
     var op = ops[Math.floor(randFn() * ops.length)];
     var a,b;
     if (op === '+') {
@@ -99,6 +114,39 @@
 
   function makeWordItem(q) {
     return { prompt: q.template.replace('{a}',q.a).replace('{b}',q.b), input:true, correct:String(q.answer), note:q.a+(q.template.includes('又飞来')||q.template.includes('给了')?'+':'-')+q.b+'='+q.answer };
+  }
+
+  // 程序化生成应用题: 从模板随机取款, 数值在 max 范围内随机, 避免固定题库重复
+  function makeWordAuto(max, usedKeys) {
+    var C = window.Edu.Constants;
+    var plus = C.WORD_PLUS, minus = C.WORD_MINUS;
+    var isPlus = Math.random() < 0.5;
+    var pool = isPlus ? plus : minus;
+    var t = pool[Math.floor(Math.random()*pool.length)];
+    // 答案范围控制: 加法 max, 减法被减数<=max
+    var a, b;
+    if (isPlus) {
+      a = Math.floor(Math.random()*Math.max(2, Math.round(max*0.6))) + 1;
+      b = Math.floor(Math.random()*Math.max(2, max - a)) + 1;
+      if (b > max - a) b = Math.max(1, max - a);
+    } else {
+      a = Math.floor(Math.random()*max) + Math.max(1, max);
+      if (a > max) a = Math.max(2, max);
+      b = Math.floor(Math.random()*Math.max(1, a-1)) + 1;
+    }
+    var key = t.template.replace('{a}','').replace('{b}','') + '_' + isPlus + '_' + a + '_' + b;
+    var guard = 0;
+    while (usedKeys && usedKeys[key] && guard < 20) {
+      a = Math.floor(Math.random()*max) + 1;
+      b = Math.floor(Math.random()*max) + 1;
+      if (!isPlus && b >= a) b = Math.max(1, a-1);
+      if (isPlus && a+b > max) { a = Math.floor(Math.random()*Math.round(max*0.5))+1; b = Math.floor(Math.random()*(max-a))+1; }
+      key = t.template.replace('{a}','').replace('{b}','') + '_' + isPlus + '_' + a + '_' + b;
+      guard++;
+    }
+    if (usedKeys) usedKeys[key] = true;
+    var q = { template:t.template, a:a, b:b, answer: isPlus ? a+b : a-b };
+    return makeWordItem(q);
   }
 
   function levelRange(subj) {
@@ -176,13 +224,16 @@
     makeCalcItem: makeCalcItem,
     makeJudgeItem: makeJudgeItem,
     makeWordItem: makeWordItem,
+    makeWordAuto: makeWordAuto,
     levelRange: levelRange,
     stateLevel: stateLevel,
     setLevel: setLevel,
     diffOf: diffOf,
     gradeQuiz: gradeQuiz,
     seedRand: seedRand,
-    shuffleSeeded: shuffleSeeded,
+    shuffledSeeded: shuffleSeeded,
+    shuffle: shuffle,
+    sampleExclude: sampleExclude,
     makeOptions: makeOptions,
     toneOf: toneOf,
     toneName: toneName,

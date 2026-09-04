@@ -19,18 +19,17 @@
   window.Edu.Settings = window.Edu.Settings || {};
 
   var SCREENS = {
-    course: { title: '📚 课程与难度', sub: '调整口算范围、难度开关与内容入口' },
     eye:    { title: '👁️ 护眼提醒',   sub: '连续作答后提醒休息的间隔时长' },
     sound:  { title: '🔊 朗读与音效', sub: '控制朗读与音效的开关' }
   };
-  var CURRENT_SCREEN = 'course';
+  var CURRENT_SCREEN = 'eye';
 
   function qsa(sel) {
     return (typeof document.querySelectorAll === 'function') ? document.querySelectorAll(sel) : [];
   }
 
   function showScreen(screen) {
-    var name = SCREENS[screen] ? screen : 'course';
+    var name = SCREENS[screen] ? screen : 'eye';
     CURRENT_SCREEN = name;
     var screens = qsa('.set-screen');
     for (var i = 0; i < screens.length; i++) {
@@ -49,11 +48,6 @@
     showScreen(screen);
     var s = Store.curSettings();
     var el;
-    if ((el = document.getElementById('setRange'))) el.value = s.range || 0;
-    if ((el = document.getElementById('setNoCarry'))) el.checked = !!s.nocarry;
-    if ((el = document.getElementById('setMult'))) el.checked = !!s.mult;
-    if ((el = document.getElementById('setTrace'))) el.checked = (s.show && s.show.trace) !== false;
-    if ((el = document.getElementById('setPar'))) el.checked = (s.show && s.show.par) !== false;
     if ((el = document.getElementById('setEyeMin'))) el.value = s.eyeMin || C.REST_DEFAULT;
     if ((el = document.getElementById('setSound'))) el.checked = s.sound !== false;
     mask.style.display = 'flex';
@@ -63,15 +57,6 @@
     var s = Store.curSettings();
     var screen = CURRENT_SCREEN;
     var el;
-    // 课程与难度屏幕
-    if (screen === 'course') {
-      if ((el = document.getElementById('setRange'))) s.range = parseInt(el.value, 10) || 0;
-      if ((el = document.getElementById('setNoCarry'))) s.nocarry = el.checked;
-      if ((el = document.getElementById('setMult'))) s.mult = el.checked;
-      s.show = s.show || {};
-      if ((el = document.getElementById('setTrace'))) s.show.trace = el.checked;
-      if ((el = document.getElementById('setPar'))) s.show.par = el.checked;
-    }
     // 护眼提醒屏幕
     if (screen === 'eye') {
       if ((el = document.getElementById('setEyeMin'))) s.eyeMin = Math.min(60, Math.max(5, parseInt(el.value, 10) || C.REST_DEFAULT));
@@ -89,7 +74,6 @@
     document.getElementById('eduMaskSet').style.display = 'none';
     if (window.renderMine) window.renderMine();
     Speech.toast('设置已保存');
-    if (screen === 'course' && window.applyContentToggles) window.applyContentToggles();
   };
 
   // 我的页内联修改: 护眼提醒 / 朗读与音效(单字段直接就地修改, 不弹框)

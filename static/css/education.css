@@ -143,6 +143,7 @@
   .qz-ctl,.qc-ctl{display:flex;align-items:center;gap:10px;margin:0 0 10px;}
   .qc-ctl .qc-side{display:flex;align-items:center;gap:10px;margin-right:auto;}
   .qc-ctl .qc-side .lv-badge{background:linear-gradient(135deg,var(--edu-blue),var(--edu-primary));color:#fff;padding:5px 14px;border-radius:999px;font-weight:800;font-size:.92rem;box-shadow:0 3px 10px rgba(77,150,255,.28);}
+  .qc-ctl .qc-side .qc-stage-row{font-size:.82rem;letter-spacing:3px;white-space:nowrap;line-height:1;}
   .qc-ctl .lv-passed{font-weight:800;font-size:.85rem;color:var(--edu-gray,#6b7280);border:1.5px solid var(--edu-border);border-radius:999px;padding:3px 10px;background:var(--edu-surface);}
   .qc-ctl .qc-exit{margin-left:auto;display:inline-flex;align-items:center;gap:4px;background:var(--edu-soft);border:1.5px solid var(--edu-border);border-radius:999px;padding:5px 12px;font-size:.74rem;font-weight:700;color:var(--edu-muted);cursor:pointer;transition:.12s;}
   .qc-ctl .qc-exit:hover{border-color:var(--edu-primary);color:var(--edu-primary);}
@@ -160,10 +161,11 @@
   body.edu-page .btn-primary{background:linear-gradient(135deg,var(--edu-sky,#4D96FF),#3b6fd4);color:#fff;border:none;box-shadow:0 4px 14px rgba(77,150,255,.35);cursor:pointer;}
   body.edu-page .btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(77,150,255,.45);}
   /* 极速练习: HUD + 倒计时条 + 即时反馈 */
-  .pr-hud{display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:rgba(255,255,255,.92);border:1.5px solid var(--edu-border);border-radius:12px;padding:7px 14px;margin-bottom:8px;}
-  .pr-hud .pr-stars{font-weight:800;font-size:.95rem;color:var(--edu-ink);}
+  .pr-hud{display:flex;align-items:center;gap:12px;flex-wrap:nowrap;white-space:nowrap;overflow:hidden;background:rgba(255,255,255,.92);border:1.5px solid var(--edu-border);border-radius:12px;padding:7px 14px;margin-bottom:8px;}
+  .pr-hud .pr-mode{font-weight:800;font-size:.88rem;color:var(--edu-primary);flex-shrink:0;white-space:nowrap;}
+  .pr-hud .pr-stars{font-weight:800;font-size:.92rem;color:var(--edu-ink);white-space:nowrap;flex-shrink:0;}
   .pr-hud .pr-stars b{color:#f6a91b;font-size:1.2rem;}
-  .pr-hud .pr-num{font-weight:700;font-size:.88rem;color:var(--edu-muted);}
+  .pr-hud .pr-num{font-weight:700;font-size:.86rem;color:var(--edu-muted);white-space:nowrap;flex-shrink:0;}
   .pr-hud .pr-num:first-of-type b{color:#2fae6a;}
   .pr-hud .pr-num:last-of-type b{color:#e0605c;}
   .pr-bar{height:8px;border-radius:8px;background:var(--edu-border);overflow:hidden;margin:-2px 0 12px;}
@@ -1214,7 +1216,7 @@
   /* 三科卡: auto-fit 自动铺满并等宽扩展, 窄屏单列/宽屏多列流畅过渡 */
   .home-course-scroll{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;padding:0;overflow:visible;}
   .home-course-scroll .home-course{width:100%;}
-  .home-course{display:flex;align-items:center;gap:8px;min-width:0;width:100%;min-height:0;
+  .home-course{display:flex;flex-direction:column;align-items:stretch;gap:8px;min-width:0;width:100%;min-height:0;
     padding:12px 12px 12px 14px;border-radius:18px;border:1.5px solid rgba(255,255,255,.55);
     color:var(--edu-ink);cursor:pointer;transition:.16s;text-align:left;
     box-shadow:0 3px 12px rgba(80,60,40,.10);}
@@ -1235,18 +1237,17 @@
   /* 内容区加半透明白底, 保证深色背景(数学星际)下文字/按钮仍清晰 */
   .home-course.hc-subj-zh .hc-main,
   .home-course.hc-subj-math .hc-main,
-  .home-course.hc-subj-en .hc-main{background:rgba(255,255,255,.78);border-radius:12px;padding:7px 9px;margin-right:2px;}
-  .home-course.hc-subj-zh .hc-modes,
-  .home-course.hc-subj-math .hc-modes,
-  .home-course.hc-subj-en .hc-modes{align-self:center;background:rgba(255,255,255,.72);border-radius:11px;padding:4px 6px;}
-  .hc-main{display:flex;align-items:center;gap:8px;min-width:0;flex:1;}
+  .home-course.hc-subj-en .hc-main,
+  .home-course.hc-subj-zh .hc-foot,
+  .home-course.hc-subj-math .hc-foot,
+  .home-course.hc-subj-en .hc-foot{background:rgba(255,255,255,.78);border-radius:12px;padding:7px 9px;margin-right:2px;}
+  .hc-main{display:flex;align-items:center;gap:8px;min-width:0;}
   .hc-emo{font-size:1.45rem;flex-shrink:0;line-height:1;}
-  .hc-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;}
-  .hc-nm{display:block;font-size:.96rem;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .hc-lv-l{margin-top:1px;display:inline-flex;align-items:center;gap:6px;min-width:0;}
+  .hc-nm{display:inline-block;font-size:.96rem;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;}
   .hc-lv{display:inline-flex;align-items:center;gap:3px;font-size:.72rem;font-weight:800;color:var(--edu-primary);
-    background:var(--edu-soft);border-radius:999px;padding:2px 8px;line-height:1.5;width:fit-content;white-space:nowrap;}
-  .hc-count{font-size:.7rem;font-weight:700;color:var(--edu-muted);white-space:nowrap;}
+    background:var(--edu-soft);border-radius:999px;padding:2px 8px;line-height:1.4;width:fit-content;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;min-width:0;}
+  .hc-count{font-size:.7rem;font-weight:700;color:var(--edu-muted);white-space:nowrap;flex-shrink:0;}
   .hc-stat{display:block;font-size:.7rem;font-weight:700;color:var(--edu-muted);white-space:nowrap;
     overflow:hidden;text-overflow:ellipsis;}
   .hc-stat b{color:var(--edu-ink);font-size:.76rem;}
@@ -1254,9 +1255,10 @@
   .hc-stat-c{margin-left:5px;}
   .hc-sb-sub + .hc-stat-c{border-left:1px solid var(--edu-border);padding-left:5px;}
   html[data-theme="dark"] .hc-lv{color:#7cc4ff;background:#12344d;}
-  .hc-modes{display:flex;flex-direction:column;gap:5px;flex-shrink:0;align-items:stretch;}
-  .hc-mode{display:flex;align-items:center;justify-content:center;gap:5px;width:100%;min-width:78px;white-space:nowrap;
-    border:none;border-radius:9px;padding:5px 11px;font-size:.75rem;font-weight:800;cursor:pointer;transition:.12s;}
+  .hc-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;}
+  .hc-modes{display:flex;flex-direction:row;gap:6px;align-items:center;flex-shrink:0;}
+  .hc-mode{display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;
+    border:none;border-radius:9px;padding:5px 11px;font-size:.74rem;font-weight:800;cursor:pointer;transition:.12s;}
   .hc-mode.hc-guan{background:linear-gradient(135deg,var(--edu-primary),#ff8a55);color:#fff;}
   .hc-mode.hc-guan:hover{filter:brightness(1.05);}
   .hc-mode.hc-su{background:var(--edu-soft);color:var(--edu-primary);}
@@ -1269,16 +1271,18 @@
   .hc-hint .hh-a{color:var(--edu-blue);animation:hhSlide 1.4s ease-in-out infinite;}
   @keyframes hhSlide{0%,100%{transform:translateX(0);}50%{transform:translateX(4px);}}
 
-  /* 手机: 三科横卡整行自适应单列铺满, 信息在左/按钮在右, 目标卡文案略收敛 */
+  /* 手机: 三科横卡整行自适应单列铺满, 两行展示(上行学科关卡 / 下行题数+双按钮) */
   @media (max-width:767px){
     .home-course-scroll{grid-template-columns:minmax(0,1fr);gap:10px;}
-    .home-course{flex-direction:row;align-items:center;gap:8px;padding:12px 12px 12px 14px;}
+    .home-course{padding:12px 12px 12px 14px;}
     .hc-main{gap:8px;}
     .hc-emo{font-size:1.3rem;}
     .hc-nm{font-size:.95rem;}
     .hc-lv{font-size:.7rem;padding:2px 8px;}
-    .hc-modes{flex-direction:column;gap:5px;}                    /* 全宽卡 → 按钮竖直一列放右 */
-    .hc-mode{min-width:88px;padding:6px 10px;font-size:.74rem;}
+    .hc-modes{flex-direction:row;gap:6px;}                        /* 双按钮横向并排 */
+    .hc-mode{padding:5px 9px;font-size:.72rem;}
+    .hc-count{font-size:.68rem;}
+    .hc-foot{padding:6px 9px;border-radius:12px;}
     .ht-hello{font-size:1.02rem;}
     .ht-sub{font-size:.78rem;}
     .ht-lv{font-size:.8rem;}
@@ -1376,12 +1380,12 @@
   .cm-path{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;}
   .cm-seg-g{transition:opacity .3s;}
   /* 路面: 厚实的蜿蜒山路, 带浅描边让道路清晰浮于场景之上 */
-  .cm-road{fill:none;stroke:rgba(255,255,255,.92);stroke-width:26;stroke-linecap:round;stroke-linejoin:round;
-    filter:drop-shadow(0 3px 4px rgba(0,0,0,.22));}
+  .cm-road{fill:none;stroke:rgba(255,255,255,.92);stroke-width:48;stroke-linecap:round;stroke-linejoin:round;
+    filter:drop-shadow(0 4px 6px rgba(0,0,0,.22));}
   html[data-theme="dark"] .cm-road{stroke:rgba(60,64,72,.85);}
   /* 中心虚线: 山路路标(白色分段), 走到哪边是已走过的金色 */
-  .cm-center{fill:none;stroke:rgba(120,120,140,.6);stroke-width:4;stroke-dasharray:1 22;stroke-linecap:round;}
-  .cm-seg-g.used .cm-center{stroke:#fff;stroke-dasharray:10 14;}
+  .cm-center{fill:none;stroke:rgba(120,120,140,.6);stroke-width:6;stroke-dasharray:1 26;stroke-linecap:round;}
+  .cm-seg-g.used .cm-center{stroke:#fff;stroke-dasharray:12 18;}
   .cm-seg-g.used .cm-road{stroke:var(--edu-gold,#ffc34d);
     filter:drop-shadow(0 0 8px rgba(255,190,60,.6)) drop-shadow(0 2px 3px rgba(0,0,0,.2));}
 
@@ -1519,17 +1523,17 @@
 
   /* 小关 = 山路上的小圆点: 每大关 5 个, 沿通往城堡的路段排布 */
   .cm-dots{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;}
-  .cm-dot{position:absolute;width:28px;height:28px;border-radius:50%;transform:translate(-50%,-50%);
-    display:flex;align-items:center;justify-content:center;font-size:.74rem;font-weight:900;cursor:pointer;
-    border:2.5px solid rgba(255,255,255,.95);transition:.15s;pointer-events:auto;padding:0;line-height:1;
+  .cm-dot{position:absolute;width:36px;height:36px;border-radius:50%;transform:translate(-50%,-50%);
+    display:flex;align-items:center;justify-content:center;font-size:.92rem;font-weight:900;cursor:pointer;
+    border:3px solid rgba(255,255,255,.95);transition:.15s;pointer-events:auto;padding:0;line-height:1;
     box-shadow:0 2px 5px rgba(0,0,0,.22), inset 0 1px 3px rgba(0,0,0,.12);
     font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;}
   .cm-dot.todo{background:#fff;color:var(--edu-ink);}
   .cm-dot.todo:hover{transform:translate(-50%,-50%) scale(1.15);filter:brightness(.96);}
   .cm-dot.done{background:var(--edu-green,#3aa964);color:#fff;border-color:#fff;}
-  .cm-dot.done::after{content:'⭐';font-size:.6rem;position:absolute;top:-7px;right:-6px;}
+  .cm-dot.done::after{content:'⭐';font-size:.72rem;position:absolute;top:-8px;right:-8px;}
   .cm-dot.current{background:var(--edu-primary,#ff6b4a);color:#fff;animation:cmDotGlow 1.5s ease-in-out infinite;
-    width:32px;height:32px;font-size:.82rem;border-color:#ffd9a0;}
+    width:42px;height:42px;font-size:1rem;border-color:#ffd9a0;}
   html[data-theme="dark"] .cm-dot.todo{background:#eef1f6;color:#26303a;}
   html[data-theme="dark"] .cm-dot.done{background:#2f8f5b;}
   .cm-dot.locked{background:rgba(255,255,255,.9);color:var(--edu-muted);cursor:not-allowed;

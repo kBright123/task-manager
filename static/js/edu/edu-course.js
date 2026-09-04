@@ -419,21 +419,36 @@
       y: w0 * a.y + w1 * mid + w2 * mid + w3 * b.y
     };
   }
-// 大关 i 的 5 个小关, 作为山路上的小石头, 沿「通往该城堡」的路段依次排布 (t 由小到大逼近城堡)
+// 大关 i 的第 s 个小关在路径上的坐标(沿通往城堡的路段, t 由小到大逼近城堡)
+  function stageXY(subj, i, s) {
+    var end = snakeXY(i);
+    var a = (i > 0) ? snakeXY(i - 1) : { x: 40, y: Math.max(30, end.y - 150) };   // 首个城堡：入口点点从左上蜿蜒入站
+    var mid = (a.y + end.y) / 2;
+    var t = 0.12 + 0.13 * s;                         // 0.12..0.64, 留在城堡圆之前的可见路段
+    return bezPt(a, end, mid, t);
+  }
+  // 小人在地图上的位置: 始终落在「即将要去的那一关」关卡点上, 通关后沿道路向前移动
+  // 大关通关 → 站在城堡上; 大关内未通 → 站在该大关待闯的小关点(石头)上
+  function mascotXY(subj) {
+    var n = levelCount(subj);
+    if (n === 0) return { x: SNAKE_X0, y: SNAKE_Y_A };
+    var p = curPos(subj);
+    var big = Math.min(p.big, n - 1);
+    var node_done = nodeProg(subj, big).done;
+    if (node_done) return snakeXY(big);
+    return stageXY(subj, big, Math.min(p.stage, STAGES_PER_BIG - 1));
+  }
+  // 大关 i 的 5 个小关, 作为山路上的小石头, 沿「通往该城堡」的路段依次排布 (t 由小到大逼近城堡)
   function stageDots(subj, i) {
     var nd = nodeProg(subj, i);
     var bigLk = !bigUnlocked(subj, i);
     var cur = curPos(subj);
-    var end = snakeXY(i);
-    var a = (i > 0) ? snakeXY(i - 1) : { x: 40, y: Math.max(30, end.y - 150) };   // 首个城堡：入口点点从左上蜿蜒入站
-    var mid = (a.y + end.y) / 2;
     // 石头 emoji 池: 每大关不同石头, 增加视觉辨识度
     var stones = ['🪨','🗿','🏔️','🪵','🌰','🍂','🍄','🌻','🌲','🌳','🌴','🌵','🪸','🐚','🪷','🪻'];
     var base = (i * 7) % stones.length;
     var dots = [];
     for (var s = 0; s < STAGES_PER_BIG; s++) {
-      var t = 0.12 + 0.13 * s;                       // 0.12..0.64, 留在城堡圆之前的可见路段
-      var p = bezPt(a, end, mid, t);
+      var p = stageXY(subj, i, s);
       var lk = bigLk || !stageUnlocked(subj, i, s);
       var done = !lk && (nd.passStage >= s);
       var isCur = !lk && !done && cur.big === i && cur.stage === s;
@@ -550,10 +565,9 @@
         '</g>';
     }
     var mascot = '';
-    if (!bigUnlocked(subj, curBig)) mascot = '';
-    else {
-      var m = snakeXY(curBig);
-      mascot = '<div class="cm-mascot" style="left:' + (m.x - 24) + 'px;top:' + Math.max(6, m.y - 76) + 'px;">🧒</div>';
+    if (levelCount(subj) > 0) {
+      var m = mascotXY(subj);
+      mascot = '<div class="cm-mascot" style="left:' + Math.round(m.x - 24) + 'px;top:' + Math.round(m.y - 24) + 'px;">🧒</div>';
     }
 
     return '<div class="cm-course' + (focus ? ' focus' : '') + '" data-subj="' + subj + '" id="cmCourse' + subj + '">' +

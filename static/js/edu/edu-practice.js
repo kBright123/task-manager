@@ -40,6 +40,7 @@
 
   function practiceHud() {
     return '<div class="pr-hud">'+
+      '<span class="pr-mode">⚡ 极速练习</span>'+
       '<span class="pr-stars">⭐ <b id="prStars">0</b> 星</span>'+
       '<span class="pr-num">正确 <b id="prRight">0</b></span>'+
       '<span class="pr-num">错误 <b id="prWrong">0</b></span>'+

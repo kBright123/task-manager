@@ -295,23 +295,25 @@
       var locked = st.cls === 'locked';
       var lv = courseLevel(c);
       var click = locked ? '' : ' onclick="' + courseGo(c) + '"';
-      var modes = '<span class="hc-modes"' + (locked ? '' : ' onclick="event.stopPropagation()"') + '>' +
-        '<button type="button" class="hc-mode hc-guan" onclick="' + courseGuan(c) + '">🗺️ 闯关模式</button>' +
-        '<button type="button" class="hc-mode hc-su" onclick="' + courseSu(c) + '">⚡ 极速练习</button>' +
-        '</span>';
       // 单行状态: 进行中显示当前关卡, 每日显示进度, 未开始显示简介
       var lvText = lv
         ? '第 ' + lv.n + ' 大关' + (lv.name ? ' · ' + lv.name : '')
         : (c.s === 'daily' ? '今日 ' + Math.min(d.today, d.goal) + '/' + d.goal + ' 题' : c.sub);
+      // 两行展示: 第一行 emoji+学科名+关卡, 第二行 已练题数+闯关模式+极速练习
+      var modes = '<span class="hc-modes"' + (locked ? '' : ' onclick="event.stopPropagation()"') + '>' +
+        '<button type="button" class="hc-mode hc-guan" onclick="' + courseGuan(c) + '">🗺️ 闯关模式</button>' +
+        '<button type="button" class="hc-mode hc-su" onclick="' + courseSu(c) + '">⚡ 极速练习</button>' +
+        '</span>';
       return '<section class="home-course hc-subj-' + (c.s || '') + (locked ? ' locked' : '') + '"' + click + '>' +
         '<div class="hc-main">' +
         '<span class="hc-emo">' + c.em + '</span>' +
-        '<span class="hc-info">' +
         '<span class="hc-nm">' + c.name + '</span>' +
-        '<span class="hc-lv-l"><span class="hc-lv">' + esc(lvText) + '</span>' +
-        '<span class="hc-count">已练 ' + n + ' 题</span></span></span>' +
+        '<span class="hc-lv">' + esc(lvText) + '</span>' +
         '</div>' +
+        '<div class="hc-foot">' +
+        '<span class="hc-count">已练 ' + n + ' 题</span>' +
         modes +
+        '</div>' +
         '</section>';
     }).join('');
     var list = '<section class="home-course-sec">' +

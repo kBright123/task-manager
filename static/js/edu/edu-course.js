@@ -360,22 +360,49 @@
 
   // 单学科旅程地图(横向滚动)
   // ---- 闯关地图: 蛇形路径视觉化 ----
-  var SNAKE_W = 1180;   // 地图逻辑宽度(px), 窄屏横向滑动
-  var SNAKE_H = 460;
-  var NODE_D = 104;      // 节点直径(≥80px, 适合手指)
-  var SNAKE_X0 = 118;     // 首节点中心 x
-  var SNAKE_DX = 150;    // 节点中心 x 间距(留足间隙让蜿蜒山路清晰可见)
-  var SNAKE_Y_A = 178;   // 第一行节点中心 y
-  var SNAKE_Y_B = 322;   // 第二行节点中心 y(蛇形)
-  var THEME_AT = [       // 大关区间 → 主题
-    { cls: 'cm-theme-forest', from: 0, to: 1 },
-    { cls: 'cm-theme-mtn', from: 2, to: 3 },
-    { cls: 'cm-theme-ocean', from: 4, to: 5 },
-    { cls: 'cm-theme-star', from: 6, to: 7 }
-  ];
-  function themeFor(big) {
-    for (var i = 0; i < THEME_AT.length; i++) if (big >= THEME_AT[i].from && big <= THEME_AT[i].to) return THEME_AT[i].cls;
-    return 'cm-theme-forest';
+  var SNAKE_W = 1680;   // 地图逻辑宽度(px), 窄屏横向滑动(加大画布缓解拥挤)
+  var SNAKE_H = 560;    // 地图逻辑高度, 更高撑满全屏视口
+  var NODE_D = 104;     // 节点直径(≥80px, 适合手指)
+  var SNAKE_X0 = 150;   // 首节点中心 x
+  var SNAKE_DX = 215;   // 节点中心 x 间距(加宽让蜿蜒山路与小关点更舒展)
+  var SNAKE_Y_A = 210;  // 第一行节点中心 y
+  var SNAKE_Y_B = 372;  // 第二行节点中心 y(蛇形)
+  var SUBJ_THEME = {    // 三学科各一固定主题(识别度高、场景各自不同)
+    zh: 'cm-theme-zh',
+    math: 'cm-theme-math',
+    en: 'cm-theme-en'
+  };
+  function subjTheme(subj) {
+    return SUBJ_THEME[subj] || 'cm-theme-zh';
+  }
+
+  // 每学科的背景装饰层(铺满画布的 emoji 场景, 位于道路/节点之下)
+  function subjScenery(subj) {
+    var els = {
+      zh: [
+        ['c-sun','☀️'],['c-sky','☁️'],['c-sky2','☁️'],['c-bird','🦅'],
+        ['c-hill','⛰️'],['c-hill2','🏔️'],
+        ['c-tree1','🌳'],['c-tree2','🌲'],['c-tree3','🌳'],['c-tree4','🌲'],['c-tree5','🌵'],
+        ['c-bush','🌿'],['c-bush2','🎋'],
+        ['c-flower','🌼'],['c-flower2','🌸'],['c-flower3','🌻'],
+        ['c-fish','🐟'],['c-fish2','🐡']
+      ],
+      math: [
+        ['c-sky','🌙'],['c-sky2','✨'],['c-sky3','🌟'],['c-sat','🛰️'],['c-rocket','🚀'],
+        ['c-planet','🪐'],['c-planet2','🌍'],
+        ['c-geo','🔷'],['c-geo2','🔺'],['c-geo3','🔶'],['c-geo4','▪️'],
+        ['c-star','⭐'],['c-meteor','☄️']
+      ],
+      en: [
+        ['c-sun','🌞'],['c-sky','☁️'],['c-sky2','☁️'],['c-bird','🦩'],
+        ['c-island','🏝️'],['c-island2','🏝️'],['c-sail','⛵'],['c-sail2','🚤'],
+        ['c-dolphin','🐬'],['c-wave','🌊'],['c-wave2','🌊'],
+        ['c-crab','🦀'],['c-shell','🐚'],['c-anchor','⚓'],['c-fish','🐠']
+      ]
+    }[subj] || [];
+    return '<div class="cm-campus" aria-hidden="true">' +
+      els.map(function (e) { return '<span class="' + e[0] + '">' + e[1] + '</span>'; }).join('') +
+      '</div>';
   }
   // 节点中心坐标: 蛇形交替两行
   function snakeXY(i) {
@@ -398,7 +425,7 @@
     var bigLk = !bigUnlocked(subj, i);
     var cur = curPos(subj);
     var end = snakeXY(i);
-    var a = (i > 0) ? snakeXY(i - 1) : { x: 0, y: end.y };   // 首个城堡：从地图左缘笔直进入
+    var a = (i > 0) ? snakeXY(i - 1) : { x: 40, y: Math.max(30, end.y - 150) };   // 首个城堡：入口点点从左上蜿蜒入站
     var mid = (a.y + end.y) / 2;
     // 石头 emoji 池: 每大关不同石头, 增加视觉辨识度
     var stones = ['🪨','🗿','🏔️','🪵','🌰','🍂','🍄','🌻','🌲','🌳','🌴','🌵','🪸','🐚','🪷','🪻'];
@@ -535,12 +562,13 @@
       '<div class="cm-head">' +
         '<span class="cm-course-emo">' + course.emoji + '</span>' +
         '<div class="cm-course-meta"><div class="cm-course-title">' + esc(course.title) + '</div>' +
-        '<div class="cm-course-journey ' + themeFor(curBig) + '">' + journeyLine(subj) + '</div></div>' +
+        '<div class="cm-course-journey ' + subjTheme(subj) + '">' + journeyLine(subj) + '</div></div>' +
       '</div>' +
       progressBarHtml(subj) +
-      '<div class="cm-snake-wrap ' + themeFor(curBig) + '">' +
+      '<div class="cm-snake-wrap ' + subjTheme(subj) + '">' +
         '<div class="cm-snake" aria-label="闯关地图，可左右滑动">' +
         '<div class="cm-snake-inner" style="width:' + SNAKE_W + 'px;height:' + SNAKE_H + 'px;">' +
+          subjScenery(subj) +
           '<svg class="cm-path" viewBox="0 0 ' + SNAKE_W + ' ' + SNAKE_H + '" preserveAspectRatio="none" aria-hidden="true">' + segs + '</svg>' +
           dots + nodes + mascot +
         '</div>' +
@@ -770,6 +798,15 @@
     if (journey) journey.textContent = journeyLine(subj);
     if (body) body.innerHTML = mapSlotHtml('cmMapSlotFull');
     full.style.display = 'flex';
+    // 让蛇形画布垂直撑满全屏剩余视口(学科背景真铺满)
+    setTimeout(function () {
+      var inner = document.querySelector('#eduMapFullBody .cm-snake-inner');
+      var wrap = document.querySelector('#eduMapFullBody .cm-snake-wrap');
+      if (inner && wrap) {
+        var rect = wrap.getBoundingClientRect();
+        if (rect.height > 40) inner.style.height = rect.height + 'px';
+      }
+    }, 60);
     var dock = document.getElementById('eduBottomNav');
     if (dock) dock.style.display = 'none';
     document.documentElement.style.overflow = 'hidden';

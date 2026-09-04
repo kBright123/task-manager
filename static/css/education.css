@@ -334,7 +334,10 @@
   .edu-map-full .emf-journey{margin-left:auto;max-width:calc(100% - 92px);font-size:.82rem;font-weight:700;color:var(--edu-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .edu-map-full .emf-tabs{padding:10px 14px 0;}
   .edu-map-full .emf-body{flex:1;overflow-y:auto;padding:12px 14px 24px;}
-  .edu-map-full .emf-body .cm-snake-wrap{margin:0 auto;margin-top:10px;}
+  .edu-map-full .emf-body .cm-snake-wrap{margin:0 auto;margin-top:10px;width:100%;min-height:100%;}
+  /* 全屏地图: 蛇形区域垂直撑满剩余视口, 让学科背景真铺满全屏 */
+  .edu-map-full .emf-body .cm-snake{height:auto;min-height:60vh;}
+  .edu-map-full .emf-body .cm-snake-inner{height:100%;position:relative;}
   /* 全屏地图顶栏已展示旅程进度, 隐藏地图头部的学科名/旅程行(标签亦不渲染) */
   .edu-map-full .emf-body .cm-head{display:none;}
   /* 全屏地图里标签已展示学科 emoji 与标题, 隐藏地图头部的重复 emoji */
@@ -1333,39 +1336,90 @@
   .cm-seg-g.used .cm-road{stroke:var(--edu-gold,#ffc34d);
     filter:drop-shadow(0 0 8px rgba(255,190,60,.6)) drop-shadow(0 2px 3px rgba(0,0,0,.2));}
 
-  /* 主题背景(按当前大关区间): 更鲜明的场景, 底部加深营造「地面」, 前景花草/山/浪/星作装饰 */
-  .cm-snake-wrap.cm-theme-forest{background:linear-gradient(170deg,#cdf7e0 0%,#98e8b0 38%,#d9f5b6 66%,#8fcf7b 82%,#4f9c5e 100%);}
-  .cm-snake-wrap.cm-theme-mtn{background:linear-gradient(170deg,#a9c4fb 0%,#b0c0f7 34%,#cfc6ff 66%,#b39fe8 82%,#7566b8 100%);}
-  .cm-snake-wrap.cm-theme-ocean{background:linear-gradient(170deg,#9becea 0%,#62d4dc 36%,#7fe0ee 66%,#49b8d2 82%,#2279ad 100%);}
-  .cm-snake-wrap.cm-theme-star{background:linear-gradient(170deg,#1c2b66 0%,#3b4ba2 40%,#6a5fb0 70%,#3a4390 84%,#232a5e 100%);}
-  .cm-snake-wrap.cm-theme-star .cm-swipe-hint{color:#dfe6ff;}
+  /* ===== 三学科主题(各一固定设计, 全屏铺满, 场景细节丰富) =====
+     cm-theme-zh 语文: 森林+山谷(天空→山坡→草地), 树木河流
+     cm-theme-math 数学: 星际几何(深空→星云→星球), 几何图形/星星
+     cm-theme-en 英语: 海洋岛屿(天空→海面→沙滩), 海浪帆船岛屿 */
 
-  /* 四个场景装饰槽: wrap 的 before/after + snake 的 before/after */
-  .cm-snake-wrap.cm-theme-forest:before,.cm-snake-wrap.cm-theme-forest:after,
-  .cm-snake-wrap.cm-theme-mtn:before,.cm-snake-wrap.cm-theme-mtn:after,
-  .cm-snake-wrap.cm-theme-ocean:before,.cm-snake-wrap.cm-theme-ocean:after,
-  .cm-snake-wrap.cm-theme-star:before,.cm-snake-wrap.cm-theme-star:after,
-  .cm-snake-wrap.cm-theme-forest .cm-snake:before,.cm-snake-wrap.cm-theme-forest .cm-snake:after,
-  .cm-snake-wrap.cm-theme-mtn .cm-snake:before,.cm-snake-wrap.cm-theme-mtn .cm-snake:after,
-  .cm-snake-wrap.cm-theme-ocean .cm-snake:before,.cm-snake-wrap.cm-theme-ocean .cm-snake:after,
-  .cm-snake-wrap.cm-theme-star .cm-snake:before,.cm-snake-wrap.cm-theme-star .cm-snake:after{
-    position:absolute;font-size:2.8rem;opacity:.6;pointer-events:none;z-index:0;}
-  .cm-snake-wrap.cm-theme-forest:before{content:'🌲';top:14px;left:16px;}
-  .cm-snake-wrap.cm-theme-forest:after{content:'🌳';bottom:14px;right:20px;}
-  .cm-snake-wrap.cm-theme-forest .cm-snake:before{content:'🌸';bottom:12px;left:40px;}
-  .cm-snake-wrap.cm-theme-forest .cm-snake:after{content:'🍄';top:16px;right:70px;}
-  .cm-snake-wrap.cm-theme-mtn:before{content:'🏔️';top:14px;left:16px;}
-  .cm-snake-wrap.cm-theme-mtn:after{content:'⛰️';bottom:12px;right:20px;}
-  .cm-snake-wrap.cm-theme-mtn .cm-snake:before{content:'🌥️';top:14px;right:70px;}
-  .cm-snake-wrap.cm-theme-mtn .cm-snake:after{content:'🦅';bottom:12px;left:44px;}
-  .cm-snake-wrap.cm-theme-ocean:before{content:'🌊';top:14px;right:20px;}
-  .cm-snake-wrap.cm-theme-ocean:after{content:'🐬';bottom:12px;left:18px;}
-  .cm-snake-wrap.cm-theme-ocean .cm-snake:before{content:'🏄';top:14px;left:56px;}
-  .cm-snake-wrap.cm-theme-ocean .cm-snake:after{content:'🐚';bottom:12px;right:70px;}
-  .cm-snake-wrap.cm-theme-star:before{content:'🌙';top:14px;left:20px;}
-  .cm-snake-wrap.cm-theme-star:after{content:'✨';bottom:14px;right:24px;}
-  .cm-snake-wrap.cm-theme-star .cm-snake:before{content:'⭐';top:14px;right:84px;}
-  .cm-snake-wrap.cm-theme-star .cm-snake:after{content:'🌠';bottom:12px;left:48px;}
+  .cm-snake-wrap{background-position:center bottom;background-size:cover;}
+  .cm-campus{position:absolute;inset:0;pointer-events:none;z-index:0;overflow:hidden;}
+
+  /* 语文 · 森林山谷 */
+  .cm-snake-wrap.cm-theme-zh{
+    background:radial-gradient(120% 220% at 20% 0%, #f4fbff 0%, #cfefd4 34%, #a6dc90 58%, #79c267 74%, #3f8f4c 92%, #2c6e39 100%);}
+  .cm-snake-wrap.cm-theme-zh .cm-swipe-hint{color:#1f5a2e;opacity:.75;}
+  /* 数学 · 星际几何 */
+  .cm-snake-wrap.cm-theme-math{
+    background:radial-gradient(160% 240% at 30% 10%, #2a3a8f 0%, #4b3aa6 34%, #6a3fc4 52%, #40329e 74%, #241e6b 92%, #14104d 100%);}
+  .cm-snake-wrap.cm-theme-math .cm-swipe-hint{color:#dfe6ff;}
+  /* 英语 · 海洋岛屿 */
+  .cm-snake-wrap.cm-theme-en{
+    background:radial-gradient(130% 230% at 25% 0%, #eafcff 0%, #c2f0f2 28%, #8fdfe0 46%, #4bbccc 66%, #2a8fb8 82%, #13679a 100%);}
+  .cm-snake-wrap.cm-theme-en .cm-swipe-hint{color:#0e5d87;opacity:.8;}
+
+  /* 场景装饰: 元素统一定位, z-index:0 置于道路/节点之下, 作为背景细节 */
+  .cm-campus i,.cm-campus span,.cm-campus b{font-style:normal;font-weight:400;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;}
+
+  /* 语文·森林山野: 云、太阳、远处群山、树林、草地小花、河流倒影 */
+  .cm-theme-zh .c-sky{position:absolute;top:4%;left:6%;font-size:3rem;opacity:.85;}
+  .cm-theme-zh .c-sky2{position:absolute;top:9%;left:34%;font-size:1.9rem;opacity:.5;}
+  .cm-theme-zh .c-sun{position:absolute;top:3%;left:47%;font-size:3.4rem;opacity:.9;filter:drop-shadow(0 0 14px rgba(255,220,120,.8));}
+  .cm-theme-zh .c-bird{position:absolute;top:14%;right:16%;font-size:1.7rem;opacity:.6;transform:rotate(8deg);}
+  .cm-theme-zh .c-hill{position:absolute;bottom:34%;left:-2%;font-size:9rem;opacity:.22;}
+  .cm-theme-zh .c-hill2{position:absolute;bottom:32%;right:-4%;font-size:8.5rem;opacity:.18;transform:scaleX(-1);}
+  .cm-theme-zh .c-tree1{position:absolute;bottom:32%;left:5%;font-size:4.6rem;filter:drop-shadow(0 4px 5px rgba(0,60,20,.35));}
+  .cm-theme-zh .c-tree2{position:absolute;bottom:32%;left:17%;font-size:3.6rem;opacity:.9;filter:drop-shadow(0 3px 4px rgba(0,60,20,.3));}
+  .cm-theme-zh .c-tree3{position:absolute;bottom:33%;left:30%;font-size:5rem;filter:drop-shadow(0 4px 5px rgba(0,60,20,.35));}
+  .cm-theme-zh .c-tree4{position:absolute;bottom:32%;right:12%;font-size:4.2rem;filter:drop-shadow(0 4px 5px rgba(0,60,20,.35));}
+  .cm-theme-zh .c-tree5{position:absolute;bottom:33%;right:27%;font-size:3.6rem;opacity:.9;}
+  .cm-theme-zh .c-bush{position:absolute;bottom:30%;left:42%;font-size:3rem;}
+  .cm-theme-zh .c-bush2{position:absolute;bottom:31%;right:3%;font-size:3.2rem;}
+  .cm-theme-zh .c-flower{position:absolute;bottom:15%;left:8%;font-size:2rem;}
+  .cm-theme-zh .c-flower2{position:absolute;bottom:17%;left:23%;font-size:1.7rem;}
+  .cm-theme-zh .c-flower3{position:absolute;bottom:16%;right:6%;font-size:2rem;}
+  .cm-theme-zh .c-fish{position:absolute;bottom:6%;left:14%;font-size:2rem;opacity:.7;}
+  .cm-theme-zh .c-fish2{position:absolute;bottom:7%;right:18%;font-size:1.8rem;opacity:.6;transform:scaleX(-1);}
+
+  /* 数学·星际几何: 深空星球、星云、几何图形、流星 */
+  .cm-theme-math .c-sky{position:absolute;top:5%;right:8%;font-size:3.2rem;opacity:.9;filter:drop-shadow(0 0 12px rgba(140,120,255,.9));animation:cmTwinkle 3s ease-in-out infinite;}
+  .cm-theme-math .c-sky2{position:absolute;top:12%;left:5%;font-size:2.6rem;opacity:.85;}
+  .cm-theme-math .c-sky3{position:absolute;top:22%;right:30%;font-size:2.2rem;opacity:.6;}
+  .cm-theme-math .c-sat{position:absolute;top:8%;left:38%;font-size:3rem;opacity:.9;}
+  .cm-theme-math .c-rocket{position:absolute;top:6%;left:60%;font-size:3.6rem;opacity:.95;transform:rotate(28deg);animation:cmRocketFloat 4s ease-in-out infinite;}
+  .cm-theme-math .c-planet{position:absolute;bottom:30%;left:6%;font-size:6.5rem;opacity:.4;filter:drop-shadow(0 0 22px rgba(255,160,80,.6));}
+  .cm-theme-math .c-planet2{position:absolute;bottom:30%;right:4%;font-size:5.6rem;opacity:.35;filter:drop-shadow(0 0 18px rgba(120,200,255,.6));}
+  .cm-theme-math .c-geo{position:absolute;bottom:14%;left:13%;font-size:2.4rem;opacity:.7;transform:rotate(-12deg);}
+  .cm-theme-math .c-geo2{position:absolute;bottom:16%;left:31%;font-size:2rem;opacity:.65;transform:rotate(20deg);}
+  .cm-theme-math .c-geo3{position:absolute;bottom:14%;right:14%;font-size:2.4rem;opacity:.65;transform:rotate(8deg);}
+  .cm-theme-math .c-geo4{position:absolute;bottom:17%;right:31%;font-size:2rem;opacity:.6;transform:rotate(-18deg);}
+  .cm-theme-math .c-star{position:absolute;bottom:26%;left:40%;font-size:2.2rem;opacity:.7;animation:cmTwinkle 2.4s ease-in-out infinite;}
+  .cm-theme-math .c-meteor{position:absolute;top:32%;left:20%;font-size:2rem;opacity:.7;transform:rotate(-30deg);}
+
+  /* 英语·海洋岛屿: 太阳云朵、远岛、帆船、海浪、礁石、贝壳 */
+  .cm-theme-en .c-sun{position:absolute;top:3%;left:44%;font-size:3.6rem;opacity:.9;filter:drop-shadow(0 0 16px rgba(255,230,140,.8));}
+  .cm-theme-en .c-sky{position:absolute;top:8%;left:10%;font-size:3rem;opacity:.8;}
+  .cm-theme-en .c-sky2{position:absolute;top:13%;right:12%;font-size:2.2rem;opacity:.6;}
+  .cm-theme-en .c-bird{position:absolute;top:16%;left:34%;font-size:1.7rem;opacity:.6;transform:rotate(-10deg);}
+  .cm-theme-en .c-island{position:absolute;bottom:32%;left:4%;font-size:6.5rem;filter:drop-shadow(0 5px 6px rgba(0,70,100,.3));}
+  .cm-theme-en .c-island2{position:absolute;bottom:31%;right:3%;font-size:5.8rem;opacity:.85;filter:drop-shadow(0 5px 6px rgba(0,70,100,.3));}
+  .cm-theme-en .c-sail{position:absolute;bottom:36%;left:24%;font-size:3.2rem;opacity:.9;filter:drop-shadow(0 3px 4px rgba(0,60,90,.3));}
+  .cm-theme-en .c-sail2{position:absolute;bottom:37%;right:26%;font-size:2.8rem;opacity:.8;filter:drop-shadow(0 3px 4px rgba(0,60,90,.3));}
+  .cm-theme-en .c-dolphin{position:absolute;bottom:10%;left:44%;font-size:3rem;opacity:.85;}
+  .cm-theme-en .c-wave{position:absolute;bottom:22%;left:12%;font-size:2rem;opacity:.6;transform:rotate(-6deg);}
+  .cm-theme-en .c-wave2{position:absolute;bottom:24%;right:14%;font-size:2rem;opacity:.55;transform:scaleX(-1) rotate(-6deg);}
+  .cm-theme-en .c-crab{position:absolute;bottom:12%;right:5%;font-size:2.2rem;}
+  .cm-theme-en .c-shell{position:absolute;bottom:13%;left:6%;font-size:2rem;}
+  .cm-theme-en .c-anchor{position:absolute;bottom:30%;left:33%;font-size:2.4rem;opacity:.7;}
+  .cm-theme-en .c-fish{position:absolute;bottom:7%;left:34%;font-size:2.2rem;opacity:.7;transform:scaleX(-1);}
+
+  @keyframes cmTwinkle{0%,100%{opacity:.5;}50%{opacity:1;}}
+  @keyframes cmRocketFloat{0%,100%{transform:rotate(28deg) translateY(0);}50%{transform:rotate(28deg) translateY(-8px);}}
+
+  /* 旧主题兼容类(保留以防残留), 新地图不再使用 */
+  .cm-snake-wrap.cm-theme-forest{background:#9ce2a6;}
+  .cm-snake-wrap.cm-theme-mtn{background:#b0c0f7;}
+  .cm-snake-wrap.cm-theme-ocean{background:#62d4dc;}
+  .cm-snake-wrap.cm-theme-star{background:#3b4ba2;}
 
 /* 大关卡节点圆(≥80px) */
   .cm-zone{position:absolute;top:0;left:0;display:flex;flex-direction:column;align-items:center;

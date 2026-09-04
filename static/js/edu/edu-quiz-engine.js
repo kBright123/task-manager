@@ -207,7 +207,7 @@
     if (quizSubject !== 'par' && quizSubject) {
       bannerHtml = '<div id="quizHeader">' + window.Edu.Header.quizHeaderHtml('quiz', quizSubject, quiz.type) + '</div>';
     }
-    container.innerHTML = bannerHtml + renderQuizProgTop() + buildQuizCard(quiz.view) + renderQuizFooter();
+    container.innerHTML = '<div class="qz-card">' + bannerHtml + renderQuizProgTop() + buildQuizCard(quiz.view) + renderQuizFooter() + '</div>';
     if (quiz.items[quiz.view].input) {
       var inp = document.getElementById('qi-in-'+quiz.view);
       if (inp) setTimeout(function(){ inp.focus(); }, 100);

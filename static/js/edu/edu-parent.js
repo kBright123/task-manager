@@ -15,12 +15,21 @@
   }
 
   function renderStars() {
+    var stars = Store.state.stars || 0;
     var bar = document.getElementById('kbStarBar');
-    if (!bar) return;
-    var s = Store.state.stars || 0;
-    var html = '';
-    for (var i=0;i<5;i++) html += '<i class="bi bi-star-fill" style="color:'+(i<s?'#ffd93d':'var(--edu-border-2)')+';font-size:.85rem;margin-right:2px;"></i>';
-    bar.innerHTML = html;
+    if (bar) {
+      var html = '';
+      for (var i=0;i<5;i++) html += '<i class="bi bi-star-fill" style="color:'+(i<stars?'#ffd93d':'var(--edu-border-2)')+';font-size:.85rem;margin-right:2px;"></i>';
+      bar.innerHTML = html;
+    }
+    // 同步刷新各页顶部「⭐ N 星 · 连续打卡 X 天」文本(welcomeBarHtml 生成的只读节点)
+    var recs = Store.state.records || [];
+    var streak = 0;
+    if (typeof window.Edu.Home === 'object' && window.Edu.Home.loginStreak) streak = window.Edu.Home.loginStreak(recs) || 0;
+    var nodes = document.querySelectorAll('.ht-lv');
+    for (var j=0;j<nodes.length;j++) {
+      nodes[j].textContent = '⭐ ' + stars + ' 星 · 连续打卡 ' + streak + ' 天';
+    }
   }
 
   window.Edu.Parent = {

@@ -146,7 +146,7 @@
       recs.forEach(function (r) { if (r.date === keyOf(tp)) prevWeek++; });
     }
     return {
-      today: today, goal: goal, pct: pct, mins: minsUsedP(act), honor: badKeys.length,
+      today: today, goal: goal, total: recs.length, pct: pct, mins: minsUsedP(act), honor: badKeys.length,
       streak: loginStreak(recs), badges: badKeys.length, zishi: zishi,
       dueChars: due.slice(0, 3), dueN: dueWrongListFor(stL).length,
       days: days, maxN: maxN, prevWeek: prevWeek, wList: wList, wDone: wDone,
@@ -196,8 +196,6 @@
     var act = window.eduKids.active() || kids[0];
     if (!window.eduKids.active()) window.eduKids.setActive(act.id);
     var d = homeDashData(act);
-    var done = Math.min(d.today, d.goal);
-    var remaining = Math.max(0, d.goal - d.today);
     var barW = Math.round(Math.min(100, d.today * 100 / Math.max(1, d.goal)));
 
     // ===== 顶部条: 单行动态问候 + ⭐星星/🔥打卡 + 宝贝/模式 收纳 =====
@@ -215,13 +213,17 @@
       '</div>' +
       '</section>';
 
-    // ===== 今日任务卡: 🌱 今日任务 + 种子→发芽→开花 进度插画 + 进度条 =====
-    var stageNode;
-    if (barW >= 100) stageNode = '🌸 <b>今日任务达成！</b>';
-    else if (barW >= 67) stageNode = '🌼 快开出小花啦，继续加油';
-    else if (barW >= 34) stageNode = '🌿 小苗苗茁壮成长中';
-    else if (barW > 0) stageNode = '🌱 破土发芽啦，宝贝真棒';
-    else stageNode = '🌰 播下一颗种子，开始闯关吧';
+    // ===== 今日任务卡: 🌱 今日任务 + 种子→发芽→大树→森林 里程碑进度条 =====
+    // 里程碑图标骑在进度条上: 每约 1/3 一档点亮(种子🌰 → 发芽🌱 → 大树🌳 → 森林🌲)
+    var MILESTONES = [
+      { icon: '🌰', at: 0 },
+      { icon: '🌱', at: 34 },
+      { icon: '🌳', at: 67 },
+      { icon: '🌲', at: 100 }
+    ];
+    var milHtml = '<div class="hg-milestones">' + MILESTONES.map(function (m) {
+      return '<span class="hg-mil' + (barW >= m.at ? ' on' : '') + '" style="left:' + m.at + '%">' + m.icon + '</span>';
+    }).join('') + '</div>';
     // 最近获得勋章(按时序倒序取前 3)展示在今日任务: 前 2 枚(.hero)任何端都显示, 第 3 枚(.xtra)桌面显示/手机隐藏,
     // 手机端用「+N」指示剩余枚数
     var badList = Object.keys(Store.state.badges || {})
@@ -238,10 +240,13 @@
       (badList.length ? '<span class="hg-badges" title="已获得 ' + badList.length + ' 枚勋章">' + badHtml + badMore + '</span>' : '') +
       '</div>';
     var goal = '<section class="home-goal">' +
-      '<div class="hg-head"><span class="hg-title">🌱 今日任务：完成 ' + d.goal + ' 题</span>' +
-      '<span class="hg-count"><b>' + done + '</b> / ' + d.goal + '</span></div>' +
-      '<div class="hg-stage"><span class="hg-stage-txt">' + stageNode + '</span>' +
-        '<span class="hg-pct">' + barW + '%</span></div>' +
+      '<div class="hg-head"><span class="hg-title">🌱 今日任务</span>' +
+      '<span class="hg-flag">🎯 目标 ' + d.goal + ' 题</span></div>' +
+      '<div class="hg-data">' +
+        '<span class="hg-chip">今日完成 <b>' + d.today + '</b> 题</span>' +
+        '<span class="hg-chip">累计完成 <b>' + d.total + '</b> 题</span>' +
+      '</div>' +
+      milHtml +
       '<div class="hg-track"><div class="hc-fill" style="width:' + barW + '%;"></div></div>' +
       goalStats +
       '</section>';

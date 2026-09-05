@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="jblade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f7fafc"/><stop offset=".3" stop-color="#cdd8e2"/><stop offset=".7" stop-color="#8495a8"/><stop offset="1" stop-color="#4c5e71"/>
+    </linearGradient>
+    <linearGradient id="jgold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6d878"/><stop offset="1" stop-color="#b1832c"/></linearGradient>
+    <clipPath id="jclip"><path d="M100,20 L108,132 L100,154 L92,132 Z"/></clipPath>
+  </defs>
+  <ellipse cx="100" cy="190" rx="24" ry="5" fill="#000" opacity=".12"/>
+  <g>
+    <animateTransform attributeName="transform" type="rotate" values="-2 100 120; 2 100 120; -2 100 120" dur="3.6s" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1" repeatCount="indefinite"/>
+    <path d="M100,20 L108,132 L100,154 L92,132 Z" fill="url(#jblade)" stroke="#263545" stroke-width="2"/>
+    <rect x="98.2" y="44" width="3.6" height="98" fill="#93a2b2"/>
+    <rect x="80" y="153" width="40" height="8" rx="3" fill="url(#jgold)" stroke="#7a5c1e" stroke-width="2"/>
+    <rect x="91" y="161" width="18" height="26" rx="4" fill="#33241a"/>
+    <circle cx="100" cy="192" r="6" fill="url(#jgold)" stroke="#7a5c1e" stroke-width="2"/>
+    <g clip-path="url(#jclip)">
+      <rect x="108" y="-30" width="9" height="40" fill="#fff" opacity="0">
+        <animate attributeName="opacity" values="0;.9;0" keyTimes="0;.12;.45" dur="2.2s" repeatCount="indefinite"/>
+        <animateTransform attributeName="transform" type="translate" values="0 0; 0 120" dur="2.2s" keyTimes="0;.45" repeatCount="indefinite"/>
+      </rect>
+    </g>
+  </g>
+</svg>

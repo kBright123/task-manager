@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="tolive" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6b7a3a"/><stop offset=".6" stop-color="#4a5527"/><stop offset="1" stop-color="#394220"/>
+    </linearGradient>
+    <linearGradient id="ttrack" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#22242a"/><stop offset=".5" stop-color="#3a3d44"/><stop offset="1" stop-color="#181a1f"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="118" cy="188" rx="70" ry="8" fill="#000" opacity=".16"/>
+  <g>
+    <animateTransform attributeName="transform" type="translate" values="0 0; 0 -2; 0 0" dur="1.6s" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1" repeatCount="indefinite"/>
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="0 0; -12 0; 0 0" dur="2.8s" keyTimes="0;.12;.3" repeatCount="indefinite" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1"/>
+      <rect x="148" y="80" width="52" height="12" rx="4" fill="#7c8a97" stroke="#222b37" stroke-width="2"/>
+      <rect x="196" y="76" width="8" height="20" rx="3" fill="#222b37"/>
+    </g>
+    <path d="M56,92 C 64,70 112,64 142,74 L 156,94 L 62,104 Z" fill="url(#tolive)" stroke="#23290f" stroke-width="2.5"/>
+    <path d="M64,92 C 70,82 104,78 126,84" fill="none" stroke="#98ab55" stroke-width="2.5" opacity=".55"/>
+    <path d="M24,118 L 122,118 L 176,86 L 174,114 L 160,132 L 24,132 Z" fill="url(#tolive)" stroke="#23290f" stroke-width="2.5"/>
+    <path d="M34,128 L 120,128 L 158,108 L 172,110" fill="none" stroke="#98ab55" stroke-width="2" opacity=".5"/>
+    <path d="M16,132 L 186,132 C 194,132 196,142 188,148 L 20,148 C 10,148 8,140 16,132 Z" fill="url(#ttrack)" stroke="#0e1015" stroke-width="2.5"/>
+    <g fill="#33373e" stroke="#15171c" stroke-width="2.5">
+      <circle cx="44" cy="140" r="12"/><circle cx="76" cy="140" r="12"/><circle cx="108" cy="140" r="12"/>
+      <circle cx="140" cy="140" r="12"/><circle cx="172" cy="138" r="13"/>
+    </g>
+    <g>
+      <animate attributeName="opacity" values="0;1;0" keyTimes="0;.07;.2" dur="2.8s" repeatCount="indefinite"/>
+      <path d="M198,66 L 210,82 L 198,98 L 192,82 Z" fill="#ffb03a"/>
+    </g>
+  </g>
+</svg>

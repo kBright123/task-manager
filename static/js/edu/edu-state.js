@@ -6,7 +6,7 @@
   function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
-  var state = { stars: 0, records: [], wrong: [], settings: {}, usage: {}, maxCombo: 0, badges: {}, submits: 0, wishes: [], wishLog: [], level: {}, starLog: [], dailySecs: {}, giftPrices: {}, redeemed: [] };
+  var state = { stars: 0, records: [], wrong: [], settings: {}, usage: {}, maxCombo: 0, badges: {}, submits: 0, wishes: [], wishLog: [], level: {}, starLog: [], dailySecs: {}, giftPrices: {}, redeemed: [], usageExtra: {} };
   var wb = {};
   var recentExclude = [];
 
@@ -40,6 +40,7 @@
     state.level = (state.level && typeof state.level === 'object') ? state.level : {};
     state.adv = (state.adv && typeof state.adv === 'object') ? state.adv : {};
     state.dailySecs = (state.dailySecs && typeof state.dailySecs === 'object') ? state.dailySecs : {};
+    state.usageExtra = (state.usageExtra && typeof state.usageExtra === 'object') ? state.usageExtra : {};
     state.records = Array.isArray(state.records) ? state.records : [];
     state.wrong = Array.isArray(state.wrong) ? state.wrong : [];
     state.wishes = Array.isArray(state.wishes) ? state.wishes : [];
@@ -83,6 +84,39 @@
   }
 
   function minsUsed() { return Math.ceil((usageForToday().secs || 0) / 60); }
+
+  // ---- 学习守护(每日使用时长达标后拦截) ----
+  // 今日已解锁次数(每次 +USAGE_UNLOCK_MIN 分钟)
+  function usageExtraToday() {
+    var k = dayKey();
+    state.usageExtra = (state.usageExtra && typeof state.usageExtra === 'object') ? state.usageExtra : {};
+    return state.usageExtra[k] || 0;
+  }
+  // 每日允许的分钟数: 家长设置 >0 用家长设置, 否则用默认 30 分钟
+  function usageLimitMin() {
+    var s = curSettings();
+    return (s && s.dailyMin > 0) ? s.dailyMin : C.USAGE_DEFAULT_MIN;
+  }
+  function usageLimitSec() {
+    return (usageLimitMin() + usageExtraToday() * C.USAGE_UNLOCK_MIN) * 60;
+  }
+  function usageUsedSec() { return usageForToday().secs || 0; }
+  function usageOver() { return usageUsedSec() >= usageLimitSec(); }
+  // 页面计时器累计学习秒数(同时写入 dailySecs 供家长看板用时分析)
+  function addUsageSecs(secs) {
+    if (!(secs > 0)) return;
+    var u = usageForToday();
+    u.secs = (u.secs || 0) + Math.round(secs);
+    addDailySecs(secs);
+    saveState();
+  }
+  // 记录一次解锁(扣星或答对题): 当日额度增加 USAGE_UNLOCK_MIN 分钟
+  function addUsageUnlock() {
+    var k = dayKey();
+    state.usageExtra = (state.usageExtra && typeof state.usageExtra === 'object') ? state.usageExtra : {};
+    state.usageExtra[k] = (state.usageExtra[k] || 0) + 1;
+    saveState();
+  }
 
   function checkLimit() {
     var u = usageForToday();
@@ -137,6 +171,13 @@
     setLevel: setLevel,
     addDailySecs: addDailySecs,
     addStarLog: addStarLog,
+    usageExtraToday: usageExtraToday,
+    usageLimitMin: usageLimitMin,
+    usageLimitSec: usageLimitSec,
+    usageUsedSec: usageUsedSec,
+    usageOver: usageOver,
+    addUsageSecs: addUsageSecs,
+    addUsageUnlock: addUsageUnlock,
     stateKeyFor: stateKeyFor,
     wbKeyFor: wbKeyFor,
     kidSyncKey: kidSyncKey

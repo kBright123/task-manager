@@ -6,8 +6,10 @@
   C.QUIZ_LEN = 10;
   C.LS_BASE = 'edu_record_v1';
   C.STR_BASE = 'edu_workbench_v1';
-  C.DEFAULT_SET = { range: 0, nocarry: false, mult: false, dailyQ: 20, dailyMin: 0, show: { trace: true, par: true }, eyeMin: 20, font: 'm', sound: true };
-  C.REST_DEFAULT = 20;   // 护眼时长默认(分钟)
+  C.DEFAULT_SET = { range: 0, nocarry: false, mult: false, dailyQ: 20, dailyMin: 0, show: { trace: true, par: true }, font: 'm', sound: true };
+  C.USAGE_DEFAULT_MIN = 30;   // 教育页面每日使用时长默认上限(分钟)
+  C.USAGE_UNLOCK_MIN = 30;    // 每次解锁后追加的可学习时长(分钟)
+  C.USAGE_UNLOCK_STARS = 100; // 一键解锁消耗的星星数
   C.SPEAK_ON_KEY = 'edu_speak_v1';
   C.PRACTICE_SECS = 20;
 

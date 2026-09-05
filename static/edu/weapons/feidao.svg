@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="fblade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f4f8fb"/><stop offset=".4" stop-color="#b9c6d2"/><stop offset=".75" stop-color="#73849a"/><stop offset="1" stop-color="#45566a"/>
+    </linearGradient>
+    <linearGradient id="fgrip" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a3320"/><stop offset=".5" stop-color="#2c1f12"/><stop offset="1" stop-color="#5a4026"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="100" cy="178" rx="22" ry="5" fill="#000" opacity=".12"/>
+  <g>
+    <animateTransform attributeName="transform" type="rotate" from="0 100 100" to="360 100 100" dur="2s" repeatCount="indefinite"/>
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="0 0; 0 -7; 0 0" dur="1s" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1" repeatCount="indefinite"/>
+      <path d="M100,22 C 108,40 111,60 111,84 L 111,96 C 111,96 104,101 100,101 C 96,101 89,96 89,96 L 89,84 C 89,60 92,40 100,22 Z" fill="url(#fblade)" stroke="#2c3a4a" stroke-width="2"/>
+      <path d="M100,30 L 100,92" stroke="#eef3f8" stroke-width="2" opacity=".8"/>
+      <rect x="87" y="94" width="26" height="8" rx="3" fill="url(#fblade)" stroke="#2c3a4a" stroke-width="2"/>
+      <rect x="92" y="102" width="16" height="40" rx="4" fill="url(#fgrip)"/>
+      <line x1="92" y1="110" x2="108" y2="110" stroke="#1a120b" stroke-width="1.6"/>
+      <line x1="92" y1="118" x2="108" y2="118" stroke="#1a120b" stroke-width="1.6"/>
+      <line x1="92" y1="126" x2="108" y2="126" stroke="#1a120b" stroke-width="1.6"/>
+      <circle cx="100" cy="148" r="7" fill="#3c2b1a" stroke="#241a10" stroke-width="2"/>
+    </g>
+  </g>
+</svg>

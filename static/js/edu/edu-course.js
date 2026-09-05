@@ -295,6 +295,14 @@
     return { name: bigName, stageName: '第' + (idx + 1) + '大关·第' + (stage + 1) + '小关', stage: stage, stars: stars, allPassed: allPassed, bigDone: bigDone, next: next };
   }
 
+  // 当前正在闯的关是否「此前已通关」(重打) → 答对获得的星星减半
+  function isLevelCleared(ci) {
+    if (!ci || !ci.subj) return false;
+    try {
+      return nodeProg(ci.subj, ci.idx).passStage >= ci.stage;
+    } catch (e) { return false; }
+  }
+
   // ---- 结算: 由答题引擎在交卷时调用 ----
   // 返回摘要对象, 供完成页展示「关卡进度/星数/解锁/奖励」
   function recordQuizResult(subj, type, stats) {
@@ -787,6 +795,7 @@
     nodeProg: nodeProg,
     levelCount: levelCount,
     applyPass: applyPass,
+    isLevelCleared: isLevelCleared,
     checkStarMilestones: checkStarMilestones,
     badgePulse: badgePulse,
     courseProg: courseProg,

@@ -31,18 +31,21 @@
     var items = [];
     var n = C.QUIZ_LEN;
     if (type === 'calc') {
-      for (var i=0;i<n;i++) { var q = M.makeCalc(range, nocarry, allowMult, null, ops); items.push(M.makeCalcItem(q)); }
+      var usedCalc = {};
+      for (var i=0;i<n;i++) { var q = M.makeCalc(range, nocarry, allowMult, null, ops, { usedKeys: usedCalc }); items.push(M.makeCalcItem(q)); }
     } else if (type === 'judge') {
-      for (var j=0;j<n;j++) { var q2 = M.makeCalc(range, nocarry, allowMult, null, ops); items.push(M.makeJudgeItem(q2, j)); }
+      var usedJudge = {};
+      for (var j=0;j<n;j++) { var q2 = M.makeCalc(range, nocarry, allowMult, null, ops, { usedKeys: usedJudge }); items.push(M.makeJudgeItem(q2, j)); }
     } else if (type === 'word') {
       var usedKeys = {};
       var wRange = Math.max(10, range || 20);
       for (var k=0;k<n;k++) { items.push(M.makeWordAuto(wRange, usedKeys)); }
     } else if (type === 'order') {
       for (var m=0;m<n;m++) {
-        var arr = [M.randInt(10)+1, M.randInt(10)+1, M.randInt(10)+1, M.randInt(10)+1];
-        var sorted = arr.slice().sort(function(a,b){return a-b;});
-        items.push({ id:'ord_'+m, type:'order', order:true, prompt:'从小到大排序', options:arr, correct:sorted.join('') });
+        var pool = [];
+        while (pool.length < 4) { var x = M.randInt(10)+1; if (pool.indexOf(x) < 0) pool.push(x); }
+        var sorted = pool.slice().sort(function(a,b){return a-b;});
+        items.push({ id:'ord_'+m, type:'order', order:true, prompt:'从小到大排序', options:pool, correct:sorted.join('') });
       }
     }
     QuizEngine.startQuiz('math', type, items, { difficulty: diff });

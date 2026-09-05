@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="hbody" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#b3becb"/><stop offset=".5" stop-color="#5c6b7c"/><stop offset="1" stop-color="#2e3a47"/>
+    </linearGradient>
+    <linearGradient id="hglass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d8ecf5"/><stop offset="1" stop-color="#5d8ba3"/></linearGradient>
+  </defs>
+  <ellipse cx="96" cy="186" rx="40" ry="7" fill="#000" opacity=".18"/>
+  <g>
+    <animateTransform attributeName="transform" type="translate" values="0 0; 0 -4; 0 0" dur="1.1s" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1" repeatCount="indefinite"/>
+    <path d="M8,114 L 46,108 L 58,112 L 96,118 C 138,124 152,114 150,106 L 112,94 C 92,88 92,96 128,96 L 158,96 C 162,96 162,104 156,106 L 120,112 Z" fill="url(#hbody)" stroke="#202b36" stroke-width="3"/>
+    <path d="M112,100 C 124,94 140,94 150,98 L 142,108 C 130,104 118,106 112,112 Z" fill="url(#hglass)" stroke="#33404f" stroke-width="2"/>
+    <path d="M46,116 L 56,120 L 56,116 C 58,120 66,120 64,114 Z" fill="#202b36"/>
+    <rect x="10" y="116" width="26" height="8" rx="3" fill="url(#hbody)" stroke="#202b36" stroke-width="2"/>
+    <polygon points="8,112 2,124 12,124" fill="#202b36"/>
+    <line x1="8" y1="118" x2="4" y2="126" stroke="#202b36" stroke-width="3"/>
+    <g>
+      <animateTransform attributeName="transform" type="rotate" from="0 4 118" to="360 4 118" dur=".18s" repeatCount="indefinite"/>
+      <polygon points="4,116 0,118 4,120 8,118" fill="#cfd6dd"/>
+    </g>
+    <line x1="66" y1="120" x2="66" y2="142" stroke="#202b36" stroke-width="4"/>
+    <line x1="116" y1="122" x2="116" y2="144" stroke="#202b36" stroke-width="4"/>
+    <path d="M60,140 L 72,140 L 70,150 L 58,150 Z" fill="#202b36"/>
+    <path d="M112,142 L 122,142 L 120,152 L 110,152 Z" fill="#202b36"/>
+    <g>
+      <animateTransform attributeName="transform" type="rotate" from="0 88 96" to="360 88 96" dur=".5s" repeatCount="indefinite"/>
+      <rect x="58" y="92" width="60" height="6" rx="3" fill="#39434e"/>
+      <rect x="90" y="64" width="6" height="64" rx="3" fill="#39434e"/>
+      <rect x="84" y="88" width="14" height="14" rx="4" fill="#1f2831"/>
+    </g>
+  </g>
+</svg>

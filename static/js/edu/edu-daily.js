@@ -38,6 +38,7 @@
     })();
     var plan = shuffleSeeded(C.DAILY_PLAN.slice(), rnd);
     var items = [];
+    var usedMath = {};
     plan.forEach(function(subj){
       var diff = M.diffOf(subj);
       var range = M.levelRange(subj);
@@ -48,7 +49,7 @@
         var q = C.ZI[Math.floor(rnd()*C.ZI.length)];
         items.push({ id:q.id, isubj:'zh', type:'zi', prompt:q.prompt, options:['天','地','人','大','小','上','下','中','日','月'].filter(function(x){return x!==q.prompt;}).slice(0,3).concat(q.prompt).sort(function(){return rnd()-0.5;}), correct:q.prompt });
       } else if (subj === 'math') {
-        var q2 = M.makeCalc(range, nocarry, allowMult, rnd);
+        var q2 = M.makeCalc(range, nocarry, allowMult, rnd, null, { usedKeys: usedMath });
         var item = M.makeCalcItem(q2);
         item.isubj = 'math';
         item.type = 'calc';

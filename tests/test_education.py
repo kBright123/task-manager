@@ -316,6 +316,7 @@ _MODULE_FILES = [
     'edu-backup.js',
     'edu-settings.js',
     'edu-fab.js',
+    'edu-limit.js',
     'edu-bootstrap.js',
 ]
 
@@ -501,6 +502,8 @@ W.eduSync.setOnState((kidId,dkey,data,force)=>{
   Routes['/bootstrap']={ok:true,adopted:true,dbIdMap:{'9':8},kids:[{id:8,name:'小豆豆',birthYear:2019,gender:'male'}]};
   Routes['/kids/8/state?dkey=state']={ok:true,data:{stars:12,records:[{t:1},{t:2}],submits:7}};
   Routes['/kids/8/state?dkey=workbench']={ok:true,data:{grid:{ab:1}}};
+  // hydrate 末尾的档案回推(POST /kids)
+  Routes['/kids']={ok:true,kids:[{id:8,clientId:'db8',name:'小豆豆',birthYear:2019,gender:'male'}]};
   await W.eduSync.hydrate(); await tick(); // onState 回填在下次微任务后落地
   let kids=JSON.parse(S['edu_kids_v1']).list;
   if(kids.length!==1) throw new Error('sc1: 期望 1 个孩子, 得到 '+kids.length);
@@ -518,6 +521,10 @@ W.eduSync.setOnState((kidId,dkey,data,force)=>{
     {'st_dbA':{stars:5,records:[{t:1}]},'st_dbB':{stars:7,records:[{t:2}]}}
   );
   Routes['/bootstrap']={ok:true,adopted:false,dbIdMap:{},kids:[{id:8,name:'小豆豆',birthYear:2019,gender:'male'}]};
+  // 服务端权威回填(本场景服务端与合并值一致), 以及 hydrate 末尾档案回推
+  Routes['/kids/8/state?dkey=state']={ok:true,data:{stars:12,records:[{t:1},{t:2}],submits:7}};
+  Routes['/kids/8/state?dkey=workbench']={ok:true,data:{}};
+  Routes['/kids']={ok:true,kids:[{id:8,clientId:'dbA',name:'小豆豆',birthYear:2019,gender:'male'}]};
   await W.eduSync.hydrate(); await tick();
   kids=JSON.parse(S['edu_kids_v1']).list;
   if(kids.length!==1||kids[0].id!=='dbA') throw new Error('sc2: 收敛失败 '+JSON.stringify(kids));
@@ -1674,6 +1681,11 @@ const W=global;
   console.log('GREET2='+(h.indexOf('小探险家')>=0||h.indexOf('该休息咯')>=0?'1':'0'));
   console.log('NO_SLOGAN='+(h.indexOf('坚持闯关，天天有进步')<0?'1':'0'));
   console.log('LBAR='+(h.indexOf('home-sec-head')>=0?'1':'0'));
+  console.log('NO_DONE_TXT='+(h.indexOf('今日目标已达成')<0?'1':'0'));
+  console.log('MILESTONES='+(h.indexOf('hg-milestones')>=0?'1':'0'));
+  console.log('MIL_SEED_ON='+(h.indexOf('hg-mil on')>=0?'1':'0'));
+  console.log('TODAY_CHIP='+(h.indexOf('今日完成 <b>')>=0&&h.indexOf('题</span>')>=0?'1':'0'));
+  console.log('TOTAL_CHIP='+(h.indexOf('累计完成 <b>2</b> 题')>=0?'1':'0'));
 })();
 '''
     stdin_ = _concat_script_path()
@@ -1686,7 +1698,8 @@ const W=global;
     for probe in ('GREET=1','MODE=1','STAR_LV=1','NO_LV=1','NO_HGSTAR=1','CONTINUE=1','TRK=1','COUNT=1',
                   'COURSE_ZH=1','COURSE_MATH=1','COURSE_DAILY=1','NO_KIDROW=1','NO_AVA=1','LVLINE=1',
                   'GREET2=1','LBAR=1','NO_SLOGAN=1',
-                  'GRID=1','CPROG=1','MODEBTN=1','NO_TAG=1','NO_GO=1','BADGE_NM=1'):
+                  'GRID=1','CPROG=1','MODEBTN=1','NO_TAG=1','NO_GO=1','BADGE_NM=1',
+                  'NO_DONE_TXT=1','MILESTONES=1','MIL_SEED_ON=1','TODAY_CHIP=1','TOTAL_CHIP=1'):
         assert probe in stdout, stdout
 
 def test_home_course_teaser():
@@ -1946,9 +1959,9 @@ def test_settings_confirm_and_reset_gate():
         assert probe in out, out
 
 
-def test_settings_persist_eye_sound():
-    """我的页内联设置: 护眼时长/音效 单字段就地修改并写 settings 与 localStorage;
-    课程与难度已移除(难度由每个小关卡自动决定), 不再持久化 range/nocarry 字段."""
+def test_settings_persist_sound_isolated():
+    """我的页内联设置: 朗读与音效 单字段就地修改并写 settings 与 localStorage;
+    护眼提醒与课程/难度已移除, 不再持久化 eyeMin/range/nocarry 字段."""
     out = _harness(r'''
 (async()=>{
   const ids={};
@@ -1959,32 +1972,120 @@ def test_settings_persist_eye_sound():
   store['edu_record_v1_kk']=JSON.stringify({stars:0,records:[],wrong:[],wishes:[],settings:{},points:0,level:{}});
   W.Edu.Store.loadAllState();
 
-  // 单字段内联: 护眼提醒
-  W.setEyeInline('30');
-  let s=W.Edu.Store.state.settings;
-  console.log('EYE='+(s.eyeMin===30?'1':'0'));
-
   // 单字段内联: 朗读与音效(关闭)
   W.toggleSoundInline(false);
-  s=W.Edu.Store.state.settings;
+  let s=W.Edu.Store.state.settings;
   console.log('SOUND='+(s.sound===false?'1':'0'));
   console.log('SPEAK_KEY='+(store['edu_speak_v1']==='false'?'1':'0'));
 
-  // 课程与难度已移除: 难度由每个小关卡自动决定, 不再读取 range/nocarry/mult 设置
+  // 课程/难度/护眼已移除: 难度由每个小关卡自动决定, 不再读取 range/nocarry/eyeMin 设置
   s=W.Edu.Store.state.settings;
   console.log('NO_RANGE='+(s.range===undefined||s.range===0?'1':'0'));
   console.log('NO_NOCARRY='+(s.nocarry? '0':'1'));
+  console.log('NO_EYE='+(s.eyeMin===undefined?'1':'0'));
 
-  // 打开护眼屏幕再 setSave: 不应写回已删除的课程字段, 且护眼时长保留
-  W.openSettings && W.openSettings('eye');
-  el('setEyeMin').value='30';
-  W.setSave();
-  s=W.Edu.Store.state.settings;
-  console.log('EYE_KEPT='+(s.eyeMin===30?'1':'0'));
-  console.log('ISOLATED='+(s.range===undefined||s.range===0?'1':'0'));
+  // 打开音效屏幕再 setSave: 不应写回已删除的课程/护眼字段, 且音效保留
+  W.openSettings && W.openSettings('sound');
+  setTimeout(()=>{
+    el('setSound').checked=true;
+    W.setSave();
+    s=W.Edu.Store.state.settings;
+    console.log('SOUND_KEPT='+(s.sound===true?'1':'0'));
+    console.log('ISOLATED='+(s.range===undefined||s.range===0?'1':'0'));
+  },30);
 })();
 ''')
-    for probe in ('EYE=1','SOUND=1','SPEAK_KEY=1','NO_RANGE=1','NO_NOCARRY=1','EYE_KEPT=1','ISOLATED=1'):
+    for probe in ('SOUND=1','SPEAK_KEY=1','NO_RANGE=1','NO_NOCARRY=1','NO_EYE=1','SOUND_KEPT=1','ISOLATED=1'):
+        assert probe in out, out
+
+
+def test_usage_gate():
+    """学习守护: 教育页面默认 30 分钟上限; 超时弹出验证框; 答对繁体数学题或扣 100 星解锁 +30 分钟;
+    打错无法继续; 重启/刷新后重新拦截."""
+    out = _harness(r'''
+(async()=>{
+  let maskEl=null;
+  const mk=()=>({style:{},innerHTML:'',textContent:'',value:'',appendChild(){},setAttribute(){},getAttribute(){return null},focus(){}});
+  const ansEl=mk(), errEl=mk();
+  global.document={
+    getElementById:(id)=>{
+      if(id==='eduGateMask'){ if(!maskEl) maskEl=mk(); return maskEl; }
+      if(id==='eduGateAns'){ return ansEl; }
+      if(id==='eduGateErr'){ return errEl; }
+      return null;
+    },
+    querySelectorAll:()=>[], querySelector:()=>mk(), createElement:()=>mk(),
+    createTextNode:()=>({}), addEventListener(){}, removeEventListener(){},
+    documentElement:{style:{}},
+    body:{appendChild(el){ if(el&&el.id==='eduGateMask') maskEl=el; }}
+  };
+  if(W.Edu.Speech&&W.Edu.Speech.toast) W.Edu.Speech.toast=()=>{};
+  const Store=W.Edu.Store;
+  const G=W.Edu.UsageGate;
+
+  store['edu_record_v1_kk']=JSON.stringify({stars:120,records:[],wrong:[],wishes:[],usage:{},settings:{dailyMin:0},points:0,level:{}});
+  Store.loadAllState();
+  const u=Store.usageForToday();
+  u.secs=29*60; Store.saveState();
+  console.log('LIMIT_MIN='+(Store.usageLimitMin()===30?'1':'0'));
+  console.log('NOT_OVER='+(Store.usageOver()? '0':'1'));
+
+  // 繁体数字转换
+  console.log('TRAD_8='+(G.tradN(8)==='捌'?'1':'0'));
+  console.log('TRAD_15='+(G.tradN(15)==='拾伍'?'1':'0'));
+  console.log('TRAD_20='+(G.tradN(20)==='贰拾'?'1':'0'));
+  console.log('TRAD_99='+(G.tradN(99)==='玖拾玖'?'1':'0'));
+
+  // 达到默认 30 分钟上限 → 弹出验证框(含繁体数学题)
+  u.secs=30*60; Store.saveState();
+  G.showGate();
+  console.log('GATE_VISIBLE='+((maskEl&&maskEl.style.display==='flex')?'1':'0'));
+  console.log('GATE_TITLE='+((maskEl&&maskEl.innerHTML.indexOf('学习时间到啦')>=0)?'1':'0'));
+  console.log('GATE_TRAD_Q='+((maskEl&&/壹|贰|叁|肆|伍|陆|柒|捌|玖|拾/.test(maskEl.innerHTML))?'1':'0'));
+
+  // 打错 → 无法继续, 提示「答错啦」
+  const p=G._getProblem();
+  ansEl.value=String(p.ans===0?1:p.ans-1);
+  W.eduGateCheck();
+  console.log('WRONG_BLOCK='+(G.isBlocking()?'1':'0'));
+  console.log('WRONG_MSG='+((errEl&&errEl.textContent.indexOf('答错啦')>=0)?'1':'0'));
+
+  // 答对 → 解锁, 当日额度 +30 分钟, 弹框关闭
+  ansEl.value=String(p.ans);
+  W.eduGateCheck();
+  console.log('RIGHT_UNLOCK='+(G.isBlocking()? '0':'1'));
+  console.log('MASK_HIDDEN='+((maskEl&&maskEl.style.display==='none')?'1':'0'));
+  console.log('EXTRA_1='+(Store.usageExtraToday()===1?'1':'0'));
+  console.log('LIMIT_60='+(Store.usageLimitMin()===30&&Store.usageLimitSec()===60*60?'1':'0'));
+  console.log('NOT_OVER_2='+(Store.usageOver()? '0':'1'));
+
+  // 再用 31 分钟 → 再次拦截(模拟刷新/重进后依旧弹框)
+  u.secs=61*60; Store.saveState();
+  G.showGate();
+  console.log('REBLOCK='+(G.isBlocking()?'1':'0'));
+
+  // 扣 100 星解锁, 额度再 +30 分钟
+  const before=Store.state.stars;
+  W.eduGateUnlockStars();
+  console.log('STAR_DEDUCT='+(Store.state.stars===before-100?'1':'0'));
+  console.log('STAR_UNLOCK='+(G.isBlocking()? '0':'1'));
+  console.log('EXTRA_2='+(Store.usageExtraToday()===2?'1':'0'));
+
+  // 星星不足 100 → 不可扣星解锁, 但仍被拦截
+  u.secs=91*60; Store.saveState();
+  Store.state.stars=50;
+  G.showGate();
+  W.eduGateUnlockStars();
+  console.log('POOR_BLOCK='+(G.isBlocking()?'1':'0'));
+  console.log('POOR_MSG='+((errEl&&errEl.textContent.indexOf('星星不足')>=0)?'1':'0'));
+})();
+''')
+    for probe in ('LIMIT_MIN=1','NOT_OVER=1','TRAD_8=1','TRAD_15=1','TRAD_20=1','TRAD_99=1',
+                  'GATE_VISIBLE=1','GATE_TITLE=1','GATE_TRAD_Q=1',
+                  'WRONG_BLOCK=1','WRONG_MSG=1',
+                  'RIGHT_UNLOCK=1','MASK_HIDDEN=1','EXTRA_1=1','LIMIT_60=1','NOT_OVER_2=1',
+                  'REBLOCK=1','STAR_DEDUCT=1','STAR_UNLOCK=1','EXTRA_2=1',
+                  'POOR_BLOCK=1','POOR_MSG=1'):
         assert probe in out, out
 
 
@@ -2022,60 +2123,117 @@ def test_record_date_fields_and_home_progress():
 
 
 def test_wish_gift_exchange():
-    """兑换区: 预置武器礼物(刀/弓/枪/剑/盾)可用星星兑换扣星入已兑换;
-    星星不足则拒绝; 礼物价格可在「我的」设置并持久化; 点开可看细节图片卡片."""
+    """兑换区: 武器/奥特曼互斥分区; 武器可重复收集+卡片卖出(返还购入价-5, 按钮不显示「+」);
+    奥特曼唯一不可重复; 已兑换区已删除, 卡片「名字+星星数」同一行; 详情自动朗读名称与专属口号 + 展示真实图."""
     out = _harness(r'''
 (async()=>{
   const mkEl=()=>{const el={_h:'',style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},setAttribute(){},getAttribute(){return null},querySelector:()=>mkEl(),querySelectorAll:()=>[],focus(){},scrollIntoView(){},children:[],textContent:'',value:''};
     Object.defineProperty(el,'innerHTML',{get(){return el._h},set(v){el._h=String(v)}});
     el.appendChild=(c)=>{ if(c && c._h!==undefined) el._h+=(c._h||''); }; return el;};
-  const detailBody=mkEl(), detailTitle=mkEl(), detailSub=mkEl(), detailMask=mkEl();
-  const byId=(id)=> id==='detailBody'?detailBody : (id==='detailTitle'?detailTitle : (id==='detailSub'?detailSub : (id==='eduMaskDetail'?detailMask : mkEl())));
+  const bodyEl=mkEl(), detailBody=mkEl(), detailTitle=mkEl(), detailSub=mkEl(), detailMask=mkEl();
+  const byId=(id)=> id==='eduWishBody'?bodyEl : (id==='detailBody'?detailBody : (id==='detailTitle'?detailTitle : (id==='detailSub'?detailSub : (id==='eduMaskDetail'?detailMask : mkEl()))));
   global.document.getElementById=byId;
   global.document.createElement=()=>mkEl();
   global.document.querySelectorAll=()=>[];
   store['edu_record_v1_kk']=JSON.stringify({stars:70,records:[],wrong:[],wishes:[],wishLog:[],redeemed:[],giftPrices:{},settings:{}});
   W.Edu.Store.loadAllState();
+  // 语音探测: 拦截 playSpeak 记录播报文本
+  const SPOKE=[];
+  W.Edu.Speech.playSpeak=(t)=>{ SPOKE.push(t); console.log('SPOKE='+t); };
   const Wish=W.Edu.Wish;
   const CAT=Wish.GIFT_CATALOG||[];
   const names=CAT.map(g=>g.name).join(',');
+  const SECT=Wish.GIFT_SECTIONS||[];
+  console.log('SEC2='+SECT.length);
+  console.log('CAT_HAS_ULTRA='+(CAT.some(g=>g.sec==='ultra')?'1':'0'));
+  console.log('ULTRA_UNIQUE='+(CAT.filter(g=>g.sec==='ultra').every(g=>g.unique===true)?'1':'0'));
   console.log('CAT_HAS_DAO='+(names.indexOf('宝刀')>=0?'1':'0'));
   console.log('CAT_HAS_GONG='+(names.indexOf('长弓')>=0?'1':'0'));
   console.log('CAT_HAS_QIANG='+(names.indexOf('亮枪')>=0?'1':'0'));
   console.log('CAT_HAS_JIAN='+(names.indexOf('宝剑')>=0?'1':'0'));
   console.log('CAT_HAS_DUN='+(names.indexOf('神盾')>=0?'1':'0'));
+  // 默认定价(按目录): 不随「我的」设置变化
   console.log('DEF_DAO='+Wish.giftPriceOf('dao'));
-  // 兑换 dao(默认20星) 3次(70->50->30->10), 第4次因星不足拒绝
-  Wish.giftRedeem('dao');
+  console.log('DEF_GONG='+Wish.giftPriceOf('gong'));
+  console.log('DEF_QIANG='+Wish.giftPriceOf('qiang'));
+  // 兑换 feidao(15星) 4次(70->55->40->25->10), 第5次因星不足拒绝
+  Wish.giftRedeem('feidao');
   const s1=W.Edu.Store.state;
   console.log('STARS_AFTER='+s1.stars);
   console.log('REDEEMED1='+((s1.redeemed||[]).length));
-  console.log('REDEEMED_DAO='+((s1.redeemed||[])[0]&&s1.redeemed[0].id==='dao'?'1':'0'));
-  Wish.giftRedeem('dao');
-  Wish.giftRedeem('dao');
-  Wish.giftRedeem('dao');
+  console.log('REDEEMED_FEIDAO='+((s1.redeemed||[])[0]&&s1.redeemed[0].id==='feidao'?'1':'0'));
+  console.log('REDEEMED_HAS_PRICE='+((s1.redeemed||[])[0]&&typeof s1.redeemed[0].price==='number'?'1':'0'));
+  Wish.giftRedeem('feidao');
+  Wish.giftRedeem('feidao');
+  Wish.giftRedeem('feidao');
   const s2=W.Edu.Store.state;
   console.log('STARS_EXHAUST='+s2.stars);
   console.log('COUNT2='+((s2.redeemed||[]).length));
-  // 设置价格并验证
-  Wish.giftSetPrice('gong', 7);
-  const s3=W.Edu.Store.state;
-  console.log('PRICE_GONG='+s3.giftPrices['gong']);
-  console.log('PRICEOF_GONG='+Wish.giftPriceOf('gong'));
-  console.log('PRICEOF_DEF='+Wish.giftPriceOf('qiang'));
-  // 细节弹窗: 展示大图 emoji + 名称 + 描述
+  // 卖出: 返还 = 购入价-5 = 10 星(索引方式)
+  console.log('SELL_REFUND='+Wish.sellRefundOf({id:'feidao',price:15}));
+  Wish.giftSell(0);
+  const s4=W.Edu.Store.state;
+  console.log('SELL_STARS='+s4.stars);
+  console.log('SELL_COUNT='+((s4.redeemed||[]).length));
+  // 卡片卖出按钮: giftSellOf 卖掉最近一件
+  Wish.giftSellOf('feidao');
+  const s4b=W.Edu.Store.state;
+  console.log('SELLOF_STARS='+s4b.stars);
+  console.log('SELLOF_COUNT='+((s4b.redeemed||[]).length));
+  // 奥特曼: 唯一不可重复(先凑够星星)
+  W.Edu.Store.state.stars=500;
+  Wish.giftRedeem('diga');
+  const s5=W.Edu.Store.state;
+  console.log('DIGA_STARS='+s5.stars);
+  console.log('DIGA_COUNT='+((s5.redeemed||[]).filter(r=>r.id==='diga').length));
+  Wish.giftRedeem('diga');  // 重复兑换应被拒绝
+  const s6=W.Edu.Store.state;
+  console.log('DIGA_BLOCKED_STARS='+s6.stars);
+  console.log('DIGA_BLOCKED_COUNT='+((s6.redeemed||[]).filter(r=>r.id==='diga').length));
+  // 切到奥特曼区: 武器区自动折叠(不渲染)
+  Wish.giftTab('ultra');
+  console.log('ULTRA_TAB_WEAP='+(bodyEl._h.indexOf('/static/edu/weapons/feidao.svg')>=0?'0':'1'));
+  console.log('ULTRA_TAB_IMG='+(bodyEl._h.indexOf('/static/edu/ultra/')>=0?'1':'0'));
+  console.log('ULTRA_TAB_TITLE='+(bodyEl._h.indexOf('奥特曼专区')>=0?'1':'0'));
+  // 已兑换折叠区已删除: 兑换区不再渲染「已兑换」; 卡片「名字+星星数」同一行; 卖出按钮不显示「+」
+  console.log('NO_FOLD='+(bodyEl._h.indexOf('gift-fold')>=0?'0':'1'));
+  console.log('ONELINE_DIGA='+(bodyEl._h.indexOf('迪迦奥特曼</span><span class="gift-price">180 ⭐</span>')>=0?'1':'0'));
+  console.log('SELL_NO_PLUS='+(bodyEl._h.indexOf('gift-sell')>=0 && bodyEl._h.indexOf('卖出+')<0?'1':'0'));
+  console.log('SELL_175='+(bodyEl._h.indexOf('卖出 175⭐')>=0?'1':'0'));
+  // 切回武器区
+  Wish.giftTab('weapon');
+  console.log('WEAPON_TAB_FEIDAO='+(bodyEl._h.indexOf('/static/edu/weapons/feidao.svg')>=0?'1':'0'));
+  console.log('WEAPON_TAB_NOULTRA='+(bodyEl._h.indexOf('/static/edu/ultra/')>=0?'0':'1'));
+  // 细节弹窗(武器): 真实武器图(非 emoji) + 名称 + 自动朗读语音
   Wish.giftDetail('jian');
-  console.log('DETAIL_EMOJI='+(detailBody._h.indexOf('⚔️')>=0?'1':'0'));
+  console.log('DETAIL_IMG='+(detailBody._h.indexOf('/weapons/jian.svg')>=0?'1':'0'));
+  console.log('DETAIL_NOEMOJI='+(detailBody._h.indexOf('⚔️')>=0?'0':'1'));
   console.log('DETAIL_NAME='+(detailBody._h.indexOf('宝剑')>=0?'1':'0'));
   console.log('DETAIL_TITLE='+(detailTitle.textContent.indexOf('宝剑')>=0?'1':'0'));
   console.log('DETAIL_MASK='+(detailMask.style.display==='flex'?'1':'0'));
+  // 细节弹窗(奥特曼): 专属口号 + 已拥有 + 语音名称 + 延时口号
+  const sp0=SPOKE.length;
+  Wish.giftDetail('diga');
+  console.log('DETAIL_ULTRA_IMG='+(detailBody._h.indexOf('/static/edu/ultra/diga.svg')>=0?'1':'0'));
+  console.log('DETAIL_SLOGAN='+(detailBody._h.indexOf('化作光')>=0?'1':'0'));
+  console.log('DETAIL_OWNED='+(detailBody._h.indexOf('已拥有')>=0?'1':'0'));
+  console.log('SPOKE1='+(SPOKE.length>sp0 && SPOKE[sp0]==='迪迦奥特曼'?'1':'0'));
+  await new Promise(r=>setTimeout(r,1700));  // 等口号延时播报
+  console.log('SPOKE2='+(SPOKE.indexOf('化作光，飞向未来！')>=0?'1':'0'));
 })();
 ''')
-    for probe in ('CAT_HAS_DAO=1','CAT_HAS_GONG=1','CAT_HAS_QIANG=1','CAT_HAS_JIAN=1','CAT_HAS_DUN=1',
-                  'DEF_DAO=20','STARS_AFTER=50','REDEEMED1=1','REDEEMED_DAO=1',
-                  'STARS_EXHAUST=10','COUNT2=3',
-                  'PRICE_GONG=7','PRICEOF_GONG=7','PRICEOF_DEF=40',
-                  'DETAIL_EMOJI=1','DETAIL_NAME=1','DETAIL_TITLE=1','DETAIL_MASK=1'):
+    for probe in ('SEC2=2','CAT_HAS_ULTRA=1','ULTRA_UNIQUE=1',
+                  'CAT_HAS_DAO=1','CAT_HAS_GONG=1','CAT_HAS_QIANG=1','CAT_HAS_JIAN=1','CAT_HAS_DUN=1',
+                  'DEF_DAO=25','DEF_GONG=40','DEF_QIANG=45','STARS_AFTER=55','REDEEMED1=1','REDEEMED_FEIDAO=1',
+                  'REDEEMED_HAS_PRICE=1','STARS_EXHAUST=10','COUNT2=4',
+                  'SELL_REFUND=10','SELL_STARS=20','SELL_COUNT=3',
+                  'SELLOF_STARS=30','SELLOF_COUNT=2',
+                  'DIGA_STARS=320','DIGA_COUNT=1','DIGA_BLOCKED_STARS=320','DIGA_BLOCKED_COUNT=1',
+                  'ULTRA_TAB_WEAP=1','ULTRA_TAB_IMG=1','ULTRA_TAB_TITLE=1',
+                  'NO_FOLD=1','ONELINE_DIGA=1','SELL_NO_PLUS=1','SELL_175=1',
+                  'WEAPON_TAB_FEIDAO=1','WEAPON_TAB_NOULTRA=1',
+                  'DETAIL_IMG=1','DETAIL_NOEMOJI=1','DETAIL_NAME=1','DETAIL_TITLE=1','DETAIL_MASK=1',
+                  'DETAIL_ULTRA_IMG=1','DETAIL_SLOGAN=1','DETAIL_OWNED=1','SPOKE1=1','SPOKE2=1'):
         assert probe in out, out
 
 

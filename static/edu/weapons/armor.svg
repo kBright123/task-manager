@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="asand" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c9b07e"/><stop offset=".6" stop-color="#a58a54"/><stop offset="1" stop-color="#7c653c"/>
+    </linearGradient>
+    <linearGradient id="aglass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#cfe6f2"/><stop offset="1" stop-color="#4a6a80"/></linearGradient>
+  </defs>
+  <ellipse cx="110" cy="188" rx="64" ry="8" fill="#000" opacity=".16"/>
+  <g>
+    <animateTransform attributeName="transform" type="translate" values="0 0; 0 -3; 0 0" dur="1.2s" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1" repeatCount="indefinite"/>
+    <path d="M20,112 L 102,112 L 136,84 L 176,84 L 184,94 L 184,126 L 20,126 Z" fill="url(#asand)" stroke="#4a3520" stroke-width="2.5"/>
+    <path d="M112,112 L 128,92 L 150,92" fill="none" stroke="#e0cf9f" stroke-width="2" opacity=".6"/>
+    <path d="M122,84 L 148,70 L 168,70 L 156,86 Z" fill="url(#asand)" stroke="#4a3520" stroke-width="2"/>
+    <rect x="150" y="68" width="26" height="8" rx="3" fill="#5f6d7c" stroke="#222b37" stroke-width="2"/>
+    <path d="M40,100 C 52,90 74,90 88,98 L 82,112 L 44,112 Z" fill="url(#aglass)" stroke="#33404f" stroke-width="2"/>
+    <path d="M20,126 L 184,126 C 190,126 190,136 182,142 L 26,142 C 18,142 16,132 20,126 Z" fill="#3d3a33" stroke="#1c1a16" stroke-width="2.5"/>
+    <g>
+      <animateTransform attributeName="transform" type="rotate" from="0 56 140" to="360 56 140" dur=".8s" repeatCount="indefinite"/>
+      <circle cx="56" cy="140" r="16" fill="#23262c" stroke="#0e1015" stroke-width="3"/>
+      <circle cx="56" cy="140" r="7" fill="#8a97a6"/>
+    </g>
+    <g>
+      <animateTransform attributeName="transform" type="rotate" from="0 96 140" to="360 96 140" dur=".8s" repeatCount="indefinite"/>
+      <circle cx="96" cy="140" r="16" fill="#23262c" stroke="#0e1015" stroke-width="3"/>
+      <circle cx="96" cy="140" r="7" fill="#8a97a6"/>
+    </g>
+    <g>
+      <animateTransform attributeName="transform" type="rotate" from="0 136 140" to="360 136 140" dur=".8s" repeatCount="indefinite"/>
+      <circle cx="136" cy="140" r="16" fill="#23262c" stroke="#0e1015" stroke-width="3"/>
+      <circle cx="136" cy="140" r="7" fill="#8a97a6"/>
+    </g>
+    <g>
+      <animateTransform attributeName="transform" type="rotate" from="0 168 140" to="360 168 140" dur=".8s" repeatCount="indefinite"/>
+      <circle cx="168" cy="140" r="14" fill="#23262c" stroke="#0e1015" stroke-width="3"/>
+      <circle cx="168" cy="140" r="6" fill="#8a97a6"/>
+    </g>
+  </g>
+</svg>

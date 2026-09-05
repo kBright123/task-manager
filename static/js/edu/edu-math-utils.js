@@ -55,37 +55,61 @@
     return shuffle(arr).slice(0, n);
   }
 
-  function makeCalc(max, nocarry, allowMult, rnd, ops) {
+  // 20/50/100 以内的加减法, 结果落在该档位区间的下半段, 避免出 1+2 这类过浅题:
+  // 20以内 → 10-20; 50以内 → 20-50; 100以内 → 50-100; 10以内 → 5-10; 5以内 → 2-5
+  function bandLow(max) {
+    if (max <= 2) return 1;
+    if (max === 50) return 20;
+    return Math.min(max - 1, Math.floor(max / 2));
+  }
+
+  // opts: {lo: 结果下界(默认 bandLow), usedKeys: 去重表}
+  function makeCalc(max, nocarry, allowMult, rnd, ops, opts) {
     var randFn = rnd || function(){ return Math.random(); };
+    var o = opts || {};
+    var lo = (o.lo === undefined || o.lo === null) ? bandLow(Math.max(1, max)) : o.lo;
+    var usedKeys = o.usedKeys || null;
     if (!ops || !ops.length) {
       ops = ['+','-'];
       if (allowMult) ops.push('×','÷');
     }
-    var op = ops[Math.floor(randFn() * ops.length)];
-    var a,b;
-    if (op === '+') {
-      // 加法: a,b 都 >=1 且结果非 0, 并让和不超过 max
-      var aMax = Math.max(1, max - 1);
-      a = Math.floor(randFn() * aMax) + 1;
-      b = Math.floor(randFn() * Math.max(1, max - a)) + 1;
-      if (nocarry && (a%10 + b%10 >= 10)) return makeCalc(max, nocarry, allowMult, randFn);
-      return { a:a, b:b, op:'+', correct:a+b, expr:a+'+'+b };
+    var guard = 0;
+    for (;;) {
+      var op = ops[Math.floor(randFn() * ops.length)];
+      var q;
+      if (op === '+') {
+        // 和落在 [lo, max]: a 取大数区, b 补足
+        var aLo = Math.max(1, lo - 1);
+        var aHi = Math.max(aLo, max - 1);
+        var a = aLo + Math.floor(randFn() * (aHi - aLo + 1));
+        var bLo = Math.max(1, lo - a);
+        var bHi = max - a;
+        if (bHi < bLo) { if (++guard > 25) { a = 1; b = 1; q = {a:a,b:b,op:'+',correct:a+b,expr:a+'+'+b}; break; } continue; }
+        var b = bLo + Math.floor(randFn() * (bHi - bLo + 1));
+        if (nocarry && (a%10 + b%10 >= 10)) continue;
+        q = { a:a, b:b, op:'+', correct:a+b, expr:a+'+'+b };
+      } else if (op === '-') {
+        // 差落在 [lo, max-1]: 被减数 a 大数区, 减数 b 使差不低于 lo
+        if (max <= lo) { q = { a:max, b:0, op:'-', correct:max, expr:max+'-0' }; }
+        else {
+          var a2 = lo + 1 + Math.floor(randFn() * (max - lo));
+          var b2 = 1 + Math.floor(randFn() * (a2 - lo));
+          if (nocarry && (a2%10 < b2%10)) continue;
+          q = { a:a2, b:b2, op:'-', correct:a2-b2, expr:a2+'-'+b2 };
+        }
+      } else if (op === '×') {
+        a = Math.floor(randFn() * 9) + 1; b = Math.floor(randFn() * 9) + 1;
+        q = { a:a, b:b, op:'×', correct:a*b, expr:a+'×'+b };
+      } else {  // ÷
+        b = Math.floor(randFn() * 9) + 1; a = b * (Math.floor(randFn() * 9) + 1);
+        q = { a:a, b:b, op:'÷', correct:a/b, expr:a+'÷'+b };
+      }
+      if (!usedKeys) return q;
+      var key = q.a + q.op + q.b;
+      if (!usedKeys[key]) { usedKeys[key] = true; return q; }
+      if (++guard > 80) return q;  // 组合池已耗尽, 放行避免死循环
     }
-    if (op === '-') {
-      // 减法: 被减数 a 在 [2, max] 内且 >=2, 减数 b 在 [1, a-1], 保证 a-b 非 0
-      a = Math.floor(randFn() * Math.max(1, max - 1)) + 2;
-      b = Math.floor(randFn() * (a - 1)) + 1;
-      if (nocarry && (a%10 < b%10)) return makeCalc(max, nocarry, allowMult, randFn);
-      return { a:a, b:b, op:'-', correct:a-b, expr:a+'-'+b };
-    }
-    if (op === '×') {
-      a = Math.floor(randFn() * 9) + 1; b = Math.floor(randFn() * 9) + 1;
-      return { a:a, b:b, op:'×', correct:a*b, expr:a+'×'+b };
-    }
-    if (op === '÷') {
-      b = Math.floor(randFn() * 9) + 1; a = b * (Math.floor(randFn() * 9) + 1);
-      return { a:a, b:b, op:'÷', correct:a/b, expr:a+'÷'+b };
-    }
+    return q;
   }
 
   function calcCfg(d) {

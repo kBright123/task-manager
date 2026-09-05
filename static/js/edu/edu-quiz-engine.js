@@ -54,9 +54,9 @@
   function starState(i) {
     var it = quiz.items[i];
     if (it.order) {
-      var o = (quiz.quizOrder && quiz.quizOrder[i]) || [];
-      if (!o.length) return 'empty';
-      return String(o.join('|')) === String(it.correct) ? 'done' : 'wrong';
+      var my = quiz.answers && quiz.answers[i];
+      if (my === undefined || String(my).trim() === '') return 'empty';
+      return M.isCorrect(it, my) ? 'done' : 'wrong';
     }
     var my = quiz.answers && quiz.answers[i];
     if (my === undefined || String(my).trim() === '') return 'empty';
@@ -213,7 +213,6 @@
       if (inp) setTimeout(function(){ inp.focus(); }, 100);
     }
     updateQuizProg();
-    syncRestTimer();
     autoplayListen(quiz.view);
   }
 
@@ -223,7 +222,16 @@
   var advTimer = null;
   function scheduleNext(ms) {
     clearTimeout(advTimer);
-    advTimer = setTimeout(function(){ advTimer = null; window.Edu.QuizEngine.quizNext(); }, ms);
+    advTimer = setTimeout(function(){ advTimer = null;
+      // 学习守护拦截中将自动进题挂起, 解锁后继续推进
+      if (window.Edu && window.Edu.UsageGate && window.Edu.UsageGate.isBlocking()) { window.Edu.UsageGate.pendingAdvance = true; return; }
+      window.Edu.QuizEngine.quizNext();
+    }, ms);
+  }
+
+  // 学习守护拦截期间暂停作答推进
+  function gateBlocked() {
+    return !!(window.Edu && window.Edu.UsageGate && window.Edu.UsageGate.isBlocking());
   }
 
   window.Edu.QuizEngine = {
@@ -294,6 +302,7 @@
   var judged = {};
 
   window.Edu.QuizEngine.pickOpt = function (idx, v) {
+    if (gateBlocked()) return;
     if (!quiz || quiz.submitted) return;
     // 点选即判: 点选项立即套用正确答案 → 自动进下一题; 点错的先给「再试一次」, 第二次错才揭示
     if (judged[idx]) return;
@@ -363,6 +372,7 @@
   }
 
   window.Edu.QuizEngine.confirmAnswer = function () {
+    if (gateBlocked()) return;
     if (!quiz || quiz.submitted) return;
     var idx = quiz.view;
     var it = quiz.items[idx];
@@ -430,19 +440,33 @@
   }
 
   window.Edu.QuizEngine.tapOrder = function (idx, oi) {
+    if (gateBlocked()) return;
     if (!quiz || quiz.submitted) return;
     var it = quiz.items[idx];
+    if (!it || !it.options) return;
+    if (judged[idx]) return;
     quizOrder[idx] = quizOrder[idx] || [];
     if (quizOrder[idx].includes(oi)) return;
     quizOrder[idx].push(oi);
     renderOrderSeq(idx);
     var cbtn = document.getElementById('qzConfirm');
     if (cbtn) cbtn.disabled = !(quizOrder[idx].length === (it.options||[]).length);
+    // 选满即记录答案并按顺序判定; 否则排序题永远不记答案, 进度不满无法交卷
+    if (quizOrder[idx].length === (it.options || []).length) {
+      var joined = quizOrder[idx].map(function(i){ return M.stripBlank(String(M.optVal(it.options[i]))); }).join('');
+      window.Edu.QuizEngine.onQuizInput(idx, joined);
+      judgeChoice(idx);
+    }
   };
 
   window.Edu.QuizEngine.clearOrder = function (idx) {
     quizOrder[idx] = [];
     renderOrderSeq(idx);
+    if (quiz && quiz.answers) { delete quiz.answers[idx]; }
+    updateQuizProg();
+    saveQuizState();
+    var cbtn = document.getElementById('qzConfirm');
+    if (cbtn) cbtn.disabled = false;
   };
 
   function renderOrderSeq(idx) {
@@ -507,6 +531,7 @@
   }
 
   window.Edu.QuizEngine.submitQuiz = function () {
+    if (gateBlocked()) return;
     if (!quiz || quiz.submitted) return;
     quiz.submitted = true;
     var right = 0, maxCombo = 0, combo = 0;
@@ -519,6 +544,12 @@
       recordAnswer(quizSubject, it.type || quizSubject, it.id, it.prompt, it.correct, quiz.answers && quiz.answers[i], ok);
     });
     var starsEarned = M.gradeQuiz(right);
+    // 重打「已通关关卡」: 答对获得的星星减半
+    var cIn = quiz.courseIn || null;
+    if (cIn && starsEarned > 0 && window.Edu && window.Edu.Course &&
+        window.Edu.Course.isLevelCleared && window.Edu.Course.isLevelCleared(cIn)) {
+      starsEarned = Math.max(1, Math.round(starsEarned / 2));
+    }
     Store.state.stars = (Store.state.stars || 0) + starsEarned;
     Store.state.submits = (Store.state.submits || 0) + 1;
     // 今日答题数/题量上限统计(自动回写 usage[date])
@@ -542,7 +573,6 @@
       });
     }
 
-    clearRestTimer();
     clearQuizState();
     document.body && document.body.classList && document.body.classList.remove('quiz-live');
     document.body && document.body.classList && document.body.classList.add('quiz-complete');
@@ -620,19 +650,25 @@
   }
 
   function restartExpr() {
-    if (quiz && quiz.type === 'daily') return 'window.startDaily()';
-    if (quizSubject === 'par') return 'window.parPlay(\'' + (quiz && quiz.type) + '\')';
-    if (quizSubject === 'en') return 'window.wbEn(\'' + (window.Edu.EnWorkbench.wbEnMode || 'word') + '\')';
-    if (quizSubject === 'math') return 'window.wbMath(\'' + (window.Edu.MathWorkbench.wbMathMode || 'calc') + '\')';
-    return 'window.wbZh(\'' + (window.Edu.ZhWorkbench.wbZhMode || 'zi') + '\')';
+    // 若本套题是闯关关卡启动, 「再练一次」先恢复闯关上下文(重打已通关关卡答对星星仍减半, 难度不回退)
+    var ci = (quiz && quiz.courseIn)
+      ? 'window.Edu.Store.state.courseIn=window.Edu.QuizEngine.quiz.courseIn;window.Edu.Store.state.courseInflight=1;'
+      : '';
+    if (quiz && quiz.type === 'daily') return ci + 'window.startDaily()';
+    if (quizSubject === 'par') return ci + 'window.parPlay(\'' + (quiz && quiz.type) + '\')';
+    if (quizSubject === 'en') return ci + 'window.wbEn(\'' + (window.Edu.EnWorkbench.wbEnMode || 'word') + '\')';
+    if (quizSubject === 'math') return ci + 'window.wbMath(\'' + (window.Edu.MathWorkbench.wbMathMode || 'calc') + '\')';
+    return ci + 'window.wbZh(\'' + (window.Edu.ZhWorkbench.wbZhMode || 'zi') + '\')';
   }
 
   window.Edu.QuizEngine.restartQuiz = function () {
     if (!quiz) return;
     document.body && document.body.classList && document.body.classList.remove('quiz-complete');
     var subj = quizSubject, type = quiz.type, diff = quiz.difficulty;
+    var cIn = quiz.courseIn || null;   // 保留闯关上下文, 让「再练一次」继续按原关卡结算(重打减半/难度不回退)
     quiz = null;
     window.Edu.QuizEngine.quiz = null;
+    if (cIn) { Store.state.courseIn = cIn; Store.state.courseInflight = 1; }
     if (type === 'daily') { window.startDaily(); return; }
     if (subj === 'math') window.wbMath(window.Edu.MathWorkbench.wbMathMode || 'calc');
     else if (subj === 'en') window.wbEn(window.Edu.EnWorkbench.wbEnMode || 'word');
@@ -645,6 +681,7 @@
   };
 
   window.Edu.QuizEngine.quizInputSubmit = function (idx, val) {
+    if (gateBlocked()) return;
     window.Edu.QuizEngine.onQuizInput(idx, val);
     if (!quiz || quiz.submitted) return;
     var it = quiz.items[idx];
@@ -673,6 +710,7 @@
   };
 
   window.Edu.QuizEngine.quizNext = function () {
+    if (gateBlocked()) { if (window.Edu && window.Edu.UsageGate) window.Edu.UsageGate.pendingAdvance = true; return; }
     if (!quiz || quiz.submitted) return;
     if (quiz.view < quiz.items.length - 1) {
       quiz.view++;
@@ -705,12 +743,19 @@
   }
 
   window.Edu.QuizEngine.startQuiz = function (subj, type, items, levelInfo) {
+    // 闯关上下文快照: startFresh 会清空 Store.state.courseIn, 需先拷出本次题面归属的关卡,
+    // 供结算时判断「是否重打已通关关卡」(答对星星减半)以及「再练一次」时恢复难度进度
+    var ci = Store.state.courseIn || null;
     // 正在做同一套练习时再次进入(如再次点击该科目标签): 直接重新生成新题
     var isLive = !!(quiz && !quiz.submitted && quizSubject === subj && quiz.type === type);
     if (isLive) { startFresh(subj, type, items, levelInfo); return; }
     // 清掉可能残留的上次未完练习快照, 始终起一套新题(不再弹「续学」提示)
     clearQuizState();
     startFresh(subj, type, items, levelInfo);
+    if (ci && ci.subj === subj) {
+      var cT = (subj === 'math' && ci.t === 'did') ? 'calc' : ci.t;
+      if (cT === type) quiz.courseIn = ci;
+    }
   };
 
   // 离开页面时做最后一次保存(不弹「离开此页?」提示): 进度已随每次作答实时落盘 + 切后台时保存,
@@ -736,101 +781,6 @@
       }
     });
   }
-
-  // ============ 护眼休息: 累计学习 ≥20 分钟弹出「休息一下 🌳」 ============
-  var REST_KEY = 'edu_rest_v1_' + String((window.eduKids && window.eduKids.active ? (window.eduKids.active() || {}).id : null) || 'kk');
-  function restLimit() {
-    // 护眼时长(分钟/秒): 家长控制「护眼提醒」可调, 默认 20 分钟
-    var m = parseInt((Store.curSettings() || {}).eyeMin, 10);
-    if (!(m > 0)) m = C.REST_DEFAULT || 20;
-    return m * 60;
-  }
-  var restAccum = 0;
-  var restTimer = null;
-  var restLastTick = 0;
-  var restOverlay = null;
-
-  function restLoad() {
-    try { return parseInt(localStorage.getItem(REST_KEY), 10) || 0; } catch (e) { return 0; }
-  }
-  function restSave(v) {
-    try { localStorage.setItem(REST_KEY, String(v)); } catch (e) {}
-  }
-  function restResetAccum() { if (restAccum >= restLimit()) restAccum = 0; }
-  function isPageVisible() {
-    // 浏览器里返回 document.visibilityState === 'visible'; node 测试环境为 undefined → 视为不可见, 不启动计时, 避免测试进程被 interval 挂起
-    try { return document.visibilityState === 'visible'; } catch (e) { return false; }
-  }
-  function syncRestTimer() {
-    if (isPageVisible() && quiz && !quiz.submitted) {
-      restLoad();
-      if (!restTimer) { restLastTick = Date.now(); restTimer = setInterval(restTick, 1000); }
-    } else {
-      if (restTimer) { clearInterval(restTimer); restTimer = null; }
-      restLoad();
-    }
-  }
-
-  function restTick() {
-    var now = Date.now();
-    if (restLastTick) restAccum += Math.round((now - restLastTick) / 1000);
-    restLastTick = now;
-    if (restAccum >= restLimit()) {
-      stopRestTick();
-      showRestOverlay();
-      restAccum = 0;
-      restSave(0);
-    } else {
-      restSave(restAccum);
-    }
-  }
-  function startRestTick() {
-    if (restTimer) return;
-    restLastTick = Date.now();
-    restTimer = setInterval(restTick, 1000);
-  }
-  function stopRestTick() {
-    if (restTimer) { clearInterval(restTimer); restTimer = null; }
-  }
-
-  function showRestOverlay() {
-    var old = document.getElementById('restOverlay');
-    if (old && old.parentNode) old.parentNode.removeChild(old);
-    var div = document.createElement('div');
-    div.id = 'restOverlay';
-    div.className = 'rest-overlay';
-    div.innerHTML = '<div class="rest-card">'+
-      '<div class="rest-emoji">🌳</div>'+
-      '<div class="rest-title">休息一下</div>'+
-      '<div class="rest-sub">眼睛累了，喝口水、望望远，休息片刻再来闯关吧～</div>'+
-      '<button type="button" class="rest-ok" onclick="window.Edu.QuizEngine.dismissRest()">好的，继续</button>'+
-      '</div>';
-    document.body.appendChild(div);
-    window.Edu.QuizEngine.restOverlay = div;
-  }
-  function dismissRest() {
-    var old = document.getElementById('restOverlay');
-    if (old && old.parentNode) old.parentNode.removeChild(old);
-    restOverlay = null;
-    restResetAccum();
-    restSave(0);
-  }
-
-  // 公共钩子(声明提升, 供 submitQuiz 等引用): 答题进入启停护眼计时, 也便于测试
-  function startRestTimer() {
-    restLoad();
-    startRestTick();
-  }
-  function clearRestTimer() {
-    stopRestTick();
-    restSave(restAccum);
-  }
-  window.Edu.QuizEngine.startRestTimer = startRestTimer;
-  window.Edu.QuizEngine.clearRestTimer = clearRestTimer;
-  window.Edu.QuizEngine.showRestOverlay = showRestOverlay;
-  window.Edu.QuizEngine.dismissRest = dismissRest;
-  window.Edu.QuizEngine.restAccum = function () { return restAccum; };
-  window.Edu.QuizEngine.restLimit = restLimit;
 
   window.onQuizInput = window.Edu.QuizEngine.onQuizInput;
   window.pickOpt = window.Edu.QuizEngine.pickOpt;

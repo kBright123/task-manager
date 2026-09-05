@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="pbody" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#9aa7b4"/><stop offset=".4" stop-color="#d9e1e8"/><stop offset="1" stop-color="#6b7886"/>
+    </linearGradient>
+    <linearGradient id="pflame" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7fd4ff" stop-opacity=".9"/><stop offset=".4" stop-color="#ffd76a"/><stop offset="1" stop-color="#ff8a3a" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="100" cy="186" rx="46" ry="7" fill="#000" opacity=".16"/>
+  <g>
+    <animateTransform attributeName="transform" type="rotate" values="-2 100 110; 2 100 110; -2 100 110" dur="2.4s" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1" repeatCount="indefinite"/>
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="0 0; -6 -6; 0 0" dur="2.4s" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1" repeatCount="indefinite"/>
+      <path d="M22,110 C 36,96 62,92 102,94 C 150,96 176,104 184,110 C 176,116 142,120 102,116 C 62,112 34,120 22,110 Z" fill="url(#pbody)" stroke="#2a3642" stroke-width="2.5"/>
+      <path d="M70,106 L 8,132 L 68,140 Z" fill="#98a4b1" stroke="#2a3642" stroke-width="2"/>
+      <path d="M124,104 L 192,96 L 176,104 Z" fill="#98a4b1" stroke="#2a3642" stroke-width="2"/>
+      <path d="M70,112 C 60,112 52,118 48,128 L 56,130 Z" fill="#2a3642"/>
+      <path d="M124,104 L 138,100 L 140,106 Z" fill="#2a3642"/>
+      <path d="M122,100 C 134,96 146,97 152,102 L 148,108 C 140,104 130,106 122,112 Z" fill="#bfe3f0" stroke="#33404f" stroke-width="2"/>
+      <rect x="96" y="108" width="34" height="7" rx="3" fill="#c9382e"/>
+      <rect x="120" y="128" width="26" height="6" rx="3" fill="#6b7a89" stroke="#2a3642" stroke-width="1.5"/>
+      <rect x="148" y="120" width="8" height="20" rx="3" fill="#6b7a89" stroke="#2a3642" stroke-width="1.5"/>
+    </g>
+    <g>
+      <animate attributeName="opacity" values=".35;1;.5;1;.35" dur=".2s" repeatCount="indefinite"/>
+      <rect x="0" y="104" width="20" height="12" rx="4" fill="url(#pflame)"/>
+    </g>
+  </g>
+</svg>

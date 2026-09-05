@@ -8,8 +8,8 @@
 
   // =====================================================================
   // 设置中心(第四批升级):
-  //   · 学习设置(难度)                     · 护眼时长(默认20分钟)
-  //   · 音效开关(Speech)                   · 重置进度: 勾选「我已知晓」二次确认(eduMaskReset)
+  //   · 学习设置(难度)                     · 音效开关(Speech)
+  //   · 重置进度: 勾选「我已知晓」二次确认(eduMaskReset)
   //   · 危险操作: 输入指定文字确认(eduMaskConfirm, 如删除宝贝)
   // =====================================================================
 
@@ -19,17 +19,16 @@
   window.Edu.Settings = window.Edu.Settings || {};
 
   var SCREENS = {
-    eye:    { title: '👁️ 护眼提醒',   sub: '连续作答后提醒休息的间隔时长' },
     sound:  { title: '🔊 朗读与音效', sub: '控制朗读与音效的开关' }
   };
-  var CURRENT_SCREEN = 'eye';
+  var CURRENT_SCREEN = 'sound';
 
   function qsa(sel) {
     return (typeof document.querySelectorAll === 'function') ? document.querySelectorAll(sel) : [];
   }
 
   function showScreen(screen) {
-    var name = SCREENS[screen] ? screen : 'eye';
+    var name = SCREENS[screen] ? screen : 'sound';
     CURRENT_SCREEN = name;
     var screens = qsa('.set-screen');
     for (var i = 0; i < screens.length; i++) {
@@ -48,7 +47,6 @@
     showScreen(screen);
     var s = Store.curSettings();
     var el;
-    if ((el = document.getElementById('setEyeMin'))) el.value = s.eyeMin || C.REST_DEFAULT;
     if ((el = document.getElementById('setSound'))) el.checked = s.sound !== false;
     mask.style.display = 'flex';
   };
@@ -57,10 +55,6 @@
     var s = Store.curSettings();
     var screen = CURRENT_SCREEN;
     var el;
-    // 护眼提醒屏幕
-    if (screen === 'eye') {
-      if ((el = document.getElementById('setEyeMin'))) s.eyeMin = Math.min(60, Math.max(5, parseInt(el.value, 10) || C.REST_DEFAULT));
-    }
     // 朗读与音效屏幕
     if (screen === 'sound') {
       if ((el = document.getElementById('setSound'))) {
@@ -74,16 +68,6 @@
     document.getElementById('eduMaskSet').style.display = 'none';
     if (window.renderMine) window.renderMine();
     Speech.toast('设置已保存');
-  };
-
-  // 我的页内联修改: 护眼提醒 / 朗读与音效(单字段直接就地修改, 不弹框)
-  window.setEyeInline = function (val) {
-    var s = Store.curSettings();
-    s.eyeMin = Math.min(60, Math.max(5, parseInt(val, 10) || C.REST_DEFAULT));
-    Store.mergeSet(s);
-    Store.saveState();
-    if (window.renderMine) window.renderMine();
-    Speech.toast('护眼时长已更新');
   };
 
   window.toggleSoundInline = function (on) {

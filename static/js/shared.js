@@ -117,6 +117,17 @@ window.eduSync = (function () {
       .catch(function () { return {}; });
   }
   function dbIdOf(kid) { return kid && kid.dbId ? kid.dbId : null; }
+  // 由服务端档案生成/合并本地孩子记录: 保留本地 clientId(id), 字段以服务端为准
+  function buildLocalKid(sk, lk) {
+    return {
+      id: lk ? lk.id : ('db' + sk.id),
+      dbId: Number(sk.id),
+      name: sk.name,
+      birthYear: Number(sk.birthYear),
+      gender: sk.gender || '',
+      created: lk ? lk.created : Date.now()
+    };
+  }
   // 整体推送孩子档案并回填 dbId
   function pushKids() {
     var kids = window.eduKids.all();
@@ -140,9 +151,9 @@ window.eduSync = (function () {
     pushTimer = setTimeout(function () { pushTimer = null; pushKids(); }, 400);
   }
   function pushState(kidId, dkey, data) {
-    // 空弹不推: 初始 Store.state 为 {} 时不应覆盖后端已有数据(收养/归并流程的
-    // 空推曾把两端已合并的星星清成 0), 有内容才同步。
-    if (!data || typeof data !== 'object' || Object.keys(data).length === 0) return;
+    // 空弹不推: 初始 Store.state 为 {} / 零值默认结构时不应覆盖后端已有数据(收养/归并流程的
+    // 空推曾把两端已合并的星星清成 0), 有真实内容才同步。
+    if (isEmptyBlob(data)) return;
     var kid = window.eduKids.byId(kidId);
     if (!kid) return;
     if (!dbIdOf(kid)) {
@@ -213,6 +224,22 @@ window.eduSync = (function () {
   function writeBlob(key, v) {
     try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {}
   }
+  // 判定 blob 是否「空/默认值」: 只含 0/空数组/空对象/空串 等脚手架值时视为空,
+  // 避免把归并时生成的零值默认结构(如 {stars:0,maxCombo:0,submits:0})误当成有效数据上传覆盖后端。
+  function isEmptyBlob(v) {
+    if (!v || typeof v !== 'object') return true;
+    if (Array.isArray(v)) return v.length === 0;
+    var keys = Object.keys(v);
+    if (!keys.length) return true;
+    for (var i = 0; i < keys.length; i++) {
+      var val = v[keys[i]];
+      if (val === undefined || val === null) continue;
+      if (Array.isArray(val)) { if (val.length) return false; continue; }
+      if (typeof val === 'object') { if (!isEmptyBlob(val)) return false; continue; }
+      if (val !== 0 && val !== '' && val !== false) return false;
+    }
+    return true;
+  }
   // 启动时从后端恢复：孩子档案若无本地则用后端；本地孩子回填 dbId。
   function hydrate() {
     return api('POST', '/bootstrap').then(function (res) {
@@ -256,10 +283,10 @@ window.eduSync = (function () {
           if (sid == null) return;
           var st = store.stateKeyFor(sid);
           var sb = mergeBlob(readBlob(st), readBlob(store.stateKeyFor(k.id)));
-          if (Object.keys(sb).length) writeBlob(st, sb);
+          if (!isEmptyBlob(sb)) writeBlob(st, sb);
           var wt = store.wbKeyFor(sid);
           var wb2 = mergeBlob(readBlob(wt), readBlob(store.wbKeyFor(k.id)));
-          if (Object.keys(wb2).length) writeBlob(wt, wb2);
+          if (!isEmptyBlob(wb2)) writeBlob(wt, wb2);
           try { localStorage.removeItem(store.stateKeyFor(k.id)); } catch (e) {}
           try { localStorage.removeItem(store.wbKeyFor(k.id)); } catch (e) {}
         });
@@ -267,49 +294,90 @@ window.eduSync = (function () {
         window.eduKids.save(dx);
         local = window.eduKids.all();
       }
-      if (!local.length && serverKids.length) {
-        serverKids.forEach(function (sk) {
-          window.eduKids.addLocal({
-            id: 'db' + sk.id, dbId: sk.id, name: sk.name,
-            birthYear: sk.birthYear, gender: sk.gender, created: Date.now()
-          });
-        });
-        local = window.eduKids.all();
-      } else {
-        serverKids.forEach(function (sk) {
-          var m = local.filter(function (k) {
-            return k.name === sk.name && Number(k.birthYear) === Number(sk.birthYear)
-              && k.gender === sk.gender && !dbIdOf(k);
-          })[0];
-          if (m) window.eduKids.setDbId(m.id, sk.id);
+      // ---- 以服务端为权威同步孩子档案: 登录后以服务器为准下载, 本地没有的再传上去 ----
+      // 用 (dbId 优先, 否则 name+year+gender 匹配) 把服务端孩子覆盖/合并进本地,
+      // 只保留服务端仍存在的孩子(服务端删除后, 其它设备本地不应再显示), 并回填 dbId。
+      var serverMap = {};
+      serverKids.forEach(function (sk) {
+        serverMap[Number(sk.id)] = sk;
+      });
+      var finalList = [];
+      var serverSeen = {};
+      local.forEach(function (lk) {
+        var sk = null;
+        var m = Number(dbIdOf(lk));
+        if (m && m in serverMap) sk = serverMap[m];
+        else {
+          for (var s in serverMap) {
+            if (serverSeen[s]) continue;
+            var c = serverMap[s];
+            if (c.name === lk.name && Number(c.birthYear) === Number(lk.birthYear) && c.gender === lk.gender) { sk = c; break; }
+          }
+        }
+        if (sk) { serverSeen[sk.id] = 1; finalList.push(buildLocalKid(sk, lk)); }
+        else if (!dbIdOf(lk)) { finalList.push(lk); }  // 本地未同步孩子: 保留, 稍后上传到服务端
+      });
+      serverKids.forEach(function (sk) {
+        if (serverSeen[sk.id]) return;
+        finalList.push(buildLocalKid(sk, null));
+      });
+      var d0 = window.eduKids.load();
+      var prevIds = {};
+      (local || []).forEach(function (k) { prevIds[k.id] = 1; });
+      var goneList = [];
+      d0.list = finalList;
+      finalList.forEach(function (k) {
+        if (prevIds[k.id]) delete prevIds[k.id];
+      });
+      Object.keys(prevIds).forEach(function (oldId) { goneList.push(oldId); });
+      window.eduKids.save(d0);
+      local = window.eduKids.all();
+      // 服务端已删除/已被归并的孩子: 清掉本地残留的学习数据, 避免旧宝贝幽灵数据复活
+      if (store) {
+        goneList.forEach(function (oldId) {
+          try { localStorage.removeItem(store.stateKeyFor(oldId)); } catch (e) {}
+          try { localStorage.removeItem(store.wbKeyFor(oldId)); } catch (e) {}
         });
       }
-      // 跨设备档案以服务端为权威: 把服务端的孩子姓名/生日/性别(可能已在别的设备改名)
-      // 覆盖回本地缓存, 保证同一账号在手机/PC显示一致(直接写本地, 不触发回推)
-      var reconciled = false;
-      serverKids.forEach(function (sk) {
-        var lm = window.eduKids.all().filter(function (k) {
-          return Number(dbIdOf(k)) === Number(sk.id);
-        })[0];
-        if (lm && (lm.name !== sk.name || Number(lm.birthYear) !== Number(sk.birthYear) || lm.gender !== sk.gender)) {
-          var d = window.eduKids.load();
-          d.list = d.list.map(function (k) {
-            if (Number(dbIdOf(k)) === Number(sk.id)) {
-              k.name = sk.name; k.birthYear = Number(sk.birthYear); k.gender = sk.gender;
-            }
-            return k;
+      // hydration 成功后统一做一次 profile 回推: 保证本设备回填的 dbId 及排序
+      // 与(可能残留在本设备但服务端已删)清理结果同步上去, 避免下次被当作新宝贝重建;
+      // 上传后把服务端返回的 dbId 回填到本地未同步的孩子, 完成首次建档。
+      pushKids().then(function (res) {
+        if (res && res.ok && res.kids) {
+          var dl = window.eduKids.load();
+          res.kids.forEach(function (sk) {
+            var lm = dl.list.filter(function (k) { return k.id === sk.clientId && !dbIdOf(k); })[0];
+            if (lm) lm.dbId = Number(sk.id);
           });
-          window.eduKids.save(d);
-          reconciled = true;
+          window.eduKids.save(dl);
         }
       });
-      // 回填每个孩子的学习数据(仅当本地为空时,以后端为准; 发生双向归并时后端为准)
-      var merged = remapKeys.length > 0;
+      // 跨设备档案以服务端为权威: 名字/生日/性别已在上面 buildLocalKid 时以服务端为准合并,
+      // 这里仅标志是否发生过合并, 供上层触发重绘。
+      var reconciled = false;
+      (local || []).forEach(function (lk) {
+        serverKids.forEach(function (sk) {
+          if (Number(dbIdOf(lk)) !== Number(sk.id)) return;
+          if (lk.name !== sk.name || Number(lk.birthYear) !== Number(sk.birthYear) || lk.gender !== sk.gender) reconciled = true;
+        });
+      });
+      // 回填每个孩子的学习数据: 服务端有数据则以服务端为权威直接下载,
+      // 服务端没有而本地有则上传补全
       local.forEach(function (k) {
         if (!dbIdOf(k)) return;
         ['state', 'workbench'].forEach(function (dkey) {
           api('GET', '/kids/' + dbIdOf(k) + '/state?dkey=' + dkey).then(function (s) {
-            if (s && s.ok && s.data && onState) onState(k.id, dkey, s.data, merged);
+            if (!s || !s.ok) return;
+            var key = (dkey === 'workbench') ? store.wbKeyFor(k.id) : store.stateKeyFor(k.id);
+            var localBlob = readBlob(key);
+            var hasServer = s.data && typeof s.data === 'object' && Object.keys(s.data).length;
+            if (hasServer) {
+              // 以服务端为权威: 无条件下载覆盖本地(force)
+              if (onState) onState(k.id, dkey, s.data, true);
+            } else if (!isEmptyBlob(localBlob)) {
+              // 服务端没有该孩子数据而本地有(真实)数据: 上传本地数据(本地向服务端补全)
+              pushState(k.id, dkey, localBlob);
+            }
           });
         });
       });

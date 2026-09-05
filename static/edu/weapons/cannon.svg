@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="cbarrel" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4a5563"/><stop offset=".3" stop-color="#8a97a6"/><stop offset=".8" stop-color="#3d4856"/><stop offset="1" stop-color="#6c7a89"/>
+    </linearGradient>
+    <linearGradient id="cwood" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7a4f26"/><stop offset="1" stop-color="#3f2712"/></linearGradient>
+  </defs>
+  <ellipse cx="106" cy="184" rx="56" ry="8" fill="#000" opacity=".18"/>
+  <g>
+    <animateTransform attributeName="transform" type="rotate" values="-1 60 130; 1 60 130; -1 60 130" dur="4s" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1" repeatCount="indefinite"/>
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="0 0; -14 0; 0 0" dur="2.6s" keyTimes="0;.12;.3" repeatCount="indefinite" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1"/>
+      <rect x="40" y="86" width="132" height="26" rx="4" fill="url(#cbarrel)" stroke="#222b37" stroke-width="3"/>
+      <rect x="168" y="80" width="18" height="38" rx="4" fill="#5f6d7c" stroke="#222b37" stroke-width="3"/>
+      <rect x="42" y="82" width="22" height="34" rx="4" fill="#39424f" stroke="#222b37" stroke-width="3"/>
+      <rect x="54" y="112" width="96" height="16" rx="3" fill="url(#cwood)" stroke="#2a1a10" stroke-width="2"/>
+    </g>
+    <g fill="url(#cwood)" stroke="#2a1a10" stroke-width="2.5">
+      <circle cx="76" cy="156" r="34"/>
+      <circle cx="140" cy="156" r="34"/>
+    </g>
+    <g fill="#5a3e22" stroke="#2a1a10" stroke-width="2.5">
+      <circle cx="76" cy="156" r="15"/><circle cx="140" cy="156" r="15"/>
+      <line x1="76" y1="140" x2="76" y2="172" stroke="#2a1a10" stroke-width="3"/>
+      <line x1="60" y1="156" x2="92" y2="156" stroke="#2a1a10" stroke-width="3"/>
+      <line x1="140" y1="140" x2="140" y2="172" stroke="#2a1a10" stroke-width="3"/>
+      <line x1="124" y1="156" x2="156" y2="156" stroke="#2a1a10" stroke-width="3"/>
+    </g>
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="0 0; 34 -10; 62 22" dur="2.6s" keyTimes="0;.14;.34" repeatCount="indefinite" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1"/>
+      <animate attributeName="opacity" values="0;1;0" keyTimes="0;.2;.8" dur="2.6s" repeatCount="indefinite"/>
+      <circle cx="172" cy="99" r="9" fill="#232830"/>
+    </g>
+    <g>
+      <animate attributeName="opacity" values="0;1;0" keyTimes="0;.08;.22" dur="2.6s" repeatCount="indefinite"/>
+      <path d="M184,76 L 200,99 L 184,124 L 174,99 Z" fill="#ffb03a"/>
+    </g>
+  </g>
+</svg>

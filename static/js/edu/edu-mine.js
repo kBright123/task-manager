@@ -42,12 +42,7 @@
           '<span class="mkl-plus">+</span>' +
         '</button>';
 
-    // 护眼提醒 / 朗读与音效 为单字段设置 → 在我的页就地修改, 不弹框
-    var eyeVal = s && s.eyeMin ? s.eyeMin : 20;
-    var REST = [5, 10, 15, 20, 30, 45, 60];
-    var eyeOpts = REST.map(function (m) {
-      return '<option value="' + m + '"' + (m === eyeVal ? ' selected' : '') + '>' + m + ' 分钟' + (m === 20 ? '（推荐）' : '') + '</option>';
-    }).join('');
+    // 朗读与音效 为单字段设置 → 在我的页就地修改, 不弹框
     var soundOn = !s || s.sound !== false;
     var soundToggle =
       '<button type="button" class="ms-toggle" aria-pressed="' + (soundOn ? 'true' : 'false') + '" onclick="toggleSoundInline(' + (soundOn ? 'false' : 'true') + ')">' +
@@ -88,30 +83,10 @@
       '</span>' +
     '</div>';
 
-    // 礼物兑换价格：家长可设置每个预置武器礼物的星星价格
-    var Wish = window.Edu.Wish;
-    var cat = (Wish && Wish.GIFT_CATALOG) || [];
-    var giftRows = cat.map(function (g) {
-      var cur = (Wish && Wish.giftPriceOf) ? Wish.giftPriceOf(g.id) : ((g.defPrice || 20));
-      return '<div class="ms-item ms-inline-row">' +
-        '<span class="ms-icon">' + g.emoji + '</span><span>' + esc(g.name) + '</span>' +
-        '<span class="ms-inline-ctl"><input type="number" min="0" class="ms-num" value="' + cur + '" data-gid="' + g.id + '" aria-label="' + esc(g.name) + '所需星星" onchange="setGiftPrice(this)"></span>' +
-        '</div>';
-    }).join('');
-    var giftsHtml = cat.length ? '<div class="ms-group">' +
-      '<h4>🎁 兑换区 · 礼物价格</h4>' +
-      '<p class="ms-group-sub">设置每个武器礼物需要多少颗星星兑换</p>' +
-      giftRows +
-      '</div>' : '';
-
     // 设置分组
     var settingsHtml = '<div class="mine-settings">' +
       '<div class="ms-group">' +
         '<h4>学习体验</h4>' +
-        '<div class="ms-item ms-inline-row">' +
-          '<span class="ms-icon">👁️</span><span>护眼提醒</span>' +
-          '<span class="ms-inline-ctl"><select class="ms-select" id="mineEyeMin" aria-label="护眼提醒间隔" onchange="setEyeInline(this.value)">' + eyeOpts + '</select></span>' +
-        '</div>' +
         '<div class="ms-item ms-inline-row">' +
           '<span class="ms-icon">🔊</span><span>朗读与音效</span>' +
           '<span class="ms-inline-ctl">' + soundToggle + '</span>' +
@@ -119,7 +94,6 @@
         voiceRow +
         contentRow +
       '</div>' +
-      giftsHtml +
       '<div class="ms-group">' +
         '<h4>账号与数据</h4>' +
         '<button type="button" class="ms-item danger" onclick="openResetConfirm()">' +
@@ -165,16 +139,5 @@
     if (!Store.curSettings().sound) { S.toast && S.toast('请先开启朗读与音效'); return; }
     S.playSpeakForceNet('小朋友，你好呀！');
     if (S.toast) S.toast('试听当前音色');
-  };
-  // 设置礼物星星价格（我的 → 兑换区）
-  window.setGiftPrice = function (el) {
-    var gid = el && el.getAttribute('data-gid');
-    if (!gid) return;
-    var v = parseInt(el.value, 10);
-    if (!(v >= 0)) { if (window.Edu.Speech && window.Edu.Speech.toast) window.Edu.Speech.toast('价格需≥0'); return; }
-    if (window.Edu.Wish && window.Edu.Wish.giftSetPrice) {
-      window.Edu.Wish.giftSetPrice(gid, v);
-      if (window.Edu.Speech && window.Edu.Speech.toast) window.Edu.Speech.toast('已设置礼物价格');
-    }
   };
 })();

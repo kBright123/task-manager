@@ -84,6 +84,13 @@
     catch (err) { if (window.console && window.console.error) window.console.error('[edu] bootNow error:', err); }
   })();
 
+  // 学习守护: 每日使用时长到达上限后弹出验证弹框(扣星/繁体数学题解锁), 刷新页面也会再次拦截
+  (function () {
+    try {
+      if (window.Edu && window.Edu.UsageGate && window.Edu.UsageGate.start) window.Edu.UsageGate.start();
+    } catch (err) { if (window.console && window.console.error) window.console.error('[edu] usage gate error:', err); }
+  })();
+
   // Hydrate from backend
   if (window.eduSync) {
     window.eduSync.hydrate().then(function (hres) {

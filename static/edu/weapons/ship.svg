@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="shull" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8b97a3"/><stop offset=".55" stop-color="#5c6b7a"/><stop offset="1" stop-color="#3a4652"/>
+    </linearGradient>
+    <linearGradient id="sdeck" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#aab4bf"/><stop offset="1" stop-color="#7c8895"/>
+    </linearGradient>
+    <linearGradient id="ssmoke" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6b6f76"/><stop offset="1" stop-color="#b6b9bd"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="100" cy="186" rx="64" ry="7" fill="#000" opacity=".14"/>
+  <g>
+    <animateTransform attributeName="transform" type="translate" values="0 0; 0 -3; 0 0" dur="2.6s" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1" repeatCount="indefinite"/>
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="0 0; -2 -42; -5 -66" dur="2.4s" keyTimes="0;.45;1" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values=".55;.3;0" dur="2.4s" keyTimes="0;.45;1" repeatCount="indefinite"/>
+      <circle cx="146" cy="72" r="7" fill="url(#ssmoke)"/>
+    </g>
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="0 0; -2 -42; -5 -66" dur="2.4s" begin=".8s" keyTimes="0;.45;1" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values=".5;.28;0" dur="2.4s" begin=".8s" keyTimes="0;.45;1" repeatCount="indefinite"/>
+      <circle cx="140" cy="70" r="9" fill="url(#ssmoke)"/>
+    </g>
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="0 0; -2 -42; -5 -66" dur="2.4s" begin="1.6s" keyTimes="0;.45;1" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values=".45;.25;0" dur="2.4s" begin="1.6s" keyTimes="0;.45;1" repeatCount="indefinite"/>
+      <circle cx="152" cy="66" r="11" fill="url(#ssmoke)"/>
+    </g>
+    <path d="M8,140 L 158,140 C 168,140 176,146 174,154 L 172,160 L 6,160 Z" fill="url(#shull)" stroke="#232c36" stroke-width="3"/>
+    <rect x="6" y="154" width="168" height="7" fill="#b03a30"/>
+    <path d="M10,108 L 170,108 C 174,108 176,111 176,115 L 176,142 L 8,142 Z" fill="url(#sdeck)" stroke="#232c36" stroke-width="3"/>
+    <g transform="rotate(-16 90 124)">
+      <rect x="96" y="108" width="70" height="20" rx="3" fill="#d7dfe6" opacity=".85" stroke="#8b97a3" stroke-width="2"/>
+      <rect x="130" y="113" width="30" height="10" fill="#b8c4d0" opacity=".8"/>
+    </g>
+    <rect x="118" y="86" width="40" height="22" rx="3" fill="url(#sdeck)" stroke="#232c36" stroke-width="2.5"/>
+    <rect x="138" y="74" width="14" height="12" rx="2" fill="#4a5563" stroke="#232c36" stroke-width="2"/>
+    <rect x="142" y="80" width="4" height="6" fill="#8b97a3"/>
+    <rect x="116" y="88" width="28" height="6" fill="#7fd4ff" opacity=".9"/>
+    <rect x="120" y="66" width="3" height="20" fill="#232c36"/>
+    <path d="M121,66 L132,70 L121,74 Z" fill="#5f6d7c"/>
+    <line x1="152" y1="86" x2="164" y2="96" stroke="#232c36" stroke-width="3"/>
+    <line x1="162" y1="64" x2="164" y2="98" stroke="#232c36" stroke-width="2"/>
+    <path d="M160,68 L172,60 L176,66 L164,74 Z" fill="#5f6d7c"/>
+    <g fill="#ffd76a" stroke="#c9a227" stroke-width="1.5">
+      <rect x="18" y="30" width="6" height="8" rx="2"/><rect x="40" y="40" width="6" height="10" rx="2"/><rect x="66" y="52" width="6" height="12" rx="2"/>
+    </g>
+    <line x1="21" y1="38" x2="21" y2="140" stroke="#8b97a3" stroke-width="2" opacity=".6"/>
+    <line x1="43" y1="50" x2="43" y2="140" stroke="#8b97a3" stroke-width="2" opacity=".6"/>
+    <line x1="69" y1="64" x2="69" y2="140" stroke="#8b97a3" stroke-width="2" opacity=".6"/>
+  </g>
+  <g fill="none" stroke="#7fb0d9" stroke-width="4" opacity=".55">
+    <path d="M-20,170 Q 5,164 30,170 T 82,170 T 134,170 T 186,170">
+      <animateTransform attributeName="transform" type="translate" values="0 0; -40 0; 0 0" dur="3s" repeatCount="indefinite"/>
+    </path>
+    <path d="M-20,178 Q 5,172 30,178 T 82,178 T 134,178 T 186,178" opacity=".4">
+      <animateTransform attributeName="transform" type="translate" values="-40 0; 0 0; -40 0" dur="4s" repeatCount="indefinite"/>
+    </path>
+  </g>
+</svg>

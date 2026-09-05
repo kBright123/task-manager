@@ -35,7 +35,7 @@
         '<div class="bd-prog"><div class="bd-fill" style="width:' + pct + '%;"></div></div></div>'+
       '</div>'+
       '<div class="badge-count">已解锁 '+unlocked+' / '+keys.length+' 枚勋章</div>'+
-      '<div class="badge-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;">'+keys.map(badgeCard).join('')+'</div>'+
+      '<div class="badge-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(140px,100%),1fr));gap:12px;">'+keys.map(badgeCard).join('')+'</div>'+
       '<p class="bd-tip">💡 闯关、极速练习与每日挑战都能赢星星换新勋章，继续加油！</p>';
     // 渲染宝贝切换器
     var picker = document.getElementById('badgesKidPicker');

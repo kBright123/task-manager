@@ -6,7 +6,7 @@
   function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
-  var state = { stars: 0, records: [], wrong: [], settings: {}, usage: {}, maxCombo: 0, badges: {}, submits: 0, wishes: [], wishLog: [], level: {}, starLog: [], dailySecs: {} };
+  var state = { stars: 0, records: [], wrong: [], settings: {}, usage: {}, maxCombo: 0, badges: {}, submits: 0, wishes: [], wishLog: [], level: {}, starLog: [], dailySecs: {}, giftPrices: {}, redeemed: [] };
   var wb = {};
   var recentExclude = [];
 
@@ -45,6 +45,8 @@
     state.wishes = Array.isArray(state.wishes) ? state.wishes : [];
     state.wishLog = Array.isArray(state.wishLog) ? state.wishLog : [];
     state.starLog = Array.isArray(state.starLog) ? state.starLog : [];
+    state.giftPrices = (state.giftPrices && typeof state.giftPrices === 'object') ? state.giftPrices : {};
+    state.redeemed = Array.isArray(state.redeemed) ? state.redeemed : [];
     if (!state.stars) state.stars = 0;
     if (!state.maxCombo) state.maxCombo = 0;
     if (!state.submits) state.submits = 0;

@@ -104,6 +104,10 @@
   .edu-card h4{margin:0 0 12px;font-weight:800;font-size:.95rem;color:var(--edu-ink);display:flex;align-items:center;gap:8px;}
   .sm-tabs{display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;margin-bottom:14px;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
   .sm-tabs::-webkit-scrollbar{display:none;}
+  /* 横向滚动渐隐提示: 右侧永远叠一层淡出渐变, 提示还有更多标签 */
+  .sm-tabs::after{content:'';position:sticky;right:0;flex:0 0 28px;margin-left:-28px;align-self:stretch;
+    background:linear-gradient(to right,transparent,var(--edu-bg,#fdf6ec));pointer-events:none;}
+  html[data-theme="dark"] .sm-tabs::after{background:linear-gradient(to right,transparent,#211d1a);}
   .sm-tab{flex:none;background:var(--edu-soft);border:1.5px solid var(--edu-border);color:var(--edu-ink);border-radius:12px;padding:7px 14px;font-size:.82rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:.15s;}
   .sm-tab.active{background:var(--edu-blue);border-color:var(--edu-blue);color:#fff;}
   .sm-tabs-sub{margin-top:-4px;padding-bottom:6px;}
@@ -112,6 +116,8 @@
   body.quiz-live .sm-tabs{display:none !important;}
   /* 闯关完成弹窗时: 隐藏学科入口行, 专注结算界面 */
   body.quiz-complete .sm-tabs{display:none !important;}
+  /* 答题页底部固定操作栏与底部导航同处底部: 答题时隐藏导航, 避免重叠遮挡 */
+  body.quiz-live .edu-bottom-nav,body.quiz-complete .edu-bottom-nav{display:none !important;}
 
   .edu-back{display:inline-flex;align-items:center;gap:6px;color:var(--edu-ink);text-decoration:none;font-size:.9rem;border:1.5px solid var(--edu-border);background:var(--edu-surface);padding:6px 14px;border-radius:999px;transition:.15s;cursor:pointer;}
   .edu-back:hover{border-color:var(--edu-primary);color:var(--edu-primary);}
@@ -278,6 +284,10 @@
   .par-game .pg-emoji{font-size:2.4rem;display:block;margin-bottom:8px;}
   .par-game .pg-t{font-weight:800;font-size:.9rem;}
   .par-game .pg-d{font-size:.72rem;color:var(--edu-muted);margin-top:3px;}
+  /* 乐园游戏选项钮: 尺寸由 CSS 控制(适配窄屏, 4 个并排不换行溢出) */
+  .par-opt{width:min(80px,22vw);height:min(80px,22vw);display:inline-flex;align-items:center;justify-content:center;padding:0;cursor:pointer;transition:.12s;box-sizing:border-box;}
+  .par-opt:hover{border-color:var(--edu-gold) !important;transform:translateY(-2px);}
+  .par-opt:active{transform:scale(.94);}
 
   .muted{color:var(--edu-muted);font-size:.8rem;}
   .toast-pill{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#333;color:#fff;padding:10px 22px;border-radius:999px;font-size:.85rem;font-weight:600;opacity:0;pointer-events:none;transition:.2s;z-index:99;}
@@ -317,7 +327,8 @@
 
   /* 首次进入/新增孩子 表单覆盖层 */
   .edu-mask{position:fixed;inset:0;background:rgba(20,14,8,.55);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);z-index:120;display:flex;align-items:center;justify-content:center;padding:18px;}
-  .edu-mask .edu-modal{background:var(--edu-surface-2);border-radius:22px;max-width:420px;width:100%;padding:24px;box-shadow:0 18px 50px rgba(0,0,0,.35);}
+  .edu-mask .edu-modal{background:var(--edu-surface-2);border-radius:22px;max-width:420px;width:100%;padding:24px;box-shadow:0 18px 50px rgba(0,0,0,.35);max-height:calc(100vh - 36px);overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  @media (max-width:480px){ .edu-mask .edu-modal{padding:18px;} }
   .edu-mask h3{margin:0 0 4px;font-size:1.2rem;font-weight:900;color:var(--edu-ink);}
   .edu-mask .em-sub{color:var(--edu-muted);font-size:.82rem;margin:0 0 16px;}
   .edu-field{margin-bottom:12px;}
@@ -363,6 +374,9 @@
   .edu-map-full .emf-body .cm-snake-wrap.cm-theme-en .cm-swipe-hint{color:#0e5d87;opacity:.8;}
   /* 全屏地图: 蛇形区域垂直撑满剩余视口, 让学科背景真铺满全屏 */
   .edu-map-full .emf-body .cm-snake{height:auto;min-height:60vh;}
+  @media (max-width:767px){
+    .edu-map-full .emf-body .cm-snake{min-height:44vh;}
+  }
   .edu-map-full .emf-body .cm-snake-inner{height:100%;position:relative;}
   /* 全屏地图顶栏已展示旅程进度, 隐藏地图头部的学科名/旅程行(标签亦不渲染) */
   .edu-map-full .emf-body .cm-head{display:none;}
@@ -455,8 +469,8 @@
   .bd-tip{text-align:center;font-size:.78rem;font-weight:700;color:var(--edu-muted);margin:14px 0 4px;}
   html[data-theme="dark"] .bd-hero{background:linear-gradient(135deg,#6b4e00,#8a5210);}
   .badge-count{text-align:center;font-size:.95rem;font-weight:800;color:var(--edu-ink);margin:4px 0 16px;}
-  .st-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:10px;margin-bottom:16px;}
-  .st-kpi .sk{background:var(--edu-surface);border:1.5px solid var(--edu-border);border-radius:14px;padding:12px 10px;text-align:center;}
+  .st-kpi{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;}
+  .st-kpi .sk{flex:1 1 104px;min-width:104px;background:var(--edu-surface);border:1.5px solid var(--edu-border);border-radius:14px;padding:12px 10px;text-align:center;}
   .st-kpi .sk .v{font-size:1.35rem;font-weight:900;color:var(--edu-primary);line-height:1.1;}
   .st-kpi .sk .l{font-size:.72rem;color:var(--edu-muted);font-weight:600;margin-top:4px;}
   .st-trend{display:flex;align-items:flex-end;gap:6px;height:96px;padding:10px 4px 0;}
@@ -558,6 +572,41 @@
   .set-checks{display:flex;flex-direction:column;gap:8px;}
   .set-check{display:flex;gap:8px;align-items:center;font-size:.85rem;font-weight:600;color:var(--edu-ink);cursor:pointer;background:var(--edu-surface);border:2px solid var(--edu-input-bd);border-radius:12px;padding:10px 12px;}
   .set-check input{width:auto;}
+
+  /* ===== 兑换区 · 武器礼物 ===== */
+  .gift-section{margin-bottom:18px;}
+  .gift-title{font-size:1.02rem;font-weight:900;color:var(--edu-ink);margin:20px 0 12px;}
+  .gift-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}
+  .gift-card{background:linear-gradient(170deg,#fff8ec,#ffe9c7);border:2px solid #ffd9a8;border-radius:16px;padding:14px 10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:0 3px 10px rgba(223,166,70,.12);}
+  .gift-card.off{filter:grayscale(.35);opacity:.75;}
+  .gift-emoji{font-size:2.6rem;line-height:1;}
+  .gift-name{font-weight:900;font-size:1rem;color:var(--edu-ink);}
+  .gift-price{font-size:.82rem;font-weight:800;color:#b7791f;}
+  .gift-actions{display:flex;gap:8px;margin-top:4px;}
+  .gift-actions .btn-soft,.gift-actions .btn-ghost{padding:7px 12px;font-size:.8rem;}
+  .gift-card.off .btn-soft:disabled{opacity:.45;cursor:not-allowed;}
+  .gift-empty{color:var(--edu-muted);font-size:.88rem;background:var(--edu-soft);border:1px dashed var(--edu-border);border-radius:12px;padding:16px;text-align:center;}
+  .redeem-list{display:flex;flex-direction:column;gap:10px;}
+  .redeem-item{display:flex;align-items:center;gap:12px;background:var(--edu-surface);border:2px solid var(--edu-border);border-radius:14px;padding:10px 14px;cursor:pointer;text-align:left;width:100%;transition:.14s;}
+  .redeem-item:hover{border-color:var(--edu-sky);background:var(--edu-soft);}
+  .redeem-item .ri-emoji{font-size:1.6rem;}
+  .redeem-item .ri-name{flex:1;font-weight:800;color:var(--edu-ink);}
+  .redeem-item .ri-date{font-size:.76rem;color:var(--edu-muted);font-weight:600;}
+  .redeem-item .bi-chevron-right{color:var(--edu-muted);}
+  /* 礼物细节弹窗 */
+  .gift-detail{text-align:center;padding:8px 4px 14px;}
+  .gdetail-emoji{font-size:4rem;line-height:1;margin:6px 0 10px;}
+  .gdetail-name{font-size:1.3rem;font-weight:900;color:var(--edu-ink);}
+  .gdetail-desc{color:var(--edu-muted);font-size:.92rem;margin:8px auto 12px;max-width:300px;line-height:1.6;}
+  .gdetail-meta{display:inline-block;background:linear-gradient(135deg,#fff3d6,#ffe1ae);border:1.5px solid #ffd9a8;color:#b7791f;font-weight:800;font-size:.86rem;border-radius:999px;padding:6px 14px;}
+
+  html[data-theme="dark"] .gift-card{background:linear-gradient(170deg,#3a3a2a,#33301f);border-color:#8a7a45;box-shadow:none;}
+  html[data-theme="dark"] .gift-name{color:var(--edu-ink);}
+  html[data-theme="dark"] .gift-price{color:#e6c37a;}
+  html[data-theme="dark"] .gift-empty{background:#2a3140;border-color:var(--edu-border);}
+  html[data-theme="dark"] .redeem-item{background:var(--edu-soft);border-color:var(--edu-border);}
+  html[data-theme="dark"] .redeem-item:hover{border-color:var(--edu-sky);background:#2a3140;}
+  html[data-theme="dark"] .gdetail-meta{background:linear-gradient(135deg,#3a3a2a,#33301f);border-color:#8a7a45;color:#e6c37a;}
 
   /* ===== 排序题 ===== */
   .quiz-item .qo-chips{display:flex;flex-wrap:wrap;gap:8px;}
@@ -760,11 +809,12 @@
     .qs-grid{grid-template-columns:1fr 1fr 1fr;gap:8px;}
     .qs-card{min-height:96px;padding:12px 8px;}
     .qs-card .qc-emo{font-size:1.8rem;}
-    .qs-card .qc-sub{font-size:.62rem;}
+    .qs-card .qc-sub{font-size:.7rem;}
     .home-cta{min-height:52px;font-size:1rem;}
     .rc-kpi b{font-size:1.3rem;}
     .more-drop{right:-4px;}
     .report-modal{max-height:90vh;}
+    .edu-hub-card{height:auto;min-height:140px;padding:16px;}
   }
   @media (max-width:380px){
     .kb-ident{display:none;}
@@ -1101,6 +1151,9 @@
   .ms-inline-row .ms-icon{font-size:1.3rem;width:30px;text-align:center;}
   .ms-inline-ctl{margin-left:auto;display:inline-flex;align-items:center;}
   .ms-select{font-size:.92rem;font-weight:800;color:var(--edu-ink);background:var(--edu-surface-2);border:1.5px solid var(--edu-border);border-radius:10px;padding:6px 8px;}
+  .ms-num{width:78px;font-size:.95rem;font-weight:800;color:var(--edu-ink);background:var(--edu-surface-2);border:1.5px solid var(--edu-border);border-radius:10px;padding:6px 8px;text-align:center;-moz-appearance:textfield;}
+  .ms-num::-webkit-outer-spin-button,.ms-num::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+  .ms-group-sub{margin:0;padding:8px 16px 10px;font-size:.76rem;color:var(--edu-muted);font-weight:700;background:var(--edu-soft);border-bottom:1px solid var(--edu-border);}
   .ms-inline-ctl .ms-voice-preview{width:34px;height:34px;margin-left:6px;border:none;border-radius:50%;background:#ffe9c7;color:#b26a1f;font-size:1.15rem;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex:none;transition:.15s;}
   .ms-inline-ctl .ms-voice-preview:active{transform:scale(.9);}
   .ms-toggle{display:inline-flex;align-items:center;gap:7px;cursor:pointer;border:none;background:transparent;padding:0;}
@@ -1287,10 +1340,7 @@
   .home-sec-head{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 10px;}
   .home-sec-head h3{font-size:1.02rem;font-weight:900;color:var(--edu-ink);margin:0;white-space:nowrap;}
   .home-continue-head{display:inline-flex;align-items:center;gap:6px;border:none;background:none;
-    color:var(--edu-primary);font-size:1.02rem;font-weight:900;padding:4px 2px;cursor:pointer;white-space:nowrap;}
-  .home-continue-head:hover{color:var(--edu-primary-dark,var(--edu-primary));opacity:.85;}
-  .home-continue-head .hh-a{font-size:1rem;color:var(--edu-primary);animation:hhSlide 1.4s ease-in-out infinite;}
-  @keyframes hhSlide{0%,100%{transform:translateX(0);}50%{transform:translateX(4px);}}
+    color:var(--edu-primary);font-size:1.02rem;font-weight:900;padding:4px 2px;white-space:nowrap;}
 
   /* 手机: 三科横卡整行自适应单列铺满, 两行展示(上行学科关卡 / 下行题数+双按钮) */
   @media (max-width:767px){
@@ -1301,7 +1351,7 @@
     .hc-nm{font-size:.95rem;}
     .hc-lv{font-size:.7rem;padding:2px 8px;}
     .hc-modes{flex-direction:row;gap:6px;}                        /* 双按钮横向并排 */
-    .hc-mode{padding:5px 9px;font-size:.72rem;}
+    .hc-mode{padding:5px 9px;font-size:.72rem;min-height:34px;}
     .hc-count{font-size:.68rem;}
     .hc-foot{padding:6px 9px;border-radius:12px;}
     .ht-hello{font-size:1.02rem;}
@@ -1770,4 +1820,16 @@
   @media (min-width:720px){
     .dash-grid{grid-template-columns:repeat(2,1fr);}
     .dash-rec-card{grid-column:span 2;}
+  }
+
+  /* ================================================================
+     手机端 顶部问候区: 问候独占一行, 星星/打卡/宝贝/模式换行排列,
+     避免 .ht-actions(432px 宽)横向溢出页面、压住问候文字(顶部重叠)
+     ================================================================ */
+  @media (max-width:767px){
+    .home-top{flex-wrap:wrap;align-content:flex-start;}
+    .ht-greet{flex:1 1 100%;}
+    .ht-actions{flex-wrap:wrap;margin-left:0;row-gap:4px;flex-shrink:1;min-width:0;max-width:100%;}
+    .ht-mode .mode-select{font-size:.78rem;}
+    .ht-chip{font-size:.74rem;padding:2px 8px;}
   }

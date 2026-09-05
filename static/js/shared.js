@@ -140,6 +140,9 @@ window.eduSync = (function () {
     pushTimer = setTimeout(function () { pushTimer = null; pushKids(); }, 400);
   }
   function pushState(kidId, dkey, data) {
+    // 空弹不推: 初始 Store.state 为 {} 时不应覆盖后端已有数据(收养/归并流程的
+    // 空推曾把两端已合并的星星清成 0), 有内容才同步。
+    if (!data || typeof data !== 'object' || Object.keys(data).length === 0) return;
     var kid = window.eduKids.byId(kidId);
     if (!kid) return;
     if (!dbIdOf(kid)) {
@@ -168,12 +171,102 @@ window.eduSync = (function () {
   function qbankLearn(p) {
     return api('POST', '/qbank/learn', p || {});
   }
+  // 与后端 _merge_blob 同一套保守归并规则: stars 求和, 数组按 JSON 去重并集,
+  // 对象键合并(先到先得), maxCombo/submits 取较大, usage 求和, settings 以已存端为准
+  function mergeBlob(base, ext) {
+    base = base && typeof base === 'object' && !Array.isArray(base) ? JSON.parse(JSON.stringify(base)) : {};
+    if (!ext || typeof ext !== 'object' || Array.isArray(ext)) return base;
+    try { base.stars = (Number(base.stars) || 0) + (Number(ext.stars) || 0); } catch (e) {}
+    ['records', 'wrong', 'wishLog', 'redeemed', 'starLog', 'wishes'].forEach(function (key) {
+      var e = ext[key];
+      if (!Array.isArray(e)) return;
+      var b = Array.isArray(base[key]) ? base[key] : (base[key] = []);
+      var seen = {};
+      b.forEach(function (it) { try { seen[JSON.stringify(it)] = 1; } catch (e2) {} });
+      e.forEach(function (it) {
+        var h;
+        try { h = JSON.stringify(it); } catch (e3) { h = null; }
+        if (h && !seen[h]) { seen[h] = 1; b.push(it); }
+      });
+    });
+    ['badges', 'adv', 'level', 'dailySecs', 'giftPrices'].forEach(function (key) {
+      var e = ext[key];
+      if (!e || typeof e !== 'object' || Array.isArray(e)) return;
+      var b = base[key];
+      if (!b || typeof b !== 'object' || Array.isArray(b)) b = base[key] = {};
+      for (var k in e) { if (b[k] === undefined) b[k] = e[k]; }
+    });
+    ['maxCombo', 'submits'].forEach(function (key) {
+      base[key] = Math.max(Number(base[key]) || 0, Number(ext[key]) || 0);
+    });
+    var bu = base.usage, eu = ext.usage;
+    if (eu && typeof eu === 'object' && bu && typeof bu === 'object') {
+      ['secs', 'n', 'count'].forEach(function (k) {
+        bu[k] = (Number(bu[k]) || 0) + (Number(eu[k]) || 0);
+      });
+    }
+    return base;
+  }
+  function readBlob(key) {
+    try { var v = JSON.parse(localStorage.getItem(key)); return v && typeof v === 'object' ? v : {}; } catch (e) { return {}; }
+  }
+  function writeBlob(key, v) {
+    try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {}
+  }
   // 启动时从后端恢复：孩子档案若无本地则用后端；本地孩子回填 dbId。
   function hydrate() {
     return api('POST', '/bootstrap').then(function (res) {
       if (!res || !res.ok) return { ok: false };
       var serverKids = res.kids || [];
       var local = window.eduKids.all();
+      // 若后端做了「匿名→账号」归并, 返回了 dbIdMap: 把本地 dbId 从匿名档案纠正到账号档案,
+      // 避免 stale dbId 在 next push 时被当作新宝贝重建出重复。
+      var remap = res.dbIdMap || {};
+      var remapKeys = Object.keys(remap);
+      if (remapKeys.length) {
+        var d = window.eduKids.load();
+        d.list = d.list.map(function (k) {
+          if (k.dbId && remap[String(k.dbId)]) k.dbId = Number(remap[String(k.dbId)]);
+          return k;
+        });
+        window.eduKids.save(d);
+        local = window.eduKids.all();
+      }
+      // 后端可能把同名宝贝合并成同一服务端档案(多端/多次收养后 dbId 相同):
+      // 本地残留的重复宝贝在此收敛, 只保留一个, 并把被删宝贝未同步的本地数据弹
+      // 按后端规则并入保留档案, 保证界面上同账号下不再出现同名残留。
+      var store = window.Edu && window.Edu.Store;
+      var dups = [];
+      var seenDbId = {};
+      (local || []).forEach(function (k) {
+        var did = dbIdOf(k);
+        if (!did) return;
+        if (seenDbId[did]) { dups.push(k); } else { seenDbId[did] = 1; }
+      });
+      if (dups.length && store) {
+        var dx = window.eduKids.load();
+        var gone = {};
+        dups.forEach(function (k) { gone[k.id] = 1; });
+        var survivors = {};
+        dx.list.forEach(function (k) {
+          if (!gone[k.id] && dbIdOf(k) && !survivors[dbIdOf(k)]) survivors[dbIdOf(k)] = k.id;
+        });
+        dups.forEach(function (k) {
+          var sid = survivors[k.dbId];
+          if (sid == null) return;
+          var st = store.stateKeyFor(sid);
+          var sb = mergeBlob(readBlob(st), readBlob(store.stateKeyFor(k.id)));
+          if (Object.keys(sb).length) writeBlob(st, sb);
+          var wt = store.wbKeyFor(sid);
+          var wb2 = mergeBlob(readBlob(wt), readBlob(store.wbKeyFor(k.id)));
+          if (Object.keys(wb2).length) writeBlob(wt, wb2);
+          try { localStorage.removeItem(store.stateKeyFor(k.id)); } catch (e) {}
+          try { localStorage.removeItem(store.wbKeyFor(k.id)); } catch (e) {}
+        });
+        dx.list = dx.list.filter(function (k) { return !gone[k.id]; });
+        window.eduKids.save(dx);
+        local = window.eduKids.all();
+      }
       if (!local.length && serverKids.length) {
         serverKids.forEach(function (sk) {
           window.eduKids.addLocal({
@@ -210,12 +303,13 @@ window.eduSync = (function () {
           reconciled = true;
         }
       });
-      // 回填每个孩子的学习数据(仅当本地为空时,以后端为准)
+      // 回填每个孩子的学习数据(仅当本地为空时,以后端为准; 发生双向归并时后端为准)
+      var merged = remapKeys.length > 0;
       local.forEach(function (k) {
         if (!dbIdOf(k)) return;
         ['state', 'workbench'].forEach(function (dkey) {
           api('GET', '/kids/' + dbIdOf(k) + '/state?dkey=' + dkey).then(function (s) {
-            if (s && s.ok && s.data && onState) onState(k.id, dkey, s.data);
+            if (s && s.ok && s.data && onState) onState(k.id, dkey, s.data, merged);
           });
         });
       });

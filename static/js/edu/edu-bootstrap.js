@@ -12,10 +12,12 @@
 
   // Register eduSync callbacks
   if (window.eduSync) {
-    window.eduSync.setOnState(function (kidId, dkey, data) {
+    window.eduSync.setOnState(function (kidId, dkey, data, force) {
       if (!data || typeof data !== 'object') return;
       var key = (dkey === 'workbench') ? Store.wbKeyFor(kidId) : Store.stateKeyFor(kidId);
-      if (localStorage.getItem(key)) return;
+      // force(双向归并/收养后): 后端已是权威合并值(本端数据已被吸收), 直接以服务端为准;
+      // 否则只回填当前缺数据的本地键(离线优先, 不覆盖本地未同步数据)
+      if (!force && localStorage.getItem(key)) return;
       // 并入式加载: 只回填当前缺数据的本地键, 并保持 Store 对象引用不变,
       // 避免「整体替换 Store.state/wb」导致闭包 state 与导出对象分叉而丢数据
       localStorage.setItem(key, JSON.stringify(data));

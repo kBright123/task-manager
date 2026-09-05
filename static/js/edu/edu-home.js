@@ -337,7 +337,7 @@
         '</section>';
     }).join('');
     var list = '<section class="home-course-sec">' +
-      '<div class="home-sec-head"><button type="button" class="home-continue-head" onclick="window.homeContinue()">🚀 继续闯关 <i class="bi bi-chevron-double-right hh-a"></i></button></div>' +
+      '<div class="home-sec-head"><span class="home-continue-head">🚀 继续闯关</span></div>' +
       '<div class="home-course-scroll">' + courseCards + '</div></section>';
 
     body.innerHTML = top + '<div class="ht-kiddrop" id="homeKidDrop"></div>' + goal + list;

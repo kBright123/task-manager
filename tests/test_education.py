@@ -65,8 +65,10 @@ def test_edu_js_bundle_endpoint(client):
 
 
 def _setup_kid(client):
+    """创建测试宝贝(名字每次唯一, 避免共享 edu.db 下同名宝贝跨用例互相合并/互相干扰)."""
+    import uuid as _uuid
     r = client.post('/edu/api/kids', json={
-        'kids': [{'clientId': 'c_A', 'name': '安安', 'birthYear': 2018, 'gender': 'male'}],
+        'kids': [{'clientId': 'c_' + _uuid.uuid4().hex[:6], 'name': '小测' + _uuid.uuid4().hex[:6], 'birthYear': 2018, 'gender': 'male'}],
         'removedIds': [],
     })
     assert r.json.get('ok'), r.json
@@ -100,15 +102,146 @@ def test_kids_upsert_and_bulk_remove(client):
         'removedIds': [],
     })
     assert r.json['kids'][0]['name'] == '改名'
-    assert len(client.get('/edu/api/bootstrap').json['kids']) == 1
+    # 同 id upsert 不新增重复档案(按自身 id 校验, 不依赖账号内绝对数量, 共享 edu.db 可能残留其他用例宝贝)
+    kids = client.get('/edu/api/bootstrap').json['kids']
+    assert len([k for k in kids if k['id'] == pid]) == 1
     # bulk removedIds 删除
     r = client.post('/edu/api/kids', json={'kids': [], 'removedIds': [pid]})
     assert r.json.get('ok')
-    assert len(client.get('/edu/api/bootstrap').json['kids']) == 0
+    kids2 = client.get('/edu/api/bootstrap').json['kids']
+    assert all(k['id'] != pid for k in kids2)
+
+
+def _anon_client():
+    from app import app
+    return app.test_client()
+
+
+def test_anon_adopt_no_account_kid(client):
+    """已登录时, 请求带 X-Edu-Anon 会把当前匿名归属的宝贝整档归并入账号:
+    bootstrap 返回 adopted=true 与 dbIdMap, 宝贝及其星星/记录不再丢失."""
+    anon = 'adopt_A_' + str(id(client))
+    NAME = '星宝' + str(id(client))  # 每次运行唯一, 账号端必然没有, 保证走「整档迁移」分支
+    anon_c = _anon_client()
+    h = {'X-Edu-Anon': anon}
+    # 匿名端创建宝贝 + 数据
+    r = anon_c.post('/edu/api/kids', json={
+        'kids': [{'clientId': 'cA', 'name': NAME, 'birthYear': 2018, 'gender': 'male'}],
+        'removedIds': [],
+    }, headers=h)
+    pid = r.json['kids'][0]['id']
+    anon_c.post(f'/edu/api/kids/{pid}/state', json={
+        'dkey': 'state',
+        'data': {'stars': 40, 'records': [{'subj': 'math'}], 'wrong': [{'prompt': 'x'}], 'wishLog': [], 'redeemed': []},
+    }, headers=h)
+
+    # 账号端(用户1)用同一个匿名 header 调用 bootstrap -> 归并
+    res = client.post('/edu/api/bootstrap', headers=h).json
+    assert res.get('adopted') is True
+    assert any(k['name'] == NAME for k in res['kids'])
+    assert str(pid) in res['dbIdMap']
+    # dbId 保持不变(整档迁移, id 即账号端 id)
+    assert res['dbIdMap'][str(pid)] == str(pid)
+    # 数据已并入账号端
+    got = client.get(f'/edu/api/kids/{pid}/state').json['data']
+    assert got.get('stars') == 40
+    assert got.get('records') == [{'subj': 'math'}]
+    assert got.get('wrong') == [{'prompt': 'x'}]
+
+    # 再次 bootstrap 应为空操作(幂等)
+    res2 = client.post('/edu/api/bootstrap', headers=h).json
+    assert res2.get('adopted') is False
+    assert res2['dbIdMap'] == {}
+
+    # 清理: 删除并入账号的宝贝, 避免污染共享 edu.db 影响后续用例(如 kids count 断言)
+    client.post('/edu/api/kids', json={'kids': [], 'removedIds': [pid]})
+
+
+def test_anon_adopt_merge_matching_kid(client):
+    """已登录账号已有同名宝贝时, 归并应合并而非新建: 星星求和、数组去重并集、
+    宝贝不重复, dbIdMap 把匿名 id 映射到账号 id."""
+    anon = 'adopt_B_' + str(id(client))
+    h = {'X-Edu-Anon': anon}
+    NAME = '朵' + str(id(client))  # 用独立/唯一名字, 避免共享 edu.db 跨次运行受其他同名词干扰
+    # 账号端(用户1)先有一个「朵朵」
+    pid_acc = client.post('/edu/api/kids', json={
+        'kids': [{'clientId': 'cA', 'name': NAME, 'birthYear': 2018, 'gender': 'female'}],
+        'removedIds': [],
+    }).json['kids'][0]['id']
+    client.post(f'/edu/api/kids/{pid_acc}/state', json={
+        'dkey': 'state',
+        'data': {'stars': 10, 'records': [{'subj': 'zh'}], 'wishLog': [], 'redeemed': []},
+    })
+
+    # 匿名端也创建同名「朵朵」并有各自数据
+    anon_c = _anon_client()
+    r = anon_c.post('/edu/api/kids', json={
+        'kids': [{'clientId': 'cA', 'name': NAME, 'birthYear': 2018, 'gender': 'female'}],
+        'removedIds': [],
+    }, headers=h)
+    pid_anon = r.json['kids'][0]['id']
+    anon_c.post(f'/edu/api/kids/{pid_anon}/state', json={
+        'dkey': 'state',
+        'data': {'stars': 5, 'records': [{'subj': 'math'}], 'wishLog': [], 'redeemed': []},
+    }, headers=h)
+
+    res = client.post('/edu/api/bootstrap', headers=h).json
+    assert res.get('adopted') is True
+    # 宝贝不重复(仍只有这一个账号宝贝)
+    assert len([k for k in res['kids'] if k['name'] == NAME]) == 1
+    # dbIdMap: 匿名 pid -> 账号 pid(不同 id, 因为归并进账号已有的)
+    assert res['dbIdMap'][str(pid_anon)] == str(pid_acc)
+    # 合并后数据: 星星求和, records 并集去重(zh + math 两条)
+    merged = client.get(f'/edu/api/kids/{pid_acc}/state').json['data']
+    assert merged.get('stars') == 15
+    assert {r_['subj'] for r_ in merged.get('records', [])} == {'zh', 'math'}
+
+    # 清理: 删除账号端宝贝, 避免污染共享 edu.db
+    client.post('/edu/api/kids', json={'kids': [], 'removedIds': [pid_acc]})
+
+
+def test_account_dedup_same_name_kids(client):
+    """同一账号下多个同名/同年/同性别宝贝: bootstrap 时合并为一个, 数据并入保留档案,
+    dbIdMap 把重复档案 id 映射到保留档案 id(供前端纠正本地 stale dbId)."""
+    NAME = '重名' + str(id(client))
+    h = {}
+    # 账号端(用户1)创建 3 个完全同名的宝贝, 各有独立数据
+    ids = []
+    for i in range(3):
+        r = client.post('/edu/api/kids', json={
+            'kids': [{'clientId': 'c' + str(i), 'name': NAME, 'birthYear': 2017, 'gender': 'female'}],
+            'removedIds': [],
+        })
+        pid = r.json['kids'][0]['id']
+        ids.append(pid)
+        client.post(f'/edu/api/kids/{pid}/state', json={
+            'dkey': 'state',
+            'data': {'stars': 5, 'records': [{'subj': 'zh', 'i': i}], 'wishLog': [], 'redeemed': []},
+        })
+
+    res = client.post('/edu/api/bootstrap', headers=h).json
+    # 只剩 1 个同名宝贝(保留 id 最小者)
+    assert len([k for k in res['kids'] if k['name'] == NAME]) == 1
+    keep = ids[0]
+    # 重复档案全部映射到保留档案
+    for dup in ids[1:]:
+        assert res['dbIdMap'][str(dup)] == str(keep)
+    # 数据合并: 星星求和(5+5+5=15), records 三条都保留
+    merged = client.get(f'/edu/api/kids/{keep}/state').json['data']
+    assert merged.get('stars') == 15
+    assert len(merged.get('records', [])) == 3
+    assert {r_['i'] for r_ in merged.get('records', [])} == {0, 1, 2}
+
+    # 幂等: 再次 bootstrap 不再产生新合并
+    res2 = client.post('/edu/api/bootstrap', headers=h).json
+    assert res2['dbIdMap'] == {}
+
+    # 清理: 删除保留档案, 避免污染共享 edu.db
+    client.post('/edu/api/kids', json={'kids': [], 'removedIds': [keep]})
 
 
 def test_qbank_ensure_dedup_pull_learn(client):
-    _setup_kid(client)
+    pid = _setup_kid(client)
     probe = BK + 'q1_' + str(id(client))  # 每次运行独立, 避免 instance/edu.db 残留干扰
     item = {'prompt': probe, 'options': [{'v': 'x', 'label': 'x'}], 'correct': 'x', 'note': 'n'}
     r = client.post('/edu/api/qbank/ensure', json={'subj': 'zh', 'type': 'zi', 'difficulty': 3, 'items': [item]})
@@ -127,6 +260,9 @@ def test_qbank_ensure_dedup_pull_learn(client):
     assert any(i['prompt'] == probe for i in items)
     r = client.post('/edu/api/qbank/learn', json={'subj': 'zh', 'type': 'zi', 'prompt': probe, 'correct': True, 'difficulty': 3})
     assert r.json.get('ok')
+
+    # 清理: 删除测试宝贝, 避免共享 edu.db 残留影响其他用例
+    client.post('/edu/api/kids', json={'kids': [], 'removedIds': [pid]})
 
 
 def test_edu_csrf_exempt(client):
@@ -290,6 +426,110 @@ def _concat_script_path():
 def test_education_js_syntax():
     ok, err = _node_check()
     assert ok, f'node --check failed:\n{err}'
+
+
+def _shared_harness(script_body):
+    """仅加载 shared.js 的 node 桩: 验证 hydrate 的“同档归档去重收敛”与“归并后以服务端为权威”。
+
+    提供隔离的 localStorage、可编排路由的 fetch 桩与最小 Edu.Store(stateKeyFor/wbKeyFor)。
+    """
+    base = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static', 'js')
+    with open(os.path.join(base, 'shared.js'), 'r', encoding='utf-8') as f:
+        shared = f.read()
+    harness = r'''
+const fs=require('fs'),vm=require('vm');
+global.window=global;
+global.Edu={Store:{stateKeyFor:id=>'st_'+id,wbKeyFor:id=>'wb_'+id}};
+const store={};
+global.localStorage={getItem:k=>(k in store?store[k]:null),setItem:(k,v)=>{store[k]=String(v)},removeItem:k=>{delete store[k]}};
+const routes={};
+global.Routes=routes;
+global.fetch=(url,opts)=>{
+  const p=String(url).replace(/^.*\/edu\/api/,'');
+  const r=routes[p];
+  if(r===undefined){ console.error('UNROUTED '+p); process.exit(3); }
+  return Promise.resolve({json:()=>Promise.resolve(JSON.parse(JSON.stringify(r)))});
+};
+vm.createContext(global);
+vm.runInContext(fs.readFileSync(process.argv[1],'utf8'), global);
+global.R=global; global.S=store;
+''' + script_body
+    import tempfile
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False, encoding='utf-8') as tmp:
+        tmp.write(shared)
+        tmp_path = tmp.name
+    try:
+        r = subprocess.run(['node', '-e', harness, tmp_path], capture_output=True, text=True)
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+    assert r.returncode == 0, r.stderr
+    return r.stdout
+
+
+def test_frontend_merge_collapse_after_adoption():
+    """后瑞收养/去重返回 dbIdMap 后, 前端 hydrate 必须:
+
+    1) 把本地指向同一服务端档案的两个宝贝收敛为一个;
+    2) 被删除宝贝的本地数据弹并入保留档案(与后端同规则);
+    3) 归并发生时(dbIdMap 非空)以服务端合并值为权威刷新(force), 避免展示未合并总量。
+    """
+    body = r'''
+const W=R; // store 由桩暴露为全局 S
+const tick=()=>new Promise(r=>setTimeout(r,0));
+function seed(list, blobs){
+  S['edu_kids_v1']=JSON.stringify({list:list,activeId:list[0].id});
+  for(const k in blobs) S[k]=JSON.stringify(blobs[k]);
+}
+// 与 edu-bootstrap 一致的 onState: force 时以服务端覆盖, 否则仅填本地空键
+W.eduSync.setOnState((kidId,dkey,data,force)=>{
+  const key=(dkey==='workbench')?'wb_'+kidId:'st_'+kidId;
+  if(!force && S[key]) return;
+  S[key]=JSON.stringify(data);
+});
+(async()=>{
+  // 场景1: 设备B 匿名(9)->登录 被并进服务端 8, dbIdMap {9:8}; 本地并列 db8+db9
+  seed(
+    [{id:'db8',dbId:8,name:'小豆豆',birthYear:2019,gender:'male',created:1},
+     {id:'db9',dbId:9,name:'小豆豆',birthYear:2019,gender:'male',created:2}],
+    {'st_db8':{stars:5,records:[{t:1}],submits:3},
+     'st_db9':{stars:7,records:[{t:2}],submits:4},
+     'wb_db8':{grid:{a:1}},'wb_db9':{grid:{b:1}}}
+  );
+  Routes['/bootstrap']={ok:true,adopted:true,dbIdMap:{'9':8},kids:[{id:8,name:'小豆豆',birthYear:2019,gender:'male'}]};
+  Routes['/kids/8/state?dkey=state']={ok:true,data:{stars:12,records:[{t:1},{t:2}],submits:7}};
+  Routes['/kids/8/state?dkey=workbench']={ok:true,data:{grid:{ab:1}}};
+  await W.eduSync.hydrate(); await tick(); // onState 回填在下次微任务后落地
+  let kids=JSON.parse(S['edu_kids_v1']).list;
+  if(kids.length!==1) throw new Error('sc1: 期望 1 个孩子, 得到 '+kids.length);
+  if(kids[0].id!=='db8'||kids[0].dbId!==8) throw new Error('sc1: 幸存者错误 '+JSON.stringify(kids[0]));
+  let st=JSON.parse(S['st_db8']);
+  if(st.stars!==12) throw new Error('sc1: force 后应 12 星, 得到 '+st.stars);
+  if(st.submits!==7) throw new Error('sc1: submits 应为 7(force 覆盖), 得到 '+st.submits);
+  if(st.records.length!==2) throw new Error('sc1: records 应并集为 2, 得到 '+st.records.length);
+  if(S['st_db9']!==undefined||S['wb_db9']!==undefined) throw new Error('sc1: 被删宝贝的数据未清理');
+  if(JSON.parse(S['wb_db8']).grid.ab!==1) throw new Error('sc1: workbench force 未生效');
+  // 场景2: 无 dbIdMap(dbIdMap 为空)但本地已残留两个同 dbId 宝贝 -> 也应收敛并并数据(不 force)
+  seed(
+    [{id:'dbA',dbId:8,name:'小豆豆',birthYear:2019,gender:'male',created:1},
+     {id:'dbB',dbId:8,name:'小豆豆',birthYear:2019,gender:'male',created:2}],
+    {'st_dbA':{stars:5,records:[{t:1}]},'st_dbB':{stars:7,records:[{t:2}]}}
+  );
+  Routes['/bootstrap']={ok:true,adopted:false,dbIdMap:{},kids:[{id:8,name:'小豆豆',birthYear:2019,gender:'male'}]};
+  await W.eduSync.hydrate(); await tick();
+  kids=JSON.parse(S['edu_kids_v1']).list;
+  if(kids.length!==1||kids[0].id!=='dbA') throw new Error('sc2: 收敛失败 '+JSON.stringify(kids));
+  st=JSON.parse(S['st_dbA']);
+  if(st.stars!==12) throw new Error('sc2: 并本地数据后应 12 星, 得到 '+st.stars);
+  if(st.records.length!==2) throw new Error('sc2: records 并集应为 2, 得到 '+st.records.length);
+  if(S['st_dbB']!==undefined) throw new Error('sc2: 被删宝贝数据未清理');
+  console.log('MERGE-COLLAPSE-OK');
+})().catch(e=>{ console.error(e); process.exit(1); });
+'''
+    out = _shared_harness(body)
+    assert 'MERGE-COLLAPSE-OK' in out
 
 
 def test_quiz_uniqueness_all_types():
@@ -1779,6 +2019,64 @@ def test_record_date_fields_and_home_progress():
     assert 'DATE_FIELD=' in out and 'DATE_TODAY=1' in out, out
     assert 'NEW_BARW=5' in out, out
     assert 'OLD_BARW=100' in out, out
+
+
+def test_wish_gift_exchange():
+    """兑换区: 预置武器礼物(刀/弓/枪/剑/盾)可用星星兑换扣星入已兑换;
+    星星不足则拒绝; 礼物价格可在「我的」设置并持久化; 点开可看细节图片卡片."""
+    out = _harness(r'''
+(async()=>{
+  const mkEl=()=>{const el={_h:'',style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},setAttribute(){},getAttribute(){return null},querySelector:()=>mkEl(),querySelectorAll:()=>[],focus(){},scrollIntoView(){},children:[],textContent:'',value:''};
+    Object.defineProperty(el,'innerHTML',{get(){return el._h},set(v){el._h=String(v)}});
+    el.appendChild=(c)=>{ if(c && c._h!==undefined) el._h+=(c._h||''); }; return el;};
+  const detailBody=mkEl(), detailTitle=mkEl(), detailSub=mkEl(), detailMask=mkEl();
+  const byId=(id)=> id==='detailBody'?detailBody : (id==='detailTitle'?detailTitle : (id==='detailSub'?detailSub : (id==='eduMaskDetail'?detailMask : mkEl())));
+  global.document.getElementById=byId;
+  global.document.createElement=()=>mkEl();
+  global.document.querySelectorAll=()=>[];
+  store['edu_record_v1_kk']=JSON.stringify({stars:70,records:[],wrong:[],wishes:[],wishLog:[],redeemed:[],giftPrices:{},settings:{}});
+  W.Edu.Store.loadAllState();
+  const Wish=W.Edu.Wish;
+  const CAT=Wish.GIFT_CATALOG||[];
+  const names=CAT.map(g=>g.name).join(',');
+  console.log('CAT_HAS_DAO='+(names.indexOf('宝刀')>=0?'1':'0'));
+  console.log('CAT_HAS_GONG='+(names.indexOf('长弓')>=0?'1':'0'));
+  console.log('CAT_HAS_QIANG='+(names.indexOf('亮枪')>=0?'1':'0'));
+  console.log('CAT_HAS_JIAN='+(names.indexOf('宝剑')>=0?'1':'0'));
+  console.log('CAT_HAS_DUN='+(names.indexOf('神盾')>=0?'1':'0'));
+  console.log('DEF_DAO='+Wish.giftPriceOf('dao'));
+  // 兑换 dao(默认20星) 3次(70->50->30->10), 第4次因星不足拒绝
+  Wish.giftRedeem('dao');
+  const s1=W.Edu.Store.state;
+  console.log('STARS_AFTER='+s1.stars);
+  console.log('REDEEMED1='+((s1.redeemed||[]).length));
+  console.log('REDEEMED_DAO='+((s1.redeemed||[])[0]&&s1.redeemed[0].id==='dao'?'1':'0'));
+  Wish.giftRedeem('dao');
+  Wish.giftRedeem('dao');
+  Wish.giftRedeem('dao');
+  const s2=W.Edu.Store.state;
+  console.log('STARS_EXHAUST='+s2.stars);
+  console.log('COUNT2='+((s2.redeemed||[]).length));
+  // 设置价格并验证
+  Wish.giftSetPrice('gong', 7);
+  const s3=W.Edu.Store.state;
+  console.log('PRICE_GONG='+s3.giftPrices['gong']);
+  console.log('PRICEOF_GONG='+Wish.giftPriceOf('gong'));
+  console.log('PRICEOF_DEF='+Wish.giftPriceOf('qiang'));
+  // 细节弹窗: 展示大图 emoji + 名称 + 描述
+  Wish.giftDetail('jian');
+  console.log('DETAIL_EMOJI='+(detailBody._h.indexOf('⚔️')>=0?'1':'0'));
+  console.log('DETAIL_NAME='+(detailBody._h.indexOf('宝剑')>=0?'1':'0'));
+  console.log('DETAIL_TITLE='+(detailTitle.textContent.indexOf('宝剑')>=0?'1':'0'));
+  console.log('DETAIL_MASK='+(detailMask.style.display==='flex'?'1':'0'));
+})();
+''')
+    for probe in ('CAT_HAS_DAO=1','CAT_HAS_GONG=1','CAT_HAS_QIANG=1','CAT_HAS_JIAN=1','CAT_HAS_DUN=1',
+                  'DEF_DAO=20','STARS_AFTER=50','REDEEMED1=1','REDEEMED_DAO=1',
+                  'STARS_EXHAUST=10','COUNT2=3',
+                  'PRICE_GONG=7','PRICEOF_GONG=7','PRICEOF_DEF=40',
+                  'DETAIL_EMOJI=1','DETAIL_NAME=1','DETAIL_TITLE=1','DETAIL_MASK=1'):
+        assert probe in out, out
 
 
 if __name__ == '__main__':

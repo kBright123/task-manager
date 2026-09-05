@@ -88,6 +88,22 @@
       '</span>' +
     '</div>';
 
+    // 礼物兑换价格：家长可设置每个预置武器礼物的星星价格
+    var Wish = window.Edu.Wish;
+    var cat = (Wish && Wish.GIFT_CATALOG) || [];
+    var giftRows = cat.map(function (g) {
+      var cur = (Wish && Wish.giftPriceOf) ? Wish.giftPriceOf(g.id) : ((g.defPrice || 20));
+      return '<div class="ms-item ms-inline-row">' +
+        '<span class="ms-icon">' + g.emoji + '</span><span>' + esc(g.name) + '</span>' +
+        '<span class="ms-inline-ctl"><input type="number" min="0" class="ms-num" value="' + cur + '" data-gid="' + g.id + '" aria-label="' + esc(g.name) + '所需星星" onchange="setGiftPrice(this)"></span>' +
+        '</div>';
+    }).join('');
+    var giftsHtml = cat.length ? '<div class="ms-group">' +
+      '<h4>🎁 兑换区 · 礼物价格</h4>' +
+      '<p class="ms-group-sub">设置每个武器礼物需要多少颗星星兑换</p>' +
+      giftRows +
+      '</div>' : '';
+
     // 设置分组
     var settingsHtml = '<div class="mine-settings">' +
       '<div class="ms-group">' +
@@ -103,6 +119,7 @@
         voiceRow +
         contentRow +
       '</div>' +
+      giftsHtml +
       '<div class="ms-group">' +
         '<h4>账号与数据</h4>' +
         '<button type="button" class="ms-item danger" onclick="openResetConfirm()">' +
@@ -148,5 +165,16 @@
     if (!Store.curSettings().sound) { S.toast && S.toast('请先开启朗读与音效'); return; }
     S.playSpeakForceNet('小朋友，你好呀！');
     if (S.toast) S.toast('试听当前音色');
+  };
+  // 设置礼物星星价格（我的 → 兑换区）
+  window.setGiftPrice = function (el) {
+    var gid = el && el.getAttribute('data-gid');
+    if (!gid) return;
+    var v = parseInt(el.value, 10);
+    if (!(v >= 0)) { if (window.Edu.Speech && window.Edu.Speech.toast) window.Edu.Speech.toast('价格需≥0'); return; }
+    if (window.Edu.Wish && window.Edu.Wish.giftSetPrice) {
+      window.Edu.Wish.giftSetPrice(gid, v);
+      if (window.Edu.Speech && window.Edu.Speech.toast) window.Edu.Speech.toast('已设置礼物价格');
+    }
   };
 })();

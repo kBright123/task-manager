@@ -137,6 +137,204 @@ def _drop_profile_data(sess, owner, pid):
     sess.query(EduData).filter_by(owner=owner, profile_id=pid).delete()
 
 
+def _merge_blob(base, ext):
+    """把匿名端的 state/workbench JSON 弹归并进账号端.
+
+    规则(保守、不丢数据):
+    - stars 求和(两台设备各自挣的星都保留)
+    - 数组(records/wrong/wishLog/redeemed/starLog/wishes 等): 按 JSON 去重并集
+    - 对象(badges/adv/level/dailySecs/giftPrices 等): 键合并(账号优先, 匿名仅补缺)
+    - 计数器(maxCombo/submits): 取较大; usage 秒数/题数: 求和
+    - settings/课程难度: 以账号端为准, 匿名不覆盖
+    """
+    if not isinstance(ext, dict):
+        return base
+    base = dict(base or {})
+    try:
+        base['stars'] = int(base.get('stars') or 0) + int(ext.get('stars') or 0)
+    except (TypeError, ValueError):
+        pass
+    for key in ('records', 'wrong', 'wishLog', 'redeemed', 'starLog', 'wishes'):
+        e = ext.get(key)
+        if not isinstance(e, list):
+            continue
+        b = base.get(key)
+        if not isinstance(b, list):
+            b = []
+        seen = set()
+        for it in b:
+            if it is None:
+                continue
+            try:
+                seen.add(json.dumps(it, ensure_ascii=False, sort_keys=True))
+            except Exception:
+                pass
+        for it in e:
+            if it is None:
+                continue
+            try:
+                h = json.dumps(it, ensure_ascii=False, sort_keys=True)
+            except Exception:
+                h = None
+            if h is not None and h in seen:
+                continue
+            if h is not None:
+                seen.add(h)
+            b.append(it)
+        base[key] = b
+    for key in ('badges', 'adv', 'level', 'dailySecs', 'giftPrices'):
+        e = ext.get(key)
+        if not isinstance(e, dict):
+            continue
+        b = base.get(key)
+        if not isinstance(b, dict):
+            b = {}
+        for k, v in e.items():
+            b.setdefault(k, v)
+        base[key] = b
+    for key in ('maxCombo', 'submits'):
+        try:
+            base[key] = max(int(base.get(key) or 0), int(ext.get(key) or 0))
+        except (TypeError, ValueError):
+            pass
+    for key in ('usage',):
+        e = ext.get(key)
+        b = base.get(key)
+        if isinstance(e, dict) and isinstance(b, dict):
+            for k in ('secs', 'n', 'count'):
+                try:
+                    b[k] = int(b.get(k) or 0) + int(e.get(k) or 0)
+                except (TypeError, ValueError):
+                    pass
+            base[key] = b
+    return base
+
+
+def _merge_profile_data(sess, anon_owner, anon_pid, account, acc_pid):
+    """把匿名端某宝贝的 data 弹并入账号端对应宝贝(优先合并同名, 无则整档迁移)."""
+    rows = sess.query(EduData).filter_by(owner=anon_owner, profile_id=anon_pid).all()
+    for r in rows:
+        acc_row = sess.query(EduData).filter_by(
+            owner=account, profile_id=acc_pid, dkey=r.dkey).first()
+        if acc_row:
+            try:
+                base = json.loads(acc_row.payload or '{}')
+            except Exception:
+                base = {}
+            try:
+                ext = json.loads(r.payload or '{}')
+            except Exception:
+                ext = {}
+            merged = _merge_blob(base, ext)
+            acc_row.payload = json.dumps(merged, ensure_ascii=False)
+            acc_row.updated_at = datetime.utcnow()
+            sess.delete(r)
+        else:
+            r.owner = account
+            r.profile_id = acc_pid
+            sess.add(r)
+
+
+def _adopt_anonymous(sess):
+    """已登录时, 把当前浏览器匿名 owner(X-Edu-Anon) 的宝贝与数据归并进账号(u<id>).
+
+    幂等: 匿名档案被吸收后, 再调用即为空操作。
+    返回 (adopted: bool, dbIdMap: dict[str,str] 匿名profile_id -> 账号profile_id)。
+    前端据此在本地把 dbId 纠正到账号端, 避免 stale dbId 产生重复宝贝。
+    """
+    if not (current_user and getattr(current_user, 'is_authenticated', False)):
+        return False, {}
+    if getattr(current_user, 'role', '') == 'guest':
+        return False, {}
+    anon = (request.headers.get('X-Edu-Anon') or '').strip()
+    if not anon or anon in ('unknown', ''):
+        return False, {}
+    anon_owner = 'anon_' + anon
+    account = _owner_id()  # u<id> (已登录)
+    if anon_owner == account:
+        return False, {}
+    anon_profiles = sess.query(EduProfile).filter_by(owner=anon_owner).all()
+    if not anon_profiles:
+        return False, {}
+    account_profiles = sess.query(EduProfile).filter_by(owner=account).all()
+    db_id_map = {}
+    adopted = False
+    for ap in list(anon_profiles):
+        match = None
+        for acc in account_profiles:
+            if (acc.name == ap.name and acc.birth_year == ap.birth_year
+                    and acc.gender == ap.gender):
+                match = acc
+                break
+        if match is not None:
+            _merge_profile_data(sess, anon_owner, ap.id, account, match.id)
+            sess.delete(ap)
+            db_id_map[str(ap.id)] = str(match.id)
+        else:
+            ap.owner = account
+            sess.add(ap)
+            for r in sess.query(EduData).filter_by(owner=anon_owner, profile_id=ap.id).all():
+                r.owner = account
+                sess.add(r)
+            db_id_map[str(ap.id)] = str(ap.id)
+        adopted = True
+    if adopted:
+        for q in sess.query(EduQBank).filter_by(owner=anon_owner).all():
+            q.owner = account
+            sess.add(q)
+    sess.commit()
+    return adopted, db_id_map
+
+
+def _dedup_profiles_in_owner(sess, owner):
+    """同一归属下按 (姓名, 出生年, 性别) 合并重复宝贝档案.
+
+    历史上(旧版收养/重复同步)可能出现同一账号下多个完全同名的宝贝,
+    各自累积了数据。此函数保留 id 最小者为规范档案, 把其余同名档案的数据
+    弹按 _merge_blob 规则并入规范档案, 再删除重复档案。
+    返回 dict 重复profile_id -> 保留profile_id, 供前端把本地 dbId 纠正过来,
+    避免 stale dbId 在下次同步时被当作新宝贝重建出重复。
+    幂等: 无同名重复档案时为空操作。
+    """
+    rows = sess.query(EduProfile).filter_by(owner=owner).order_by(EduProfile.id).all()
+    groups = {}
+    for p in rows:
+        key = (p.name, p.birth_year, p.gender)
+        groups.setdefault(key, []).append(p)
+    db_map = {}
+    for profs in groups.values():
+        if len(profs) < 2:
+            continue
+        canonical = profs[0]
+        for dup in profs[1:]:
+            for r in sess.query(EduData).filter_by(owner=owner, profile_id=dup.id).all():
+                acc_row = sess.query(EduData).filter_by(
+                    owner=owner, profile_id=canonical.id, dkey=r.dkey).first()
+                if acc_row:
+                    try:
+                        base = json.loads(acc_row.payload or '{}')
+                    except Exception:
+                        base = {}
+                    try:
+                        ext = json.loads(r.payload or '{}')
+                    except Exception:
+                        ext = {}
+                    acc_row.payload = json.dumps(_merge_blob(base, ext), ensure_ascii=False)
+                    acc_row.updated_at = datetime.utcnow()
+                    sess.delete(r)
+                else:
+                    r.owner = owner
+                    r.profile_id = canonical.id
+                    sess.add(r)
+            sess.flush()
+            sess.query(EduData).filter_by(owner=owner, profile_id=dup.id).delete()
+            sess.query(EduProfile).filter_by(id=dup.id, owner=owner).delete()
+            db_map[str(dup.id)] = str(canonical.id)
+    if db_map:
+        sess.commit()
+    return db_map
+
+
 @education_bp.route('/')
 def index():
     """教育乐园首页：孩子管理 + 星愿进度。"""
@@ -345,15 +543,25 @@ def bootstrap():
     """返回当前归属下的孩子档案列表.
 
     免登录: 前端需带 X-Edu-Anon(匿名ID); POST 时 body 可带前端本地孩子用于合并。
+    已登录: 若请求带 X-Edu-Anon, 先把该匿名归属的宝贝/数据一次性地归并进账号,
+    保证「同一种宝贝」在 IP 访问与域名访问(不同匿名)下最终收敛到同一账号。
     """
     sess = _get_session()
     owner = _owner_id()
+    adopted, db_id_map = _adopt_anonymous(sess)
+    # 同一归属下同名宝贝(旧版收养/多端同步可能产生重复)合并, 并把纠正后的 id 映射
+    # 一并交给前端, 让本地 stale dbId 收敛到保留档案
+    dedup_map = _dedup_profiles_in_owner(sess, owner)
+    for k, v in dedup_map.items():
+        db_id_map.setdefault(k, v)
     rows = sess.query(EduProfile).filter_by(owner=owner).order_by(EduProfile.sort).all()
     kids = [dict(id=p.id, name=p.name, birthYear=p.birth_year, gender=p.gender,
                  created=getattr(p, 'created_at', None).isoformat() if p.created_at else '')
             for p in rows]
     sess.close()
-    return jsonify(ok=True, owner=owner, kids=kids)
+    changed = adopted or bool(dedup_map)
+    return jsonify(ok=True, owner=owner, kids=kids, adopted=adopted,
+                   dbIdMap=db_id_map if changed else {})
 
 
 @education_bp.route('/api/kids', methods=['POST'])
@@ -425,10 +633,15 @@ def kid_state(pid):
         payload = json.loads(row.payload) if row and row.payload else {}
         sess.close()
         return jsonify(ok=True, data=payload)
-    # POST
+# POST
     body = request.get_json(silent=True) or {}
     payload = body.get('data') or {}
     row = sess.query(EduData).filter_by(owner=owner, profile_id=pid, dkey=dkey).first()
+    # 空弹不覆盖: 初始化空推({})不得清空两端已合并的成绩数据
+    if not isinstance(payload, dict) or len(payload) == 0:
+        sess.commit()
+        sess.close()
+        return jsonify(ok=True, noop=True)
     now = datetime.utcnow()
     if row:
         row.payload = json.dumps(payload, ensure_ascii=False)

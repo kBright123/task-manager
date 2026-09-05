@@ -58,7 +58,7 @@
       PAR.items.push({prompt:'点击 '+correct, correct:correct, options:opts});
       html = '<div style="font-size:2.5rem;font-weight:800;text-align:center;margin-bottom:20px;color:var(--edu-ink);">请点击：'+correct+'</div>';
       html += '<div class="par-opts" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;">'+opts.map(function(o){
-        return '<button type="button" class="par-opt" style="width:80px;height:80px;border-radius:12px;border:3px solid var(--edu-border-2);font-size:1.5rem;font-weight:700;background:#fff;" onclick="window.Edu.Paradise.parAnswer(\''+o+'\')">'+o+'</button>';
+        return '<button type="button" class="par-opt" style="border-radius:12px;border:3px solid var(--edu-border-2);font-size:1.5rem;font-weight:700;background:#fff;" onclick="window.Edu.Paradise.parAnswer(\''+o+'\')">'+o+'</button>';
       }).join('')+'</div>';
     } else if (PAR.game === 'shape') {
       var shapes = ['🔴','🔵','🟢','🟡','🟣','🟠'];
@@ -67,7 +67,7 @@
       PAR.items.push({prompt:'找出 '+correct, correct:correct, options:opts});
       html = '<div style="font-size:2rem;text-align:center;margin-bottom:20px;">请找出：'+correct+'</div>';
       html += '<div class="par-opts" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;">'+opts.map(function(o){
-        return '<button type="button" class="par-opt" style="width:80px;height:80px;border-radius:12px;border:3px solid var(--edu-border-2);font-size:2.5rem;background:#fff;" onclick="window.Edu.Paradise.parAnswer(\''+o.replace(/'/g,"\\'")+'\')">'+o+'</button>';
+        return '<button type="button" class="par-opt" style="border-radius:12px;border:3px solid var(--edu-border-2);font-size:2.5rem;background:#fff;" onclick="window.Edu.Paradise.parAnswer(\''+o.replace(/'/g,"\\'")+'\')">'+o+'</button>';
       }).join('')+'</div>';
     } else if (PAR.game === 'number') {
       var count = Math.floor(Math.random()*5)+1;
@@ -79,7 +79,7 @@
       html = '<div style="font-size:3rem;text-align:center;margin-bottom:20px;">'+emoji.repeat(count)+'</div>';
       html += '<div style="text-align:center;margin-bottom:10px;color:var(--edu-muted);">上面有几个？</div>';
       html += '<div class="par-opts" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;">'+opts.map(function(o){
-        return '<button type="button" class="par-opt" style="width:70px;height:70px;border-radius:12px;border:3px solid var(--edu-border-2);font-size:1.8rem;font-weight:700;background:#fff;" onclick="window.Edu.Paradise.parAnswer(\''+o+'\')">'+o+'</button>';
+        return '<button type="button" class="par-opt" style="border-radius:12px;border:3px solid var(--edu-border-2);font-size:1.8rem;font-weight:700;background:#fff;" onclick="window.Edu.Paradise.parAnswer(\''+o+'\')">'+o+'</button>';
       }).join('')+'</div>';
     } else if (PAR.game === 'animal') {
       var animals = [{name:'猫',sound:'喵喵',emoji:'🐱'},{name:'狗',sound:'汪汪',emoji:'🐶'},{name:'鸭',sound:'嘎嘎',emoji:'🦆'},{name:'牛',sound:'哞哞',emoji:'🐮'},{name:'羊',sound:'咩咩',emoji:'🐑'},{name:'猪',sound:'哼哼',emoji:'🐷'}];
@@ -88,7 +88,7 @@
       PAR.items.push({prompt:'听声音找 '+correct.name, correct:correct.name, options:opts.map(function(a){return a.name;})});
       html = '<div style="font-size:2rem;text-align:center;margin-bottom:10px;">听：'+correct.sound+'</div>';
       html += '<div class="par-opts" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;">'+opts.map(function(a){
-        return '<button type="button" class="par-opt" style="width:80px;height:80px;border-radius:12px;border:3px solid var(--edu-border-2);font-size:2.5rem;background:#fff;" onclick="window.Edu.Paradise.parAnswer(\''+a.name+'\')">'+a.emoji+'</button>';
+        return '<button type="button" class="par-opt" style="border-radius:12px;border:3px solid var(--edu-border-2);font-size:2.5rem;background:#fff;" onclick="window.Edu.Paradise.parAnswer(\''+a.name+'\')">'+a.emoji+'</button>';
       }).join('')+'</div>';
     } else if (PAR.game === 'fruit') {
       var fruits = ['🍎','🍌','🍇','🍓','🥝','🍑','🍊','🍋'];
@@ -97,7 +97,7 @@
       PAR.items.push({prompt:'找出 '+correct, correct:correct, options:opts});
       html = '<div style="font-size:3rem;text-align:center;margin-bottom:20px;">哪个是水果？</div>';
       html += '<div class="par-opts" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;">'+opts.map(function(o){
-        return '<button type="button" class="par-opt" style="width:80px;height:80px;border-radius:12px;border:3px solid var(--edu-border-2);font-size:2.5rem;background:#fff;" onclick="window.Edu.Paradise.parAnswer(\''+o.replace(/'/g,"\\'")+'\')">'+o+'</button>';
+        return '<button type="button" class="par-opt" style="border-radius:12px;border:3px solid var(--edu-border-2);font-size:2.5rem;background:#fff;" onclick="window.Edu.Paradise.parAnswer(\''+o.replace(/'/g,"\\'")+'\')">'+o+'</button>';
       }).join('')+'</div>';
     }
     item.innerHTML = html;

@@ -243,56 +243,124 @@ def login_unlock():
     return redirect(url_for('login'))
 
 
+# --- 自助注册: 邮箱验证码(10分钟有效), 验证通过即自动开通账号, 无需管理员审批 ---
+_REG_CODE_TTL_MINUTES = 10
+_reg_pending = {}  # email -> {username, name, password_hash, code, expires_at} (内存态)
+
+
+def _send_register_code(email, username, name, password):
+    """为用户自助注册生成验证码, 暂存待注册信息并发送邮件。
+    返回 (ok, err, dev_code): 邮件服务未配置时 dev_code 供开发联调。"""
+    code = generate_verify_code()
+    from werkzeug.security import generate_password_hash
+    _reg_pending[email] = {
+        'username': username,
+        'name': name,
+        'password_hash': generate_password_hash(password),
+        'code': code,
+        'expires_at': cn_now() + timedelta(minutes=_REG_CODE_TTL_MINUTES),
+    }
+    text = (f'您正在注册【知行合一】账号: @{username}。\n'
+            f'注册验证码为: {code}\n'
+            f'验证码 {_REG_CODE_TTL_MINUTES} 分钟内有效,请勿泄露给他人。\n'
+            f'验证通过后将自动开通账号,无需管理员审批。\n'
+            f'如非本人操作,请忽略本邮件。')
+    html = (f'<div style="font-family:Microsoft YaHei,Arial,sans-serif;font-size:14px;color:#1e293b;">'
+            f'<p>您正在注册【知行合一】账号 <b>@{username}</b>。</p>'
+            f'<p>注册验证码为:</p>'
+            f'<p style="font-size:24px;font-weight:700;letter-spacing:4px;color:#4f46e7;">{code}</p>'
+            f'<p>验证码 <b>{_REG_CODE_TTL_MINUTES} 分钟</b>内有效,请勿泄露给他人。</p>'
+            f'<p>验证通过后将自动开通账号,无需管理员审批。</p>'
+            f'<p style="color:#94a3b8;font-size:12px;">如非本人操作,请忽略本邮件。</p></div>')
+    ok, err = send_email(email, '【知行合一】注册验证码', html, text, category='verify')
+    if not ok and not app.config['MAIL_SERVER']:
+        logger.info('邮件服务未配置,注册验证码(%s) 已写入日志,目标邮箱: %s', code, email)
+        return False, '邮件服务未配置,验证码已写入服务器日志', code
+    return ok, err, ''
+
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
+    username = (request.form.get('username') or '').strip()
+    name = (request.form.get('name') or '').strip()
+    email = (request.form.get('email') or '').strip().lower()
+    password = request.form.get('password', '')
+    code = (request.form.get('code') or '').strip()
+    step = request.values.get('step') or ('verify' if code else 'send_code')
+    errs = []
+
     if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        name = request.form.get('name', '').strip()
-        password = request.form.get('password', '')
         if not username or not name:
-            flash('用户名和姓名不能为空', 'danger')
-            return render_template('register.html', username=username,
-                                   name=name)
+            errs.append('用户名和姓名不能为空')
         if len(username) < 2 or len(username) > 80:
-            flash('用户名长度需在 2-80 个字符之间', 'danger')
-            return render_template('register.html', username=username,
-                                   name=name)
+            errs.append('用户名长度需在 2-80 个字符之间')
         if len(name) > 80:
-            flash('姓名不能超过 80 个字符', 'danger')
-            return render_template('register.html', username=username,
-                                   name=name)
+            errs.append('姓名不能超过 80 个字符')
         if len(password) < 6:
-            flash('密码长度至少 6 位', 'danger')
-            return render_template('register.html', username=username,
-                                   name=name)
-        if User.query.filter_by(username=username).first():
-            flash('该账号已注册，请直接登录', 'danger')
-            return render_template('register.html', username=username,
-                                   name=name)
-        reg_ip = client_ip()
-        if User.query.filter(User.registration_ip == reg_ip).first():
-            flash('当前访问 IP 地址已注册过账号，如需其他账号请联系管理员', 'danger')
-            return render_template('register.html', username=username,
-                                   name=name)
-        user = User(username=username, name=name, role='user',
-                    status='pending', registration_ip=reg_ip)
-        user.set_password(password)
+            errs.append('密码长度至少 6 位')
+        email = normalize_email(email)
+        if not email:
+            errs.append('邮箱格式不正确,请检查后重试')
+        if not errs:
+            if User.query.filter_by(username=username).first():
+                errs.append('该账号已注册，请直接登录')
+        if not errs:
+            if User.query.filter(db.or_(User.email == email,
+                                        User.pending_email == email)).first():
+                errs.append('该邮箱已被注册，请直接登录')
+        if errs:
+            flash('；'.join(errs), 'danger')
+            return render_template('register.html', username=username, name=name,
+                                   email=email, code=code, step=step)
+
+    # ---- 第二步: 校验验证码并完成注册(自动开通账号) ----
+    if request.method == 'POST' and step == 'verify':
+        pending = _reg_pending.get(email)
+        if pending is None or pending['username'] != username:
+            flash('未找到对应的注册信息，请重新填写并发送验证码', 'danger')
+            return render_template('register.html', username=username, name=name,
+                                   email=email, step='send_code')
+        if pending['expires_at'] < cn_now():
+            _reg_pending.pop(email, None)
+            flash('验证码已过期，请重新获取', 'danger')
+            return render_template('register.html', username=username, name=name,
+                                   email=email, step='send_code')
+        if not code or pending['code'] != code:
+            flash('验证码不正确，请重新输入', 'danger')
+            return render_template('register.html', username=username, name=name,
+                                   email=email, code=code, step='verify')
+        user = User(username=username, name=name, role='user', status='approved',
+                    email=email, email_verified=True,
+                    registration_ip=client_ip())
+        user.password_hash = pending['password_hash']
         db.session.add(user)
         db.session.commit()
-        for admin in User.query.filter_by(role='admin',
-                                          is_disabled=False,
-                                          status='approved').all():
-            create_notification(
-                admin.id, 'user_pending',
-                f'新用户「{name or username}」(@{username}) 注册，等待审批')
-        db.session.commit()
+        _reg_pending.pop(email, None)
         log_operation('register', username,
-                      f'新用户 {name or username} 注册，等待管理员审批')
-        db.session.commit()
-        flash('注册成功！账号正在等待管理员审批，审批通过后即可登录', 'success')
-        return redirect(url_for('login'))
+                      f'新用户 {name or username} 注册成功(邮箱验证自动开通)')
+        login_user(user)
+        session.permanent = True
+        flash('注册成功，欢迎使用！', 'success')
+        return redirect(url_for('index'))
+
+    # ---- 第一步: 发送验证码 ----
+    if request.method == 'POST':
+        ok, err, dev_code = _send_register_code(email, username, name, password)
+        if dev_code:
+            flash(f'邮件服务未配置，验证码(仅开发模式可见): {dev_code}', 'warning')
+            return render_template('register.html', username=username, name=name,
+                                   email=email, masked_email=mask_email(email),
+                                   email_sent=True, step='verify')
+        if ok:
+            flash(f'注册验证码已发送至 {mask_email(email)}，{_REG_CODE_TTL_MINUTES} 分钟内有效', 'info')
+            return render_template('register.html', username=username, name=name,
+                                   email=email, masked_email=mask_email(email),
+                                   email_sent=True, step='verify')
+        flash(err or '验证码发送失败，请稍后重试', 'danger')
+        return render_template('register.html', username=username, name=name,
+                               email=email)
     return render_template('register.html')
 
 

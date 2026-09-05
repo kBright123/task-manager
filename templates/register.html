@@ -146,10 +146,18 @@
 
     <div class="auth-title mb-4">
       <h1>创建账号</h1>
-      <p>注册后需管理员审批，通过后方可登录</p>
+      <p>完成邮箱验证后自动开通账号，无需管理员审批</p>
     </div>
 
+    {% if email_sent %}
+    <div class="auth-note" style="justify-content:flex-start;border-style:solid;border-color:var(--primary);background:var(--primary-light);">
+      <i class="bi bi-envelope-check" style="color:var(--primary);flex:0 0 auto;"></i>
+      <span>验证码已发送至 <b>{{ masked_email or '' }}</b>，请查收邮箱并输入验证码完成注册。</span>
+    </div>
+    {% endif %}
+
     <form method="POST">
+      <input type="hidden" name="step" value="{{ 'verify' if email_sent else 'send_code' }}">
       <div class="mb-3 auth-field">
         <label class="form-label">用户名<span class="req">*</span></label>
         <div class="input-group">
@@ -162,21 +170,41 @@
         <label class="form-label">姓名<span class="req">*</span></label>
         <div class="input-group">
           <span class="input-group-text"><i class="bi bi-person-vcard"></i></span>
-          <input type="text" name="name" class="form-control" placeholder="请输入真实姓名" value="{{ name }}" required maxlength="80">
+          <input type="text" name="name" class="form-control" placeholder="请输入姓名" value="{{ name }}" required maxlength="80">
         </div>
       </div>
-      <div class="mb-4 auth-field">
+      <div class="mb-3 auth-field">
+        <label class="form-label">邮箱<span class="req">*</span></label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+          <input type="email" name="email" class="form-control" placeholder="用于接收注册验证码" value="{{ email }}" required maxlength="120" {% if email_sent %}readonly{% endif %}>
+        </div>
+        <div class="auth-hint">仅用于注册验证，验证通过后即自动开通账号</div>
+      </div>
+      <div class="mb-3 auth-field">
         <label class="form-label">密码<span class="req">*</span></label>
         <div class="input-group">
           <span class="input-group-text"><i class="bi bi-lock"></i></span>
-          <input type="password" name="password" class="form-control" placeholder="至少 6 位" required minlength="6" autocomplete="new-password">
+          <input type="password" name="password" class="form-control" placeholder="至少 6 位" required minlength="6" {% if email_sent %}readonly{% endif %} autocomplete="new-password">
         </div>
         <div class="auth-hint">至少 6 位，建议使用字母、数字与符号组合</div>
       </div>
-      <button type="submit" class="btn btn-primary w-100 auth-submit">注 册</button>
+      {% if email_sent %}
+      <div class="mb-4 auth-field">
+        <label class="form-label">验证码<span class="req">*</span></label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-shield-lock"></i></span>
+          <input type="text" name="code" class="form-control" placeholder="请输入 6 位验证码" value="{{ code }}" required maxlength="6" autocomplete="one-time-code" style="letter-spacing:4px;text-align:center;font-weight:600;">
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary w-100 auth-submit">完成注册</button>
+      <button type="submit" name="step" value="send_code" class="btn btn-link w-100 mt-1" style="font-size:.78rem;color:var(--primary);text-decoration:none;">重新发送验证码</button>
+      {% else %}
+      <button type="submit" class="btn btn-primary w-100 auth-submit">发送验证码</button>
+      {% endif %}
     </form>
 
-    <div class="auth-note"><i class="bi bi-shield-check" style="color:var(--primary);"></i> 同一个访问 IP 地址仅允许注册一个账号</div>
+    <div class="auth-note"><i class="bi bi-shield-check" style="color:var(--primary);"></i> 注册需完成邮箱验证，验证通过后账号自动开通，无需管理员审批</div>
 
     <div class="auth-foot">
       已有账号？<a href="{{ url_for('login') }}">返回登录</a>

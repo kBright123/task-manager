@@ -293,11 +293,11 @@ def register():
 
     if request.method == 'POST':
         if not username or not name:
-            errs.append('用户名和姓名不能为空')
+            errs.append('用户名和昵称不能为空')
         if len(username) < 2 or len(username) > 80:
             errs.append('用户名长度需在 2-80 个字符之间')
         if len(name) > 80:
-            errs.append('姓名不能超过 80 个字符')
+            errs.append('昵称不能超过 80 个字符')
         if len(password) < 6:
             errs.append('密码长度至少 6 位')
         email = normalize_email(email)

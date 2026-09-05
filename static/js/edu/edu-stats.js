@@ -6,7 +6,7 @@
   var Speech = window.Edu.Speech;
   var Legacy = window.Edu.Legacy;
 
-  var SUBJ_LABEL = { zh: '语文', math: '数学', en: '英语', par: '乐园' };
+  var SUBJ_LABEL = { zh: '语文', math: '数学', en: '英语', go: '围棋', par: '乐园' };
 
   function pad(n) { return (n < 10 ? '0' : '') + n; }
 

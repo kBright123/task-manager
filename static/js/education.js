@@ -296,6 +296,7 @@
     if (p && p.wbZh) wbZhMode = p.wbZh;
     if (p && p.wbPy) wbPinyinMode = p.wbPy;
     if (p && p.wbCy) wbCiyuMode = p.wbCy;
+    if (p && p.wbGo) wbGoMode = p.wbGo;
     updateDonePill();
     wbSubject(subjNow || 'zh');
     applyContentToggles();
@@ -309,10 +310,11 @@
     if (s==='zh') wbZh(wbZhMode);
     if (s==='math') wbMath('calc');
     if (s==='en') wbEn('word');
+    if (s==='go') wbGo(wbGoMode);
     renderNav();
   };
   function wbShowPanel(id){
-    document.querySelectorAll('#wb-zh,#wb-math,#wb-en,#wb-daily').forEach(function(el){ el.style.display='none'; });
+    document.querySelectorAll('#wb-zh,#wb-math,#wb-en,#wb-go,#wb-daily').forEach(function(el){ el.style.display='none'; });
     var el = document.getElementById(id);
     if (el) el.style.display = '';
   }
@@ -3246,7 +3248,7 @@
     anim(body);
   }
 
-  var SUBJ_LABEL = { zh: '语文', math: '数学', en: '英语', par: '乐园' };
+  var SUBJ_LABEL = { zh: '语文', math: '数学', en: '英语', go: '围棋', par: '乐园' };
   function renderStats(){
     var body = document.getElementById('eduStatsBody');
     if (!body) return;

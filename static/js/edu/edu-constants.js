@@ -17,8 +17,8 @@
   C.LEVEL_RANGE = [5, 10, 20, 50, 100];
 
   C.DAILY_PLAN = ['zh','zh','zh','zh','math','math','math','en','en','en'];
-  C.DAILY_LABEL = { zh: '语文', math: '数学', en: '英语' };
-  C.SUBJ_LABEL = { zh: '语文', math: '数学', en: '英语', par: '乐园' };
+  C.DAILY_LABEL = { zh: '语文', math: '数学', en: '英语', go: '围棋' };
+  C.SUBJ_LABEL = { zh: '语文', math: '数学', en: '英语', go: '围棋', par: '乐园' };
 
   C.PRAISE_MSGS = ['真棒！','答对啦，太厉害！','好聪明呀～','漂亮！','你越来越棒咯！','太赞了！'];
   C.WRONG_MSGS = ['没关系，再想想','差一点，再试一次','别灰心，再数一数','不小心走神啦，再看一看'];

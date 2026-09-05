@@ -368,17 +368,21 @@
   .edu-map-full.cm-theme-math{background:
       radial-gradient(circle at 6px 6px, rgba(255,255,255,.85) 1.5px, transparent 1.9px) 0 0/34px 34px repeat,
       radial-gradient(120% 220% at 30% 10%, #dde8ff 0%, #aabffa 34%, #7f96ec 56%, #5a70d4 78%, #4651ae 100%);}
-  .edu-map-full.cm-theme-en{background:
+.edu-map-full.cm-theme-en{background:
       radial-gradient(circle at 8px 14px, rgba(255,255,255,.8) 2.4px, transparent 2.9px) 0 0/26px 40px repeat,
       radial-gradient(130% 230% at 25% 0%, #eafcff 0%, #c8f3f5 30%, #99e3e6 50%, #58c2ce 72%, #2f9ebc 100%);}
+  .edu-map-full.cm-theme-go{background:
+      radial-gradient(circle at 10px 10px, rgba(255,255,255,.7) 2px, transparent 2.8px) 0 0/32px 32px repeat,
+      radial-gradient(130% 230% at 15% 0%, #fdf6e8 0%, #f5e6c8 25%, #e8d4a8 45%, #d4b888 65%, #c4a070 85%, #b89050 100%);}
   .edu-map-full .emf-bar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1.5px solid var(--edu-border);background:transparent;border-bottom-color:transparent;}
   .edu-map-full .emf-back{flex:0 0 auto;border:1.5px solid var(--edu-border-2);background:rgba(255,255,255,.5);color:var(--edu-ink);border-radius:12px;padding:8px 16px;font-size:.9rem;font-weight:700;cursor:pointer;}
   .edu-map-full .emf-journey{margin-left:auto;max-width:calc(100% - 92px);font-size:.82rem;font-weight:700;color:var(--edu-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .edu-map-full .emf-body .cm-progress-hint{display:none;}
   .edu-map-full.cm-theme-zh .emf-journey{color:#1f5a2e;}
   .edu-map-full.cm-theme-en .emf-journey{color:#0e5d87;}
   .edu-map-full.cm-theme-math .emf-journey{color:#4651ae;}
+  .edu-map-full.cm-theme-go .emf-journey{color:#8b6f3a;}
   .edu-map-full.cm-theme-math .emf-back{background:rgba(255,255,255,.65);color:#4651ae;border-color:rgba(58,80,177,.6);}
+  .edu-map-full.cm-theme-go .emf-back{background:rgba(255,255,255,.65);color:#8b6f3a;border-color:rgba(139,111,58,.6);}
   .edu-map-full .emf-tabs{padding:10px 14px 0;}
   .edu-map-full .emf-body{flex:1;overflow-y:auto;padding:12px 14px 24px;}
   .edu-map-full .emf-body .cm-snake-wrap{margin:0 auto;margin-top:10px;width:100%;min-height:100%;}
@@ -1562,8 +1566,32 @@
   .cm-theme-en .c-anchor{position:absolute;bottom:30%;left:33%;font-size:2.4rem;opacity:.7;}
   .cm-theme-en .c-fish{position:absolute;bottom:7%;left:34%;font-size:2.2rem;opacity:.7;transform:scaleX(-1);}
 
+  /* 围棋·棋院山水: 旭日云霞、远山亭台、棋子点缀、竹林樱花、灯笼扇面 */
+  .cm-snake-wrap.cm-theme-go{
+    background:radial-gradient(130% 230% at 15% 0%, #fdf6e8 0%, #f0e0c0 25%, #e0c890 45%, #d0b070 65%, #c09858 82%, #a88040 100%);}
+  .cm-snake-wrap.cm-theme-go .cm-swipe-hint{color:#8b6f3a;opacity:.85;}
+
+  /* 围棋·山水棋院: 云霞、亭台楼阁、黑白棋子、竹林、樱花、锦鲤、灯笼、团扇 */
+  .cm-theme-go .c-sky{position:absolute;top:4%;left:8%;font-size:3rem;opacity:.8;}
+  .cm-theme-go .c-sky2{position:absolute;top:10%;right:10%;font-size:2.2rem;opacity:.5;}
+  .cm-theme-go .c-mountain{position:absolute;bottom:30%;left:2%;font-size:8rem;opacity:.3;transform:scaleX(-1);}
+  .cm-theme-go .c-tree{position:absolute;bottom:30%;right:4%;font-size:4.5rem;opacity:.8;filter:drop-shadow(0 3px 4px rgba(80,60,20,.3));}
+  .cm-theme-go .c-pavilion{position:absolute;bottom:28%;left:35%;font-size:4rem;opacity:.7;}
+  .cm-theme-go .c-stone{position:absolute;bottom:18%;left:20%;font-size:2.5rem;opacity:.9;}
+  .cm-theme-go .c-stone2{position:absolute;bottom:20%;right:18%;font-size:2.2rem;opacity:.85;}
+  .cm-theme-go .c-bamboo{position:absolute;bottom:22%;left:8%;font-size:3rem;opacity:.6;}
+  .cm-theme-go .c-bamboo2{position:absolute;bottom:24%;right:10%;font-size:2.8rem;opacity:.55;}
+  .cm-theme-go .c-koi{position:absolute;bottom:6%;left:30%;font-size:2.2rem;opacity:.7;animation:cmKoiSwim 4s ease-in-out infinite;}
+  .cm-theme-go .c-dragon{position:absolute;top:12%;left:60%;font-size:3rem;opacity:.4;transform:rotate(15deg);}
+  .cm-theme-go .c-sakura{position:absolute;bottom:12%;left:15%;font-size:1.8rem;opacity:.7;animation:cmSakuraFall 5s ease-in-out infinite;}
+  .cm-theme-go .c-sakura2{position:absolute;bottom:14%;right:20%;font-size:2rem;opacity:.65;animation:cmSakuraFall 5s ease-in-out infinite reverse;}
+  .cm-theme-go .c-lantern{position:absolute;bottom:34%;left:45%;font-size:2.2rem;opacity:.8;}
+  .cm-theme-go .c-fan{position:absolute;bottom:36%;right:30%;font-size:2.5rem;opacity:.7;transform:rotate(-15deg);}
+
   @keyframes cmTwinkle{0%,100%{opacity:.5;}50%{opacity:1;}}
   @keyframes cmRocketFloat{0%,100%{transform:rotate(28deg) translateY(0);}50%{transform:rotate(28deg) translateY(-8px);}}
+  @keyframes cmKoiSwim{0%,100%{transform:translateX(0) rotate(0deg);}50%{transform:translateX(20px) rotate(5deg);}}
+  @keyframes cmSakuraFall{0%,100%{transform:translateY(0) rotate(0deg);}50%{transform:translateY(15px) rotate(8deg);}}
 
   /* 旧主题兼容类(保留以防残留), 新地图不再使用 */
   .cm-snake-wrap.cm-theme-forest{background:#9ce2a6;}

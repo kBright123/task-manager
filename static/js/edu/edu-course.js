@@ -12,7 +12,7 @@
   // 每个学科是一条「旅程」, 每个关卡节点对映一个现有题型. 通关=答对>=80% 或 3星.
   // =====================================================================
 
-  var SUBJ_LABEL = { zh: '语文', math: '数学', en: '英语', daily: '每日' };
+  var SUBJ_LABEL = { zh: '语文', math: '数学', en: '英语', go: '围棋', daily: '每日' };
 
   // 每个大关卡分成的小关卡数, 以及逐小关的基础正确率门槛(小关难度递增)
   var STAGES_PER_BIG = 5;
@@ -65,6 +65,21 @@
         { t: 'match', name: '配对彩虹桥', em: '🌈' },
         { t: 'word', name: '单词冲刺', em: '🚀' },
         { t: 'dialogue', name: '对话巅峰', em: '🏔️' }
+      ]
+    },
+    go: {
+      title: '围棋少年行', emoji: '⚫', journey: '棋圣之路', startEm: '🎴',
+      levels: [
+        { t: 'go_atari', name: '基本气与吃子', em: '💨' },
+        { t: 'go_liberty', name: '找气与逃跑', em: '🏃' },
+        { t: 'go_capture', name: '打吃与提子', em: '🎯' },
+        { t: 'go_connect', name: '连接与分断', em: '🔗' },
+        { t: 'go_life_death', name: '死活与二眼', em: '👁️' },
+        { t: 'go_ko', name: '打劫与劫材', em: '♻️' },
+        { t: 'go_semeai', name: '共活与双活', em: '⚖️' },
+        { t: 'go_opening', name: '布局与定式', em: '📐' },
+        { t: 'go_endgame', name: '官子与收官', em: '🏁' },
+        { t: 'go_quiz', name: '围棋大闯关', em: '🏆' }
       ]
     }
   };
@@ -186,7 +201,7 @@
     stage = (typeof stage === 'number' && stage >= 0 && stage < STAGES_PER_BIG) ? stage : 0;
     if (!stageUnlocked(subj, idx, stage)) { if (Speech && Speech.toast) Speech.toast('先通过前面的小关才能解锁这里哦 🔒'); return; }
     // 语文题型在导入面板中有子模式(声母/韵母/拼读/四声), 需落到真正的答题 type 以匹配结算
-    var quizT = zhLevelQuizType(lv.t);
+    var quizT = (subj === 'zh') ? zhLevelQuizType(lv.t) : (subj === 'go') ? goLevelQuizType(lv.t) : lv.t;
     var type = lv.t;
     var NavP = window.Edu && window.Edu.Nav;
     var pref = (NavP && NavP.getPref) ? NavP.getPref() : null;
@@ -196,9 +211,11 @@
         if (origPref) { origPref.lastSubj = subj; origPref.mode = 'workbench'; origPref.subj = subj; if (key) origPref[key] = type; if (NavP && NavP.savePref) NavP.savePref(origPref); }
       };
     })(pref);
-    setPref(subj === 'math' ? 'wbMath' : (subj === 'en' ? 'wbEn' : (type === 'pinyin' || type === 'yun' || type === 'read' || type === 'tone' ? null : (type === 'ciyu' || type === 'liang' ? null : 'wbZh'))));
+    var prefKey = subj === 'math' ? 'wbMath' : (subj === 'en' ? 'wbEn' : (subj === 'go' ? 'wbGo' : (type === 'pinyin' || type === 'yun' || type === 'read' || type === 'tone' ? null : (type === 'ciyu' || type === 'liang' ? null : 'wbZh'))));
+    setPref(prefKey);
     if (type === 'pinyin' || type === 'yun' || type === 'read' || type === 'tone') { if (pref) { pref.wbZh = 'pinyin'; pref.wbPy = type; } setPref(); }
     else if (type === 'ciyu' || type === 'liang') { if (pref) { pref.wbZh = 'ciyu'; pref.wbCy = type === 'liang' ? 'liang' : 'fan'; } setPref(); }
+    else if (subj === 'go') { if (pref) { pref.wbGo = type; } setPref(); }
 
     // 进入学习页展示答题(若从全屏闯关地图进入, 先关闭覆盖层, 否则遮挡答题页)。
     // 注意: eduNav('learn') 内部会 Store.loadAllState() 重读持久化状态, 从而清空内存里
@@ -227,6 +244,9 @@
         window.wbZh(type);
       }
     }
+    else if (subj === 'go' && window.wbGo) {
+      window.wbGo(type);
+    }
   }
 
   // 语文关卡题型 → 实际渲染/结算的答题 type
@@ -234,6 +254,10 @@
     if (t === 'ciyu') return 'fan';
     if (t === 'yun' || t === 'read' || t === 'tone' || t === 'pinyin' || t === 'zi' || t === 'poem' || t === 'stroke') return t;
     return t;
+  }
+  // 围棋关卡题型 → 实际渲染/结算的答题 type
+  function goLevelQuizType(t) {
+    return t; // 围棋题型直接用原 type
   }
 
   // ---- 激励: 星星(唯一货币, 可兑换星愿) ----
@@ -412,7 +436,8 @@
   var SUBJ_THEME = {    // 三学科各一固定主题(识别度高、场景各自不同)
     zh: 'cm-theme-zh',
     math: 'cm-theme-math',
-    en: 'cm-theme-en'
+    en: 'cm-theme-en',
+    go: 'cm-theme-go'
   };
   function subjTheme(subj) {
     return SUBJ_THEME[subj] || 'cm-theme-zh';
@@ -440,6 +465,12 @@
         ['c-island','🏝️'],['c-island2','🏝️'],['c-sail','⛵'],['c-sail2','🚤'],
         ['c-dolphin','🐬'],['c-wave','🌊'],['c-wave2','🌊'],
         ['c-crab','🦀'],['c-shell','🐚'],['c-anchor','⚓'],['c-fish','🐠']
+      ],
+      go: [
+        ['c-sky','🌅'],['c-sky2','☁️'],['c-mountain','🏔️'],['c-tree','🌲'],
+        ['c-pavilion','🏯'],['c-stone','⚫'],['c-stone2','⚪'],
+        ['c-bamboo','🎋'],['c-bamboo2','🎍'],['c-koi','🐟'],['c-dragon','🐉'],
+        ['c-sakura','🌸'],['c-sakura2','🌸'],['c-lantern','🏮'],['c-fan','🪭']
       ]
     }[subj] || [];
     return '<div class="cm-campus" aria-hidden="true">' +

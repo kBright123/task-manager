@@ -13,7 +13,7 @@
   var Daily = window.Edu.Daily;
   var Legacy = window.Edu.Legacy;
 
-  var SUBJ_LABEL = { zh: '语文', math: '数学', en: '英语', par: '乐园' };
+  var SUBJ_LABEL = { zh: '语文', math: '数学', en: '英语', go: '围棋', par: '乐园' };
 
   function pad(n) { return (n < 10 ? '0' : '') + n; }
   function keyOf(d) { return pad(d.getFullYear()) + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
@@ -259,13 +259,14 @@
       return dt.getFullYear() + '-' + ('0' + (dt.getMonth()+1)).slice(-2) + '-' + ('0'+dt.getDate()).slice(-2);
     }
     var recs = Store.state.records || [];
-    var subjN = { zh: 0, math: 0, en: 0 };
+    var subjN = { zh: 0, math: 0, en: 0, go: 0 };
     recs.forEach(function (r) { if (rKey(r) === today && subjN[r.subj] !== undefined) subjN[r.subj]++; });
     var lvMap = (Store.state.level || {});
     var courses = [
       { s: 'zh', type: 'zi', em: '📖', name: '语文识字', sub: '认识新汉字', locked: false },
       { s: 'math', type: 'calc', em: '🔢', name: '数学口算', sub: '加减乘除小能手', locked: false },
-      { s: 'en', type: '', em: '🌍', name: '英语启蒙', sub: 'ABC 说起来', locked: false }
+      { s: 'en', type: '', em: '🌍', name: '英语启蒙', sub: 'ABC 说起来', locked: false },
+      { s: 'go', type: '', em: '⚫', name: '围棋少年', sub: '黑白世界入门', locked: false }
     ];
     function courseStatus(c) {
       if (c.locked) return { tag: '未解锁', cls: 'locked' };
@@ -299,6 +300,8 @@
             t = (lt === 'word') ? 'word' : 'calc';
           } else if (c.s === 'en') {
             t = 'word_en';
+          } else if (c.s === 'go') {
+            t = 'atari';
           }
         }
       }
@@ -573,7 +576,8 @@
     wbCiyuMode: ZhWorkbench.wbCiyuMode,
     wbMathMode: MathWorkbench.wbMathMode,
     wbWrongActive: MathWorkbench.wbWrongActive,
-    wbEnMode: EnWorkbench.wbEnMode
+    wbEnMode: EnWorkbench.wbEnMode,
+    wbGoMode: (window.Edu.GoWorkbench || {}).wbGoMode
   };
   window.Edu.Workbench.wbInit = function () {
     var pref = Nav.getPref();
@@ -582,11 +586,13 @@
     if (pref.wbCy) ZhWorkbench.wbCiyuMode = pref.wbCy;
     if (pref.wbMath) MathWorkbench.wbMathMode = pref.wbMath;
     if (pref.wbEn) EnWorkbench.wbEnMode = pref.wbEn;
+    if (pref.wbGo) GoWorkbench.wbGoMode = pref.wbGo;
     var s = pref.lastSubj || 'zh';
     if (s === 'daily') { window.startDaily(); return; }
     if (s === 'zh') window.wbZh(ZhWorkbench.wbZhMode);
     else if (s === 'math') window.wbMath(MathWorkbench.wbMathMode);
     else if (s === 'en') window.wbEn(EnWorkbench.wbEnMode);
+    else if (s === 'go') window.wbGo(GoWorkbench.wbGoMode);
     window.renderNav();
   };
   window.Edu.Workbench.wbSubject = function (s) {
@@ -595,6 +601,7 @@
     if (s === 'zh') window.wbZh(ZhWorkbench.wbZhMode);
     else if (s === 'math') window.wbMath(MathWorkbench.wbMathMode);
     else if (s === 'en') window.wbEn(EnWorkbench.wbEnMode);
+    else if (s === 'go') window.wbGo(GoWorkbench.wbGoMode);
     window.renderNav();
   };
   // 首页一键直达答题：合并「选科/选题」到首页，1 步进入答题
@@ -606,10 +613,11 @@
     p.lastSubj = subj; p.mode = 'workbench'; p.par = null;
     // 记录目标题型: wbInit 会依据 pref 打开对应面板, 避免"先默认开面板再二次打开"的重复初始化
     if (subj === 'daily') {
-      p.wbZh = null; p.wbMath = null; p.wbEn = null;
+      p.wbZh = null; p.wbMath = null; p.wbEn = null; p.wbGo = null;
     } else if (subj === 'math') { p.wbMath = type || p.wbMath || 'calc'; }
     else if (subj === 'zh') { p.wbZh = type || p.wbZh || 'zi'; }
     else if (subj === 'en') { p.wbEn = type || p.wbEn || 'word'; }
+    else if (subj === 'go') { p.wbGo = type || p.wbGo || 'atari'; }
     Nav.savePref(p);
     eduNav('learn');
     if (window.renderNav) window.renderNav();

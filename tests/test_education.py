@@ -1548,6 +1548,76 @@ const W=global; global.__ins=inserted;
     assert 'ADVANCED=1' in stdout, stdout
 
 
+def test_order_retap_without_clear(client):
+    """排序题第一次答错后无需手动清空: 重新点选选项即可继续; 原顺序拼回不累计二次判错; 排对后锁定."""
+    harness = r'''
+const fs=require('fs'),vm=require('vm');
+global.window=global;global.esc=s=>String(s||'').replace(/</g,'&lt;').replace(/&/g,'&amp;');
+const store={}; const inserted=[];
+function cap(){ const el={className:'',style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},setAttribute(){},getAttribute(){return null},querySelector:()=>cap(),querySelectorAll:()=>[],textContent:'',value:'',addEventListener(){},options:[],children:[],offsetWidth:0,offsetHeight:0,focus(){},scrollIntoView(){},getContext(){return new Proxy({}, {get:()=>()=>{}})}};
+  Object.defineProperty(el,'innerHTML',{set(v){el._h=String(v);inserted.push(el.className+'|'+String(v));},get(){return el._h}});
+  el.appendChild=(c)=>{el.children.push(c);};
+  return el;
+}
+const container=cap(); container.id='quizShell';
+let lvSub=null;
+global.document={getElementById:id=>{
+  if(id==='wb-math-body'||id==='quizShell') return container;
+  if(id==='lvSub'){ if(!lvSub){lvSub=cap();lvSub.className='lv-sub';} return lvSub; }
+  return cap();},querySelectorAll:()=>[],querySelector:()=>cap(),createElement:()=>cap(),createTextNode:()=>({}),addEventListener(){},removeEventListener(){},documentElement:{style:{}},body:cap()};
+global.localStorage={getItem:k=>k in store?store[k]:null,setItem(k,v){store[k]=String(v)},removeItem(k){delete store[k]}};
+global.location={};global.navigator={userAgent:'node'};global.performance={now:()=>0};global.HTMLElement=function(){};global.Node=function(){};
+global.eduKids={active:()=>({id:'kk'}),all:()=>[{id:'kk'}],list:()=>[{id:'kk'}],byId:()=>null,tierOf:()=>'workbench',ageOf:()=>6,tierLabel:()=>'',genderIcon:()=>'?',remove(){},setActive(){},hasAny:()=>1,update(){},add(){}};
+global.eduSync={setOnState(){},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
+vm.createContext(global);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),global);
+const W=global; global.__ins=inserted;
+'''
+    out_body = harness + r'''
+(async()=>{
+  store['edu_record_v1_kk']=JSON.stringify({stars:0,records:[],wrong:[],wishes:[],settings:{}});
+  W.Edu.QuizEngine.startQuiz('math','order',
+    [{order:true,prompt:'把数字从小到大排序',options:['1','2','3'],correct:'123'}],
+    {difficulty:1});
+  await new Promise(r=>setTimeout(r,80));
+  const E=W.Edu.QuizEngine;
+  const json=()=>JSON.stringify((E.quizOrder[0]||[]));
+  // 1) 第一次答错: 选成 2,1,3 → 判定为错, 但选项保持可点
+  E.tapOrder(0,1); E.tapOrder(0,0); E.tapOrder(0,2);
+  await new Promise(r=>setTimeout(r,30));
+  console.log('FIRST_WRONG='+(E.quiz.answers[0]==='213'?'1':'0:'+(E.quiz.answers[0]||'')));
+  // 2) 答错后不点「清空」, 直接重选: 再点已选项 = 取消选择
+  E.tapOrder(0,1);
+  console.log('RETAP_TOGGLES='+(json()==='[0,2]'?'1':'0:'+json()));
+  // 3) 拆散后原顺序拼回(213) → lastJVal 命中, 不重复判错、不加锁
+  E.tapOrder(0,0); E.tapOrder(0,0);
+  console.log('SAME_SKIP='+(json()==='[2,0]'?'1':'0:'+json()));
+  E.tapOrder(0,2);
+  console.log('STILL_EDITABLE='+(json()==='[0]'?'1':'0:'+json()));
+  // 4) 重新排成正确答案 1,2,3 → 判对
+  E.tapOrder(0,1); E.tapOrder(0,2);
+  await new Promise(r=>setTimeout(r,30));
+  console.log('FIX_CORRECT='+(E.quiz.answers[0]==='123'?'1':'0:'+(E.quiz.answers[0]||'')+',order='+json()));
+  // 5) 判对后再次点选不再生效(已锁定)
+  E.tapOrder(0,0); E.tapOrder(0,0);
+  console.log('LOCKED='+(json()==='[0,1,2]'?'1':'0:'+json()));
+  setTimeout(function(){ process.exit(0); }, 50);
+})();
+'''
+    stdin_ = _concat_script_path()
+    try:
+        rr = subprocess.run(['node', '-e', out_body, stdin_], capture_output=True, text=True)
+        stdout = rr.stdout
+    finally:
+        try: os.unlink(stdin_)
+        except OSError: pass
+    assert 'FIRST_WRONG=1' in stdout, stdout
+    assert 'RETAP_TOGGLES=1' in stdout, stdout
+    assert 'SAME_SKIP=1' in stdout, stdout
+    assert 'STILL_EDITABLE=1' in stdout, stdout
+    assert 'FIX_CORRECT=1' in stdout, stdout
+    assert 'LOCKED=1' in stdout, stdout
+
+
 def test_rapid_double_enter_no_skip(client):
     """iPad 连续两次快速回车: 自动跳题定时器需合并, 不应跳过中间的题(每次只前进1题)."""
     harness = r'''
@@ -2131,7 +2201,7 @@ def test_wish_gift_exchange():
     Object.defineProperty(el,'innerHTML',{get(){return el._h},set(v){el._h=String(v)}});
     el.appendChild=(c)=>{ if(c && c._h!==undefined) el._h+=(c._h||''); }; return el;};
   const bodyEl=mkEl(), detailBody=mkEl(), detailTitle=mkEl(), detailSub=mkEl(), detailMask=mkEl();
-  const byId=(id)=> id==='eduWishBody'?bodyEl : (id==='detailBody'?detailBody : (id==='detailTitle'?detailTitle : (id==='detailSub'?detailSub : (id==='eduMaskDetail'?detailMask : mkEl()))));
+  const byId=(id)=> id==='eduWishBody'?bodyEl : (id==='detailBody'?detailBody : (id==='detailTitle'?detailTitle : (id==='detailSub'?detailSub : (id==='eduMaskDetail'?detailMask : (id==='gcTitle'||id==='gcSub'||id==='eduMaskGiftConfirm'||id==='pasStars'||id==='pasNote'||id==='eduMaskParentAddStars')?mkEl() : mkEl()))));
   global.document.getElementById=byId;
   global.document.createElement=()=>mkEl();
   global.document.querySelectorAll=()=>[];
@@ -2157,15 +2227,15 @@ def test_wish_gift_exchange():
   console.log('DEF_GONG='+Wish.giftPriceOf('gong'));
   console.log('DEF_QIANG='+Wish.giftPriceOf('qiang'));
   // 兑换 feidao(15星) 4次(70->55->40->25->10), 第5次因星不足拒绝
-  Wish.giftRedeem('feidao');
+  Wish.giftRedeem('feidao'); Wish.giftConfirmOk();
   const s1=W.Edu.Store.state;
   console.log('STARS_AFTER='+s1.stars);
   console.log('REDEEMED1='+((s1.redeemed||[]).length));
   console.log('REDEEMED_FEIDAO='+((s1.redeemed||[])[0]&&s1.redeemed[0].id==='feidao'?'1':'0'));
   console.log('REDEEMED_HAS_PRICE='+((s1.redeemed||[])[0]&&typeof s1.redeemed[0].price==='number'?'1':'0'));
-  Wish.giftRedeem('feidao');
-  Wish.giftRedeem('feidao');
-  Wish.giftRedeem('feidao');
+  Wish.giftRedeem('feidao'); Wish.giftConfirmOk();
+  Wish.giftRedeem('feidao'); Wish.giftConfirmOk();
+  Wish.giftRedeem('feidao'); Wish.giftConfirmOk();
   const s2=W.Edu.Store.state;
   console.log('STARS_EXHAUST='+s2.stars);
   console.log('COUNT2='+((s2.redeemed||[]).length));
@@ -2182,7 +2252,7 @@ def test_wish_gift_exchange():
   console.log('SELLOF_COUNT='+((s4b.redeemed||[]).length));
   // 奥特曼: 唯一不可重复(先凑够星星)
   W.Edu.Store.state.stars=500;
-  Wish.giftRedeem('diga');
+  Wish.giftRedeem('diga'); Wish.giftConfirmOk();
   const s5=W.Edu.Store.state;
   console.log('DIGA_STARS='+s5.stars);
   console.log('DIGA_COUNT='+((s5.redeemed||[]).filter(r=>r.id==='diga').length));

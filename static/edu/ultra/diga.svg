@@ -1,1 +1,226 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400" role="img"><defs><radialGradient id="ora_{i}" cx="50%" cy="42%" r="60%"><stop offset="0%" stop-color="#fff9e6" stop-opacity="0.9"/><stop offset="55%" stop-color="{m}" stop-opacity="0.55"/><stop offset="100%" stop-color="{m}" stop-opacity="0"/></radialGradient><linearGradient id="silver_diga" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f4f6fb"/><stop offset="45%" stop-color="#c8cede"/><stop offset="100%" stop-color="#99a2b8"/></linearGradient><linearGradient id="main_diga" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#cf3b2f"/><stop offset="100%" stop-color="#7a3f8f"/></linearGradient></defs><ellipse cx="200" cy="215" rx="118" ry="118" fill="url(#ora_diga)"><animate attributeName="opacity" values="0.42;0.72;0.42" dur="3.2s" repeatCount="indefinite"/></ellipse><g><animateTransform attributeName="transform" type="translate" values="0 0;0 -6;0 0" dur="3s" repeatCount="indefinite"/><g><path d="M178 268 L166 348 L190 352 L200 286 Z" fill="url(#main_diga)"/><path d="M163 352 Q158 372 176 374 L188 356 Z" fill="url(#silver_diga)"/></g><g><path d="M222 268 L234 348 L210 352 L200 286 Z" fill="url(#main_diga)"/><path d="M237 352 Q242 372 224 374 L212 356 Z" fill="url(#silver_diga)"/></g><rect x="158" y="257" width="84" height="12" rx="4" fill="#3a3f4c"/><g><path d="M148 172 Q146 218 158 258 L242 258 Q254 218 252 172 Z" fill="url(#main_diga)"/><path d="M160 178 L240 178 L236 252 L164 252 Z" fill="url(#silver_diga)" opacity="0.55"/><circle cx="200" cy="226" r="15" fill="#5bc0ff"><animate attributeName="fill" values="#5bc0ff;#ff5447;#5bc0ff" dur="1.8s" repeatCount="indefinite"/><animate attributeName="r" values="15;16.5;15" dur="1.8s" repeatCount="indefinite"/></circle><circle cx="200" cy="226" r="19" fill="none" stroke="#2b3750" stroke-width="3"/><path d="M164 192 L236 192" stroke="#2b3750" stroke-width="3" opacity="0.35"/></g><g><animateTransform attributeName="transform" type="rotate" values="-3 158 196;2 158 196;-3 158 196" dur="4s" repeatCount="indefinite"/><path d="M152 176 Q138 208 142 252 L160 250 Q154 208 162 188 Z" fill="url(#main_diga)"/><path d="M140 254 Q136 302 152 306 L162 284 Q162 266 159 252 Z" fill="url(#silver_diga)"/><circle cx="148" cy="302" r="9" fill="#f4f6fb" stroke="#99a2b8" stroke-width="2"/></g><g><animateTransform attributeName="transform" type="rotate" values="3 242 196;-2 242 196;3 242 196" dur="4s" repeatCount="indefinite"/><path d="M248 176 Q262 208 258 252 L240 250 Q246 208 238 188 Z" fill="url(#main_diga)"/><path d="M260 254 Q264 302 248 306 L238 284 Q238 266 241 252 Z" fill="url(#silver_diga)"/><circle cx="252" cy="302" r="9" fill="#f4f6fb" stroke="#99a2b8" stroke-width="2"/></g><rect x="184" y="150" width="32" height="22" rx="6" fill="#3a3f4c"/><g><rect x="150" y="84" width="100" height="72" rx="34" fill="url(#silver_diga)"/><path d="M172 84 Q186 52 200 40 Q214 52 228 84 Z" fill="url(#main_diga)"/><path d="M188 82 L200 48 L212 82 Z" fill="url(#silver_diga)"/><rect x="156" y="108" width="88" height="42" rx="18" fill="#dfe4ee"/><rect x="156" y="108" width="88" height="42" rx="18" fill="none" stroke="#aab3c9" stroke-width="2"/><g><path d="M162 116 L182 110 L196 120 L180 128 Z" fill="#ffe9a8"/><path d="M238 116 L218 110 L204 120 L220 128 Z" fill="#ffe9a8"/><animate attributeName="opacity" values="1;0.82;1" dur="3.6s" repeatCount="indefinite"/></g><path d="M182 140 Q200 146 218 140" fill="none" stroke="#8b93ab" stroke-width="3" stroke-linecap="round"/></g></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400" role="img">
+  <defs>
+    <radialGradient id="au_diga" cx="50%" cy="38%" r="65%">
+      <stop offset="0%" stop-color="#fffdf0" stop-opacity="0.95"/>
+      <stop offset="45%" stop-color="#9ad4ff" stop-opacity="0.4"/>
+      <stop offset="85%" stop-color="#ffb3e6" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#ff8fd1" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="skin_diga" cx="50%" cy="35%" r="55%">
+      <stop offset="0%" stop-color="#fafafa"/>
+      <stop offset="60%" stop-color="#e8eef8"/>
+      <stop offset="100%" stop-color="#d0dce8"/>
+    </radialGradient>
+    <linearGradient id="mn_diga" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e84535"/>
+      <stop offset="50%" stop-color="#c83228"/>
+      <stop offset="100%" stop-color="#9a261e"/>
+    </linearGradient>
+    <linearGradient id="mn_diga_shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff6b5a" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#e84535" stop-opacity="0.4"/>
+    </linearGradient>
+    <linearGradient id="sv_diga" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="30%" stop-color="#e8f0fb"/>
+      <stop offset="70%" stop-color="#c8d8f0"/>
+      <stop offset="100%" stop-color="#a0b8e0"/>
+    </linearGradient>
+    <linearGradient id="ac_diga" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e04a4a"/>
+      <stop offset="100%" stop-color="#8c3575"/>
+    </linearGradient>
+    <linearGradient id="timer_diga" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffeb3b"/>
+      <stop offset="50%" stop-color="#ffd600"/>
+      <stop offset="100%" stop-color="#ffeb3b"/>
+    </linearGradient>
+    <linearGradient id="timer_diga_red" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ff1744"/>
+      <stop offset="50%" stop-color="#ff0000"/>
+      <stop offset="100%" stop-color="#ff1744"/>
+    </linearGradient>
+    <linearGradient id="silver_diga" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f0f0f0"/>
+      <stop offset="50%" stop-color="#c8c8c8"/>
+      <stop offset="100%" stop-color="#a0a0a0"/>
+    </linearGradient>
+    <filter id="glow_diga" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="soft_shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="rgba(20,24,36,0.25)"/>
+    </filter>
+    <filter id="inner_glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- 背景光环 -->
+  <ellipse cx="200" cy="200" rx="150" ry="140" fill="url(#au_diga)">
+    <animate attributeName="opacity" values="0.4;0.8;0.4" dur="4s" repeatCount="indefinite"/>
+    <animate attributeName="rx" values="150;160;150" dur="4s" repeatCount="indefinite"/>
+    <animate attributeName="ry" values="140;150;140" dur="4s" repeatCount="indefinite"/>
+  </ellipse>
+
+  <!-- 主体组（呼吸动画） -->
+  <g filter="url(#soft_shadow)">
+    <animateTransform attributeName="transform" type="translate" values="0 0;0 -4;0 0" dur="3.5s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+    <g transform="translate(0, 10)">
+      
+      <!-- 双腿 -->
+      <g>
+        <!-- 左腿 -->
+        <path d="M138 350 Q130 380 125 400 L148 400 Q152 380 145 350 Z" fill="url(#mn_diga)" stroke="rgba(20,24,36,0.3)" stroke-width="1.5"/>
+        <path d="M138 350 Q142 370 140 385 L148 385 Q145 370 145 350 Z" fill="url(#sv_diga)"/>
+        <ellipse cx="141.5" cy="390" rx="8" ry="4" fill="url(#ac_diga)"/>
+        <!-- 右腿 -->
+        <path d="M252 350 Q260 380 265 400 L242 400 Q238 380 245 350 Z" fill="url(#mn_diga)" stroke="rgba(20,24,36,0.3)" stroke-width="1.5"/>
+        <path d="M252 350 Q248 370 250 385 L242 385 Q245 370 245 350 Z" fill="url(#sv_diga)"/>
+        <ellipse cx="248.5" cy="390" rx="8" ry="4" fill="url(#ac_diga)"/>
+      </g>
+
+      <!-- 躯干主体 -->
+      <path d="M120 300 Q110 260 120 220 Q125 190 150 180 Q180 170 200 170 Q220 170 250 180 Q275 190 280 220 Q290 260 280 300 Z" fill="url(#skin_diga)" stroke="rgba(20,24,36,0.15)" stroke-width="1">
+        <animate attributeName="d" values="M120 300 Q110 260 120 220 Q125 190 150 180 Q180 170 200 170 Q220 170 250 180 Q275 190 280 220 Q290 260 280 300 Z;
+                      M120 300 Q110 260 120 218 Q125 188 150 178 Q180 168 200 168 Q220 168 250 178 Q275 188 280 218 Q290 258 280 300 Z;
+                      M120 300 Q110 260 120 220 Q125 190 150 180 Q180 170 200 170 Q220 170 250 180 Q275 190 280 220 Q290 260 280 300 Z" dur="3.5s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+      </path>
+
+      <!-- 红色花纹（胸部 V 字纹） -->
+      <path d="M170 240 Q200 210 230 240 Q210 255 200 265 Q190 255 170 240 Z" fill="url(#mn_diga)">
+        <animate attributeName="opacity" values="1;0.85;1" dur="3.5s" repeatCount="indefinite"/>
+      </path>
+      <path d="M178 245 Q200 220 222 245 Q208 255 200 262 Q192 255 178 245 Z" fill="url(#mn_diga_shine)" opacity="0.6"/>
+
+      <!-- 色光定时器（核心发光体） -->
+      <g id="colorTimer">
+        <ellipse cx="200" cy="248" rx="20" ry="18" fill="url(#timer_diga)" stroke="#1a1a2e" stroke-width="2.5">
+          <animate attributeName="rx" values="20;22;20" dur="1s" repeatCount="indefinite"/>
+          <animate attributeName="ry" values="18;20;18" dur="1s" repeatCount="indefinite"/>
+        </ellipse>
+        <ellipse cx="200" cy="248" rx="14" ry="12" fill="url(#timer_diga)" opacity="0.9">
+          <animate attributeName="opacity" values="0.9;1;0.7;1;0.9" dur="2s" repeatCount="indefinite"/>
+          <animate attributeName="rx" values="14;15;13;15;14" dur="2s" repeatCount="indefinite"/>
+        </ellipse>
+        <!-- 闪烁变红动画 -->
+        <animate attributeName="fill" values="url(#timer_diga);url(#timer_diga);url(#timer_diga_red);url(#timer_diga_red);url(#timer_diga)" dur="8s" repeatCount="indefinite" begin="5s"/>
+      </g>
+
+      <!-- 胸部银色护甲条 -->
+      <path d="M155 205 Q180 198 200 198 Q220 198 245 205 L240 215 Q220 210 200 210 Q180 210 160 215 Z" fill="url(#silver_diga)" stroke="rgba(255,255,255,0.3)" stroke-width="0.5" opacity="0.9"/>
+
+      <!-- 双肩装甲 -->
+      <path d="M115 200 Q100 195 95 210 Q100 225 115 220 Q110 210 115 200 Z" fill="url(#mn_diga)" stroke="rgba(20,24,36,0.2)" stroke-width="1.5"/>
+      <path d="M285 200 Q300 195 305 210 Q300 225 285 220 Q290 210 285 200 Z" fill="url(#mn_diga)" stroke="rgba(20,24,36,0.2)" stroke-width="1.5"/>
+      <!-- 肩部银色线条 -->
+      <path d="M112 205 Q125 205 135 210" stroke="url(#silver_diga)" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.8"/>
+      <path d="M288 205 Q275 205 265 210" stroke="url(#silver_diga)" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.8"/>
+
+      <!-- 双臂 -->
+      <g>
+        <!-- 左臂 -->
+        <path d="M115 220 Q100 240 95 270 Q98 290 115 300 Q125 285 125 250 Q120 230 115 220 Z" fill="url(#skin_diga)" stroke="rgba(20,24,36,0.15)" stroke-width="1"/>
+        <path d="M115 220 Q108 235 105 250 L120 250 Q122 235 115 220 Z" fill="url(#sv_diga)"/>
+        <path d="M100 295 Q95 310 100 320 L115 320 Q118 310 113 295 Z" fill="url(#ac_diga)"/>
+        <!-- 右臂 -->
+        <path d="M285 220 Q300 240 305 270 Q302 290 285 300 Q275 285 275 250 Q280 230 285 220 Z" fill="url(#skin_diga)" stroke="rgba(20,24,36,0.15)" stroke-width="1"/>
+        <path d="M285 220 Q292 235 295 250 L280 250 Q278 235 285 220 Z" fill="url(#sv_diga)"/>
+        <path d="M300 295 Q305 310 300 320 L285 320 Q282 310 287 295 Z" fill="url(#ac_diga)"/>
+      </g>
+
+      <!-- 颈部 -->
+      <path d="M170 180 L165 195 L235 195 L230 180 Z" fill="url(#skin_diga)"/>
+
+      <!-- 头部 -->
+      <g>
+        <!-- 头部主体 -->
+        <path d="M140 175 Q130 140 145 100 Q170 75 200 70 Q230 75 255 100 Q270 140 260 175 Z" fill="url(#skin_diga)" stroke="rgba(20,24,36,0.15)" stroke-width="1">
+          <animate attributeName="d" values="M140 175 Q130 140 145 100 Q170 75 200 70 Q230 75 255 100 Q270 140 260 175 Z;
+                        M140 175 Q130 138 145 98 Q170 73 200 68 Q230 73 255 98 Q270 138 260 175 Z;
+                        M140 175 Q130 140 145 100 Q170 75 200 70 Q230 75 255 100 Q270 140 260 175 Z" dur="3.5s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+        </path>
+
+        <!-- 面部银色护甲 -->
+        <path d="M155 155 Q165 130 185 115 Q195 108 205 115 Q215 108 225 115 Q235 130 245 155" fill="none" stroke="url(#silver_diga)" stroke-width="3" stroke-linecap="round" opacity="0.9"/>
+        <path d="M158 158 Q168 133 188 118 Q198 111 208 118 Q218 111 228 118 Q238 133 242 158" fill="none" stroke="#ffffff" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+
+        <!-- 眼睛 -->
+        <g>
+          <!-- 左眼 -->
+          <ellipse cx="172" cy="132" rx="12" ry="10" fill="#0d1b2a" filter="url(#glow_diga)">
+            <animate attributeName="ry" values="10;2;10" dur="4s" repeatCount="indefinite" begin="0.5s"/>
+          </ellipse>
+          <ellipse cx="172" cy="132" rx="7" ry="6" fill="#4fc3f7">
+            <animate attributeName="ry" values="6;1;6" dur="4s" repeatCount="indefinite" begin="0.5s"/>
+          </ellipse>
+          <ellipse cx="175" cy="130" rx="3" ry="2.5" fill="#ffffff" opacity="0.9"/>
+          <ellipse cx="169" cy="134" rx="1.5" ry="1" fill="#ffffff" opacity="0.5"/>
+          <!-- 右眼 -->
+          <ellipse cx="228" cy="132" rx="12" ry="10" fill="#0d1b2a" filter="url(#glow_diga)">
+            <animate attributeName="ry" values="10;2;10" dur="4s" repeatCount="indefinite" begin="0.5s"/>
+          </ellipse>
+          <ellipse cx="228" cy="132" rx="7" ry="6" fill="#4fc3f7">
+            <animate attributeName="ry" values="6;1;6" dur="4s" repeatCount="indefinite" begin="0.5s"/>
+          </ellipse>
+          <ellipse cx="231" cy="130" rx="3" ry="2.5" fill="#ffffff" opacity="0.9"/>
+          <ellipse cx="225" cy="134" rx="1.5" ry="1" fill="#ffffff" opacity="0.5"/>
+        </g>
+
+        <!-- 头顶三角尖 -->
+        <path d="M185 95 Q200 60 215 95 Q208 100 200 108 Q192 100 185 95 Z" fill="url(#mn_diga)" stroke="rgba(20,24,36,0.2)" stroke-width="1.5"/>
+        <path d="M190 98 Q200 72 210 98 Q205 102 200 106 Q195 102 190 98 Z" fill="url(#mn_diga_shine)" opacity="0.5"/>
+
+        <!-- 耳部装饰 -->
+        <path d="M138 145 Q125 140 120 155 Q128 155 135 150 Q138 148 138 145 Z" fill="url(#sv_diga)" stroke="url(#silver_diga)" stroke-width="1"/>
+        <path d="M262 145 Q275 140 280 155 Q272 155 265 150 Q262 148 262 145 Z" fill="url(#sv_diga)" stroke="url(#silver_diga)" stroke-width="1"/>
+
+        <!-- 额头宝石 -->
+        <ellipse cx="200" cy="118" rx="6" ry="5" fill="#00e5ff" filter="url(#glow_diga)">
+          <animate attributeName="opacity" values="0.8;1;0.8" dur="2s" repeatCount="indefinite"/>
+        </ellipse>
+      </g>
+
+      <!-- 能量粒子效果 -->
+      <g opacity="0.6">
+        <circle cx="170" cy="200" r="3" fill="#ffeb3b">
+          <animate attributeName="r" values="1;4;1" dur="2s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.3;0.8;0" dur="2s" repeatCount="indefinite"/>
+          <animate attributeName="cy" values="200;180;200" dur="2s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="230" cy="200" r="3" fill="#ffeb3b">
+          <animate attributeName="r" values="1;4;1" dur="2s" repeatCount="indefinite" begin="1s"/>
+          <animate attributeName="opacity" values="0.3;0.8;0" dur="2s" repeatCount="indefinite" begin="1s"/>
+          <animate attributeName="cy" values="200;180;200" dur="2s" repeatCount="indefinite" begin="1s"/>
+        </circle>
+        <circle cx="200" cy="160" r="2" fill="#00e5ff">
+          <animate attributeName="r" values="1;3;1" dur="1.5s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.4;0.9;0" dur="1.5s" repeatCount="indefinite"/>
+          <animate attributeName="cy" values="160;140;160" dur="1.5s" repeatCount="indefinite"/>
+        </circle>
+      </g>
+
+    </g>
+  </g>
+
+  <!-- 光效粒子环绕 -->
+  <g filter="url(#glow_diga)">
+    <circle cx="120" cy="280" r="4" fill="#ffeb3b" opacity="0.5">
+      <animateMotion path="M0,0 Q-30,-40 -20,-80 Q10,-100 40,-60 Q60,-20 0,0" dur="6s" repeatCount="indefinite" rotate="auto"/>
+      <animate attributeName="opacity" values="0;0.6;0" dur="6s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="280" cy="280" r="3" fill="#00e5ff" opacity="0.5">
+      <animateMotion path="M0,0 Q30,-40 20,-80 Q-10,-100 -40,-60 Q-60,-20 0,0" dur="7s" repeatCount="indefinite" rotate="auto"/>
+      <animate attributeName="opacity" values="0;0.5;0" dur="7s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="150" cy="340" r="2" fill="#ff6b5a" opacity="0.6">
+      <animateMotion path="M0,0 Q-20,20 -10,50 Q20,70 40,30 Q20,-10 0,0" dur="5s" repeatCount="indefinite" rotate="auto"/>
+      <animate attributeName="opacity" values="0;0.7;0" dur="5s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+</svg>

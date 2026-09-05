@@ -101,8 +101,10 @@
     var stars = Store.state.stars || 0;
     var tab = curTab();
     var html = '<div class="wish-summary" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding:12px;background:linear-gradient(135deg,#fff3d6,#ffe1ae);border-radius:12px;border:1.5px solid #ffd9a8;">'+
-      '<div>当前星星：<b style="font-size:1.2rem;color:#b7791f;">'+stars+'</b> ⭐</div>'+
+      '<div style="display:flex;gap:8px;">'+
       '<button type="button" class="btn-soft" onclick="window.wishAdd()">+ 新增星愿</button>'+
+      '<button type="button" class="btn-soft" onclick="window.parentAddStars()">👑 家长加星</button>'+
+      '</div>'+
       '</div>';
 
     // ---- 互斥专区 Tab(武器区 / 奥特曼区): 选中的展开, 另一个自动折叠 ----
@@ -162,13 +164,13 @@
     var actions;
     if (g.unique) {
       if (owned) {
-        actions = '<button type="button" class="btn-soft gift-sell" onclick="event.stopPropagation();window.giftSellOf(\'' + g.id + '\')">卖出 ' + sellRefundOf({ id: g.id, price: price }) + '⭐</button>';
+        actions = '<button type="button" class="gift-sell" onclick="event.stopPropagation();window.giftSellOf(\'' + g.id + '\')">卖出 ' + sellRefundOf({ id: g.id, price: price }) + '⭐</button>';
       } else {
-        actions = '<button type="button" class="btn-soft gift-buy" ' + (can ? '' : 'disabled') + ' onclick="event.stopPropagation();window.giftRedeem(\'' + g.id + '\')">兑换</button>';
+        actions = '<button type="button" class="gift-buy" ' + (can ? '' : 'disabled') + ' onclick="event.stopPropagation();window.giftRedeem(\'' + g.id + '\')">兑换</button>';
       }
     } else {
-      actions = '<button type="button" class="btn-soft gift-buy" ' + (can ? '' : 'disabled') + ' onclick="event.stopPropagation();window.giftRedeem(\'' + g.id + '\')">兑换</button>' +
-        (owned ? '<button type="button" class="btn-soft gift-sell" onclick="event.stopPropagation();window.giftSellOf(\'' + g.id + '\')">卖出 ' + sellRefundOf({ id: g.id, price: price }) + '⭐</button>' : '');
+      actions = '<button type="button" class="gift-buy" ' + (can ? '' : 'disabled') + ' onclick="event.stopPropagation();window.giftRedeem(\'' + g.id + '\')">兑换</button>' +
+        (owned ? '<button type="button" class="gift-sell" onclick="event.stopPropagation();window.giftSellOf(\'' + g.id + '\')">卖出 ' + sellRefundOf({ id: g.id, price: price }) + '⭐</button>' : '');
     }
     return '<div class="gift-card' + (can ? '' : ' off') + '" onclick="window.giftOpen(\'' + g.id + '\')">' +
       badge +
@@ -195,21 +197,77 @@
       }).join('') + '</div>';
   }
 
-  // 兑换礼物（家长确认后扣星入已兑换）; 奥特曼不可重复
+  // 兑换礼物（二次确认后，家长验证后扣星入已兑换）; 奥特曼不可重复
   window.giftRedeem = function (id) {
     var g = giftOf(id);
     if (!g) { Speech.toast('没有这件礼物'); return; }
     if (g.unique && giftCount(id) > 0) { Speech.toast(g.name + ' 已拥有，不能重复兑换'); return; }
     var price = giftPriceOf(id);
     if ((Store.state.stars || 0) < price) { Speech.toast('星星不足'); return; }
+    giftConfirmTarget = { id: id, price: price };
+    var t = document.getElementById('gcTitle');
+    var s = document.getElementById('gcSub');
+    if (t) t.textContent = '确认兑换 ' + g.name;
+    if (s) s.textContent = '将花费 ' + price + ' 颗星星，确定吗？';
+    var m = document.getElementById('eduMaskGiftConfirm');
+    if (m) m.style.display = 'flex';
+  };
+  var giftConfirmTarget = null;
+  window.giftConfirmOk = function () {
+    var m = document.getElementById('eduMaskGiftConfirm');
+    if (m) m.style.display = 'none';
+    var t = giftConfirmTarget;
+    giftConfirmTarget = null;
+    if (!t) return;
+    var g = giftOf(t.id);
+    if (!g) return;
     window.requireParent(function () {
-      Store.state.stars -= price;
+      Store.state.stars -= t.price;
       Store.state.redeemed = (Store.state.redeemed && Array.isArray(Store.state.redeemed)) ? Store.state.redeemed : [];
-      Store.state.redeemed.push({ id: g.id, name: g.name, emoji: g.emoji, price: price, t: Date.now(), date: fmtDate(new Date()) });
+      Store.state.redeemed.push({ id: g.id, name: g.name, emoji: g.emoji, price: t.price, t: Date.now(), date: fmtDate(new Date()) });
       Store.saveState();
       Kids.renderStarBar();
       renderWish();
       Speech.toast('兑换成功！获得 ' + g.name + ' 💫');
+    });
+  };
+  window.giftConfirmCancel = function () {
+    var m = document.getElementById('eduMaskGiftConfirm');
+    if (m) m.style.display = 'none';
+    giftConfirmTarget = null;
+  };
+
+  // 家长手动加星（需备注）
+  window.parentAddStars = function () {
+    var m = document.getElementById('eduMaskParentAddStars');
+    if (!m) return;
+    var starsInput = document.getElementById('pasStars');
+    var noteInput = document.getElementById('pasNote');
+    if (starsInput) starsInput.value = '10';
+    if (noteInput) noteInput.value = '';
+    m.style.display = 'flex';
+    setTimeout(function () { if (noteInput) noteInput.focus(); }, 100);
+  };
+  window.parentAddStarsCancel = function () {
+    var m = document.getElementById('eduMaskParentAddStars');
+    if (m) m.style.display = 'none';
+  };
+  window.parentAddStarsConfirm = function () {
+    var starsInput = document.getElementById('pasStars');
+    var noteInput = document.getElementById('pasNote');
+    var stars = starsInput ? parseInt(starsInput.value, 10) : 0;
+    var note = noteInput ? noteInput.value.trim() : '';
+    if (!stars || stars < 1) { Speech.toast('请输入有效的星星数'); return; }
+    if (!note) { Speech.toast('请填写备注说明'); if (noteInput) noteInput.focus(); return; }
+    window.requireParent(function () {
+      Store.state.stars = (Store.state.stars || 0) + stars;
+      Store.state.starLog = Store.state.starLog || [];
+      Store.state.starLog.push({ delta: stars, reason: note, type: 'parent_add', t: Date.now(), date: fmtDate(new Date()) });
+      Store.saveState();
+      Kids.renderStarBar();
+      renderWish();
+      Speech.toast('家长加星成功：+' + stars + ' ⭐');
+      parentAddStarsCancel();
     });
   };
 
@@ -269,14 +327,32 @@
   };
 
   window.wishAdd = function () {
-    var title = prompt('星愿名称（如：买乐高、去动物园）');
-    if (!title) return;
-    var cost = parseInt(prompt('需要多少星星？（如：50）'), 10);
+    var m = document.getElementById('eduMaskWishAdd');
+    if (!m) return;
+    var titleInput = document.getElementById('waTitle');
+    var costInput = document.getElementById('waCost');
+    if (titleInput) titleInput.value = '';
+    if (costInput) costInput.value = '30';
+    m.style.display = 'flex';
+    setTimeout(function () { if (titleInput) titleInput.focus(); }, 100);
+  };
+  window.wishAddCancel = function () {
+    var m = document.getElementById('eduMaskWishAdd');
+    if (m) m.style.display = 'none';
+  };
+  window.wishAddConfirm = function () {
+    var titleInput = document.getElementById('waTitle');
+    var costInput = document.getElementById('waCost');
+    var title = titleInput ? titleInput.value.trim() : '';
+    var cost = costInput ? parseInt(costInput.value, 10) : 0;
+    if (!title) { Speech.toast('请输入星愿名称'); if (titleInput) titleInput.focus(); return; }
     if (!cost || cost < 1) { Speech.toast('星星数需大于0'); return; }
     Store.state.wishes = (Store.state.wishes && typeof Store.state.wishes === 'object' && !Array.isArray(Store.state.wishes)) ? [] : (Store.state.wishes || []);
     Store.state.wishes.push({ title: title, cost: cost, created: Date.now() });
     Store.saveState();
     renderWish();
+    wishAddCancel();
+    Speech.toast('新星愿已添加：' + title + ' 💫');
   };
 
   window.wishRedeem = function (i) {
@@ -351,6 +427,8 @@
     sellRefundOf: sellRefundOf,
     giftCount: giftCount,
     giftRedeem: window.giftRedeem,
+    giftConfirmOk: window.giftConfirmOk,
+    giftConfirmCancel: window.giftConfirmCancel,
     giftSell: window.giftSell,
     giftSellOf: window.giftSellOf,
     giftOpen: window.giftOpen,
@@ -358,8 +436,13 @@
     giftDetailByIdx: window.giftDetailByIdx,
     giftTab: window.giftTab,
     wishAdd: window.wishAdd,
+    wishAddCancel: window.wishAddCancel,
+    wishAddConfirm: window.wishAddConfirm,
     wishRedeem: window.wishRedeem,
     wishRemove: window.wishRemove,
-    wishRemoveP: window.wishRemoveP
+    wishRemoveP: window.wishRemoveP,
+    parentAddStars: window.parentAddStars,
+    parentAddStarsCancel: window.parentAddStarsCancel,
+    parentAddStarsConfirm: window.parentAddStarsConfirm
   };
 })();

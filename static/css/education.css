@@ -260,9 +260,10 @@
   .quiz-item .qi-feed.ok{color:var(--edu-green);}
   .quiz-item .qi-feed.no{color:#d94c4c;}
   .quiz-item.graded{border-left:6px solid var(--edu-green);}
-  .spk{flex-shrink:0;font-size:.82rem;line-height:1;border:none;background:transparent;cursor:pointer;padding:2px 3px;filter:saturate(1.2);transition:transform .1s;color:var(--edu-blue);}
-  .spk:hover{transform:scale(1.18);}
-  .qi-spk .spk{font-size:.92rem;padding:0 2px;}
+  .spk{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;flex-shrink:0;box-sizing:border-box;border:none;border-radius:50%;background:linear-gradient(135deg,#8ec5ff,#4e8bff);color:#fff;font-size:1.1rem;line-height:1;cursor:pointer;box-shadow:0 3px 8px rgba(78,139,255,.35);transition:.15s;padding:0;}
+  .spk:hover{transform:scale(1.06);filter:brightness(1.03);}
+  .spk:active{transform:scale(.96);}
+  .qi-spk .spk{width:100%;height:100%;font-size:1.25rem;}
   .quiz-item.graded.bad{border-left-color:#ff8a8a;}
 
   /* 分数条 */
@@ -595,24 +596,28 @@
   .gift-tab:hover{border-color:#f0b45c;}
   .gift-tab.on{background:linear-gradient(135deg,#fff3d6,#ffe1ae);border-color:#f0b45c;color:#a8681a;box-shadow:0 2px 8px rgba(223,166,70,.2);}
   .gift-intro{font-size:.8rem;color:var(--edu-muted);margin:-6px 0 12px;line-height:1.5;}
-  .gift-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;align-items:start;}
-  .gift-card{position:relative;background:linear-gradient(170deg,#fff8ec,#ffe9c7);border:2px solid #ffd9a8;border-radius:12px;padding:8px 6px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:3px;box-shadow:0 2px 6px rgba(223,166,70,.12);cursor:pointer;}
+  .gift-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;align-items:start;}
+  .gift-card{position:relative;background:linear-gradient(170deg,#fff8ec,#ffe9c7);border:2px solid #ffd9a8;border-radius:12px;padding:10px 8px 6px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:4px;box-shadow:0 2px 6px rgba(223,166,70,.12);cursor:pointer;}
   .gift-card:hover{border-color:#f0b45c;transform:translateY(-1px);}
   .gift-card.off{filter:grayscale(.35);opacity:.75;}
   .gift-count{position:absolute;top:-8px;right:-6px;background:linear-gradient(135deg,#ff8f6b,#f45b3a);color:#fff;font-size:.68rem;font-weight:900;border-radius:999px;padding:2px 7px;box-shadow:0 2px 6px rgba(244,91,58,.4);z-index:2;}
   .gift-owned{position:absolute;top:-8px;left:-6px;background:linear-gradient(135deg,#5fd07a,#2ea85c);color:#fff;font-size:.68rem;font-weight:900;border-radius:999px;padding:2px 7px;box-shadow:0 2px 6px rgba(46,168,92,.4);z-index:2;}
   .gift-emoji{width:42px;height:42px;object-fit:contain;font-size:2.6rem;line-height:1;pointer-events:none;}
   .gift-info{display:flex;align-items:center;justify-content:center;gap:4px;max-width:100%;min-width:0;padding:0 2px;}
-  .gift-info .gift-name{flex:0 1 auto;min-width:0;font-weight:800;font-size:.82rem;color:var(--edu-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .gift-info .gift-name{flex:0 1 auto;min-width:0;font-weight:800;font-size:.82rem;color:var(--edu-ink);white-space:normal;word-break:keep-all;overflow-wrap:anywhere;line-height:1.25;}
   .gift-info .gift-price{flex:none;font-size:.74rem;font-weight:800;color:#b7791f;white-space:nowrap;}
-  .gift-actions{display:flex;gap:4px;width:100%;margin-top:auto;padding-top:3px;}
-  .gift-buy{flex:1;justify-content:center;display:flex;padding:5px 4px;font-size:.72rem;white-space:nowrap;}
-  .gift-sell{flex:1;justify-content:center;display:flex;padding:5px 4px;font-size:.66rem;white-space:nowrap;background:linear-gradient(135deg,#fff3d6,#ffe1ae);border:1.5px solid #ffd9a8;color:#a8681a;font-weight:800;border-radius:8px;cursor:pointer;transition:.14s;}
+  .gift-actions{display:flex;gap:4px;width:100%;margin-top:auto;}
+  .gift-buy{flex:1;justify-content:center;display:flex;padding:4px 6px;font-size:.7rem;white-space:nowrap;background:var(--edu-primary);color:#fff;border:none;font-weight:700;border-radius:8px;cursor:pointer;transition:.14s;}
+  .gift-buy:hover{filter:brightness(1.08);transform:translateY(-1px);}
+  .gift-buy:disabled{opacity:.55;cursor:not-allowed;}
+  .gift-sell{flex:1;justify-content:center;display:flex;padding:4px 6px;font-size:.65rem;white-space:nowrap;background:linear-gradient(135deg,#fff3d6,#ffe1ae);border:1.5px solid #ffd9a8;color:#a8681a;font-weight:800;border-radius:8px;cursor:pointer;transition:.14s;}
   .gift-sell:hover{background:linear-gradient(135deg,#ffe9c2,#ffd394);border-color:#f0b45c;transform:translateY(-1px);}
   .gift-card.off .btn-soft:disabled{opacity:.45;cursor:not-allowed;}
   .gdetail-sec{font-size:.68rem;color:var(--edu-muted);font-weight:700;background:var(--edu-soft);border:1px solid var(--edu-border);border-radius:999px;padding:2px 8px;margin-left:6px;vertical-align:middle;}
   .gdetail-slogan{margin:2px 0 12px;font-size:.95rem;font-weight:800;color:#d97706;line-height:1.7;}
-  .gdetail-slogan .qi-spk{font-size:.78rem;padding:2px 8px;margin-left:6px;}
+  .gdetail-slogan .qi-spk{width:28px;height:28px;font-size:.9rem;padding:0;margin-left:6px;background:linear-gradient(135deg,#ffd93d,#ff9f43);box-shadow:0 2px 6px rgba(255,159,67,.35);}
+  .gdetail-slogan .qi-spk:hover{transform:scale(1.06);filter:brightness(1.03);}
+  .gdetail-slogan .qi-spk:active{transform:scale(.96);}
   /* 礼物细节弹窗 */
   .gift-detail{text-align:center;padding:8px 4px 14px;}
   .gdetail-emoji{width:116px;height:116px;object-fit:contain;font-size:4rem;line-height:1;margin:6px 0 10px;}
@@ -634,6 +639,7 @@
   html[data-theme="dark"] .ri-sell:hover{border-color:#c9a227;color:#ffd76a;}
 
   /* ===== 排序题 ===== */
+  .quiz-item .qi-order .qo-pick.pick{border:3px solid #fff;background-image:linear-gradient(180deg,rgba(255,255,255,.35),rgba(255,255,255,.14));box-shadow:0 0 0 3px rgba(31,132,255,.35);}
   .quiz-item .qo-chips{display:flex;flex-wrap:wrap;gap:8px;}
   .quiz-item .qo-chip{border-radius:999px;background:var(--edu-surface);border:2px solid var(--edu-border-2);color:var(--edu-ink);font-weight:800;font-size:1.05rem;padding:8px 15px;cursor:pointer;transition:.12s;}
   .quiz-item .qo-chip.picked{background:var(--edu-primary);color:#fff;border-color:var(--edu-primary);}
@@ -1724,6 +1730,18 @@
   .btn-danger:hover{filter:brightness(1.06);}
   .btn-danger:disabled{opacity:.55;cursor:not-allowed;}
   .btn-sm{padding:7px 14px;font-size:.8rem;border-radius:10px;}
+  /* 移动端按钮高度优化: 减小内边距和最小高度 */
+  @media (max-width:767px){
+    .btn-soft{padding:8px 16px;font-size:.88rem;border-radius:10px;}
+    .btn-ghost{padding:7px 14px;font-size:.85rem;border-radius:10px;}
+    .btn-accent{padding:8px 16px;font-size:.85rem;border-radius:10px;}
+    .btn-danger{padding:8px 14px;font-size:.88rem;border-radius:10px;}
+    .gift-buy{padding:4px 8px;font-size:.7rem;min-height:36px;}
+    .gift-sell{padding:4px 8px;font-size:.65rem;min-height:36px;}
+    .gift-emoji{width:56px;height:56px;font-size:3rem;}
+    .qz-action-bar .btn-confirm{min-height:48px;}
+    .qd-actions .btn-home,.qd-actions .btn-again{min-height:44px;padding:0 20px;border-radius:14px;}
+  }
   .danger-zone{border:1.5px dashed var(--edu-danger,#e5484d);border-radius:14px;padding:12px;background:rgba(229,72,77,.04);}
   .reset-ack{display:flex;gap:8px;align-items:center;border:1.5px dashed var(--edu-danger,#e5484d);border-radius:12px;padding:10px 12px;color:var(--edu-ink);font-size:.9rem;cursor:pointer;}
 

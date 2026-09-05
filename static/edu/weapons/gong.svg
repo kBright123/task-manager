@@ -6,26 +6,36 @@
     <linearGradient id="gstring" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#f0f0ec"/><stop offset="1" stop-color="#bebfb8"/>
     </linearGradient>
+    <linearGradient id="garrow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5a3d21"/><stop offset=".5" stop-color="#8b5e34"/><stop offset="1" stop-color="#c98b4a"/>
+    </linearGradient>
   </defs>
   <ellipse cx="100" cy="188" rx="26" ry="5" fill="#000" opacity=".12"/>
   <g>
     <animateTransform attributeName="transform" type="rotate" values="-2 100 100; 2 100 100; -2 100 100" dur="3s" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1" repeatCount="indefinite"/>
-    <path d="M100,14 C 52,52 46,150 100,186" fill="none" stroke="url(#gwood)" stroke-width="15" stroke-linecap="round"/>
-    <path d="M96,14 C 50,52 44,150 96,186" fill="none" stroke="#b07c45" stroke-width="3" opacity=".7"/>
-    <path d="M104,16 C 152,52 156,150 104,184" fill="none" stroke="#ffe9c4" stroke-width="3" opacity=".5"/>
-    <line x1="97" y1="20" x2="97" y2="180" stroke="url(#gstring)" stroke-width="3"/>
-    <rect x="91" y="94" width="18" height="14" rx="4" fill="#2a1a10"/>
+    <!-- Bow: symmetric vertical limbs, bulging outward -->
+    <path d="M100,14 C 140,40 148,90 144,130 C 140,160 128,178 100,186 C 72,178 60,160 56,130 C 52,90 60,40 100,14 Z" fill="none" stroke="url(#gwood)" stroke-width="14" stroke-linecap="round"/>
+    <path d="M100,16 C 130,42 136,90 134,130 C 130,156 120,172 100,178 C 80,172 70,156 66,130 C 64,90 70,42 100,16 Z" fill="none" stroke="#b07c45" stroke-width="3" opacity=".7"/>
+    <!-- Bowstring: vertical at center x=100 -->
+    <line x1="100" y1="18" x2="100" y2="184" stroke="url(#gstring)" stroke-width="3"/>
+    <!-- Arrow rest / grip area -->
+    <rect x="93" y="90" width="14" height="20" rx="3" fill="#2a1a10"/>
+    <!-- Arrow: nocked at string center (100,100), pointing RIGHT -->
     <g>
-      <animateTransform attributeName="transform" type="translate" values="0 0; 54 -52; 54 -52" dur="2.6s" keyTimes="0;.22;1" repeatCount="indefinite"/>
-      <line x1="99" y1="96" x2="152" y2="42" stroke="#6b4423" stroke-width="3.5"/>
-      <path d="M150,44 L162,32 L158,50 Z" fill="#c0c7cf"/>
-      <polygon points="96,98 88,92 92,100" fill="#d8433a"/>
-      <polygon points="96,98 90,101 92,108" fill="#e07b34"/>
-      <polygon points="96,98 99,100 103,92" fill="#e0c23a"/>
+      <animateTransform attributeName="transform" type="translate" values="0 0; 70 0; 70 0" dur="2.6s" keyTimes="0;.22;1" repeatCount="indefinite"/>
+      <!-- Arrow shaft -->
+      <line x1="100" y1="100" x2="168" y2="100" stroke="url(#garrow)" stroke-width="4" stroke-linecap="round"/>
+      <!-- Arrowhead: triangle pointing RIGHT -->
+      <polygon points="168,94 182,100 168,106" fill="#c0c7cf"/>
+      <!-- Fletching at nock end -->
+      <polygon points="100,96 94,90 96,100" fill="#d8433a"/>
+      <polygon points="100,96 94,102 96,108" fill="#e07b34"/>
+      <polygon points="100,96 106,98 106,104" fill="#e0c23a"/>
     </g>
+    <!-- Impact flash at target -->
     <g>
-      <animate attributeName="opacity" values="1;1;0;0" keyTimes="0;.2;.3;1" dur="2.6s" repeatCount="indefinite"/>
-      <circle cx="158" cy="38" r="7" fill="#fff" opacity=".5"/>
+      <animate attributeName="opacity" values="0;1;0;0" keyTimes="0;.18;.3;1" dur="2.6s" repeatCount="indefinite"/>
+      <circle cx="178" cy="100" r="8" fill="#fff" opacity=".6"/>
     </g>
   </g>
 </svg>

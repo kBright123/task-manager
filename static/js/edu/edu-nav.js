@@ -116,6 +116,12 @@
 
   window.eduNav = function (p) {
     if (window.Edu.FAB) window.Edu.FAB.quickFabSet(true);
+    // 离开答题相关页面时，清理 quiz-live/quiz-complete 类，避免底部 dock 被隐藏
+    if (navNow === 'learn' && p !== 'learn') {
+      if (window.Edu.QuizEngine && window.Edu.QuizEngine.clearQuizBodyClass) {
+        window.Edu.QuizEngine.clearQuizBodyClass();
+      }
+    }
     navNow = p;
     saveNav();
     for (var k in eduPages) {
@@ -237,6 +243,7 @@
       Store.saveState();
       if (QuizEngine.clearQuizState) QuizEngine.clearQuizState();
     }
+    if (QuizEngine && QuizEngine.clearQuizBodyClass) QuizEngine.clearQuizBodyClass();
     window.eduNav('home');
     renderNav();
   };

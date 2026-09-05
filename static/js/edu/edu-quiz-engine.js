@@ -300,6 +300,8 @@
 
   // 每道选择题是否已完成判定(点选即判后, 避免重复判题/重复计时跳转)
   var judged = {};
+  // 排序题最近一次参与判定的答案: 原地点按补回相同顺序时不再重复判错(答错后可重新点选)
+  var lastJVal = {};
 
   window.Edu.QuizEngine.pickOpt = function (idx, v) {
     if (gateBlocked()) return;
@@ -335,6 +337,7 @@
     judged[idx] = true;
     var val = quiz.answers && quiz.answers[idx];
     if (val === undefined || val === '') return;
+    lastJVal[idx] = val;
     var ok = M.isCorrect(it, val);
     var cbtn = document.getElementById('qzConfirm');
     var item = document.getElementById('qi-'+idx);
@@ -446,14 +449,21 @@
     if (!it || !it.options) return;
     if (judged[idx]) return;
     quizOrder[idx] = quizOrder[idx] || [];
-    if (quizOrder[idx].includes(oi)) return;
-    quizOrder[idx].push(oi);
+    // 已选中的选项再次点按=取消选择: 答错后不用手动清空, 重新点选即可继续
+    var pos = quizOrder[idx].indexOf(oi);
+    if (pos >= 0) {
+      quizOrder[idx].splice(pos, 1);
+    } else {
+      quizOrder[idx].push(oi);
+    }
     renderOrderSeq(idx);
     var cbtn = document.getElementById('qzConfirm');
-    if (cbtn) cbtn.disabled = !(quizOrder[idx].length === (it.options||[]).length);
-    // 选满即记录答案并按顺序判定; 否则排序题永远不记答案, 进度不满无法交卷
-    if (quizOrder[idx].length === (it.options || []).length) {
+    var full = quizOrder[idx].length === (it.options || []).length;
+    if (cbtn) cbtn.disabled = !full || judged[idx];
+    if (full) {
       var joined = quizOrder[idx].map(function(i){ return M.stripBlank(String(M.optVal(it.options[i]))); }).join('');
+      // 原地点按凑回与上次判定完全相同的结果时, 不重复判错(不累计二次判错)
+      if (lastJVal[idx] === joined) return;
       window.Edu.QuizEngine.onQuizInput(idx, joined);
       judgeChoice(idx);
     }
@@ -479,6 +489,12 @@
       return '<span class="qo-chip">'+(si+1)+'. '+M.optLabel(it.options[oi])+'</span>';
     }).join('');
     target.innerHTML = arr.length ? '' : '点击下方选项排序...';
+    var opts = document.getElementById('qo-opts-'+idx);
+    if (opts) {
+      opts.querySelectorAll('.qo-pick').forEach(function(b, bi){
+        b.classList.toggle('pick', arr.indexOf(bi) >= 0);
+      });
+    }
   }
 
   function showSingleFeedback(idx, ok, reveal) {
@@ -574,6 +590,7 @@
     }
 
     clearQuizState();
+    clearQuizBodyClass();
     document.body && document.body.classList && document.body.classList.remove('quiz-live');
     document.body && document.body.classList && document.body.classList.add('quiz-complete');
     if (window.renderNav) window.renderNav();
@@ -642,6 +659,15 @@
       Store.state.wrong = Store.state.wrong || [];
       Store.state.wrong.unshift({ subj:subj, type:type, qid:qid, prompt:prompt, correct:correct, got:got, t:Date.now() });
       if (Store.state.wrong.length > 200) Store.state.wrong.length = 200;
+    } else {
+      // 记录已通过的题目(答对的), 用于已通关关卡去重
+      Store.state.passedQuestions = Store.state.passedQuestions || {};
+      var key = subj + '::' + type;
+      Store.state.passedQuestions[key] = Store.state.passedQuestions[key] || [];
+      if (Store.state.passedQuestions[key].indexOf(prompt) === -1) {
+        Store.state.passedQuestions[key].push(prompt);
+        if (Store.state.passedQuestions[key].length > 200) Store.state.passedQuestions[key].shift();
+      }
     }
     Store.saveState();
     if (window.eduSync && window.eduSync.qbankLearn) {
@@ -661,11 +687,15 @@
     return ci + 'window.wbZh(\'' + (window.Edu.ZhWorkbench.wbZhMode || 'zi') + '\')';
   }
 
+  function clearQuizBodyClass() {
+    document.body && document.body.classList && document.body.classList.remove('quiz-live', 'quiz-complete');
+  }
+
   window.Edu.QuizEngine.restartQuiz = function () {
     if (!quiz) return;
-    document.body && document.body.classList && document.body.classList.remove('quiz-complete');
+    clearQuizBodyClass();
     var subj = quizSubject, type = quiz.type, diff = quiz.difficulty;
-    var cIn = quiz.courseIn || null;   // 保留闯关上下文, 让「再练一次」继续按原关卡结算(重打减半/难度不回退)
+    var cIn = quiz.courseIn || null;
     quiz = null;
     window.Edu.QuizEngine.quiz = null;
     if (cIn) { Store.state.courseIn = cIn; Store.state.courseInflight = 1; }
@@ -674,6 +704,8 @@
     else if (subj === 'en') window.wbEn(window.Edu.EnWorkbench.wbEnMode || 'word');
     else window.wbZh(window.Edu.ZhWorkbench.wbZhMode || 'zi');
   };
+
+  window.Edu.QuizEngine.clearQuizBodyClass = clearQuizBodyClass;
 
   window.Edu.QuizEngine.regenQuiz = function () {
     if (!quiz) return;
@@ -729,6 +761,7 @@
     quizOrder = {};
     wrongTries = {};
     judged = {};
+    lastJVal = {};
     // 一套新题开始即视为离开上一个闯关上下文(结算靠 recordQuizResult 的 curPos 回退即可);
     // 关卡难度 cfg 已在 launchLevel(eduNav 之后)写入并由 wbRenderMath 在 startQuiz 前读取, 故此处可安全置空.
     Store.state.courseIn = null;

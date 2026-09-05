@@ -205,6 +205,14 @@
         add(it2);
       });
       var exclude = items.map(function(i){ return i.prompt; }).concat((Store.recentExclude || []).slice(0, 60));
+      // 2) 若该关卡已通关, 排除已答对的题目(避免重复出题)
+      var adv = state.adv && state.adv[subj] && state.adv[subj][type];
+      var isPassed = !!(adv && adv.passed);
+      if (isPassed && state.passedQuestions) {
+        var pKey = subj + '::' + type;
+        var passedList = state.passedQuestions[pKey] || [];
+        exclude = exclude.concat(passedList);
+      }
       function finish(list){
         (list||[]).forEach(function(i){ if (i && i.prompt){ (Store.recentExclude = Store.recentExclude || []).push(i.prompt); } });
         while ((Store.recentExclude || []).length > 80) (Store.recentExclude || []).shift();

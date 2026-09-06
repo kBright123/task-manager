@@ -260,6 +260,8 @@
   .quiz-item .qi-feed.ok{color:var(--edu-green);}
   .quiz-item .qi-feed.no{color:#d94c4c;}
   .quiz-item.graded{border-left:6px solid var(--edu-green);}
+  .qi-go-board{width:100%;max-width:320px;margin:6px auto 12px;}
+  .qi-go-board svg{display:block;width:100%;height:auto;}
   .spk{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;flex-shrink:0;box-sizing:border-box;border:none;border-radius:50%;background:linear-gradient(135deg,#8ec5ff,#4e8bff);color:#fff;font-size:1.1rem;line-height:1;cursor:pointer;box-shadow:0 3px 8px rgba(78,139,255,.35);transition:.15s;padding:0;}
   .spk:hover{transform:scale(1.06);filter:brightness(1.03);}
   .spk:active{transform:scale(.96);}

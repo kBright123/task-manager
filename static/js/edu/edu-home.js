@@ -647,7 +647,7 @@
   // 切换外层学科面板(语文/数学/英语/每日挑战)的可见性
   window.Edu.Workbench.showSubjectSection = function (s) {
     var id = s === 'daily' ? 'wb-daily' : 'wb-' + s;
-    ['wb-zh', 'wb-math', 'wb-en', 'wb-daily'].forEach(function (x) {
+    ['wb-zh', 'wb-math', 'wb-en', 'wb-go', 'wb-daily'].forEach(function (x) {
       var el = document.getElementById(x);
       if (el) el.style.display = (x === id) ? '' : 'none';
     });

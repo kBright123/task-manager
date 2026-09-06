@@ -112,8 +112,73 @@
     return items;
   }
 
+  // 坐标解析: "D4" → { col:4, rank:4 }(A1 起步)
+  function parseGoCoord(s) {
+    if (s == null) return null;
+    var m = String(s).trim().match(/^([A-Za-z])(\d{1,2})$/);
+    if (!m) return null;
+    return { col: m[1].toUpperCase().charCodeAt(0) - 64, rank: parseInt(m[2], 10) };
+  }
+  function starPoints(n) {
+    if (n === 9) return [[3, 3], [3, 7], [5, 5], [7, 3], [7, 7]];
+    if (n === 13) return [[4, 4], [4, 10], [7, 7], [10, 4], [10, 10]];
+    if (n === 19) return [[4, 4], [4, 10], [4, 16], [10, 4], [10, 10], [10, 16], [16, 4], [16, 10], [16, 16]];
+    var c = Math.ceil(n / 2); return [[c, c]];
+  }
+
+  // 渲染围棋棋盘: moves 按黑先白后交替落子, size 为路数(默认 9)
+  function boardSvg(moves, size) {
+    var n = parseInt(size, 10);
+    if (!n || isNaN(n) || n < 2) n = 9;
+    if (n > 19) n = 19;
+    var W = 300, L = 26, S = (W - L) / (n - 1);
+    var px = function (c) { return L + (c - 1) * S; };
+    var py = function (r) { return L + (n - r) * S; };
+    var lines = '', i;
+    for (i = 0; i < n; i++) {
+      lines += '<line x1="' + px(1).toFixed(1) + '" y1="' + py(i + 1).toFixed(1) + '" x2="' + px(n).toFixed(1) + '" y2="' + py(i + 1).toFixed(1) + '" stroke="#8a5a20" stroke-width="2" stroke-linecap="round"/>';
+      lines += '<line x1="' + px(i + 1).toFixed(1) + '" y1="' + py(1).toFixed(1) + '" x2="' + px(i + 1).toFixed(1) + '" y2="' + py(n).toFixed(1) + '" stroke="#8a5a20" stroke-width="2" stroke-linecap="round"/>';
+    }
+    var stars = starPoints(n).map(function (p) {
+      return '<circle cx="' + px(p[0]).toFixed(1) + '" cy="' + py(p[1]).toFixed(1) + '" r="4" fill="#7a4a16"/>';
+    }).join('');
+    var labels = '';
+    for (i = 1; i <= n; i++) {
+      labels += '<text x="' + px(i).toFixed(1) + '" y="' + (W - 7) + '" text-anchor="middle" font-size="11" fill="#9a6a28">' + String.fromCharCode(64 + i) + '</text>';
+      labels += '<text x="9" y="' + py(i).toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="11" fill="#9a6a28">' + i + '</text>';
+    }
+    var stones = '';
+    var last = null;
+    (moves || []).forEach(function (mv, idx) {
+      var p = parseGoCoord(mv);
+      if (!p || p.col < 1 || p.col > n || p.rank < 1 || p.rank > n) return;
+      var cx = px(p.col), cy = py(p.rank), black = (idx % 2 === 0);
+      var r = S * 0.46;
+      stones += '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + r.toFixed(1) + '" fill="url(#gb' + (black ? 'k' : 'w') + ')" stroke="' + (black ? '#1f1a12' : '#d8d3c8') + '" stroke-width="1.5"/>';
+      if (black) stones += '<circle cx="' + (cx - r * 0.28).toFixed(1) + '" cy="' + (cy - r * 0.28).toFixed(1) + '" r="' + (r * 0.28).toFixed(1) + '" fill="rgba(255,255,255,0.16)"/>';
+      else stones += '<circle cx="' + (cx - r * 0.3).toFixed(1) + '" cy="' + (cy - r * 0.3).toFixed(1) + '" r="' + (r * 0.18).toFixed(1) + '" fill="rgba(255,255,255,0.55)"/>';
+      last = { cx: cx, cy: cy, r: r };
+    });
+    var lastMark = last ? '<circle cx="' + last.cx.toFixed(1) + '" cy="' + last.cy.toFixed(1) + '" r="' + (last.r * 0.24).toFixed(1) + '" fill="#e74c3c"/>' : '';
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + W + '" width="100%" height="auto" role="img" aria-label="围棋棋盘">' +
+      '<defs>' +
+      '<linearGradient id="gwood" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f2c878"/><stop offset="100%" stop-color="#d9a254"/></linearGradient>' +
+      '<radialGradient id="gbk" cx="38%" cy="32%" r="70%"><stop offset="0%" stop-color="#4a4a4a"/><stop offset="100%" stop-color="#0a0a0a"/></radialGradient>' +
+      '<radialGradient id="gbw" cx="38%" cy="32%" r="70%"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#c8c4b8"/></radialGradient>' +
+      '</defs>' +
+      '<rect x="2" y="2" width="' + (W - 4) + '" height="' + (W - 4) + '" rx="14" fill="url(#gwood)"/>' +
+      lines + stars + labels + stones + lastMark +
+      '</svg>';
+  }
+
   function renderGoWorkbench(body) {
     if (!body) return;
+    body.innerHTML = goSectionHtml();
+    renderGoMode(body.querySelector('#wb-go-body'), wbGoMode);
+  }
+
+  // 工作台骨架 HTML(与模板 #wb-go 结构一致)
+  function goSectionHtml() {
     var modeTabs = [
       { id: 'atari', label: '基本气与吃子', emoji: '💨' },
       { id: 'liberty', label: '找气与逃跑', emoji: '🏃' },
@@ -126,14 +191,21 @@
       { id: 'endgame', label: '官子与收官', emoji: '🏁' },
       { id: 'quiz', label: '围棋知识', emoji: '🏆' }
     ];
-    var html = '<div class="sm-tabs" style="overflow-x:auto;white-space:nowrap;margin-bottom:12px;">';
+    var html = '<div id="wb-go">';
+    html += '<div class="sm-tabs" style="overflow-x:auto;white-space:nowrap;margin-bottom:12px;">';
     modeTabs.forEach(function (m) {
       html += '<button type="button" class="sm-tab' + (wbGoMode === m.id ? ' active' : '') + '" data-s="' + m.id + '" onclick="wbGo(\'' + m.id + '\')">' + m.emoji + ' ' + m.label + '</button>';
     });
     html += '</div>';
     html += '<div id="wb-go-body"></div>';
-    body.innerHTML = html;
-    renderGoMode(body.querySelector('#wb-go-body'), wbGoMode);
+    html += '</div>';
+    return html;
+  }
+
+  function setGoTab(mode) {
+    document.querySelectorAll('#wb-go .sm-tab').forEach(function (t) {
+      t.classList.toggle('active', t.dataset.s === mode);
+    });
   }
 
   function renderGoMode(container, mode) {
@@ -143,17 +215,37 @@
   }
 
   window.wbGo = function (mode) {
+    // 兼容闯关关卡的 go_xxx 与工作台 tab 的 xxx 两种 mode 写法
+    mode = String(mode || 'atari').replace(/^go_/, '') || 'atari';
     wbGoMode = mode;
+    if (window.Edu.Workbench && window.Edu.Workbench.showSubjectSection) window.Edu.Workbench.showSubjectSection('go');
     var body = document.getElementById('wb-go-body');
-    if (body) renderGoMode(body, mode);
-    var tabs = document.querySelectorAll('#wb-go .sm-tab');
-    tabs.forEach(function (t) { t.classList.toggle('active', t.dataset.s === mode); });
+    if (body) {
+      setGoTab(mode);
+      renderGoMode(body, mode);
+    } else {
+      // 兜底: 模板缺失 #wb-go 时动态注入工作台骨架(旧页面兼容), 不覆盖工作台其余栏目
+      var sec = document.getElementById('eduWorkbench');
+      if (sec && !document.getElementById('wb-go')) {
+        var d = document.createElement('div');
+        d.innerHTML = goSectionHtml();
+        var goSec = d.firstElementChild;
+        if (goSec) {
+          sec.appendChild(goSec);
+          goSec.style.display = '';
+          renderGoMode(document.getElementById('wb-go-body'), mode);
+        }
+      }
+    }
+    Store.saveWb();
   };
 
   window.Edu.GoWorkbench = {
     wbGoMode: wbGoMode,
     renderGoWorkbench: renderGoWorkbench,
     wbGo: wbGo,
-    GO_QUIZ_DATA: GO_QUIZ_DATA
+    GO_QUIZ_DATA: GO_QUIZ_DATA,
+    boardSvg: boardSvg,
+    parseGoCoord: parseGoCoord
   };
 })();

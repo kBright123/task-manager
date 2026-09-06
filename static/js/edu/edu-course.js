@@ -257,7 +257,8 @@
   }
   // 围棋关卡题型 → 实际渲染/结算的答题 type
   function goLevelQuizType(t) {
-    return t; // 围棋题型直接用原 type
+    // 围棋关卡 go_xxx → 归一化为工作台题型 xxx, 与 quiz.type/结算匹配
+    return String(t || '').replace(/^go_/, '') || t;
   }
 
   // ---- 激励: 星星(唯一货币, 可兑换星愿) ----

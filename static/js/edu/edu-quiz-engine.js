@@ -156,6 +156,11 @@
       h += '<div class="qi-head"><span class="qi-no">'+(i+1)+'</span><span class="qi-prompt">'+M.stripBlank(headPrompt)+'</span>'+spk+'</div>';
     }
     if (isCharPick) h += '<div class="qi-big">'+M.stripBlank(it.prompt)+'</div>';
+    // 围棋题: 题干下方渲染棋盘与棋子(黑先白后, 交替落子)
+    if (it.board && it.moves && window.Edu.GoWorkbench && window.Edu.GoWorkbench.boardSvg) {
+      var goSvg = window.Edu.GoWorkbench.boardSvg(it.moves, it.board);
+      if (goSvg) h += '<div class="qi-go-board">' + goSvg + '</div>';
+    }
     if (it.order) {
       h += '<div class="qi-order"><div class="qi-target" id="qo-target-'+i+'"></div>';
       h += '<div class="qi-opts" id="qo-opts-'+i+'">';
@@ -770,6 +775,7 @@
     else if (subj === 'par') quizContainerId = 'parPlay';
     else if (subj === 'math') quizContainerId = 'wb-math-body';
     else if (subj === 'en') quizContainerId = 'wb-en-body';
+    else if (subj === 'go') quizContainerId = 'wb-go-body';
     else quizContainerId = 'wb-zh-body';
     renderQuiz();
     if (window.renderNav) window.renderNav();

@@ -1,1 +1,237 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400" role="img"><defs><radialGradient id="au_dyna" cx="50%" cy="42%" r="62%"><stop offset="0%" stop-color="#fffbe8" stop-opacity="0.95"/><stop offset="52%" stop-color="#7fd0ff" stop-opacity="0.5"/><stop offset="100%" stop-color="#3f86e0" stop-opacity="0"/></radialGradient><linearGradient id="sv_dyna" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f7f9fd"/><stop offset="45%" stop-color="#c9d0e0"/><stop offset="78%" stop-color="#9aa4bd"/><stop offset="100%" stop-color="#6e7a96"/></linearGradient><linearGradient id="mn_dyna" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#e23b2e"/><stop offset="100%" stop-color="#b33530"/></linearGradient><linearGradient id="ac_dyna" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#2b7fd4"/><stop offset="100%" stop-color="#1f5fb0"/></linearGradient></defs><ellipse cx="200" cy="216" rx="133" ry="126" fill="url(#au_dyna)"><animate attributeName="opacity" values="0.5;0.85;0.5" dur="3.4s" repeatCount="indefinite"/></ellipse><g><animateTransform attributeName="transform" type="translate" values="0 0;0 -5;0 0" dur="3s" repeatCount="indefinite"/><g><path d="M124 306 Q118 344 124 366 L120 400 L150 400 L152 344 Q164 320 200 318 Q236 320 248 344 L250 400 L280 400 L276 366 Q282 344 276 306 Q224 282 200 282 Q176 282 124 306 Z" fill="url(#mn_dyna)" stroke="rgba(20,24,36,0.4)" stroke-width="2"/><path d="M176 298 Q200 310 224 298 L218 318 Q200 326 182 318 Z" fill="url(#sv_dyna)"/><path d="M144 330 Q140 374 144 400 L158 400 L158 352 Z" fill="url(#ac_dyna)"/><path d="M256 330 Q260 374 256 400 L242 400 L242 352 Z" fill="url(#ac_dyna)"/><path d="M180 306 Q200 318 220 306 L216 352 L184 352 Z" fill="url(#sv_dyna)" stroke="rgba(20,24,36,0.25)" stroke-width="1.5"/><path d="M188 318 Q200 324 212 318 L210 346 L190 346 Z" fill="#bfc7d9" opacity="0.45"/><circle cx="200" cy="322" r="16" fill="#ff6b6b" stroke="#232742" stroke-width="3"/><circle cx="200" cy="322" r="16" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/><ellipse cx="194" cy="316" rx="5" ry="3.4" fill="#fff" opacity="0.6"/><circle cx="200" cy="322" r="16" fill="none" stroke="#e0453f" stroke-width="2.5" opacity="0"><animate attributeName="opacity" values="0;1;1;0" dur="4.2s" repeatCount="indefinite"/></circle><rect x="140" y="386" width="120" height="14" rx="7" fill="url(#sv_dyna)" stroke="rgba(20,24,36,0.3)"/><rect x="184" y="386" width="32" height="14" rx="5" fill="#f2c94c" stroke="rgba(20,24,36,0.3)"/></g><g><rect x="182" y="278" width="36" height="26" rx="5" fill="url(#sv_dyna)"/><path d="M145.4 66 Q126.5 92 118.1 112 Q113.89999999999999 140 124.39999999999999 140 Q145.4 168 164.3 196 Q185.3 212 197.9 222 Q214.7 212 235.7 196 Q254.6 168 275.6 140 Q286.1 140 281.9 112 Q273.5 92 254.6 66 Q200 56 200 66 Q200 56 145.4 66 Z" fill="url(#sv_dyna)" stroke="rgba(20,24,36,0.45)" stroke-width="2.5"/><path d="M160 78 Q136 98 138 134 Q139 164 158 190 L172 194 Q150 166 152 134 Q154 102 176 88 Z" fill="url(#ac_dyna)" opacity="0.92"/><g transform="translate(400,0) scale(-1,1)"><path d="M160 78 Q136 98 138 134 Q139 164 158 190 L172 194 Q150 166 152 134 Q154 102 176 88 Z" fill="url(#ac_dyna)" opacity="0.92"/></g><path d="M180 78 Q190 62 200 58 Q210 62 220 78 L214 86 Q204 74 200 74 Q196 74 186 86 Z" fill="url(#sv_dyna)"/><path d="M188 88 L200 72 L212 88 Z" fill="url(#mn_dyna)"/><ellipse cx="200" cy="84" rx="7" ry="9" fill="#7fd0ff" stroke="rgba(20,24,36,0.4)" stroke-width="1.5"/><path d="M178 132 L218 140" stroke="rgba(16,20,32,0.6)" stroke-width="4" stroke-linecap="round"/><path d="M222 132 L182 140" stroke="rgba(16,20,32,0.6)" stroke-width="4" stroke-linecap="round"/><path d="M214 148 L229 140 L244 146 L233 153 Z" fill="#ffd23e" stroke="rgba(20,24,36,0.75)" stroke-width="2" stroke-linejoin="round"/><path d="M217 147 L229 143 L239 146 L230 149 Z" fill="#fff" opacity="0.4"/><g transform="translate(400,0) scale(-1,1)"><path d="M214 148 L229 140 L244 146 L233 153 Z" fill="#ffd23e" stroke="rgba(20,24,36,0.75)" stroke-width="2" stroke-linejoin="round"/><path d="M217 147 L229 143 L239 146 L230 149 Z" fill="#fff" opacity="0.4"/></g><path d="M186 200 Q200 206 214 200" fill="none" stroke="rgba(30,34,50,0.45)" stroke-width="3" stroke-linecap="round"/></g></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400" role="img">
+  <defs>
+    <radialGradient id="au_dyna" cx="50%" cy="38%" r="65%">
+      <stop offset="0%" stop-color="#fffdf0" stop-opacity="0.95"/>
+      <stop offset="45%" stop-color="#7fd0ff" stop-opacity="0.4"/>
+      <stop offset="85%" stop-color="#4da6ff" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#2b7fd4" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="skin_dyna" cx="50%" cy="35%" r="55%">
+      <stop offset="0%" stop-color="#fafafa"/>
+      <stop offset="60%" stop-color="#e8f0fb"/>
+      <stop offset="100%" stop-color="#c8d8f0"/>
+    </radialGradient>
+    <linearGradient id="mn_dyna" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e23b2e"/>
+      <stop offset="50%" stop-color="#c03028"/>
+      <stop offset="100%" stop-color="#b33530"/>
+    </linearGradient>
+    <linearGradient id="mn_dyna_shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff6b5a" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#e23b2e" stop-opacity="0.4"/>
+    </linearGradient>
+    <linearGradient id="sv_dyna" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="30%" stop-color="#e8f0fb"/>
+      <stop offset="70%" stop-color="#c8d8f0"/>
+      <stop offset="100%" stop-color="#a0b8e0"/>
+    </linearGradient>
+    <linearGradient id="ac_dyna" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2b7fd4"/>
+      <stop offset="100%" stop-color="#1f5fb0"/>
+    </linearGradient>
+    <linearGradient id="timer_dyna" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#00e5ff"/>
+      <stop offset="50%" stop-color="#00b8d4"/>
+      <stop offset="100%" stop-color="#00e5ff"/>
+    </linearGradient>
+    <linearGradient id="timer_dyna_flash" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffeb3b"/>
+      <stop offset="50%" stop-color="#fff9c4"/>
+      <stop offset="100%" stop-color="#ffeb3b"/>
+    </linearGradient>
+    <linearGradient id="silver_dyna" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f0f4f8"/>
+      <stop offset="50%" stop-color="#c8d8e8"/>
+      <stop offset="100%" stop-color="#a0b8d0"/>
+    </linearGradient>
+    <filter id="glow_dyna" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="soft_shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="rgba(20,24,36,0.25)"/>
+    </filter>
+    <filter id="pulse_glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1.5 0"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- 背景光环 -->
+  <ellipse cx="200" cy="200" rx="150" ry="140" fill="url(#au_dyna)">
+    <animate attributeName="opacity" values="0.4;0.8;0.4" dur="4s" repeatCount="indefinite"/>
+    <animate attributeName="rx" values="150;160;150" dur="4s" repeatCount="indefinite"/>
+    <animate attributeName="ry" values="140;150;140" dur="4s" repeatCount="indefinite"/>
+  </ellipse>
+
+  <!-- 主体组（呼吸动画） -->
+  <g filter="url(#soft_shadow)">
+    <animateTransform attributeName="transform" type="translate" values="0 0;0 -4;0 0" dur="3.5s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+    <g transform="translate(0, 10)">
+      
+      <!-- 双腿 -->
+      <g>
+        <!-- 左腿 -->
+        <path d="M138 350 Q130 380 125 400 L148 400 Q152 380 145 350 Z" fill="url(#mn_dyna)" stroke="rgba(20,24,36,0.3)" stroke-width="1.5"/>
+        <path d="M138 350 Q142 370 140 385 L148 385 Q145 370 145 350 Z" fill="url(#sv_dyna)"/>
+        <ellipse cx="141.5" cy="390" rx="8" ry="4" fill="url(#ac_dyna)"/>
+        <!-- 右腿 -->
+        <path d="M252 350 Q260 380 265 400 L242 400 Q238 380 245 350 Z" fill="url(#mn_dyna)" stroke="rgba(20,24,36,0.3)" stroke-width="1.5"/>
+        <path d="M252 350 Q248 370 250 385 L242 385 Q245 370 245 350 Z" fill="url(#sv_dyna)"/>
+        <ellipse cx="248.5" cy="390" rx="8" ry="4" fill="url(#ac_dyna)"/>
+      </g>
+
+      <!-- 躯干主体 -->
+      <path d="M120 300 Q110 260 120 220 Q125 190 150 180 Q180 170 200 170 Q220 170 250 180 Q275 190 280 220 Q290 260 280 300 Z" fill="url(#skin_dyna)" stroke="rgba(20,24,36,0.15)" stroke-width="1">
+        <animate attributeName="d" values="M120 300 Q110 260 120 220 Q125 190 150 180 Q180 170 200 170 Q220 170 250 180 Q275 190 280 220 Q290 260 280 300 Z;
+                      M120 300 Q110 260 120 218 Q125 188 150 178 Q180 168 200 168 Q220 168 250 178 Q275 188 280 218 Q290 258 280 300 Z;
+                      M120 300 Q110 260 120 220 Q125 190 150 180 Q180 170 200 170 Q220 170 250 180 Q275 190 280 220 Q290 260 280 300 Z" dur="3.5s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+      </path>
+
+      <!-- 红色花纹（胸部 V 字纹 - 戴拿特有的双线条） -->
+      <path d="M170 240 Q200 210 230 240 Q210 255 200 265 Q190 255 170 240 Z" fill="url(#mn_dyna)">
+        <animate attributeName="opacity" values="1;0.85;1" dur="3.5s" repeatCount="indefinite"/>
+      </path>
+      <path d="M178 245 Q200 220 222 245 Q208 255 200 262 Q192 255 178 245 Z" fill="url(#mn_dyna_shine)" opacity="0.6"/>
+      <!-- 第二层 V 纹（戴拿特征） -->
+      <path d="M180 260 Q200 235 220 260 Q205 270 200 278 Q195 270 180 260 Z" fill="url(#mn_dyna)" opacity="0.5">
+        <animate attributeName="opacity" values="0.5;0.3;0.5" dur="3.5s" repeatCount="indefinite"/>
+      </path>
+
+      <!-- 色光定时器（核心发光体 - 蓝/绿切换） -->
+      <g id="colorTimer">
+        <ellipse cx="200" cy="248" rx="20" ry="18" fill="url(#timer_dyna)" stroke="#1a1a2e" stroke-width="2.5">
+          <animate attributeName="rx" values="20;22;20" dur="1s" repeatCount="indefinite"/>
+          <animate attributeName="ry" values="18;20;18" dur="1s" repeatCount="indefinite"/>
+        </ellipse>
+        <ellipse cx="200" cy="248" rx="14" ry="12" fill="url(#timer_dyna)" opacity="0.9">
+          <animate attributeName="opacity" values="0.9;1;0.7;1;0.9" dur="2s" repeatCount="indefinite"/>
+          <animate attributeName="rx" values="14;15;13;15;14" dur="2s" repeatCount="indefinite"/>
+        </ellipse>
+        <!-- 闪烁变黄动画（戴拿米拉夜模式切换） -->
+        <animate attributeName="fill" values="url(#timer_dyna);url(#timer_dyna);url(#timer_dyna_flash);url(#timer_dyna_flash);url(#timer_dyna)" dur="10s" repeatCount="indefinite" begin="3s"/>
+      </g>
+
+      <!-- 胸部银色护甲条 -->
+      <path d="M155 205 Q180 198 200 198 Q220 198 245 205 L240 215 Q220 210 200 210 Q180 210 160 215 Z" fill="url(#silver_dyna)" stroke="rgba(255,255,255,0.3)" stroke-width="0.5" opacity="0.9"/>
+
+      <!-- 双肩装甲 -->
+      <path d="M115 200 Q100 195 95 210 Q100 225 115 220 Q110 210 115 200 Z" fill="url(#mn_dyna)" stroke="rgba(20,24,36,0.2)" stroke-width="1.5"/>
+      <path d="M285 200 Q300 195 305 210 Q300 225 285 220 Q290 210 285 200 Z" fill="url(#mn_dyna)" stroke="rgba(20,24,36,0.2)" stroke-width="1.5"/>
+      <!-- 肩部银色线条 -->
+      <path d="M112 205 Q125 205 135 210" stroke="url(#silver_dyna)" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.8"/>
+      <path d="M288 205 Q275 205 265 210" stroke="url(#silver_dyna)" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.8"/>
+
+      <!-- 双臂 -->
+      <g>
+        <!-- 左臂 -->
+        <path d="M115 220 Q100 240 95 270 Q98 290 115 300 Q125 285 125 250 Q120 230 115 220 Z" fill="url(#skin_dyna)" stroke="rgba(20,24,36,0.15)" stroke-width="1"/>
+        <path d="M115 220 Q108 235 105 250 L120 250 Q122 235 115 220 Z" fill="url(#sv_dyna)"/>
+        <path d="M100 295 Q95 310 100 320 L115 320 Q118 310 113 295 Z" fill="url(#ac_dyna)"/>
+        <!-- 右臂 -->
+        <path d="M285 220 Q300 240 305 270 Q302 290 285 300 Q275 285 275 250 Q280 230 285 220 Z" fill="url(#skin_dyna)" stroke="rgba(20,24,36,0.15)" stroke-width="1"/>
+        <path d="M285 220 Q292 235 295 250 L280 250 Q278 235 285 220 Z" fill="url(#sv_dyna)"/>
+        <path d="M300 295 Q305 310 300 320 L285 320 Q282 310 287 295 Z" fill="url(#ac_dyna)"/>
+      </g>
+
+      <!-- 颈部 -->
+      <path d="M170 180 L165 195 L235 195 L230 180 Z" fill="url(#skin_dyna)"/>
+
+      <!-- 头部 -->
+      <g>
+        <!-- 头部主体 -->
+        <path d="M140 175 Q130 140 145 100 Q170 75 200 70 Q230 75 255 100 Q270 140 260 175 Z" fill="url(#skin_dyna)" stroke="rgba(20,24,36,0.15)" stroke-width="1">
+          <animate attributeName="d" values="M140 175 Q130 140 145 100 Q170 75 200 70 Q230 75 255 100 Q270 140 260 175 Z;
+                        M140 175 Q130 138 145 98 Q170 73 200 68 Q230 73 255 98 Q270 138 260 175 Z;
+                        M140 175 Q130 140 145 100 Q170 75 200 70 Q230 75 255 100 Q270 140 260 175 Z" dur="3.5s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+        </path>
+
+        <!-- 面部银色护甲（戴拿特有的眉骨护甲） -->
+        <path d="M155 155 Q165 130 185 115 Q195 108 205 115 Q215 108 225 115 Q235 130 245 155" fill="none" stroke="url(#silver_dyna)" stroke-width="3" stroke-linecap="round" opacity="0.9"/>
+        <path d="M158 158 Q168 133 188 118 Q198 111 208 118 Q218 111 228 118 Q238 133 242 158" fill="none" stroke="#ffffff" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+
+        <!-- 眼睛（戴拿的眼睛更锐利，蓝绿色） -->
+        <g>
+          <!-- 左眼 -->
+          <ellipse cx="172" cy="132" rx="12" ry="10" fill="#0d1b2a" filter="url(#glow_dyna)">
+            <animate attributeName="ry" values="10;2;10" dur="4s" repeatCount="indefinite" begin="0.5s"/>
+          </ellipse>
+          <ellipse cx="172" cy="132" rx="7" ry="6" fill="#00e5ff">
+            <animate attributeName="ry" values="6;1;6" dur="4s" repeatCount="indefinite" begin="0.5s"/>
+          </ellipse>
+          <ellipse cx="175" cy="130" rx="3" ry="2.5" fill="#ffffff" opacity="0.9"/>
+          <ellipse cx="169" cy="134" rx="1.5" ry="1" fill="#ffffff" opacity="0.5"/>
+          <!-- 右眼 -->
+          <ellipse cx="228" cy="132" rx="12" ry="10" fill="#0d1b2a" filter="url(#glow_dyna)">
+            <animate attributeName="ry" values="10;2;10" dur="4s" repeatCount="indefinite" begin="0.5s"/>
+          </ellipse>
+          <ellipse cx="228" cy="132" rx="7" ry="6" fill="#00e5ff">
+            <animate attributeName="ry" values="6;1;6" dur="4s" repeatCount="indefinite" begin="0.5s"/>
+          </ellipse>
+          <ellipse cx="231" cy="130" rx="3" ry="2.5" fill="#ffffff" opacity="0.9"/>
+          <ellipse cx="225" cy="134" rx="1.5" ry="1" fill="#ffffff" opacity="0.5"/>
+        </g>
+
+        <!-- 头顶三角尖（戴拿特有的双尖） -->
+        <path d="M185 95 Q200 60 215 95 Q208 100 200 108 Q192 100 185 95 Z" fill="url(#mn_dyna)" stroke="rgba(20,24,36,0.2)" stroke-width="1.5"/>
+        <path d="M190 98 Q200 72 210 98 Q205 102 200 106 Q195 102 190 98 Z" fill="url(#mn_dyna_shine)" opacity="0.5"/>
+        <!-- 第二尖（戴拿特征） -->
+        <path d="M175 105 Q190 75 205 105 Q198 110 190 115 Q182 110 175 105 Z" fill="url(#mn_dyna)" opacity="0.6"/>
+        <path d="M178 108 Q190 88 202 108 Q196 112 190 115 Q184 112 178 108 Z" fill="url(#mn_dyna_shine)" opacity="0.4"/>
+
+        <!-- 耳部装饰 -->
+        <path d="M138 145 Q125 140 120 155 Q128 155 135 150 Q138 148 138 145 Z" fill="url(#sv_dyna)" stroke="url(#silver_dyna)" stroke-width="1"/>
+        <path d="M262 145 Q275 140 280 155 Q272 155 265 150 Q262 148 262 145 Z" fill="url(#sv_dyna)" stroke="url(#silver_dyna)" stroke-width="1"/>
+
+        <!-- 额头宝石 -->
+        <ellipse cx="200" cy="118" rx="6" ry="5" fill="#00e5ff" filter="url(#glow_dyna)">
+          <animate attributeName="opacity" values="0.8;1;0.8" dur="2s" repeatCount="indefinite"/>
+        </ellipse>
+      </g>
+
+      <!-- 能量粒子效果 -->
+      <g opacity="0.6">
+        <circle cx="170" cy="200" r="3" fill="#00e5ff">
+          <animate attributeName="r" values="1;4;1" dur="2s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.3;0.8;0" dur="2s" repeatCount="indefinite"/>
+          <animate attributeName="cy" values="200;180;200" dur="2s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="230" cy="200" r="3" fill="#00e5ff">
+          <animate attributeName="r" values="1;4;1" dur="2s" repeatCount="indefinite" begin="1s"/>
+          <animate attributeName="opacity" values="0.3;0.8;0" dur="2s" repeatCount="indefinite" begin="1s"/>
+          <animate attributeName="cy" values="200;180;200" dur="2s" repeatCount="indefinite" begin="1s"/>
+        </circle>
+        <circle cx="200" cy="160" r="2" fill="#ffeb3b">
+          <animate attributeName="r" values="1;3;1" dur="1.5s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.4;0.9;0" dur="1.5s" repeatCount="indefinite"/>
+          <animate attributeName="cy" values="160;140;160" dur="1.5s" repeatCount="indefinite"/>
+        </circle>
+      </g>
+
+    </g>
+  </g>
+
+  <!-- 光效粒子环绕 -->
+  <g filter="url(#glow_dyna)">
+    <circle cx="120" cy="280" r="4" fill="#00e5ff" opacity="0.5">
+      <animateMotion path="M0,0 Q-30,-40 -20,-80 Q10,-100 40,-60 Q60,-20 0,0" dur="6s" repeatCount="indefinite" rotate="auto"/>
+      <animate attributeName="opacity" values="0;0.6;0" dur="6s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="280" cy="280" r="3" fill="#ffeb3b" opacity="0.5">
+      <animateMotion path="M0,0 Q30,-40 20,-80 Q-10,-100 -40,-60 Q-60,-20 0,0" dur="7s" repeatCount="indefinite" rotate="auto"/>
+      <animate attributeName="opacity" values="0;0.5;0" dur="7s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="150" cy="340" r="2" fill="#ff6b5a" opacity="0.6">
+      <animateMotion path="M0,0 Q-20,20 -10,50 Q20,70 40,30 Q20,-10 0,0" dur="5s" repeatCount="indefinite" rotate="auto"/>
+      <animate attributeName="opacity" values="0;0.7;0" dur="5s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+</svg>

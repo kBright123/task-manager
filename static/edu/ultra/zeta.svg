@@ -1,1 +1,295 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400" role="img"><defs><radialGradient id="au_zeta" cx="50%" cy="42%" r="62%"><stop offset="0%" stop-color="#fffbe8" stop-opacity="0.95"/><stop offset="52%" stop-color="#ffe08a" stop-opacity="0.5"/><stop offset="100%" stop-color="#e8b04c" stop-opacity="0"/></radialGradient><linearGradient id="sv_zeta" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f7f9fd"/><stop offset="45%" stop-color="#c9d0e0"/><stop offset="78%" stop-color="#9aa4bd"/><stop offset="100%" stop-color="#6e7a96"/></linearGradient><linearGradient id="mn_zeta" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#2b6fd4"/><stop offset="100%" stop-color="#1f4ea0"/></linearGradient><linearGradient id="ac_zeta" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#11151f"/><stop offset="100%" stop-color="#07090e"/></linearGradient></defs><ellipse cx="200" cy="216" rx="133" ry="126" fill="url(#au_zeta)"><animate attributeName="opacity" values="0.5;0.85;0.5" dur="3.4s" repeatCount="indefinite"/></ellipse><g><animateTransform attributeName="transform" type="translate" values="0 0;0 -5;0 0" dur="3s" repeatCount="indefinite"/><g><path d="M124 306 Q118 344 124 366 L120 400 L150 400 L152 344 Q164 320 200 318 Q236 320 248 344 L250 400 L280 400 L276 366 Q282 344 276 306 Q224 282 200 282 Q176 282 124 306 Z" fill="url(#mn_zeta)" stroke="rgba(20,24,36,0.4)" stroke-width="2"/><path d="M176 298 Q200 310 224 298 L218 318 Q200 326 182 318 Z" fill="url(#sv_zeta)"/><path d="M144 330 Q140 374 144 400 L158 400 L158 352 Z" fill="url(#ac_zeta)"/><path d="M256 330 Q260 374 256 400 L242 400 L242 352 Z" fill="url(#ac_zeta)"/><path d="M180 306 Q200 318 220 306 L216 352 L184 352 Z" fill="url(#sv_zeta)" stroke="rgba(20,24,36,0.25)" stroke-width="1.5"/><path d="M188 318 Q200 324 212 318 L210 346 L190 346 Z" fill="#bfc7d9" opacity="0.45"/><circle cx="200" cy="322" r="16" fill="#6fd8ff" stroke="#232742" stroke-width="3"/><circle cx="200" cy="322" r="16" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/><ellipse cx="194" cy="316" rx="5" ry="3.4" fill="#fff" opacity="0.6"/><circle cx="200" cy="322" r="16" fill="none" stroke="#2f9ad4" stroke-width="2.5" opacity="0"><animate attributeName="opacity" values="0;1;1;0" dur="4.2s" repeatCount="indefinite"/></circle><rect x="140" y="386" width="120" height="14" rx="7" fill="url(#sv_zeta)" stroke="rgba(20,24,36,0.3)"/><rect x="184" y="386" width="32" height="14" rx="5" fill="#f2c94c" stroke="rgba(20,24,36,0.3)"/></g><g><rect x="182" y="278" width="36" height="26" rx="5" fill="url(#sv_zeta)"/><path d="M151.12 66 Q134.2 92 126.68 112 Q122.92 140 132.32 140 Q151.12 168 168.04 196 Q186.84 212 198.12 222 Q213.16 212 231.96 196 Q248.88 168 267.68 140 Q277.08 140 273.32 112 Q265.8 92 248.88 66 Q200 56 200 66 Q200 56 151.12 66 Z" fill="url(#sv_zeta)" stroke="rgba(20,24,36,0.45)" stroke-width="2.5"/><path d="M160 78 Q136 98 138 134 Q139 164 158 190 L172 194 Q150 166 152 134 Q154 102 176 88 Z" fill="url(#ac_zeta)" opacity="0.92"/><g transform="translate(400,0) scale(-1,1)"><path d="M160 78 Q136 98 138 134 Q139 164 158 190 L172 194 Q150 166 152 134 Q154 102 176 88 Z" fill="url(#ac_zeta)" opacity="0.92"/></g><path d="M160 78 Q200 56 240 78 L232 90 Q200 72 168 90 Z" fill="url(#ac_zeta)"/><path d="M184 66 Q200 48 216 66 L210 72 L196 72 Z" fill="#f2c94c"/><path d="M200 80 L188 98 L196 102 L212 94 Z" fill="url(#mn_zeta)"/><path d="M178 76 Q200 60 222 76 L216 82 Q200 72 184 82 Z" fill="url(#sv_zeta)"></path><path d="M176 130 L216 140" stroke="rgba(14,18,30,0.8)" stroke-width="4.5" stroke-linecap="round"/><path d="M224 130 L184 140" stroke="rgba(14,18,30,0.8)" stroke-width="4.5" stroke-linecap="round"/><path d="M148 132 Q200 120 252 132 L244 158 Q200 147 156 158 Z" fill="rgba(8,10,16,0.85)"/><path d="M214 148 L229 140 L244 146 L233 153 Z" fill="#ffea4a" stroke="rgba(20,24,36,0.75)" stroke-width="2" stroke-linejoin="round"/><path d="M217 147 L229 143 L239 146 L230 149 Z" fill="#fff" opacity="0.4"/><g transform="translate(400,0) scale(-1,1)"><path d="M214 148 L229 140 L244 146 L233 153 Z" fill="#ffea4a" stroke="rgba(20,24,36,0.75)" stroke-width="2" stroke-linejoin="round"/><path d="M217 147 L229 143 L239 146 L230 149 Z" fill="#fff" opacity="0.4"/></g><path d="M186 200 Q200 206 214 200" fill="none" stroke="rgba(30,34,50,0.45)" stroke-width="3" stroke-linecap="round"/></g></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400" role="img">
+  <defs>
+    <radialGradient id="au_zeta" cx="50%" cy="38%" r="65%">
+      <stop offset="0%" stop-color="#fffdf0" stop-opacity="0.95"/>
+      <stop offset="45%" stop-color="#90caf9" stop-opacity="0.4"/>
+      <stop offset="85%" stop-color="#42a5f5" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#1e88e5" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="skin_zeta" cx="50%" cy="35%" r="55%">
+      <stop offset="0%" stop-color="#fafafa"/>
+      <stop offset="60%" stop-color="#e3f2fd"/>
+      <stop offset="100%" stop-color="#bbdefb"/>
+    </radialGradient>
+    <linearGradient id="mn_zeta" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#42a5f5"/>
+      <stop offset="50%" stop-color="#1e88e5"/>
+      <stop offset="100%" stop-color="#1565c0"/>
+    </linearGradient>
+    <linearGradient id="mn_zeta_shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#90caf9" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#42a5f5" stop-opacity="0.4"/>
+    </linearGradient>
+    <linearGradient id="sv_zeta" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="30%" stop-color="#e3f2fd"/>
+      <stop offset="70%" stop-color="#bbdefb"/>
+      <stop offset="100%" stop-color="#90caf9"/>
+    </linearGradient>
+    <linearGradient id="ac_zeta" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1565c0"/>
+      <stop offset="100%" stop-color="#0d47a1"/>
+    </linearGradient>
+    <linearGradient id="timer_zeta" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#42a5f5"/>
+      <stop offset="50%" stop-color="#90caf9"/>
+      <stop offset="100%" stop-color="#42a5f5"/>
+    </linearGradient>
+    <linearGradient id="timer_zeta_wolf" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#8e24aa"/>
+      <stop offset="50%" stop-color="#ab47bc"/>
+      <stop offset="100%" stop-color="#8e24aa"/>
+    </linearGradient>
+    <linearGradient id="timer_zeta_galaxy" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ff8f00"/>
+      <stop offset="50%" stop-color="#ffb300"/>
+      <stop offset="100%" stop-color="#ff8f00"/>
+    </linearGradient>
+    <linearGradient id="silver_zeta" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e3f2fd"/>
+      <stop offset="50%" stop-color="#bbdefb"/>
+      <stop offset="100%" stop-color="#90caf9"/>
+    </linearGradient>
+    <linearGradient id="zeta_crest" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#e3f2fd"/>
+      <stop offset="50%" stop-color="#90caf9"/>
+      <stop offset="100%" stop-color="#42a5f5"/>
+    </linearGradient>
+    <filter id="glow_zeta" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="soft_shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="rgba(20,24,36,0.25)"/>
+    </filter>
+    <filter id="blue_glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0.3 0 0 0 0  0 0.8 0 0 0  0 0 1 0 0  0 0 0 2 0"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- 背景光环（蓝色系） -->
+  <ellipse cx="200" cy="200" rx="150" ry="140" fill="url(#au_zeta)">
+    <animate attributeName="opacity" values="0.4;0.85;0.4" dur="3.5s" repeatCount="indefinite"/>
+    <animate attributeName="rx" values="150;160;150" dur="3.5s" repeatCount="indefinite"/>
+    <animate attributeName="ry" values="140;150;140" dur="3.5s" repeatCount="indefinite"/>
+  </ellipse>
+
+  <!-- 主体组 -->
+  <g filter="url(#soft_shadow)">
+    <animateTransform attributeName="transform" type="translate" values="0 0;0 -4;0 0" dur="3.2s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+    <g transform="translate(0, 10)">
+      
+      <!-- 双腿（泽塔特有的对称护腿，带有标志性纹路） -->
+      <g>
+        <path d="M140 350 Q132 380 127 400 L147 400 Q151 380 144 350 Z" fill="url(#mn_zeta)" stroke="rgba(20,24,36,0.3)" stroke-width="1.5"/>
+        <path d="M140 350 Q143 370 141 385 L147 385 Q145 370 145 350 Z" fill="url(#sv_zeta)"/>
+        <ellipse cx="143" cy="390" rx="8" ry="4" fill="url(#ac_zeta)"/>
+        <path d="M150 338 L154 400 L162 400 L162 338 Z" fill="url(#sv_zeta)" opacity="0.5"/>
+        <!-- 泽塔标志性腿部纹路 -->
+        <path d="M137 340 Q142 360 140 380 L150 380 Q148 360 150 340 Z" fill="url(#timer_zeta)" opacity="0.4"/>
+        <path d="M252 350 Q260 380 265 400 L245 400 Q241 380 248 350 Z" fill="url(#mn_zeta)" stroke="rgba(20,24,36,0.3)" stroke-width="1.5"/>
+        <path d="M252 350 Q249 370 251 385 L245 385 Q247 370 248 350 Z" fill="url(#sv_zeta)"/>
+        <ellipse cx="249" cy="390" rx="8" ry="4" fill="url(#ac_zeta)"/>
+        <path d="M238 338 L234 400 L226 400 L226 338 Z" fill="url(#sv_zeta)" opacity="0.5"/>
+        <path d="M243 340 Q250 360 248 380 L238 380 Q240 360 242 340 Z" fill="url(#timer_zeta)" opacity="0.4"/>
+      </g>
+
+      <!-- 躯干主体 -->
+      <path d="M122 300 Q112 260 122 220 Q127 190 152 180 Q180 170 200 170 Q220 170 248 180 Q273 190 278 220 Q288 260 278 300 Z" fill="url(#skin_zeta)" stroke="rgba(20,24,36,0.15)" stroke-width="1">
+        <animate attributeName="d" values="M122 300 Q112 260 122 220 Q127 190 152 180 Q180 170 200 170 Q220 170 248 180 Q273 190 278 220 Q288 260 278 300 Z;
+                      M122 300 Q112 260 122 217 Q127 187 152 177 Q180 167 200 167 Q220 167 248 177 Q273 187 278 217 Q288 257 278 300 Z;
+                      M122 300 Q112 260 122 220 Q127 190 152 180 Q180 170 200 170 Q220 170 248 180 Q273 190 278 220 Q288 260 278 300 Z" dur="3.2s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+      </path>
+
+      <!-- 泽塔特有的胸甲（独特的Z形/对称线条） -->
+      <path d="M172 240 Q200 212 228 240 Q210 255 200 262 Q190 255 172 240 Z" fill="url(#mn_zeta)">
+        <animate attributeName="opacity" values="1;0.85;1" dur="3.2s" repeatCount="indefinite"/>
+      </path>
+      <path d="M180 245 Q200 222 220 245 Q208 256 200 260 Q192 256 180 245 Z" fill="url(#mn_zeta_shine)" opacity="0.7"/>
+      <!-- 泽塔Z字纹路 -->
+      <path d="M200 212 L215 225 L200 240 L215 255" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7">
+        <animate attributeName="opacity" values="0.7;1;0.7" dur="2s" repeatCount="indefinite"/>
+        <animate attributeName="stroke-dashoffset" values="0;-50" dur="3s" repeatCount="indefinite"/>
+      </path>
+      <path d="M200 212 L200 240 L185 240" fill="none" stroke="#90caf9" stroke-width="2" stroke-linecap="round" opacity="0.5">
+        <animate attributeName="opacity" values="0.5;0.8;0.5" dur="2.5s" repeatCount="indefinite"/>
+      </path>
+      
+      <!-- 中央核心（泽塔标志） -->
+      <g id="coreUnit">
+        <ellipse cx="200" cy="248" rx="18" ry="16" fill="url(#timer_zeta)" stroke="#0d3a7a" stroke-width="2.5">
+          <animate attributeName="rx" values="18;20;18" dur="1.5s" repeatCount="indefinite"/>
+          <animate attributeName="ry" values="16;18;16" dur="1.5s" repeatCount="indefinite"/>
+        </ellipse>
+        <ellipse cx="200" cy="248" rx="12" ry="10" fill="url(#timer_zeta)" opacity="0.9">
+          <animate attributeName="opacity" values="0.9;1;0.7;1;0.9" dur="1.5s" repeatCount="indefinite"/>
+        </ellipse>
+        <!-- Z字核心纹路 -->
+        <path d="M193 242 L207 254 L193 254 L207 242" fill="none" stroke="#bbdefb" stroke-width="2" opacity="0.8" filter="url(#glow_zeta)">
+          <animate attributeName="opacity" values="0.8;1;0.8" dur="1s" repeatCount="indefinite"/>
+        </path>
+        <circle cx="200" cy="248" r="4" fill="#90caf9">
+          <animate attributeName="r" values="4;5;4" dur="1s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="1;0.6;1" dur="1s" repeatCount="indefinite"/>
+        </circle>
+      </g>
+
+      <!-- 色光定时器（蓝色的多种形态：阿尔法亲属 -> 贝塔粉碎 -> 伽马未来 -> 德尔塔天爪） -->
+      <g id="colorTimer">
+        <ellipse cx="200" cy="248" rx="22" ry="20" fill="url(#timer_zeta)" stroke="#0d3a7a" stroke-width="3">
+          <animate attributeName="rx" values="22;24;22" dur="1.2s" repeatCount="indefinite"/>
+          <animate attributeName="ry" values="20;22;20" dur="1.2s" repeatCount="indefinite"/>
+        </ellipse>
+        <ellipse cx="200" cy="248" rx="15" ry="13" fill="url(#timer_zeta)" opacity="0.9">
+          <animate attributeName="opacity" values="0.9;1;0.6;1;0.9" dur="1.5s" repeatCount="indefinite"/>
+          <animate attributeName="rx" values="15;17;14;17;15" dur="1.5s" repeatCount="indefinite"/>
+        </ellipse>
+        <animate attributeName="fill" values="url(#timer_zeta);url(#timer_zeta);url(#timer_zeta_wolf);url(#timer_zeta_galaxy);url(#timer_zeta)" dur="24s" repeatCount="indefinite" begin="4s"/>
+      </g>
+
+      <!-- 胸部银色护甲条（流线型） -->
+      <path d="M155 202 Q182 195 200 195 Q218 195 245 202 L240 213 Q218 206 200 206 Q182 206 160 213 Z" fill="url(#silver_zeta)" stroke="rgba(255,255,255,0.4)" stroke-width="0.5" opacity="0.95"/>
+
+      <!-- 双肩装甲（锐利） -->
+      <path d="M105 195 Q90 185 88 205 Q95 222 115 222 Q112 200 105 195 Z" fill="url(#mn_zeta)" stroke="rgba(20,24,36,0.2)" stroke-width="1.5"/>
+      <path d="M295 195 Q310 185 312 205 Q305 222 285 222 Q288 200 295 195 Z" fill="url(#mn_zeta)" stroke="rgba(20,24,36,0.2)" stroke-width="1.5"/>
+      <path d="M105 203 Q125 203 138 210" stroke="url(#silver_zeta)" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.8"/>
+      <path d="M295 203 Q275 203 262 210" stroke="url(#silver_zeta)" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.8"/>
+
+      <!-- 泽塔升华器（左腕，欧布同款升华器） -->
+      <g transform="translate(88, 258)">
+        <ellipse cx="0" cy="0" rx="20" ry="16" fill="url(#timer_zeta)" stroke="#1565c0" stroke-width="2" filter="url(#blue_glow)">
+          <animate attributeName="rx" values="20;22;20" dur="2s" repeatCount="indefinite"/>
+        </ellipse>
+        <ellipse cx="0" cy="0" rx="12" ry="9" fill="url(#timer_zeta)" opacity="0.9">
+          <animate attributeName="opacity" values="0.9;1;0.8;1;0.9" dur="1.5s" repeatCount="indefinite"/>
+        </ellipse>
+        <path d="M-14 0 L14 0 M0 -14 L0 14" stroke="#90caf9" stroke-width="2.5" opacity="0.9">
+          <animate attributeName="opacity" values="0.9;1;0.9" dur="1s" repeatCount="indefinite"/>
+          <animate attributeName="stroke-width" values="2.5;3.5;2.5" dur="1.5s" repeatCount="indefinite"/>
+        </path>
+      </g>
+
+      <!-- 双臂 -->
+      <g>
+        <path d="M108 218 Q92 238 88 270 Q90 292 108 300 Q122 285 122 245 Q118 228 108 218 Z" fill="url(#skin_zeta)" stroke="rgba(20,24,36,0.15)" stroke-width="1"/>
+        <path d="M108 218 Q100 233 98 248 L118 248 Q120 233 108 218 Z" fill="url(#sv_zeta)"/>
+        <path d="M110 300 Q110 315 115 322 L130 322 Q133 315 128 300 Z" fill="url(#ac_zeta)" opacity="0" />
+        <path d="M96 295 Q92 315 98 328 L116 328 Q120 315 114 295 Z" fill="url(#ac_zeta)"/>
+        <path d="M292 218 Q308 238 312 270 Q310 292 292 300 Q278 285 278 245 Q282 228 292 218 Z" fill="url(#skin_zeta)" stroke="rgba(20,24,36,0.15)" stroke-width="1"/>
+        <path d="M292 218 Q300 233 302 248 L282 248 Q280 233 292 218 Z" fill="url(#sv_zeta)"/>
+        <path d="M304 295 Q308 315 302 328 L284 328 Q280 315 286 295 Z" fill="url(#ac_zeta)"/>
+      </g>
+
+      <!-- 颈部 -->
+      <path d="M168 178 L163 194 L237 194 L232 178 Z" fill="url(#skin_zeta)"/>
+
+      <!-- 头部 -->
+      <g>
+        <path d="M138 172 Q128 137 142 97 Q168 72 200 67 Q232 72 258 97 Q272 137 262 172 Z" fill="url(#skin_zeta)" stroke="rgba(20,24,36,0.15)" stroke-width="1">
+          <animate attributeName="d" values="M138 172 Q128 137 142 97 Q168 72 200 67 Q232 72 258 97 Q272 137 262 172 Z;
+                        M138 172 Q128 135 142 95 Q168 70 200 65 Q232 70 258 95 Q272 135 262 172 Z;
+                        M138 172 Q128 137 142 97 Q168 72 200 67 Q232 72 258 97 Q272 137 262 172 Z" dur="3.2s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+        </path>
+
+        <!-- 面部护甲（泽塔特有的额头三角+线条） -->
+        <path d="M152 152 Q162 125 182 108 Q195 101 205 108 Q218 101 225 108 Q238 125 248 152" fill="none" stroke="url(#silver_zeta)" stroke-width="3" stroke-linecap="round" opacity="0.9"/>
+        <path d="M155 155 Q165 128 185 111 Q198 104 208 111 Q221 104 228 111 Q240 128 250 155" fill="none" stroke="#e3f2fd" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+
+        <!-- 眼睛（泽塔的明亮蓝色眼睛） -->
+        <g>
+          <ellipse cx="170" cy="130" rx="12" ry="10" fill="#0a2a5a" filter="url(#glow_zeta)">
+            <animate attributeName="ry" values="10;1;10" dur="3.2s" repeatCount="indefinite" begin="0.4s"/>
+          </ellipse>
+          <ellipse cx="170" cy="130" rx="7" ry="6" fill="#42a5f5">
+            <animate attributeName="ry" values="6;0.5;6" dur="3.2s" repeatCount="indefinite" begin="0.4s"/>
+          </ellipse>
+          <ellipse cx="173" cy="128" rx="3" ry="2.5" fill="#ffffff" opacity="1"/>
+          <ellipse cx="167" cy="132" rx="1.5" ry="1" fill="#ffffff" opacity="0.5"/>
+          <ellipse cx="230" cy="130" rx="12" ry="10" fill="#0a2a5a" filter="url(#glow_zeta)">
+            <animate attributeName="ry" values="10;1;10" dur="3.2s" repeatCount="indefinite" begin="0.4s"/>
+          </ellipse>
+          <ellipse cx="230" cy="130" rx="7" ry="6" fill="#42a5f5">
+            <animate attributeName="ry" values="6;0.5;6" dur="3.2s" repeatCount="indefinite" begin="0.4s"/>
+          </ellipse>
+          <ellipse cx="233" cy="128" rx="3" ry="2.5" fill="#ffffff" opacity="1"/>
+          <ellipse cx="227" cy="132" rx="1.5" ry="1" fill="#ffffff" opacity="0.5"/>
+        </g>
+
+        <!-- 头顶装饰（泽塔特有的对称双角） -->
+        <path d="M176 90 Q185 50 196 90 Q193 96 186 100 Q179 96 176 90 Z" fill="url(#zeta_crest)" stroke="#1565c0" stroke-width="2" filter="url(#blue_glow)">
+          <animateTransform attributeName="transform" type="rotate" values="0;2;0;-2;0" dur="5s" repeatCount="indefinite"/>
+        </path>
+        <path d="M204 90 Q215 50 224 90 Q221 96 214 100 Q207 96 204 90 Z" fill="url(#zeta_crest)" stroke="#1565c0" stroke-width="2" filter="url(#blue_glow)">
+          <animateTransform attributeName="transform" type="rotate" values="0;-2;0;2;0" dur="5s" repeatCount="indefinite"/>
+        </path>
+        <path d="M180 93 Q188 62 196 93 Q193 99 186 99 Q179 99 180 93 Z" fill="url(#mn_zeta_shine)" opacity="0.4"/>
+        <path d="M204 93 Q212 62 220 93 Q217 99 214 99 Q207 99 204 93 Z" fill="url(#mn_zeta_shine)" opacity="0.4"/>
+
+        <!-- 额头宝石（蓝色） -->
+        <ellipse cx="200" cy="112" rx="8" ry="6" fill="#42a5f5" stroke="#1e88e5" stroke-width="1.5" filter="url(#blue_glow)">
+          <animate attributeName="opacity" values="0.8;1;0.8" dur="1.5s" repeatCount="indefinite"/>
+          <animate attributeName="rx" values="8;9;8" dur="1.5s" repeatCount="indefinite"/>
+        </ellipse>
+
+        <!-- 耳部装饰 -->
+        <path d="M136 145 Q118 140 110 158 Q122 158 134 150 Q140 148 136 145 Z" fill="url(#sv_zeta)" stroke="url(#silver_zeta)" stroke-width="1"/>
+        <path d="M264 145 Q282 140 290 158 Q278 158 266 150 Q260 148 264 145 Z" fill="url(#sv_zeta)" stroke="url(#silver_zeta)" stroke-width="1"/>
+
+      </g>
+
+      <!-- 蓝色能量粒子效果 -->
+      <g opacity="0.7">
+        <circle cx="170" cy="200" r="3" fill="#42a5f5">
+          <animate attributeName="r" values="2;5;2" dur="1.5s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.4;1;0" dur="1.5s" repeatCount="indefinite"/>
+          <animate attributeName="cy" values="200;175;200" dur="1.5s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="230" cy="200" r="3" fill="#42a5f5">
+          <animate attributeName="r" values="2;5;2" dur="1.5s" repeatCount="indefinite" begin="0.75s"/>
+          <animate attributeName="opacity" values="0.4;1;0" dur="1.5s" repeatCount="indefinite" begin="0.75s"/>
+          <animate attributeName="cy" values="200;175;200" dur="1.5s" repeatCount="indefinite" begin="0.75s"/>
+        </circle>
+        <circle cx="200" cy="160" r="2" fill="#90caf9">
+          <animate attributeName="r" values="1;4;1" dur="1s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.5;1;0" dur="1s" repeatCount="indefinite"/>
+          <animate attributeName="cy" values="160;130;160" dur="1s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="200" cy="248" r="2" fill="#90caf9">
+          <animate attributeName="r" values="1;4;1" dur="1s" repeatCount="indefinite" begin="0.5s"/>
+          <animate attributeName="opacity" values="0.5;1;0" dur="1s" repeatCount="indefinite" begin="0.5s"/>
+        </circle>
+      </g>
+
+    </g>
+  </g>
+
+  <!-- 蓝色粒子环绕 -->
+  <g filter="url(#glow_zeta)">
+    <circle cx="120" cy="280" r="4" fill="#42a5f5" opacity="0.5">
+      <animateMotion path="M0,0 Q-30,-40 -20,-80 Q10,-100 40,-60 Q60,-20 0,0" dur="6s" repeatCount="indefinite" rotate="auto"/>
+      <animate attributeName="opacity" values="0;0.6;0" dur="6s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="280" cy="280" r="3" fill="#90caf9" opacity="0.5">
+      <animateMotion path="M0,0 Q30,-40 20,-80 Q-10,-100 -40,-60 Q-60,-20 0,0" dur="7s" repeatCount="indefinite" rotate="auto"/>
+      <animate attributeName="opacity" values="0;0.6;0" dur="7s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="150" cy="340" r="2" fill="#bbdefb" opacity="0.6">
+      <animateMotion path="M0,0 Q-20,20 -10,50 Q20,70 40,30 Q20,-10 0,0" dur="5s" repeatCount="indefinite" rotate="auto"/>
+      <animate attributeName="opacity" values="0;0.7;0" dur="5s" repeatCount="indefinite"/>
+    </circle>
+    <!-- Z字轨迹 -->
+    <path d="M200 212 L215 225 L200 240 L215 255" fill="none" stroke="#90caf9" stroke-width="2" opacity="0.3">
+      <animate attributeName="stroke-dashoffset" values="0;-60" dur="3s" repeatCount="indefinite"/>
+      <animate attributeName="stroke-dasharray" values="8,16" dur="3s" repeatCount="indefinite"/>
+    </path>
+  </g>
+</svg>

@@ -1,1 +1,288 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400" role="img"><defs><radialGradient id="au_triga" cx="50%" cy="42%" r="62%"><stop offset="0%" stop-color="#fffbe8" stop-opacity="0.95"/><stop offset="52%" stop-color="#9bf0ff" stop-opacity="0.5"/><stop offset="100%" stop-color="#b46fe0" stop-opacity="0"/></radialGradient><linearGradient id="sv_triga" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f7f9fd"/><stop offset="45%" stop-color="#c9d0e0"/><stop offset="78%" stop-color="#9aa4bd"/><stop offset="100%" stop-color="#6e7a96"/></linearGradient><linearGradient id="mn_triga" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#e13d30"/><stop offset="100%" stop-color="#8a4f96"/></linearGradient><linearGradient id="ac_triga" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#a93f9d"/><stop offset="100%" stop-color="#7a2f8f"/></linearGradient></defs><ellipse cx="200" cy="216" rx="133" ry="126" fill="url(#au_triga)"><animate attributeName="opacity" values="0.5;0.85;0.5" dur="3.4s" repeatCount="indefinite"/></ellipse><g><animateTransform attributeName="transform" type="translate" values="0 0;0 -5;0 0" dur="3s" repeatCount="indefinite"/><g><path d="M124 306 Q118 344 124 366 L120 400 L150 400 L152 344 Q164 320 200 318 Q236 320 248 344 L250 400 L280 400 L276 366 Q282 344 276 306 Q224 282 200 282 Q176 282 124 306 Z" fill="url(#mn_triga)" stroke="rgba(20,24,36,0.4)" stroke-width="2"/><path d="M176 298 Q200 310 224 298 L218 318 Q200 326 182 318 Z" fill="url(#sv_triga)"/><path d="M144 330 Q140 374 144 400 L158 400 L158 352 Z" fill="url(#ac_triga)"/><path d="M256 330 Q260 374 256 400 L242 400 L242 352 Z" fill="url(#ac_triga)"/><path d="M180 306 Q200 318 220 306 L216 352 L184 352 Z" fill="url(#sv_triga)" stroke="rgba(20,24,36,0.25)" stroke-width="1.5"/><path d="M188 318 Q200 324 212 318 L210 346 L190 346 Z" fill="#bfc7d9" opacity="0.45"/><circle cx="200" cy="322" r="16" fill="#54e0d0" stroke="#232742" stroke-width="3"/><circle cx="200" cy="322" r="16" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/><ellipse cx="194" cy="316" rx="5" ry="3.4" fill="#fff" opacity="0.6"/><circle cx="200" cy="322" r="16" fill="none" stroke="#2fbfae" stroke-width="2.5" opacity="0"><animate attributeName="opacity" values="0;1;1;0" dur="4.2s" repeatCount="indefinite"/></circle><rect x="140" y="386" width="120" height="14" rx="7" fill="url(#sv_triga)" stroke="rgba(20,24,36,0.3)"/><rect x="184" y="386" width="32" height="14" rx="5" fill="#f2c94c" stroke="rgba(20,24,36,0.3)"/></g><g><rect x="182" y="278" width="36" height="26" rx="5" fill="url(#sv_triga)"/><path d="M148.0 66 Q130.0 92 122.0 112 Q118.0 140 128.0 140 Q148.0 168 166.0 196 Q186.0 212 198.0 222 Q214.0 212 234.0 196 Q252.0 168 272.0 140 Q282.0 140 278.0 112 Q270.0 92 252.0 66 Q200 56 200 66 Q200 56 148.0 66 Z" fill="url(#sv_triga)" stroke="rgba(20,24,36,0.45)" stroke-width="2.5"/><path d="M160 78 Q136 98 138 134 Q139 164 158 190 L172 194 Q150 166 152 134 Q154 102 176 88 Z" fill="url(#ac_triga)" opacity="0.92"/><g transform="translate(400,0) scale(-1,1)"><path d="M160 78 Q136 98 138 134 Q139 164 158 190 L172 194 Q150 166 152 134 Q154 102 176 88 Z" fill="url(#ac_triga)" opacity="0.92"/></g><path d="M172 82 Q188 64 200 60 Q212 64 228 82 L220 92 Q206 78 200 78 Q194 78 180 92 Z" fill="url(#sv_triga)"/><path d="M196 66 L200 58 L204 66 L200 70 Z" fill="url(#mn_triga)"/><path d="M200 76 L190 100 L210 100 Z" fill="#e0453f"></path><path d="M176 134 Q200 126 224 134" fill="none" stroke="rgba(30,34,48,0.5)" stroke-width="3" stroke-linecap="round"/><path d="M214 148 L229 140 L244 146 L233 153 Z" fill="#ffe14a" stroke="rgba(20,24,36,0.75)" stroke-width="2" stroke-linejoin="round"/><path d="M217 147 L229 143 L239 146 L230 149 Z" fill="#fff" opacity="0.4"/><g transform="translate(400,0) scale(-1,1)"><path d="M214 148 L229 140 L244 146 L233 153 Z" fill="#ffe14a" stroke="rgba(20,24,36,0.75)" stroke-width="2" stroke-linejoin="round"/><path d="M217 147 L229 143 L239 146 L230 149 Z" fill="#fff" opacity="0.4"/></g><path d="M186 200 Q200 206 214 200" fill="none" stroke="rgba(30,34,50,0.45)" stroke-width="3" stroke-linecap="round"/></g></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400" role="img">
+  <defs>
+    <radialGradient id="au_triga" cx="50%" cy="38%" r="65%">
+      <stop offset="0%" stop-color="#fffdf0" stop-opacity="0.95"/>
+      <stop offset="45%" stop-color="#ff8a80" stop-opacity="0.4"/>
+      <stop offset="85%" stop-color="#f44336" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#d32f2f" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="skin_triga" cx="50%" cy="35%" r="55%">
+      <stop offset="0%" stop-color="#fafafa"/>
+      <stop offset="60%" stop-color="#ffebee"/>
+      <stop offset="100%" stop-color="#ffcdd2"/>
+    </radialGradient>
+    <linearGradient id="mn_triga" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ef5350"/>
+      <stop offset="50%" stop-color="#e53935"/>
+      <stop offset="100%" stop-color="#c62828"/>
+    </linearGradient>
+    <linearGradient id="mn_triga_shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff8a80" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#ef5350" stop-opacity="0.4"/>
+    </linearGradient>
+    <linearGradient id="sv_triga" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="30%" stop-color="#ffebee"/>
+      <stop offset="70%" stop-color="#ffcdd2"/>
+      <stop offset="100%" stop-color="#ef9a9a"/>
+    </linearGradient>
+    <linearGradient id="ac_triga" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#b71c1c"/>
+      <stop offset="100%" stop-color="#7f0000"/>
+    </linearGradient>
+    <linearGradient id="timer_triga" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ef5350"/>
+      <stop offset="50%" stop-color="#ff8a80"/>
+      <stop offset="100%" stop-color="#ef5350"/>
+    </linearGradient>
+    <linearGradient id="timer_triga_power" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#42a5f5"/>
+      <stop offset="50%" stop-color="#90caf9"/>
+      <stop offset="100%" stop-color="#42a5f5"/>
+    </linearGradient>
+    <linearGradient id="timer_triga_sky" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffa000"/>
+      <stop offset="50%" stop-color="#ffca28"/>
+      <stop offset="100%" stop-color="#ffa000"/>
+    </linearGradient>
+    <linearGradient id="silver_triga" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffebee"/>
+      <stop offset="50%" stop-color="#ffcdd2"/>
+      <stop offset="100%" stop-color="#ef9a9a"/>
+    </linearGradient>
+    <linearGradient id="triga_armor" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffebee"/>
+      <stop offset="50%" stop-color="#ef9a9a"/>
+      <stop offset="100%" stop-color="#e57373"/>
+    </linearGradient>
+    <filter id="glow_triga" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="soft_shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="rgba(20,24,36,0.25)"/>
+    </filter>
+    <filter id="red_glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 0.4 0 0 0  0 0 0.4 0 0  0 0 0 2 0"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- 背景光环（红色系） -->
+  <ellipse cx="200" cy="200" rx="150" ry="140" fill="url(#au_triga)">
+    <animate attributeName="opacity" values="0.4;0.85;0.4" dur="3.8s" repeatCount="indefinite"/>
+    <animate attributeName="rx" values="150;158;150" dur="3.8s" repeatCount="indefinite"/>
+    <animate attributeName="ry" values="140;148;140" dur="3.8s" repeatCount="indefinite"/>
+  </ellipse>
+
+  <!-- 主体组 -->
+  <g filter="url(#soft_shadow)">
+    <animateTransform attributeName="transform" type="translate" values="0 0;0 -4;0 0" dur="3.4s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+    <g transform="translate(0, 10)">
+      
+      <!-- 双腿（特利迦特有的金属质感护腿） -->
+      <g>
+        <path d="M140 350 Q132 380 127 400 L147 400 Q151 380 145 350 Z" fill="url(#mn_triga)" stroke="rgba(20,24,36,0.3)" stroke-width="1.5"/>
+        <path d="M140 350 Q143 370 141 385 L147 385 Q145 370 145 350 Z" fill="url(#sv_triga)"/>
+        <ellipse cx="143" cy="390" rx="8" ry="4" fill="url(#ac_triga)"/>
+        <!-- 红色条纹 -->
+        <path d="M148 338 L155 400 L163 400 L165 338 Z" fill="url(#ac_triga)" opacity="0.6"/>
+        <path d="M137 340 Q142 360 140 380 L150 380 Q148 360 150 340 Z" fill="url(#timer_triga)" opacity="0.4"/>
+        <path d="M252 350 Q260 380 265 400 L245 400 Q241 380 247 350 Z" fill="url(#mn_triga)" stroke="rgba(20,24,36,0.3)" stroke-width="1.5"/>
+        <path d="M252 350 Q249 370 251 385 L245 385 Q247 370 247 350 Z" fill="url(#sv_triga)"/>
+        <ellipse cx="249" cy="390" rx="8" ry="4" fill="url(#ac_triga)"/>
+        <path d="M235 338 L228 400 L220 400 L220 338 Z" fill="url(#ac_triga)" opacity="0.6"/>
+        <path d="M243 340 Q250 360 248 380 L238 380 Q240 360 242 340 Z" fill="url(#timer_triga)" opacity="0.4"/>
+      </g>
+
+      <!-- 躯干主体 -->
+      <path d="M124 300 Q114 260 124 220 Q129 190 154 180 Q180 170 200 170 Q220 170 246 180 Q271 190 276 220 Q286 260 276 300 Z" fill="url(#skin_triga)" stroke="rgba(20,24,36,0.15)" stroke-width="1">
+        <animate attributeName="d" values="M124 300 Q114 260 124 220 Q129 190 154 180 Q180 170 200 170 Q220 170 246 180 Q271 190 276 220 Q286 260 276 300 Z;
+                      M124 300 Q114 260 124 218 Q129 188 154 178 Q180 168 200 168 Q220 168 246 178 Q271 188 276 218 Q286 258 276 300 Z;
+                      M124 300 Q114 260 124 220 Q129 190 154 180 Q180 170 200 170 Q220 170 246 180 Q271 190 276 220 Q286 260 276 300 Z" dur="3.4s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+      </path>
+
+      <!-- 特利迦特有的彩色胸甲（融合了经典迪迦的设计但更现代） -->
+      <path d="M168 238 Q200 208 232 238 Q212 254 200 258 Q188 254 168 238 Z" fill="url(#mn_triga)">
+        <animate attributeName="opacity" values="1;0.85;1" dur="3.4s" repeatCount="indefinite"/>
+      </path>
+      <!-- 特利迦标志性的银色铠甲纹路（比迪迦更宽厚） -->
+      <path d="M175 244 Q200 218 225 244 Q210 256 200 259 Q190 256 175 244 Z" fill="url(#mn_triga_shine)" opacity="0.7"/>
+      <path d="M155 208 Q180 200 200 200 Q220 200 245 208 L240 218 Q220 210 200 210 Q180 210 160 218 Z" fill="url(#sv_triga)" opacity="0.95"/>
+
+      <!-- 中央核心（特利迦的菱形能量核心） -->
+      <g id="coreUnit">
+        <ellipse cx="200" cy="245" rx="18" ry="16" fill="url(#timer_triga)" stroke="#7f0000" stroke-width="2.5">
+          <animate attributeName="rx" values="18;20;18" dur="1.5s" repeatCount="indefinite"/>
+          <animate attributeName="ry" values="16;18;16" dur="1.5s" repeatCount="indefinite"/>
+        </ellipse>
+        <ellipse cx="200" cy="245" rx="12" ry="10" fill="url(#timer_triga)" opacity="0.9">
+          <animate attributeName="opacity" values="0.9;1;0.7;1;0.9" dur="1.5s" repeatCount="indefinite"/>
+        </ellipse>
+        <!-- 菱形能量纹路 -->
+        <path d="M192 238 L208 245 L192 252 L176 245 Z" fill="none" stroke="#ff8a80" stroke-width="2" opacity="0.8" filter="url(#glow_triga)">
+          <animate attributeName="opacity" values="0.8;1;0.8" dur="1s" repeatCount="indefinite"/>
+        </path>
+        <path d="M208 238 L224 245 L208 252 L192 245 Z" fill="none" stroke="#ff8a80" stroke-width="1.5" opacity="0.6">
+          <animate attributeName="opacity" values="0.6;1;0.6" dur="1.5s" repeatCount="indefinite"/>
+        </path>
+      </g>
+
+      <!-- 色光定时器（三形态切换：复合红 -> 力量蓝 -> 空中金） -->
+      <g id="colorTimer">
+        <ellipse cx="200" cy="245" rx="22" ry="20" fill="url(#timer_triga)" stroke="#7f0000" stroke-width="3">
+          <animate attributeName="rx" values="22;24;22" dur="1.2s" repeatCount="indefinite"/>
+          <animate attributeName="ry" values="20;22;20" dur="1.2s" repeatCount="indefinite"/>
+        </ellipse>
+        <ellipse cx="200" cy="245" rx="15" ry="13" fill="url(#timer_triga)" opacity="0.9">
+          <animate attributeName="opacity" values="0.9;1;0.6;1;0.9" dur="1.5s" repeatCount="indefinite"/>
+          <animate attributeName="rx" values="15;17;14;17;15" dur="1.5s" repeatCount="indefinite"/>
+        </ellipse>
+        <animate attributeName="fill" values="url(#timer_triga);url(#timer_triga);url(#timer_triga_power);url(#timer_triga_sky);url(#timer_triga)" dur="18s" repeatCount="indefinite" begin="3s"/>
+      </g>
+
+      <!-- 双肩装甲（带有银色铠甲，现代感） -->
+      <path d="M108 198 Q90 190 88 210 Q95 228 115 226 Q112 204 108 198 Z" fill="url(#mn_triga)" stroke="rgba(20,24,36,0.2)" stroke-width="1.5"/>
+      <path d="M292 198 Q310 190 312 210 Q305 228 285 226 Q288 204 292 198 Z" fill="url(#mn_triga)" stroke="rgba(20,24,36,0.2)" stroke-width="1.5"/>
+      <path d="M106 204 Q125 204 138 212" stroke="url(#silver_triga)" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.8"/>
+      <path d="M294 204 Q275 204 262 212" stroke="url(#silver_triga)" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.8"/>
+
+      <!-- 特利迦变身器（臂环：红色能量） -->
+      <g transform="translate(92, 252)">
+        <ellipse cx="0" cy="0" rx="22" ry="18" fill="url(#timer_triga)" stroke="#b71c1c" stroke-width="2.5" filter="url(#red_glow)">
+          <animate attributeName="rx" values="22;24;22" dur="2s" repeatCount="indefinite"/>
+          <animate attributeName="ry" values="18;20;18" dur="2s" repeatCount="indefinite"/>
+        </ellipse>
+        <ellipse cx="0" cy="0" rx="13" ry="10" fill="url(#timer_triga)" opacity="0.9">
+          <animate attributeName="opacity" values="0.9;1;0.8;1;0.9" dur="1.5s" repeatCount="indefinite"/>
+        </ellipse>
+        <path d="M-15 0 L15 0 M0 -15 L0 15" stroke="#ff8a80" stroke-width="2.5" opacity="0.9">
+          <animate attributeName="opacity" values="0.9;1;0.9" dur="1s" repeatCount="indefinite"/>
+        </path>
+      </g>
+
+      <!-- 双臂 -->
+      <g>
+        <path d="M112 218 Q96 235 92 268 Q94 290 112 300 Q126 285 126 245 Q122 228 112 218 Z" fill="url(#skin_triga)" stroke="rgba(20,24,36,0.15)" stroke-width="1"/>
+        <path d="M112 218 Q104 233 102 248 L122 248 Q124 233 112 218 Z" fill="url(#sv_triga)"/>
+        <path d="M100 295 Q96 315 102 328 L120 328 Q124 315 118 295 Z" fill="url(#ac_triga)"/>
+        <path d="M288 218 Q304 235 308 268 Q306 290 288 300 Q274 285 274 245 Q278 228 288 218 Z" fill="url(#skin_triga)" stroke="rgba(20,24,36,0.15)" stroke-width="1"/>
+        <path d="M288 218 Q296 233 298 248 L278 248 Q276 233 288 218 Z" fill="url(#sv_triga)"/>
+        <path d="M300 295 Q304 315 298 328 L280 328 Q276 315 282 295 Z" fill="url(#ac_triga)"/>
+      </g>
+
+      <!-- 颈部 -->
+      <path d="M170 178 L165 194 L235 194 L230 178 Z" fill="url(#skin_triga)"/>
+
+      <!-- 头部（特利迦的头部设计更接近迪迦但有自己独特的额头宝石） -->
+      <g>
+        <path d="M140 174 Q130 138 142 97 Q168 72 200 68 Q232 72 258 97 Q270 138 260 174 Z" fill="url(#skin_triga)" stroke="rgba(20,24,36,0.15)" stroke-width="1">
+          <animate attributeName="d" values="M140 174 Q130 138 142 97 Q168 72 200 68 Q232 72 258 97 Q270 138 260 174 Z;
+                        M140 174 Q130 136 142 95 Q168 70 200 66 Q232 70 258 95 Q270 136 260 174 Z;
+                        M140 174 Q130 138 142 97 Q168 72 200 68 Q232 72 258 97 Q270 138 260 174 Z" dur="3.4s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+        </path>
+
+        <!-- 面部护甲（特利迦特有的银白色线条） -->
+        <path d="M154 154 Q164 127 184 110 Q195 103 205 110 Q216 103 225 110 Q244 127 250 154" fill="none" stroke="url(#silver_triga)" stroke-width="3" stroke-linecap="round" opacity="0.9"/>
+        <path d="M157 157 Q167 130 187 113 Q198 106 208 113 Q219 106 228 113 Q246 130 252 157" fill="none" stroke="#ffebee" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+
+        <!-- 嘴巴周围的特利迦特征（下颌红色线条） -->
+        <path d="M185 165 Q195 172 200 174 Q205 172 215 165" fill="none" stroke="#e57373" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+
+        <!-- 眼睛（特利迦的红黑色眼睛，明亮有力） -->
+        <g>
+          <ellipse cx="172" cy="131" rx="11" ry="9" fill="#1a0505" filter="url(#glow_triga)">
+            <animate attributeName="ry" values="9;1;9" dur="3.4s" repeatCount="indefinite" begin="0.3s"/>
+          </ellipse>
+          <ellipse cx="172" cy="131" rx="6" ry="5" fill="#ef5350">
+            <animate attributeName="ry" values="5;0.5;5" dur="3.4s" repeatCount="indefinite" begin="0.3s"/>
+          </ellipse>
+          <ellipse cx="175" cy="129" rx="2.5" ry="2" fill="#ffffff" opacity="1"/>
+          <ellipse cx="168" cy="133" rx="1" ry="0.8" fill="#ffffff" opacity="0.5"/>
+          <ellipse cx="228" cy="131" rx="11" ry="9" fill="#1a0505" filter="url(#glow_triga)">
+            <animate attributeName="ry" values="9;1;9" dur="3.4s" repeatCount="indefinite" begin="0.3s"/>
+          </ellipse>
+          <ellipse cx="228" cy="131" rx="6" ry="5" fill="#ef5350">
+            <animate attributeName="ry" values="5;0.5;5" dur="3.4s" repeatCount="indefinite" begin="0.3s"/>
+          </ellipse>
+          <ellipse cx="231" cy="129" rx="2.5" ry="2" fill="#ffffff" opacity="1"/>
+          <ellipse cx="225" cy="133" rx="1" ry="0.8" fill="#ffffff" opacity="0.5"/>
+        </g>
+
+        <!-- 头顶装饰（特利迦特有的多重三角+中央大宝石） -->
+        <path d="M170 92 Q180 55 190 92 Q186 99 178 104 Q170 99 170 92 Z" fill="url(#triga_armor)" stroke="#c62828" stroke-width="2" filter="url(#red_glow)">
+          <animateTransform attributeName="transform" type="rotate" values="0;2;0;-2;0" dur="6s" repeatCount="indefinite"/>
+        </path>
+        <path d="M195 90 Q200 48 205 90 Q202 97 200 105 Q198 97 195 90 Z" fill="url(#mn_triga)" stroke="#b71c1c" stroke-width="2" filter="url(#red_glow)">
+          <animateTransform attributeName="transform" type="translate" values="0 0;0 -3;0 0" dur="2s" repeatCount="indefinite"/>
+        </path>
+        <path d="M210 92 Q220 55 230 92 Q226 99 222 104 Q214 99 210 92 Z" fill="url(#triga_armor)" stroke="#c62828" stroke-width="2" filter="url(#red_glow)">
+          <animateTransform attributeName="transform" type="rotate" values="0;-2;0;2;0" dur="6s" repeatCount="indefinite"/>
+        </path>
+
+        <!-- 额头中央宝石（红色，特利迦的核心标志） -->
+        <ellipse cx="200" cy="112" rx="9" ry="7" fill="url(#timer_triga)" stroke="#ef5350" stroke-width="2" filter="url(#red_glow)">
+          <animate attributeName="opacity" values="0.8;1;0.8" dur="1.2s" repeatCount="indefinite"/>
+          <animate attributeName="rx" values="9;11;9" dur="1.2s" repeatCount="indefinite"/>
+          <animate attributeName="ry" values="7;9;7" dur="1.2s" repeatCount="indefinite"/>
+        </ellipse>
+
+        <!-- 耳部装饰 -->
+        <path d="M138 148 Q120 140 112 160 Q124 160 136 152 Q142 150 138 148 Z" fill="url(#sv_triga)" stroke="url(#silver_triga)" stroke-width="1"/>
+        <path d="M262 148 Q280 140 288 160 Q276 160 264 152 Q258 150 262 148 Z" fill="url(#sv_triga)" stroke="url(#silver_triga)" stroke-width="1"/>
+
+      </g>
+
+      <!-- 红/蓝/金粒子效果（三形态能量） -->
+      <g opacity="0.7">
+        <circle cx="170" cy="200" r="3" fill="#ef5350">
+          <animate attributeName="r" values="2;5;2" dur="1.5s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.4;1;0" dur="1.5s" repeatCount="indefinite"/>
+          <animate attributeName="cy" values="200;170;200" dur="1.5s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="230" cy="200" r="3" fill="#42a5f5">
+          <animate attributeName="r" values="2;5;2" dur="1.5s" repeatCount="indefinite" begin="0.5s"/>
+          <animate attributeName="opacity" values="0.4;1;0" dur="1.5s" repeatCount="indefinite" begin="0.5s"/>
+          <animate attributeName="cy" values="200;170;200" dur="1.5s" repeatCount="indefinite" begin="0.5s"/>
+        </circle>
+        <circle cx="200" cy="160" r="2" fill="#ffca28">
+          <animate attributeName="r" values="1;4;1" dur="1s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.5;1;0" dur="1s" repeatCount="indefinite"/>
+          <animate attributeName="cy" values="160;130;160" dur="1s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="200" cy="245" r="3" fill="#ff8a80">
+          <animate attributeName="r" values="2;5;2" dur="1s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.5;1;0" dur="1s" repeatCount="indefinite"/>
+        </circle>
+      </g>
+
+    </g>
+  </g>
+
+  <!-- 红/蓝/金粒子环绕（三元素） -->
+  <g filter="url(#glow_triga)">
+    <circle cx="120" cy="280" r="4" fill="#ef5350" opacity="0.6">
+      <animateMotion path="M0,0 Q-30,-40 -20,-80 Q10,-100 40,-60 Q60,-20 0,0" dur="5s" repeatCount="indefinite" rotate="auto"/>
+      <animate attributeName="opacity" values="0;0.7;0" dur="5s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="280" cy="280" r="3" fill="#42a5f5" opacity="0.5">
+      <animateMotion path="M0,0 Q30,-40 20,-80 Q-10,-100 -40,-60 Q-60,-20 0,0" dur="6s" repeatCount="indefinite" rotate="auto"/>
+      <animate attributeName="opacity" values="0;0.6;0" dur="6s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="350" cy="200" r="2" fill="#ffca28" opacity="0.5">
+      <animateMotion path="M0,0 Q20,-30 10,-70 Q-15,-100 -40,-50 Q-60,-10 0,0" dur="7s" repeatCount="indefinite" rotate="auto"/>
+      <animate attributeName="opacity" values="0;0.6;0" dur="7s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="150" cy="340" r="3" fill="#ff8a80" opacity="0.6">
+      <animateMotion path="M0,0 Q-20,20 -10,50 Q20,70 40,30 Q20,-10 0,0" dur="4s" repeatCount="indefinite" rotate="auto"/>
+      <animate attributeName="opacity" values="0;0.7;0" dur="4s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+</svg>

@@ -1,1 +1,300 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400" role="img"><defs><radialGradient id="au_orb" cx="50%" cy="42%" r="62%"><stop offset="0%" stop-color="#fffbe8" stop-opacity="0.95"/><stop offset="52%" stop-color="#7fe3ff" stop-opacity="0.5"/><stop offset="100%" stop-color="#2f86c4" stop-opacity="0"/></radialGradient><linearGradient id="sv_orb" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f7f9fd"/><stop offset="45%" stop-color="#c9d0e0"/><stop offset="78%" stop-color="#9aa4bd"/><stop offset="100%" stop-color="#6e7a96"/></linearGradient><linearGradient id="mn_orb" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#dd3a2e"/><stop offset="100%" stop-color="#a62a22"/></linearGradient><linearGradient id="ac_orb" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#1d2b4a"/><stop offset="100%" stop-color="#121a30"/></linearGradient></defs><ellipse cx="200" cy="216" rx="133" ry="126" fill="url(#au_orb)"><animate attributeName="opacity" values="0.5;0.85;0.5" dur="3.4s" repeatCount="indefinite"/></ellipse><g><animateTransform attributeName="transform" type="translate" values="0 0;0 -5;0 0" dur="3s" repeatCount="indefinite"/><g><path d="M124 306 Q118 344 124 366 L120 400 L150 400 L152 344 Q164 320 200 318 Q236 320 248 344 L250 400 L280 400 L276 366 Q282 344 276 306 Q224 282 200 282 Q176 282 124 306 Z" fill="url(#mn_orb)" stroke="rgba(20,24,36,0.4)" stroke-width="2"/><path d="M176 298 Q200 310 224 298 L218 318 Q200 326 182 318 Z" fill="url(#sv_orb)"/><path d="M144 330 Q140 374 144 400 L158 400 L158 352 Z" fill="url(#ac_orb)"/><path d="M256 330 Q260 374 256 400 L242 400 L242 352 Z" fill="url(#ac_orb)"/><path d="M180 306 Q200 318 220 306 L216 352 L184 352 Z" fill="url(#sv_orb)" stroke="rgba(20,24,36,0.25)" stroke-width="1.5"/><path d="M188 318 Q200 324 212 318 L210 346 L190 346 Z" fill="#bfc7d9" opacity="0.45"/><circle cx="200" cy="322" r="16" fill="#5bc9ff" stroke="#232742" stroke-width="3"/><circle cx="200" cy="322" r="16" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/><ellipse cx="194" cy="316" rx="5" ry="3.4" fill="#fff" opacity="0.6"/><circle cx="200" cy="322" r="16" fill="none" stroke="#2f86c4" stroke-width="2.5" opacity="0"><animate attributeName="opacity" values="0;1;1;0" dur="4.2s" repeatCount="indefinite"/></circle><rect x="140" y="386" width="120" height="14" rx="7" fill="url(#sv_orb)" stroke="rgba(20,24,36,0.3)"/><rect x="184" y="386" width="32" height="14" rx="5" fill="#f2c94c" stroke="rgba(20,24,36,0.3)"/></g><g><rect x="182" y="278" width="36" height="26" rx="5" fill="url(#sv_orb)"/><path d="M148.0 66 Q130.0 92 122.0 112 Q118.0 140 128.0 140 Q148.0 168 166.0 196 Q186.0 212 198.0 222 Q214.0 212 234.0 196 Q252.0 168 272.0 140 Q282.0 140 278.0 112 Q270.0 92 252.0 66 Q200 56 200 66 Q200 56 148.0 66 Z" fill="url(#sv_orb)" stroke="rgba(20,24,36,0.45)" stroke-width="2.5"/><path d="M160 78 Q136 98 138 134 Q139 164 158 190 L172 194 Q150 166 152 134 Q154 102 176 88 Z" fill="url(#ac_orb)" opacity="0.92"/><g transform="translate(400,0) scale(-1,1)"><path d="M160 78 Q136 98 138 134 Q139 164 158 190 L172 194 Q150 166 152 134 Q154 102 176 88 Z" fill="url(#ac_orb)" opacity="0.92"/></g><path d="M176 82 Q190 64 200 62 Q210 64 224 82 L216 90 L200 74 L184 90 Z" fill="url(#sv_orb)"/><path d="M200 54 L214 94 L200 84 L186 94 Z" fill="#f4f6fb" stroke="rgba(20,24,36,0.35)" stroke-width="1.5"/><path d="M186 100 Q200 108 214 100 L208 107 L192 107 Z" fill="url(#mn_orb)"></path><path d="M178 132 L218 140" stroke="rgba(16,20,32,0.6)" stroke-width="4" stroke-linecap="round"/><path d="M222 132 L182 140" stroke="rgba(16,20,32,0.6)" stroke-width="4" stroke-linecap="round"/><path d="M214 148 L229 140 L244 146 L233 153 Z" fill="#ffd23e" stroke="rgba(20,24,36,0.75)" stroke-width="2" stroke-linejoin="round"/><path d="M217 147 L229 143 L239 146 L230 149 Z" fill="#fff" opacity="0.4"/><g transform="translate(400,0) scale(-1,1)"><path d="M214 148 L229 140 L244 146 L233 153 Z" fill="#ffd23e" stroke="rgba(20,24,36,0.75)" stroke-width="2" stroke-linejoin="round"/><path d="M217 147 L229 143 L239 146 L230 149 Z" fill="#fff" opacity="0.4"/></g><path d="M186 200 Q200 206 214 200" fill="none" stroke="rgba(30,34,50,0.45)" stroke-width="3" stroke-linecap="round"/></g></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400" role="img">
+  <defs>
+    <radialGradient id="au_orb" cx="50%" cy="38%" r="65%">
+      <stop offset="0%" stop-color="#fffdf0" stop-opacity="0.95"/>
+      <stop offset="45%" stop-color="#ffcc80" stop-opacity="0.4"/>
+      <stop offset="85%" stop-color="#ff9800" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#f57c00" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="skin_orb" cx="50%" cy="35%" r="55%">
+      <stop offset="0%" stop-color="#fafafa"/>
+      <stop offset="60%" stop-color="#fff3e0"/>
+      <stop offset="100%" stop-color="#ffe0b2"/>
+    </radialGradient>
+    <linearGradient id="mn_orb" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f57c00"/>
+      <stop offset="50%" stop-color="#ef6c00"/>
+      <stop offset="100%" stop-color="#e65100"/>
+    </linearGradient>
+    <linearGradient id="mn_orb_shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff9800" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#f57c00" stop-opacity="0.4"/>
+    </linearGradient>
+    <linearGradient id="sv_orb" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="30%" stop-color="#fff3e0"/>
+      <stop offset="70%" stop-color="#ffecb3"/>
+      <stop offset="100%" stop-color="#ffe082"/>
+    </linearGradient>
+    <linearGradient id="ac_orb" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e65100"/>
+      <stop offset="100%" stop-color="#bf360c"/>
+    </linearGradient>
+    <linearGradient id="timer_orb" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ff9800"/>
+      <stop offset="50%" stop-color="#ffb74d"/>
+      <stop offset="100%" stop-color="#ff9800"/>
+    </linearGradient>
+    <linearGradient id="timer_orb_specium" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#00e5ff"/>
+      <stop offset="50%" stop-color="#4dd0ff"/>
+      <stop offset="100%" stop-color="#00e5ff"/>
+    </linearGradient>
+    <linearGradient id="timer_orb_red" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#d32f2f"/>
+      <stop offset="50%" stop-color="#ef5350"/>
+      <stop offset="100%" stop-color="#d32f2f"/>
+    </linearGradient>
+    <linearGradient id="timer_orb_ultimate" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffd600"/>
+      <stop offset="50%" stop-color="#fff176"/>
+      <stop offset="100%" stop-color="#ffd600"/>
+    </linearGradient>
+    <linearGradient id="silver_orb" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff3e0"/>
+      <stop offset="50%" stop-color="#ffe0b2"/>
+      <stop offset="100%" stop-color="#ffcc80"/>
+    </linearGradient>
+    <linearGradient id="orb_horn" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#fff3e0"/>
+      <stop offset="50%" stop-color="#ffcc80"/>
+      <stop offset="100%" stop-color="#ffb74d"/>
+    </linearGradient>
+    <filter id="glow_orb" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="soft_shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="rgba(20,24,36,0.25)"/>
+    </filter>
+    <filter id="fusion_glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 0.8 0 0 0  0 0 0.4 0 0  0 0 0 2 0"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- 背景光环（融合光） -->
+  <ellipse cx="200" cy="200" rx="150" ry="140" fill="url(#au_orb)">
+    <animate attributeName="opacity" values="0.4;0.9;0.4" dur="3.5s" repeatCount="indefinite"/>
+    <animate attributeName="rx" values="150;165;150" dur="3.5s" repeatCount="indefinite"/>
+    <animate attributeName="ry" values="140;155;140" dur="3.5s" repeatCount="indefinite"/>
+  </ellipse>
+
+  <!-- 主体组 -->
+  <g filter="url(#soft_shadow)">
+    <animateTransform attributeName="transform" type="translate" values="0 0;0 -5;0 0" dur="3s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+    <g transform="translate(0, 10)">
+      
+      <!-- 双腿（欧布特有的融合护腿） -->
+      <g>
+        <path d="M138 350 Q130 380 125 400 L148 400 Q152 380 145 350 Z" fill="url(#mn_orb)" stroke="rgba(20,24,36,0.3)" stroke-width="1.5"/>
+        <path d="M138 350 Q142 370 140 385 L148 385 Q145 370 145 350 Z" fill="url(#sv_orb)"/>
+        <ellipse cx="141.5" cy="390" rx="8" ry="4" fill="url(#ac_orb)"/>
+        <!-- 融合纹路 -->
+        <path d="M130 340 Q135 355 132 375 L150 375 Q148 355 152 340 Z" fill="url(#timer_orb_specium)" opacity="0.3"/>
+        <path d="M252 350 Q260 380 265 400 L242 400 Q238 380 245 350 Z" fill="url(#mn_orb)" stroke="rgba(20,24,36,0.3)" stroke-width="1.5"/>
+        <path d="M252 350 Q248 370 250 385 L242 385 Q245 370 245 350 Z" fill="url(#sv_orb)"/>
+        <ellipse cx="248.5" cy="390" rx="8" ry="4" fill="url(#ac_orb)"/>
+        <path d="M240 340 Q245 355 248 375 L266 375 Q264 355 268 340 Z" fill="url(#timer_orb_specium)" opacity="0.3"/>
+      </g>
+
+      <!-- 躯干主体 -->
+      <path d="M120 300 Q110 260 120 220 Q125 190 150 180 Q180 170 200 170 Q220 170 250 180 Q275 190 280 220 Q290 260 280 300 Z" fill="url(#skin_orb)" stroke="rgba(20,24,36,0.15)" stroke-width="1">
+        <animate attributeName="d" values="M120 300 Q110 260 120 220 Q125 190 150 180 Q180 170 200 170 Q220 170 250 180 Q275 190 280 220 Q290 260 280 300 Z;
+                      M120 300 Q110 260 120 215 Q125 185 150 175 Q180 165 200 165 Q220 165 250 175 Q275 185 280 215 Q290 255 280 300 Z;
+                      M120 300 Q110 260 120 220 Q125 190 150 180 Q180 170 200 170 Q220 170 250 180 Q275 190 280 220 Q290 260 280 300 Z" dur="3s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+      </path>
+
+      <!-- 欧布特有的胸甲（融合了赛罗/捷德/泽塔的力量） -->
+      <path d="M170 240 Q200 210 230 240 Q210 255 200 265 Q190 255 170 240 Z" fill="url(#mn_orb)">
+        <animate attributeName="opacity" values="1;0.85;1" dur="3s" repeatCount="indefinite"/>
+      </path>
+      <path d="M178 245 Q200 220 222 245 Q208 258 200 262 Q192 258 178 245 Z" fill="url(#mn_orb_shine)" opacity="0.7"/>
+      
+      <!-- 中央核心（欧布环/融合升华器） -->
+      <g id="coreUnit">
+        <!-- 外环 -->
+        <ellipse cx="200" cy="248" rx="24" ry="22" fill="none" stroke="url(#timer_orb)" stroke-width="3" filter="url(#glow_orb)">
+          <animate attributeName="rx" values="24;26;24" dur="1.5s" repeatCount="indefinite"/>
+          <animate attributeName="ry" values="22;24;22" dur="1.5s" repeatCount="indefinite"/>
+        </ellipse>
+        <!-- 内环 -->
+        <ellipse cx="200" cy="248" rx="17" ry="15" fill="url(#timer_orb)" opacity="0.9">
+          <animate attributeName="opacity" values="0.9;1;0.6;1;0.9" dur="1.5s" repeatCount="indefinite"/>
+        </ellipse>
+        <!-- 中央核心 -->
+        <ellipse cx="200" cy="248" rx="10" ry="8" fill="url(#timer_orb_specium)">
+          <animate attributeName="opacity" values="0.8;1;0.8" dur="1s" repeatCount="indefinite"/>
+          <animate attributeName="rx" values="10;11;10" dur="1s" repeatCount="indefinite"/>
+        </ellipse>
+        <!-- 融合纹路（四条光带） -->
+        <path d="M180 248 L220 248 M200 228 L200 268" stroke="#00e5ff" stroke-width="2.5" opacity="0.8">
+          <animate attributeName="opacity" values="0.8;1;0.8" dur="1s" repeatCount="indefinite"/>
+        </path>
+        <path d="M185 243 L215 253 M185 253 L215 243" stroke="#00e5ff" stroke-width="1.5" opacity="0.6">
+          <animate attributeName="opacity" values="0.6;1;0.6" dur="1.5s" repeatCount="indefinite"/>
+        </path>
+      </g>
+
+      <!-- 色光定时器（多形态切换：本源橙 -> 斯贝修姆蓝 -> 红 -> 终极金） -->
+      <g id="colorTimer">
+        <ellipse cx="200" cy="248" rx="24" ry="22" fill="url(#timer_orb)" stroke="#3d1f00" stroke-width="3">
+          <animate attributeName="rx" values="24;26;24" dur="1.2s" repeatCount="indefinite"/>
+          <animate attributeName="ry" values="22;24;22" dur="1.2s" repeatCount="indefinite"/>
+        </ellipse>
+        <ellipse cx="200" cy="248" rx="17" ry="15" fill="url(#timer_orb)" opacity="0.9">
+          <animate attributeName="opacity" values="0.9;1;0.6;1;0.9" dur="1.5s" repeatCount="indefinite"/>
+          <animate attributeName="rx" values="17;19;16;19;17" dur="1.5s" repeatCount="indefinite"/>
+        </ellipse>
+        <animate attributeName="fill" values="url(#timer_orb);url(#timer_orb);url(#timer_orb_specium);url(#timer_orb_red);url(#timer_orb_ultimate);url(#timer_orb)" dur="20s" repeatCount="indefinite" begin="4s"/>
+      </g>
+
+      <!-- 胸部金色护甲条 -->
+      <path d="M150 200 Q180 192 200 192 Q220 192 250 200 L245 212 Q220 205 200 205 Q180 205 155 212 Z" fill="url(#silver_orb)" stroke="rgba(255,255,255,0.4)" stroke-width="0.5" opacity="0.95"/>
+
+      <!-- 双肩装甲（融合风格：赛罗肩甲+捷德爪+泽塔护肩） -->
+      <path d="M110 195 Q90 185 85 205 Q95 225 115 225 Q110 205 110 195 Z" fill="url(#mn_orb)" stroke="rgba(20,24,36,0.2)" stroke-width="1.5"/>
+      <path d="M290 195 Q310 185 315 205 Q305 225 285 225 Q290 205 290 195 Z" fill="url(#mn_orb)" stroke="rgba(20,24,36,0.2)" stroke-width="1.5"/>
+      <path d="M108 202 Q125 202 140 210" stroke="url(#silver_orb)" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.8"/>
+      <path d="M292 202 Q275 202 260 210" stroke="url(#silver_orb)" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.8"/>
+
+      <!-- 欧布特有的融合升华器（左腕） -->
+      <g transform="translate(90, 260)">
+        <ellipse cx="0" cy="0" rx="20" ry="16" fill="url(#timer_orb)" stroke="#e65100" stroke-width="2" filter="url(#fusion_glow)">
+          <animate attributeName="rx" values="20;22;20" dur="2s" repeatCount="indefinite"/>
+        </ellipse>
+        <ellipse cx="0" cy="0" rx="12" ry="9" fill="url(#timer_orb_specium)" opacity="0.9">
+          <animate attributeName="opacity" values="0.9;1;0.9" dur="1.5s" repeatCount="indefinite"/>
+        </ellipse>
+        <path d="M-15 0 L15 0 M0 -15 L0 15" stroke="#00e5ff" stroke-width="2" opacity="0.8">
+          <animate attributeName="opacity" values="0.8;1;0.8" dur="1s" repeatCount="indefinite"/>
+        </path>
+      </g>
+
+      <!-- 双臂 -->
+      <g>
+        <path d="M110 215 Q90 235 85 270 Q88 290 110 300 Q125 285 125 245 Q120 225 110 215 Z" fill="url(#skin_orb)" stroke="rgba(20,24,36,0.15)" stroke-width="1"/>
+        <path d="M110 215 Q102 230 100 248 L120 248 Q123 230 110 215 Z" fill="url(#sv_orb)"/>
+        <path d="M95 295 Q88 312 95 325 L115 325 Q120 312 112 295 Z" fill="url(#ac_orb)"/>
+        <path d="M290 215 Q310 235 315 270 Q312 290 290 300 Q275 285 275 245 Q280 225 290 215 Z" fill="url(#skin_orb)" stroke="rgba(20,24,36,0.15)" stroke-width="1"/>
+        <path d="M290 215 Q298 230 300 248 L280 248 Q277 230 290 215 Z" fill="url(#sv_orb)"/>
+        <path d="M305 295 Q312 312 305 325 L285 325 Q280 312 288 295 Z" fill="url(#ac_orb)"/>
+      </g>
+
+      <!-- 颈部 -->
+      <path d="M165 175 L160 192 L240 192 L235 175 Z" fill="url(#skin_orb)"/>
+
+      <!-- 头部 -->
+      <g>
+        <path d="M135 170 Q125 135 140 95 Q165 70 200 65 Q235 70 260 95 Q275 135 265 170 Z" fill="url(#skin_orb)" stroke="rgba(20,24,36,0.15)" stroke-width="1">
+          <animate attributeName="d" values="M135 170 Q125 135 140 95 Q165 70 200 65 Q235 70 260 95 Q275 135 265 170 Z;
+                        M135 170 Q125 132 140 92 Q165 67 200 62 Q235 67 260 92 Q275 132 265 170 Z;
+                        M135 170 Q125 135 140 95 Q165 70 200 65 Q235 70 260 95 Q275 135 265 170 Z" dur="3s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+        </path>
+
+        <!-- 面部护甲（欧布特有的额头双角+融合纹路） -->
+        <path d="M150 150 Q160 122 180 105 Q195 98 205 105 Q215 98 220 105 Q240 122 250 150" fill="none" stroke="url(#silver_orb)" stroke-width="3" stroke-linecap="round" opacity="0.9"/>
+        <path d="M153 153 Q163 125 183 108 Q198 101 208 108 Q218 101 223 108 Q242 125 252 153" fill="none" stroke="#fff3e0" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+
+        <!-- 眼睛（欧布的眼睛根据融合形态变色，基础橙/蓝双色） -->
+        <g>
+          <!-- 左眼：橙色（赛罗/泰罗的力量） -->
+          <ellipse cx="170" cy="128" rx="12" ry="10" fill="#1a0d00" filter="url(#glow_orb)">
+            <animate attributeName="ry" values="10;1;10" dur="3.5s" repeatCount="indefinite" begin="0.5s"/>
+          </ellipse>
+          <ellipse cx="170" cy="128" rx="7" ry="6" fill="#ff9800">
+            <animate attributeName="ry" values="6;0.5;6" dur="3.5s" repeatCount="indefinite" begin="0.5s"/>
+          </ellipse>
+          <ellipse cx="173" cy="126" rx="3" ry="2.5" fill="#ffffff" opacity="1"/>
+          <ellipse cx="167" cy="130" rx="1.5" ry="1" fill="#ffffff" opacity="0.5"/>
+          <!-- 右眼：蓝色（捷德/泽塔的力量） -->
+          <ellipse cx="230" cy="128" rx="12" ry="10" fill="#051025" filter="url(#glow_orb)">
+            <animate attributeName="ry" values="10;1;10" dur="3.5s" repeatCount="indefinite" begin="0.5s"/>
+          </ellipse>
+          <ellipse cx="230" cy="128" rx="7" ry="6" fill="#00e5ff">
+            <animate attributeName="ry" values="6;0.5;6" dur="3.5s" repeatCount="indefinite" begin="0.5s"/>
+          </ellipse>
+          <ellipse cx="233" cy="126" rx="3" ry="2.5" fill="#ffffff" opacity="1"/>
+          <ellipse cx="227" cy="130" rx="1.5" ry="1" fill="#ffffff" opacity="0.5"/>
+        </g>
+
+        <!-- 头顶双角（欧布特有的分叉双角） -->
+        <path d="M175 85 Q185 45 195 85 Q192 92 185 98 Q178 92 175 85 Z" fill="url(#orb_horn)" stroke="#e65100" stroke-width="2" filter="url(#fusion_glow)">
+          <animateTransform attributeName="transform" type="rotate" values="0;2;0;-2;0" dur="5s" repeatCount="indefinite"/>
+        </path>
+        <path d="M205 85 Q215 45 225 85 Q222 92 215 98 Q208 92 205 85 Z" fill="url(#orb_horn)" stroke="#e65100" stroke-width="2" filter="url(#fusion_glow)">
+          <animateTransform attributeName="transform" type="rotate" values="0;-2;0;2;0" dur="5s" repeatCount="indefinite"/>
+        </path>
+        <path d="M178 88 Q188 58 195 88 Q193 94 185 96 Q177 94 178 88 Z" fill="url(#mn_orb_shine)" opacity="0.4"/>
+        <path d="M208 88 Q218 58 222 88 Q219 94 215 96 Q207 94 208 88 Z" fill="url(#mn_orb_shine)" opacity="0.4"/>
+
+        <!-- 额头宝石（融合核心） -->
+        <ellipse cx="200" cy="112" rx="8" ry="6" fill="url(#timer_orb)" stroke="#ff9800" stroke-width="1.5" filter="url(#fusion_glow)">
+          <animate attributeName="opacity" values="0.8;1;0.8" dur="1.5s" repeatCount="indefinite"/>
+          <animate attributeName="rx" values="8;9;8" dur="1.5s" repeatCount="indefinite"/>
+        </ellipse>
+
+        <!-- 耳部装饰 -->
+        <path d="M135 140 Q118 135 110 155 Q120 155 132 148 Q138 142 135 140 Z" fill="url(#sv_orb)" stroke="url(#silver_orb)" stroke-width="1"/>
+        <path d="M265 140 Q282 135 290 155 Q280 155 268 148 Q262 142 265 140 Z" fill="url(#sv_orb)" stroke="url(#silver_orb)" stroke-width="1"/>
+
+      </g>
+
+      <!-- 橙/蓝/金/红粒子效果（融合光） -->
+      <g opacity="0.7">
+        <circle cx="170" cy="200" r="3" fill="#ff9800">
+          <animate attributeName="r" values="2;5;2" dur="1.5s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.4;1;0" dur="1.5s" repeatCount="indefinite"/>
+          <animate attributeName="cy" values="200;170;200" dur="1.5s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="230" cy="200" r="3" fill="#00e5ff">
+          <animate attributeName="r" values="2;5;2" dur="1.5s" repeatCount="indefinite" begin="0.75s"/>
+          <animate attributeName="opacity" values="0.4;1;0" dur="1.5s" repeatCount="indefinite" begin="0.75s"/>
+          <animate attributeName="cy" values="200;170;200" dur="1.5s" repeatCount="indefinite" begin="0.75s"/>
+        </circle>
+        <circle cx="200" cy="160" r="2" fill="#ffd600">
+          <animate attributeName="r" values="1;4;1" dur="1s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.5;1;0" dur="1s" repeatCount="indefinite"/>
+          <animate attributeName="cy" values="160;130;160" dur="1s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="200" cy="248" r="3" fill="#d32f2f">
+          <animate attributeName="r" values="2;5;2" dur="1s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.5;1;0" dur="1s" repeatCount="indefinite"/>
+        </circle>
+      </g>
+
+    </g>
+  </g>
+
+  <!-- 橙/蓝/金/红粒子环绕（融合光轨迹） -->
+  <g filter="url(#glow_orb)">
+    <circle cx="120" cy="280" r="5" fill="#ff9800" opacity="0.6">
+      <animateMotion path="M0,0 Q-40,-50 -30,-100 Q15,-130 50,-70 Q70,-25 0,0" dur="5s" repeatCount="indefinite" rotate="auto"/>
+      <animate attributeName="opacity" values="0;0.8;0" dur="5s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="280" cy="280" r="4" fill="#00e5ff" opacity="0.5">
+      <animateMotion path="M0,0 Q40,-50 30,-100 Q-15,-130 -50,-70 Q-70,-25 0,0" dur="6s" repeatCount="indefinite" rotate="auto"/>
+      <animate attributeName="opacity" values="0;0.7;0" dur="6s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="150" cy="340" r="3" fill="#ffd600" opacity="0.7">
+      <animateMotion path="M0,0 Q-25,30 -15,70 Q30,100 55,40 Q30,-15 0,0" dur="4s" repeatCount="indefinite" rotate="auto"/>
+      <animate attributeName="opacity" values="0;0.8;0" dur="4s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="350" cy="200" r="3" fill="#d32f2f" opacity="0.5">
+      <animateMotion path="M0,0 Q20,-30 10,-70 Q-15,-100 -40,-50 Q-60,-10 0,0" dur="7s" repeatCount="indefinite" rotate="auto"/>
+      <animate attributeName="opacity" values="0;0.6;0" dur="7s" repeatCount="indefinite"/>
+    </circle>
+    <!-- 融合环轨迹 -->
+    <ellipse cx="200" cy="248" rx="30" ry="25" fill="none" stroke="#00e5ff" stroke-width="1.5" opacity="0.3">
+      <animate attributeName="rx" values="30;35;30" dur="3s" repeatCount="indefinite"/>
+      <animate attributeName="ry" values="25;30;25" dur="3s" repeatCount="indefinite"/>
+    </ellipse>
+  </g>
+</svg>

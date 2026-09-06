@@ -229,6 +229,58 @@
     </div>
   </div>
 
+  <!-- 礼物兑换二次确认 -->
+  <div class="edu-mask" id="eduMaskGiftConfirm" style="display:none;">
+    <div class="edu-modal">
+      <h3 id="gcTitle">确认兑换</h3>
+      <p class="em-sub" id="gcSub"></p>
+      <div class="edu-actions">
+        <button type="button" class="btn-ghost" style="flex:1;" onclick="giftConfirmCancel()">取消</button>
+        <button type="button" class="btn-danger" style="flex:1;" onclick="giftConfirmOk()">确认兑换</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 家长加星 -->
+  <div class="edu-mask" id="eduMaskParentAddStars" style="display:none;">
+    <div class="edu-modal">
+      <h3>👑 家长加星</h3>
+      <p class="em-sub">为孩子增加星星，需填写备注说明原因</p>
+      <div class="edu-field">
+        <label>增加星星数</label>
+        <input type="number" id="pasStars" min="1" max="500" value="10" placeholder="如 10">
+      </div>
+      <div class="edu-field">
+        <label>备注说明（必填）</label>
+        <textarea id="pasNote" rows="3" placeholder="如：完成家务、阅读奖励、特别表现..."></textarea>
+      </div>
+      <div class="edu-actions">
+        <button type="button" class="btn-ghost" style="flex:1;" onclick="parentAddStarsCancel()">取消</button>
+        <button type="button" class="btn-soft" style="flex:1;" onclick="parentAddStarsConfirm()">确认增加</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新增星愿 -->
+  <div class="edu-mask" id="eduMaskWishAdd" style="display:none;">
+    <div class="edu-modal">
+      <h3>✨ 新增星愿</h3>
+      <p class="em-sub">设定一个想要实现的小心愿</p>
+      <div class="edu-field">
+        <label>星愿名称</label>
+        <input type="text" id="waTitle" maxlength="16" placeholder="如：买乐高、去动物园、新画笔...">
+      </div>
+      <div class="edu-field">
+        <label>需要星星数</label>
+        <input type="number" id="waCost" min="1" max="999" value="30" placeholder="如 50">
+      </div>
+      <div class="edu-actions">
+        <button type="button" class="btn-ghost" style="flex:1;" onclick="wishAddCancel()">取消</button>
+        <button type="button" class="btn-soft" style="flex:1;" onclick="wishAddConfirm()">添加心愿</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 编辑宝贝 覆盖层（✎） -->
   <div class="edu-mask" id="eduMaskKidEdit" style="display:none;">
     <div class="edu-modal">

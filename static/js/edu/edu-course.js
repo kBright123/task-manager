@@ -359,7 +359,7 @@
     } else {
       // 尝试按题型对映到当前未通关大关的第一未通小关
       var cp = (function(){ try { return curPos(subj); } catch (e) { return { big: 0, stage: 0 }; } })();
-      var lvT = (subj === 'zh') ? zhLevelQuizType(COURSES[subj].levels[cp.big].t) : COURSES[subj].levels[cp.big].t;
+      var lvT = (subj === 'zh') ? zhLevelQuizType(COURSES[subj].levels[cp.big].t) : (subj === 'go') ? goLevelQuizType(COURSES[subj].levels[cp.big].t) : COURSES[subj].levels[cp.big].t;
       if (lvT === type && stageUnlocked(subj, cp.big, cp.stage) && !nodeProg(subj, cp.big).done) { idx = cp.big; stage = cp.stage; }
     }
 

@@ -689,6 +689,7 @@
     if (quizSubject === 'par') return ci + 'window.parPlay(\'' + (quiz && quiz.type) + '\')';
     if (quizSubject === 'en') return ci + 'window.wbEn(\'' + (window.Edu.EnWorkbench.wbEnMode || 'word') + '\')';
     if (quizSubject === 'math') return ci + 'window.wbMath(\'' + (window.Edu.MathWorkbench.wbMathMode || 'calc') + '\')';
+    if (quizSubject === 'go') return ci + 'window.wbGo(\'' + (window.Edu.GoWorkbench.wbGoMode || 'atari') + '\')';
     return ci + 'window.wbZh(\'' + (window.Edu.ZhWorkbench.wbZhMode || 'zi') + '\')';
   }
 
@@ -707,6 +708,7 @@
     if (type === 'daily') { window.startDaily(); return; }
     if (subj === 'math') window.wbMath(window.Edu.MathWorkbench.wbMathMode || 'calc');
     else if (subj === 'en') window.wbEn(window.Edu.EnWorkbench.wbEnMode || 'word');
+    else if (subj === 'go') window.wbGo(window.Edu.GoWorkbench.wbGoMode || 'atari');
     else window.wbZh(window.Edu.ZhWorkbench.wbZhMode || 'zi');
   };
 
@@ -787,10 +789,8 @@
     var ci = Store.state.courseIn || null;
     // 正在做同一套练习时再次进入(如再次点击该科目标签): 直接重新生成新题
     var isLive = !!(quiz && !quiz.submitted && quizSubject === subj && quiz.type === type);
-    if (isLive) { startFresh(subj, type, items, levelInfo); return; }
-    // 清掉可能残留的上次未完练习快照, 始终起一套新题(不再弹「续学」提示)
-    clearQuizState();
-    startFresh(subj, type, items, levelInfo);
+    if (isLive) { startFresh(subj, type, items, levelInfo); }
+    else { clearQuizState(); startFresh(subj, type, items, levelInfo); }
     if (ci && ci.subj === subj) {
       var cT = (subj === 'math' && ci.t === 'did') ? 'calc' : ci.t;
       if (cT === type) quiz.courseIn = ci;

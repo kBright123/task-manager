@@ -18,6 +18,18 @@
       // force(双向归并/收养后): 后端已是权威合并值(本端数据已被吸收), 直接以服务端为准;
       // 否则只回填当前缺数据的本地键(离线优先, 不覆盖本地未同步数据)
       if (!force && localStorage.getItem(key)) return;
+      // 学习守护例外: 本地「当天已解锁次数」即便未同步到服务端也予以保留(取较大),
+      // 避免「答对解锁后刷新, 服务端旧弹又拉回超时」反复弹窗。
+      if (force && dkey === 'state') {
+        var clue = {};
+        try { clue = JSON.parse(localStorage.getItem(key) || '{}').usageExtra || {}; } catch (e) { clue = {}; }
+        var slue = (data && data.usageExtra) || {};
+        var mergedLue = {};
+        Object.keys(clue).forEach(function (k) { mergedLue[k] = Number(clue[k]) || 0; });
+        Object.keys(slue).forEach(function (k) { mergedLue[k] = Math.max(mergedLue[k] || 0, Number(slue[k]) || 0); });
+        data = JSON.parse(JSON.stringify(data));
+        data.usageExtra = mergedLue;
+      }
       // 并入式加载: 只回填当前缺数据的本地键, 并保持 Store 对象引用不变,
       // 避免「整体替换 Store.state/wb」导致闭包 state 与导出对象分叉而丢数据
       localStorage.setItem(key, JSON.stringify(data));

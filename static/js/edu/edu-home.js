@@ -10,6 +10,7 @@
   var ZhWorkbench = window.Edu.ZhWorkbench;
   var MathWorkbench = window.Edu.MathWorkbench;
   var EnWorkbench = window.Edu.EnWorkbench;
+  var GoWorkbench = window.Edu.GoWorkbench;
   var Daily = window.Edu.Daily;
   var Legacy = window.Edu.Legacy;
 

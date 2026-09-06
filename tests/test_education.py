@@ -297,6 +297,7 @@ _MODULE_FILES = [
     'edu-zh.js',
     'edu-math.js',
     'edu-en.js',
+    'edu-go.js',
     'edu-paradise.js',
     'edu-daily.js',
     'edu-practice.js',
@@ -369,7 +370,7 @@ global.document={getElementById:()=>me(),querySelectorAll:()=>[],querySelector:(
 global.localStorage={getItem:k=>k in store?store[k]:null,setItem(k,v){store[k]=String(v)},removeItem(k){delete store[k]}};
 global.location={};global.navigator={userAgent:'node'};global.performance={now:()=>0};global.HTMLElement=function(){};global.Node=function(){};
 global.eduKids={active:()=>({id:'kk'}),all:()=>[{id:'kk'}],list:()=>[{id:'kk'}],byId:()=>null,tierOf:()=>'workbench',ageOf:()=>6,tierLabel:()=>'',genderIcon:()=>'?',remove(){},setActive(){},hasAny:()=>1,update(){},add(){}};
-global.eduSync={setOnState(){},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
+global.eduSync={setOnState(fn){this._onState=fn},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
 vm.createContext(global);
 vm.runInContext(fs.readFileSync(process.argv[1],'utf8'), global);
 const W=global;
@@ -407,7 +408,7 @@ global.document={getElementById:()=>me(),querySelectorAll:()=>[],querySelector:(
 global.localStorage={getItem:k=>k in store?store[k]:null,setItem(k,v){store[k]=String(v)},removeItem(k){delete store[k]}};
 global.location={};global.navigator={userAgent:'node'};global.performance={now:()=>0};global.HTMLElement=function(){};global.Node=function(){};
 global.eduKids={active:()=>({id:'kk'}),all:()=>[{id:'kk'}],list:()=>[{id:'kk'}],byId:()=>null,tierOf:()=>'workbench',ageOf:()=>6,tierLabel:()=>'',genderIcon:()=>'?',remove(){},setActive(){},hasAny:()=>1,update(){},add(){}};
-global.eduSync={setOnState(){},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
+global.eduSync={setOnState(fn){this._onState=fn},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
 vm.createContext(global);
 vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),global);
 const W=global;
@@ -553,6 +554,14 @@ def test_quiz_uniqueness_all_types():
       const titles=new Set(items.map(i=>i.prompt));
       if(titles.size!==10) bad.push(subj+'/'+type+':titles='+titles.size);
       items.forEach(i=>{ if(!i.options&&!i.input&&!i.order) bad.push(subj+'/'+type+':noAnswerable:'+i.prompt); });
+      // 笔顺题: 正确答案必须真实出现在选项中, 且不能是"字本身"这种无效答案
+      if(type==='stroke') items.forEach(i=>{
+        if(i.options && i.options.indexOf(i.correct)<0 && !i.options.some(o=>String(W.Edu.MathUtils.optVal(o))===String(i.correct)))
+          bad.push(subj+'/'+type+':correctNotInOpts:'+i.prompt+' correct='+i.correct);
+        // 两个合法题型: 「第几笔是什么」笔形名 或 「一共有几笔」数字——二者都不允许把字本身当答案
+        if(!/^(横|竖|撇|捺|点|横折|竖钩)$/.test(String(i.correct)) && !/^\d+$/.test(String(i.correct)))
+          bad.push(subj+'/'+type+':badCorrect:'+i.prompt+' correct='+i.correct);
+      });
       if(items.some(i=>i.big&&i.big===i.prompt)) bad.push(subj+'/'+type+':inlineDup');
     }
   }
@@ -753,7 +762,7 @@ def test_course_integration_quiz_engine(client):
   global.localStorage={getItem:k=>k in store?store[k]:null,setItem(k,v){store[k]=String(v)},removeItem(k){delete store[k]}};
   global.location={};global.navigator={userAgent:'node'};global.performance={now:()=>0};global.HTMLElement=function(){};global.Node=function(){};
   global.eduKids={active:()=>({id:'kk'}),all:()=>[{id:'kk'}],list:()=>[{id:'kk'}],byId:()=>null,tierOf:()=>'workbench',ageOf:()=>6,tierLabel:()=>'',genderIcon:()=>'?',remove(){},setActive(){},hasAny:()=>1,update(){},add(){}};
-  global.eduSync={setOnState(){},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
+  global.eduSync={setOnState(fn){this._onState=fn},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
   vm.createContext(global);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),global);
   const W=global;
   // 进入数学口算闯关(第 0 大关第 0 小关)
@@ -900,7 +909,7 @@ global.document={getElementById:id=> (id==='wb-math-body'||id==='quizShell')?con
 global.localStorage={getItem:k=>k in store?store[k]:null,setItem(k,v){store[k]=String(v)},removeItem(k){delete store[k]}};
 global.location={};global.navigator={userAgent:'node'};global.performance={now:()=>0};global.HTMLElement=function(){};global.Node=function(){};
 global.eduKids={active:()=>({id:'kk'}),all:()=>[{id:'kk'}],list:()=>[{id:'kk'}],byId:()=>null,tierOf:()=>'workbench',ageOf:()=>6,tierLabel:()=>'',genderIcon:()=>'?',remove(){},setActive(){},hasAny:()=>1,update(){},add(){}};
-global.eduSync={setOnState(){},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
+global.eduSync={setOnState(fn){this._onState=fn},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
 vm.createContext(global);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),global);const W=global;
 global.__ins=inserted;
 '''
@@ -1181,7 +1190,7 @@ global.document={getElementById:id=>{ if(id==='wb-math-body'||id==='quizShell') 
 global.localStorage={getItem:k=>k in store?store[k]:null,setItem(k,v){store[k]=String(v)},removeItem(k){delete store[k]}};
 global.location={};global.navigator={userAgent:'node'};global.performance={now:()=>0};global.HTMLElement=function(){};global.Node=function(){};
 global.eduKids={active:()=>({id:'kk'}),all:()=>[{id:'kk'}],list:()=>[{id:'kk'}],byId:()=>null,tierOf:()=>'workbench',ageOf:()=>6,tierLabel:()=>'',genderIcon:()=>'?',remove(){},setActive(){},hasAny:()=>1,update(){},add(){}};
-global.eduSync={setOnState(){},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
+global.eduSync={setOnState(fn){this._onState=fn},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
 vm.createContext(global);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),global);
 const W=global; global.__ins=inserted;
 '''
@@ -1243,7 +1252,7 @@ global.document={getElementById:id=>{ if(id==='wb-math-body'||id==='quizShell') 
 global.localStorage={getItem:k=>k in store?store[k]:null,setItem(k,v){store[k]=String(v)},removeItem(k){delete store[k]}};
 global.location={};global.navigator={userAgent:'node'};global.performance={now:()=>0};global.HTMLElement=function(){};global.Node=function(){};
 global.eduKids={active:()=>({id:'kk'}),all:()=>[{id:'kk'}],list:()=>[{id:'kk'}],byId:()=>null,tierOf:()=>'workbench',ageOf:()=>6,tierLabel:()=>'',genderIcon:()=>'?',remove(){},setActive(){},hasAny:()=>1,update(){},add(){}};
-global.eduSync={setOnState(){},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
+global.eduSync={setOnState(fn){this._onState=fn},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
 vm.createContext(global);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),global);
 const W=global; global.__ins=inserted;
 '''
@@ -1428,7 +1437,7 @@ global.document={getElementById:id=>{
 global.localStorage={getItem:k=>k in store?store[k]:null,setItem(k,v){store[k]=String(v)},removeItem(k){delete store[k]}};
 global.location={};global.navigator={userAgent:'node'};global.performance={now:()=>0};global.HTMLElement=function(){};global.Node=function(){};
 global.eduKids={active:()=>({id:'kk'}),all:()=>[{id:'kk'}],list:()=>[{id:'kk'}],byId:()=>null,tierOf:()=>'workbench',ageOf:()=>6,tierLabel:()=>'',genderIcon:()=>'?',remove(){},setActive(){},hasAny:()=>1,update(){},add(){}};
-global.eduSync={setOnState(){},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
+global.eduSync={setOnState(fn){this._onState=fn},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
 vm.createContext(global);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),global);
 const W=global; global.__ins=inserted; global.__pt=()=>progTxt;
 '''
@@ -1492,7 +1501,7 @@ global.document={getElementById:id=>{
 global.localStorage={getItem:k=>k in store?store[k]:null,setItem(k,v){store[k]=String(v)},removeItem(k){delete store[k]}};
 global.location={};global.navigator={userAgent:'node'};global.performance={now:()=>0};global.HTMLElement=function(){};global.Node=function(){};
 global.eduKids={active:()=>({id:'kk'}),all:()=>[{id:'kk'}],list:()=>[{id:'kk'}],byId:()=>null,tierOf:()=>'workbench',ageOf:()=>6,tierLabel:()=>'',genderIcon:()=>'?',remove(){},setActive(){},hasAny:()=>1,update(){},add(){}};
-global.eduSync={setOnState(){},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
+global.eduSync={setOnState(fn){this._onState=fn},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
 vm.createContext(global);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),global);
 const W=global; global.__ins=inserted;
 '''
@@ -1568,7 +1577,7 @@ global.document={getElementById:id=>{
 global.localStorage={getItem:k=>k in store?store[k]:null,setItem(k,v){store[k]=String(v)},removeItem(k){delete store[k]}};
 global.location={};global.navigator={userAgent:'node'};global.performance={now:()=>0};global.HTMLElement=function(){};global.Node=function(){};
 global.eduKids={active:()=>({id:'kk'}),all:()=>[{id:'kk'}],list:()=>[{id:'kk'}],byId:()=>null,tierOf:()=>'workbench',ageOf:()=>6,tierLabel:()=>'',genderIcon:()=>'?',remove(){},setActive(){},hasAny:()=>1,update(){},add(){}};
-global.eduSync={setOnState(){},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
+global.eduSync={setOnState(fn){this._onState=fn},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
 vm.createContext(global);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),global);
 const W=global; global.__ins=inserted;
 '''
@@ -1634,7 +1643,7 @@ global.document={getElementById:id=>{ if(id==='wb-math-body'||id==='quizShell') 
 global.localStorage={getItem:k=>k in store?store[k]:null,setItem(k,v){store[k]=String(v)},removeItem(k){delete store[k]}};
 global.location={};global.navigator={userAgent:'node'};global.performance={now:()=>0};global.HTMLElement=function(){};global.Node=function(){};
 global.eduKids={active:()=>({id:'kk'}),all:()=>[{id:'kk'}],list:()=>[{id:'kk'}],byId:()=>null,tierOf:()=>'workbench',ageOf:()=>6,tierLabel:()=>'',genderIcon:()=>'?',remove(){},setActive(){},hasAny:()=>1,update(){},add(){}};
-global.eduSync={setOnState(){},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
+global.eduSync={setOnState(fn){this._onState=fn},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
 vm.createContext(global);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),global);
 const W=global; global.__ins=inserted;
 '''
@@ -1710,7 +1719,7 @@ global.localStorage={getItem:k=>k in store?store[k]:null,setItem(k,v){store[k]=S
 global.location={};global.navigator={userAgent:'node'};global.performance={now:()=>0};global.HTMLElement=function(){};global.Node=function(){};
 const kids=[{id:'a',name:'小米',birthYear:2018,gender:'male'},{id:'b',name:'小花',birthYear:2019,gender:'female'}];
 global.eduKids={active:()=>({id:'a',name:'小米',birthYear:2018,gender:'male'}),all:()=>kids,byId:id=>kids.find(k=>k.id===id),tierOf:()=>'workbench',ageOf:()=>6,tierLabel:()=>'',genderIcon:g=>g==='female'?'👧':'👦',remove(){},setActive(){},hasAny:()=>1,update(){},add(){}};
-global.eduSync={setOnState(){},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
+global.eduSync={setOnState(fn){this._onState=fn},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
 vm.createContext(global);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),global);
 const W=global;
 '''
@@ -1727,8 +1736,8 @@ const W=global;
   store['edu_pref_v1_a']=JSON.stringify({mode:'workbench',subj:'zh'});
   W.eduNav('home');
   const h=body._h||'';
-  // 问候语按小时变化(跨夜时测试会命中「夜深了」), 昼间/夜间问候均视为有效
-  console.log('GREET='+((h.indexOf('早上好')>=0||h.indexOf('下午好')>=0||h.indexOf('晚上好')>=0||h.indexOf('夜深了')>=0)?'1':'0'));
+  // 问候语按小时变化(跨夜时测试会命中「夜深啦」), 昼间/夜间问候均视为有效
+  console.log('GREET='+((h.indexOf('早上好')>=0||h.indexOf('下午好')>=0||h.indexOf('晚上好')>=0||h.indexOf('夜深啦')>=0)?'1':'0'));
   console.log('MODE='+(h.indexOf('幼小衔接')>=0&&h.indexOf('mode-select')>=0?'1':'0'));
   console.log('STAR_LV='+(h.indexOf('打卡第')>=0?'1':'0'));
   console.log('NO_LV='+(h.indexOf('⭐ Lv.')<0?'1':'0'));
@@ -1799,6 +1808,35 @@ def test_home_course_teaser():
     for probe in ('NO_TEASER=1','NO_MAP_TXT=1','HAS_GOAL=1','HAS_GRID=1'):
         assert probe in out, out
 
+def test_wbinit_go_does_not_break_other_subjects():
+    """工作台初始化: 即使 pref 记录了围棋(wbGo=atari / lastSubj=go),
+    wbInit 必须完成 zh/math/en/go 各面板启动, 不能因 GoWorkbench 未绑定
+    而抛 ReferenceError 中断整页答题渲染(语文/数学/英语不显示题目的回归)."""
+    out = _harness(r'''
+(async()=>{
+  const bodies={};
+  function bNode(){const el={style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},setAttribute(){},getAttribute(){return null},textContent:'',value:'',appendChild(){},removeChild(){},addEventListener(){},options:[],children:[],offsetWidth:0,offsetHeight:0,focus(){},scrollIntoView(){},querySelector:()=>bNode(),querySelectorAll:()=>[],getContext(){return new Proxy({}, {get:()=>()=>{}})}};
+    Object.defineProperty(el,'innerHTML',{get(){return el._h||''},set(v){el._h=String(v)}}); return el;}
+  ['wb-zh-body','wb-math-body','wb-en-body','wb-go-body','wb-zh','wb-math','wb-en','wb-go','eduBottomNav','modeSelect'].forEach(k=>bodies[k]=bNode());
+  const byId=(id)=>bodies[id]||bNode();
+  global.document.getElementById=byId;
+  store['edu_pref_v1_kk']=JSON.stringify({mode:'workbench',subj:'go',lastSubj:'go',wbZh:'zi',wbMath:'calc',wbEn:'word',wbGo:'atari'});
+  store['edu_record_v1_kk']=JSON.stringify({stars:0,records:[],wrong:[],wishes:[],badges:{},level:{},settings:{},course:{}});
+  let throws=0;
+  try{ W.Edu.Workbench.wbInit(); }catch(e){ throws++; }
+  console.log('WBINIT_THROW='+(throws?'1':'0'));
+  const check=s=>{
+    let threw=0;
+    try{ W.Edu.Workbench.wbSubject(s); }catch(e){ threw++; }
+    const h=bodies['wb-'+s+'-body']._h||'';
+    console.log('SUBJ_'+s.toUpperCase()+'='+((!threw&&h.indexOf('quiz-item')>=0)?'1':'0'));
+  };
+  ['zh','math','en','go'].forEach(check);
+})();
+''')
+    for probe in ('WBINIT_THROW=0','SUBJ_ZH=1','SUBJ_MATH=1','SUBJ_EN=1','SUBJ_GO=1'):
+        assert probe in out, out
+
 def test_dock_busy_guard():
     """答题(Dock守卫): 按需求 dock 不再置灰禁用，答题/极速练习进行中底部导航仍保持彩色可点."""
     out = _harness(r'''
@@ -1846,7 +1884,7 @@ global.localStorage={getItem:k=>k in store?store[k]:null,setItem(k,v){store[k]=S
 global.location={};global.navigator={userAgent:'node'};global.performance={now:()=>0};global.HTMLElement=function(){};global.Node=function(){};
 const kids=[{id:'a',name:'小米',birthYear:2018,gender:'male'},{id:'b',name:'小花',birthYear:2019,gender:'female'}];
 global.eduKids={active:()=>({id:'a',name:'小米',birthYear:2018,gender:'male'}),all:()=>kids,byId:id=>kids.find(k=>k.id===id),tierOf:()=>'workbench',ageOf:()=>6,tierLabel:()=>'',genderIcon:g=>g==='female'?'👧':'👦',remove(){},setActive(){},hasAny:()=>1,update(){},add(){}};
-global.eduSync={setOnState(){},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
+global.eduSync={setOnState(fn){this._onState=fn},qbankPull:()=>Promise.resolve({items:[]}),qbankEnsure:()=>Promise.resolve(),qbankLearn:()=>Promise.resolve(),pushState(){},hydrate:()=>Promise.resolve()};
 vm.createContext(global);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),global);
 const W=global;
 '''
@@ -2134,12 +2172,13 @@ def test_usage_gate():
   G.showGate();
   console.log('REBLOCK='+(G.isBlocking()?'1':'0'));
 
-  // 扣 100 星解锁, 额度再 +30 分钟
+  // 扣 100 星解锁, 保证至少可再学 USAGE_UNLOCK_MIN 分钟(超出已用时长的部分由额度补齐)
   const before=Store.state.stars;
   W.eduGateUnlockStars();
   console.log('STAR_DEDUCT='+(Store.state.stars===before-100?'1':'0'));
   console.log('STAR_UNLOCK='+(G.isBlocking()? '0':'1'));
-  console.log('EXTRA_2='+(Store.usageExtraToday()===2?'1':'0'));
+  console.log('EXTRA_GROW='+(Store.usageExtraToday()>1?'1':'0'));
+  console.log('REMAIN_30='+((Store.usageLimitSec()-Store.usageUsedSec()>=Store.usageLimitMin()*60)?'1':'0'));
 
   // 星星不足 100 → 不可扣星解锁, 但仍被拦截
   u.secs=91*60; Store.saveState();
@@ -2154,7 +2193,7 @@ def test_usage_gate():
                   'GATE_VISIBLE=1','GATE_TITLE=1','GATE_TRAD_Q=1',
                   'WRONG_BLOCK=1','WRONG_MSG=1',
                   'RIGHT_UNLOCK=1','MASK_HIDDEN=1','EXTRA_1=1','LIMIT_60=1','NOT_OVER_2=1',
-                  'REBLOCK=1','STAR_DEDUCT=1','STAR_UNLOCK=1','EXTRA_2=1',
+                  'REBLOCK=1','STAR_DEDUCT=1','STAR_UNLOCK=1','EXTRA_GROW=1','REMAIN_30=1',
                   'POOR_BLOCK=1','POOR_MSG=1'):
         assert probe in out, out
 
@@ -2320,3 +2359,71 @@ if __name__ == '__main__':
             except Exception:
                 print(f'FAIL test_education.{name}')
                 raise
+
+
+def test_usage_extra_survives_anon_adopt_merge(client):
+    """学习守护解锁次数(usageExtra)在 匿名→账号 归并时不得丢失:
+    答对解锁(usageExtra=1)后归并, 合并弹必须保留当天解锁次数, 否则刷新后又会弹「到时间」."""
+    anon = 'adopt_lu_' + str(id(client))
+    h = {'X-Edu-Anon': anon}
+    import datetime
+    today = datetime.date.today().strftime('%Y-%m-%d')
+    NAME = '学守' + str(id(client))
+    pid_acc = client.post('/edu/api/kids', json={
+        'kids': [{'clientId': 'cA', 'name': NAME, 'birthYear': 2018, 'gender': 'female'}],
+        'removedIds': [],
+    }).json['kids'][0]['id']
+    client.post(f'/edu/api/kids/{pid_acc}/state', json={
+        'dkey': 'state',
+        'data': {'stars': 3, 'records': [], 'usage': {today: {'secs': 1800, 'count': 60, 'n': 60}}},
+    })
+
+    anon_c = _anon_client()
+    r = anon_c.post('/edu/api/kids', json={
+        'kids': [{'clientId': 'cA', 'name': NAME, 'birthYear': 2018, 'gender': 'female'}],
+        'removedIds': [],
+    }, headers=h)
+    pid_anon = r.json['kids'][0]['id']
+    # 匿名端答对解锁: usageExtra[today]=1, 又学了 900 秒
+    anon_c.post(f'/edu/api/kids/{pid_anon}/state', json={
+        'dkey': 'state',
+        'data': {'stars': 0, 'records': [], 'usage': {today: {'secs': 2700, 'count': 90, 'n': 90}},
+                 'usageExtra': {today: 1}},
+    }, headers=h)
+
+    res = client.post('/edu/api/bootstrap', headers=h).json
+    assert res.get('adopted') is True
+    got = client.get(f'/edu/api/kids/{pid_acc}/state').json['data']
+    # 解锁次数保留(取较大), 当天空时不丢; usage 按天求和
+    assert got.get('usageExtra', {}).get(today) == 1, got
+    assert got['usage'][today]['secs'] == 4500, got['usage']
+    client.post('/edu/api/kids', json={'kids': [], 'removedIds': [pid_acc]})
+
+
+def test_hydrate_force_preserves_usage_extra():
+    """刷新时服务端旧弹(force 覆盖本地、无 usageExtra)不得清掉当天已解锁次数:
+    答对解锁后刷新, 若服务端返回的弹缺少 usageExtra(如归并产物/旧快照),
+    本地当天解锁仍须保留, 不能重新弹「学习时间到啦」."""
+    out = _harness(r'''
+(async()=>{
+  const store=global.store;
+  const dk=()=>{const t=new Date();const p=n=>n<10?'0'+n:n;return t.getFullYear()+'-'+p(t.getMonth()+1)+'-'+p(t.getDate());};
+  // 场景: 本地已答对解锁(usageExtra[today]=1)但服务端旧弹没有(归并产物/拉取快照)
+  global.localStorage.setItem('edu_record_v1_kk', JSON.stringify({
+    stars:3,records:[],wrong:[],wishes:[],settings:{dailyMin:0},points:0,level:{},
+    usage:{[dk()]:{secs:1800,count:60,n:60}},
+    usageExtra:{[dk()]:1}
+  }));
+  W.Edu.Store.loadAllState();
+  // 模拟 hydrate force 覆盖: 与 edu-bootstrap.onState 相同入口(force=true)
+  W.eduSync._onState && W.eduSync._onState('kk','state',{
+    stars:3,records:[],wrong:[],wishes:[],settings:{dailyMin:0},points:0,level:{},
+    usage:{[dk()]:{secs:1800,count:60,n:60}}  // 无 usageExtra
+  }, true);
+  console.log('EXTRA_KEPT='+(W.Edu.Store.state.usageExtra[dk()]===1?'1':'0'));
+  console.log('NOT_OVER='+(W.Edu.Store.usageOver()? '0':'1'));
+  console.log('LIMIT_KEPT='+(W.Edu.Store.usageLimitSec()===60*60?'1':'0'));
+})();
+''')
+    for probe in ('EXTRA_KEPT=1', 'NOT_OVER=1', 'LIMIT_KEPT=1'):
+        assert probe in out, out

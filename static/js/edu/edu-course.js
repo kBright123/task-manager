@@ -427,10 +427,10 @@
 
   // 单学科旅程地图(横向滚动)
   // ---- 闯关地图: 蛇形路径视觉化 ----
-  var SNAKE_W = 1680;   // 地图逻辑宽度(px), 窄屏横向滑动(加大画布缓解拥挤)
+  var SNAKE_W = 2340;   // 地图逻辑宽度(px), 含最后一关的延长路段, 窄屏横向滑动
   var SNAKE_H = 560;    // 地图逻辑高度, 更高撑满全屏视口
-  var NODE_D = 104;     // 节点直径(≥80px, 适合手指)
-  var SNAKE_X0 = 150;   // 首节点中心 x
+  var NODE_D = 80;      // 节点直径(小圆更贴路面, 视觉上落在路中间)
+  var SNAKE_X0 = 150;   // 首节点中心 x(第一大关即起点)
   var SNAKE_DX = 215;   // 节点中心 x 间距(加宽让蜿蜒山路与小关点更舒展)
   var SNAKE_Y_A = 210;  // 第一行节点中心 y
   var SNAKE_Y_B = 372;  // 第二行节点中心 y(蛇形)
@@ -493,13 +493,15 @@
       y: w0 * a.y + w1 * mid + w2 * mid + w3 * b.y
     };
   }
-// 大关 i 的第 s 个小关在路径上的坐标(沿通往城堡的路段, t 由小到大逼近城堡)
+// 大关 i 的第 s 个小关在路径上的坐标(沿「离开本大关城堡、通往下一大关」的路段排布,
+  // 最后一关沿用向前延伸的直路; 起点即第一大关, 小关从城堡圆之后开始展开)
   function stageXY(subj, i, s) {
-    var end = snakeXY(i);
-    var a = (i > 0) ? snakeXY(i - 1) : { x: 40, y: Math.max(30, end.y - 150) };   // 首个城堡：入口点点从左上蜿蜒入站
-    var mid = (a.y + end.y) / 2;
-    var t = 0.12 + 0.13 * s;                         // 0.12..0.64, 留在城堡圆之前的可见路段
-    return bezPt(a, end, mid, t);
+    var n = levelCount(subj);
+    var a = snakeXY(i);
+    var b = (i + 1 < n) ? snakeXY(i + 1) : { x: a.x + SNAKE_DX, y: a.y };   // 最后的城堡向右侧延长一段直路承载收官小关
+    var mid = (a.y + b.y) / 2;
+    var t = 0.10 + 0.15 * s;                         // 0.10..0.70, 紧贴本大关圆之后、沿路通往下一大关
+    return bezPt(a, b, mid, t);
   }
   // 小人在地图上的位置: 始终落在「即将要去的那一关」关卡点上, 通关后沿道路向前移动
   // 大关通关 → 站在城堡上; 大关内未通 → 站在该大关待闯的小关点(石头)上
@@ -512,7 +514,7 @@
     if (node_done) return snakeXY(big);
     return stageXY(subj, big, Math.min(p.stage, STAGES_PER_BIG - 1));
   }
-  // 大关 i 的 5 个小关, 作为山路上的小石头, 沿「通往该城堡」的路段依次排布 (t 由小到大逼近城堡)
+  // 大关 i 的 5 个小关, 作为山路上的小石头, 沿「离开本大关、前往下一大关」的路段依次排布
   function stageDots(subj, i) {
     var nd = nodeProg(subj, i);
     var bigLk = !bigUnlocked(subj, i);
@@ -535,17 +537,17 @@
     }
     return dots.join('');
   }
-  // 蛇形连接路径(SVG): 相邻节点用 S 形贝塞尔相连
+  // 蛇形连接路径(SVG): 相邻节点用 S 形贝塞尔相连, 最后一关尾接一段向前延伸的直路
   function snakePath(subj, curBig) {
     var n = levelCount(subj);
-    var d = [], used = [];
+    if (n === 0) return { segs: [] };
+    var segs = [];
     for (var i = 0; i < n - 1; i++) {
-      var a = snakeXY(i), b = snakeXY(i + 1);
-      var mid = (a.y + b.y) / 2;
-      d.push('M' + a.x + ' ' + a.y + ' C' + a.x + ' ' + mid + ',' + b.x + ' ' + mid + ',' + b.x + ' ' + b.y);
-      used.push(curBig > i ? 'used' : 'todo');
+      segs.push({ a: snakeXY(i), b: snakeXY(i + 1), used: curBig > i ? 'used' : 'todo' });
     }
-    return { path: d.join(' '), used: used };
+    var last = snakeXY(n - 1);
+    segs.push({ a: last, b: { x: last.x + SNAKE_DX, y: last.y }, used: curBig >= n ? 'used' : 'todo' });
+    return { segs: segs };
   }
   // 单个大关卡节点圆
   function snakeNode(subj, i, lv, curBig) {
@@ -628,11 +630,11 @@
     var dots = '<div class="cm-dots">' + course.levels.map(function (lv, i) { return stageDots(subj, i); }).join('') + '</div>';
     // 蜿蜒山路: 每段 = 路面(Road 底色) + 中心虚线(路标) + 已走过的金色覆盖
     var segs = '';
-    for (var i = 0; i < sp.used.length; i++) {
-      var a = snakeXY(i), b = snakeXY(i + 1);
+    for (var i = 0; i < sp.segs.length; i++) {
+      var a = sp.segs[i].a, b = sp.segs[i].b;
       var mid = (a.y + b.y) / 2;
       var d = 'M' + a.x + ' ' + a.y + ' C' + a.x + ' ' + mid + ',' + b.x + ' ' + mid + ',' + b.x + ' ' + b.y;
-      var st = sp.used[i];
+      var st = sp.segs[i].used;
       segs += '<g class="cm-seg-g ' + st + '">' +
         '<path class="cm-road" d="' + d + '"/>' +
         '<path class="cm-center" d="' + d + '"/>' +
@@ -641,7 +643,7 @@
     var mascot = '';
     if (levelCount(subj) > 0) {
       var m = mascotXY(subj);
-      mascot = '<div class="cm-mascot" style="left:' + Math.round(m.x - 24) + 'px;top:' + Math.round(m.y - 24) + 'px;">🧒</div>';
+      mascot = '<div class="cm-mascot" style="left:' + Math.round(m.x - 18) + 'px;top:' + Math.round(m.y - 20) + 'px;">🧒</div>';
     }
 
     return '<div class="cm-course' + (focus ? ' focus' : '') + '" data-subj="' + subj + '" id="cmCourse' + subj + '">' +

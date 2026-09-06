@@ -248,7 +248,16 @@
       var src2 = (type === 'liang') ? C.LIANGCI : C.FANCI;
       items = src2.map(function(c){ return { id:c.prompt.replace(/\s/g,''), type:'ciyu', prompt:c.prompt, options:c.options, correct:c.correct }; });
     } else if (type === 'stroke') {
-      items = C.STROKES.map(function(s){ return { id:s.id, type:'stroke', prompt:s.char, options:['横','竖','撇','点','折'], correct:s.name }; });
+      var strokeGlyph = { '一':'横', '丨':'竖', '丿':'撇', '丶':'点', '乙':'横折', '亅':'竖钩' };
+      var strokeName = function(g){ return strokeGlyph[g] || g; };
+      var firstStroke = function(s){
+        var ord = s.order || (s.name ? [s.name] : []);
+        return ord.length ? strokeName(ord[0]) : '横';
+      };
+      items = C.STROKES.map(function(s){
+        var fs = firstStroke(s);
+        return { id:s.id, type:'stroke', prompt:'「'+s.char+'」字的第一笔是什么？', big:s.char, options:M.makeOptions(fs, ['横','竖','撇','捺','点','横折','竖钩'], 4), correct:fs, note:'笔顺：' + (s.order || []).map(strokeName).join('、') };
+      });
     } else if (type === 'poem') {
       items = C.POEMS.map(function(p){
         var lines = p.lines.slice();

@@ -110,11 +110,19 @@
     addDailySecs(secs);
     saveState();
   }
-  // 记录一次解锁(扣星或答对题): 当日额度增加 USAGE_UNLOCK_MIN 分钟
+  // 记录一次解锁(扣星或答对题): 当日额度增加 USAGE_UNLOCK_MIN 分钟.
+  // 若今天已用时长远超新额度(解锁次数因刷新/合并丢失, 或历史版本在弹框期间也计入时长),
+  // 单次 +30 分钟仍是超限状态, 弹框会立刻再次弹出. 这里按已用时长把额度补足到
+  // 「至少还能再学 USAGE_UNLOCK_MIN 分钟」, 让本次解锁真正可用.
   function addUsageUnlock() {
     var k = dayKey();
     state.usageExtra = (state.usageExtra && typeof state.usageExtra === 'object') ? state.usageExtra : {};
     state.usageExtra[k] = (state.usageExtra[k] || 0) + 1;
+    var guard = 0;
+    while (usageUsedSec() + C.USAGE_UNLOCK_MIN * 60 > usageLimitSec() && guard < 1000) {
+      state.usageExtra[k] = state.usageExtra[k] + 1;
+      guard++;
+    }
     saveState();
   }
 

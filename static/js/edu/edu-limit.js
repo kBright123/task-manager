@@ -35,7 +35,8 @@
     var secs = Math.round((now - lastTick) / 1000);
     lastTick = now;
     if (secs > 0) {
-      Store.addUsageSecs(secs);
+      // 弹框拦截期间不计入学习时长, 否则等待解答也会被算作已学时间
+      if (!block) Store.addUsageSecs(secs);
       if (over()) showGate();
     }
   }

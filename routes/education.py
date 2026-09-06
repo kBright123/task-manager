@@ -197,16 +197,41 @@ def _merge_blob(base, ext):
             base[key] = max(int(base.get(key) or 0), int(ext.get(key) or 0))
         except (TypeError, ValueError):
             pass
-    for key in ('usage',):
-        e = ext.get(key)
-        b = base.get(key)
-        if isinstance(e, dict) and isinstance(b, dict):
+    # usage: 新版为按天 map {dayKey:{secs,count,n}}, 旧版为扁平 {secs,n,count}; 均合并不丢
+    usage = base.get('usage')
+    eusage = ext.get('usage')
+    if isinstance(usage, dict) and isinstance(eusage, dict):
+        for day, e in eusage.items():
+            if not isinstance(e, dict):
+                continue
+            b = usage.get(day)
+            if not isinstance(b, dict):
+                b = usage[day] = {}
             for k in ('secs', 'n', 'count'):
                 try:
                     b[k] = int(b.get(k) or 0) + int(e.get(k) or 0)
                 except (TypeError, ValueError):
                     pass
-            base[key] = b
+        # 兼容旧扁平格式的顶层 secs/n/count(仅当匿名端真有该字段时求和)
+        for k in ('secs', 'n', 'count'):
+            if k in eusage and isinstance(eusage[k], (int, float)):
+                try:
+                    usage[k] = int(usage.get(k) or 0) + int(eusage[k])
+                except (TypeError, ValueError):
+                    pass
+        base['usage'] = usage
+    # usageExtra: 按天取较大(各端各自解锁次数, 账号优先、只增不减, 防重复累加)
+    eue = ext.get('usageExtra')
+    if isinstance(eue, dict):
+        bue = base.get('usageExtra')
+        if not isinstance(bue, dict):
+            bue = {}
+        for day, c in eue.items():
+            try:
+                bue[day] = max(int(bue.get(day) or 0), int(c))
+            except (TypeError, ValueError):
+                pass
+        base['usageExtra'] = bue
     return base
 
 

@@ -210,11 +210,32 @@ window.eduSync = (function () {
     ['maxCombo', 'submits'].forEach(function (key) {
       base[key] = Math.max(Number(base[key]) || 0, Number(ext[key]) || 0);
     });
+    // usage: 新版为按天 map {dayKey:{secs,count,n}}, 旧版为扁平 {secs,n,count}; 均合并不丢
     var bu = base.usage, eu = ext.usage;
-    if (eu && typeof eu === 'object' && bu && typeof bu === 'object') {
-      ['secs', 'n', 'count'].forEach(function (k) {
-        bu[k] = (Number(bu[k]) || 0) + (Number(eu[k]) || 0);
+    if (eu && typeof eu === 'object' && !Array.isArray(eu) && bu && typeof bu === 'object' && !Array.isArray(bu)) {
+      Object.keys(eu).forEach(function (day) {
+        var ed = eu[day];
+        if (!ed || typeof ed !== 'object' || Array.isArray(ed)) return;
+        var bd = bu[day];
+        if (!bd || typeof bd !== 'object' || Array.isArray(bd)) bd = bu[day] = { secs: 0, count: 0, n: 0 };
+        ['secs', 'count', 'n'].forEach(function (k) {
+          bd[k] = (Number(bd[k]) || 0) + (Number(ed[k]) || 0);
+        });
       });
+      // 兼容旧扁平格式的顶层 secs/n/count(仅当双方真有该字段时求和, 避免污染按天 map)
+      ['secs', 'n', 'count'].forEach(function (k) {
+        if (eu[k] === undefined || typeof eu[k] !== 'number') return;
+        bu[k] = (Number(bu[k]) || 0) + eu[k];
+      });
+    }
+    // usageExtra: 按天取较大(各端各自解锁次数, 账号优先、只增不减, 防重复累加)
+    var bx = base.usageExtra, ex = ext.usageExtra;
+    if (ex && typeof ex === 'object' && !Array.isArray(ex)) {
+      if (!bx || typeof bx !== 'object' || Array.isArray(bx)) bx = base.usageExtra = {};
+      Object.keys(ex).forEach(function (day) {
+        bx[day] = Math.max(Number(bx[day]) || 0, Number(ex[day]) || 0);
+      });
+      base.usageExtra = bx;
     }
     return base;
   }

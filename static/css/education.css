@@ -1483,12 +1483,12 @@
   .cm-path{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;}
   .cm-seg-g{transition:opacity .3s;}
   /* 路面: 厚实的蜿蜒山路, 带浅描边让道路清晰浮于场景之上 */
-  .cm-road{fill:none;stroke:rgba(255,255,255,.92);stroke-width:48;stroke-linecap:round;stroke-linejoin:round;
+  .cm-road{fill:none;stroke:rgba(255,255,255,.92);stroke-width:64;stroke-linecap:round;stroke-linejoin:round;
     filter:drop-shadow(0 4px 6px rgba(0,0,0,.22));}
   html[data-theme="dark"] .cm-road{stroke:rgba(60,64,72,.85);}
   /* 中心虚线: 山路路标(白色分段), 走到哪边是已走过的金色 */
-  .cm-center{fill:none;stroke:rgba(120,120,140,.6);stroke-width:6;stroke-dasharray:1 26;stroke-linecap:round;}
-  .cm-seg-g.used .cm-center{stroke:#fff;stroke-dasharray:12 18;}
+  .cm-center{fill:none;stroke:rgba(120,120,140,.6);stroke-width:7;stroke-dasharray:2 30;stroke-linecap:round;}
+  .cm-seg-g.used .cm-center{stroke:#fff;stroke-dasharray:14 22;}
   .cm-seg-g.used .cm-road{stroke:var(--edu-gold,#ffc34d);
     filter:drop-shadow(0 0 8px rgba(255,190,60,.6)) drop-shadow(0 2px 3px rgba(0,0,0,.2));}
 
@@ -1605,10 +1605,10 @@
   .cm-zone{position:absolute;top:0;left:0;display:flex;flex-direction:column;align-items:center;
     transform:translate(-50%,-50%);z-index:2;min-width:0;}
   /* 站点底座: 节点下方的落地阴影, 营造「地图上的地标站点」感 */
-  .cm-zone::after{content:'';position:absolute;top:52px;left:50%;transform:translateX(-50%);
-    width:96px;height:16px;border-radius:50%;background:rgba(0,0,0,.16);filter:blur(3px);z-index:-1;}
-  .cm-big{width:104px;height:104px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    gap:2px;cursor:pointer;color:#fff;border:5px solid rgba(255,255,255,.95);position:relative;
+  .cm-zone::after{content:'';position:absolute;top:40px;left:50%;transform:translateX(-50%);
+    width:72px;height:14px;border-radius:50%;background:rgba(0,0,0,.16);filter:blur(3px);z-index:-1;}
+  .cm-big{width:80px;height:80px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:2px;cursor:pointer;color:#fff;border:4px solid rgba(255,255,255,.95);position:relative;
     box-shadow:0 10px 20px rgba(0,0,0,.22), inset 0 -8px 14px rgba(0,0,0,.18), inset 0 6px 12px rgba(255,255,255,.28);
     transition:transform .18s, box-shadow .18s;padding:0;flex-shrink:0;}
   .cm-big:hover{transform:translateY(-3px) scale(1.05);box-shadow:0 16px 28px rgba(0,0,0,.28), inset 0 -8px 14px rgba(0,0,0,.18), inset 0 6px 12px rgba(255,255,255,.28);}
@@ -1620,32 +1620,32 @@
   /* 当前关卡: 放大 + 双环发光 + 原地轻微悬浮, 突出「这里就是小探险家所在」 */
   .cm-big.current{background:linear-gradient(135deg,#ffc65c,#ff8a4a);transform:scale(1.16);
     border-color:#fff;animation:cmCurrentFloat 2.2s ease-in-out infinite,cmCurrentGlow 1.6s ease-in-out infinite;}
-  .cm-big.current::before{content:'';position:absolute;inset:-9px;border-radius:50%;
+  .cm-big.current::before{content:'';position:absolute;inset:-7px;border-radius:50%;
     border:3px solid rgba(255,255,255,.75);animation:cmCurrentRing 1.8s ease-out infinite;}
   .cm-big.current:hover{transform:scale(1.18) translateY(-3px);}
-  .cm-node-num{position:absolute;top:-6px;right:-5px;width:27px;height:27px;border-radius:50%;
-    background:#fff;color:var(--edu-primary);font-weight:900;font-size:.82rem;
+  .cm-node-num{position:absolute;top:-5px;right:-5px;width:23px;height:23px;border-radius:50%;
+    background:#fff;color:var(--edu-primary);font-weight:900;font-size:.72rem;
     display:flex;align-items:center;justify-content:center;border:2px solid rgba(0,0,0,.08);
     box-shadow:0 2px 6px rgba(0,0,0,.12);}
-  .cm-node-short{font-size:1rem;font-weight:900;line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.22));}
-  .cm-node-badge{position:absolute;bottom:-9px;left:50%;transform:translateX(-50%);width:34px;height:34px;border-radius:50%;
-    display:flex;align-items:center;justify-content:center;font-size:1.1rem;background:#fff;
+  .cm-node-short{font-size:.88rem;font-weight:900;line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.22));}
+  .cm-node-badge{position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);width:29px;height:29px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;font-size:1rem;background:#fff;
     border:2px solid rgba(0,0,0,.08);box-shadow:0 3px 8px rgba(0,0,0,.16);
     font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;}
   .cm-node-badge.ok{color:var(--edu-green);font-weight:900;}
-  .cm-node-badge.lock{font-size:.95rem;}
+  .cm-node-badge.lock{font-size:.85rem;}
   .cm-node-badge.cur{color:#ff9d2e;animation:cmBadgeGlow 1.6s ease-in-out infinite;}
-  .cm-node-label{position:absolute;top:calc(100% + 10px);left:50%;transform:translateX(-50%);
-    font-size:.82rem;font-weight:900;color:#fff;background:rgba(66,58,48,.42);
-    padding:3px 12px;border-radius:999px;white-space:nowrap;backdrop-filter:blur(3px);}
+  .cm-node-label{position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);
+    font-size:.78rem;font-weight:900;color:#fff;background:rgba(66,58,48,.42);
+    padding:3px 11px;border-radius:999px;white-space:nowrap;backdrop-filter:blur(3px);}
 
-  /* 角色指示器(小探险家): 更大、带落地阴影与光晕, 一眼可辨当前位置 */
-  .cm-mascot{position:absolute;z-index:3;font-size:3rem;animation:cmHop 1s ease-in-out infinite;
+  /* 角色指示器(小探险家): 更小巧、带落地阴影与光晕, 一眼可辨当前位置 */
+  .cm-mascot{position:absolute;z-index:3;font-size:2.2rem;animation:cmHop 1s ease-in-out infinite;
     filter:drop-shadow(0 6px 8px rgba(0,0,0,.28));pointer-events:none;
     text-shadow:0 0 12px rgba(255,255,255,.6);
     font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;}
   .cm-mascot::after{content:'';position:absolute;left:50%;bottom:-8px;transform:translateX(-50%);
-    width:44px;height:12px;border-radius:50%;background:rgba(0,0,0,.18);filter:blur(3px);z-index:-1;}
+    width:36px;height:10px;border-radius:50%;background:rgba(0,0,0,.18);filter:blur(3px);z-index:-1;}
   @keyframes cmHop{0%,100%{transform:translateY(0);}50%{transform:translateY(-9px);}}
 
   /* 小关 = 山路上的小圆点: 每大关 5 个, 沿通往城堡的路段排布 */

@@ -189,25 +189,6 @@ def is_licensed():
     return bool(os.environ.get('born')) and os.environ.get('born') == expected
 
 
-# 体验客户账号(只读): role='guest', 登录后仅能查看, 禁止任何写操作
-_GUEST_MSG = '体验客户账号仅可查看，不能修改或添加数据。'
-_GUEST_ALLOW_PATHS = ('/login', '/logout', '/static/')
-def _guest_before_request():
-    """体验客户只读拦截: role='guest' 用户禁止所有写方法(POST/PUT/PATCH/DELETE),
-    仅放行登录/退出等认证操作。"""
-    if request.method not in ('POST', 'PUT', 'PATCH', 'DELETE'):
-        return
-    if not (current_user.is_authenticated
-            and getattr(current_user, 'role', '') == 'guest'):
-        return
-    path = request.path
-    if path.startswith(_GUEST_ALLOW_PATHS):
-        return
-    if path in _LICENSE_READ_PATHS:
-        return
-    if path.startswith(('/api/', '/notes/api/', '/kb/api/')):
-        return jsonify({'ok': False, 'error': _GUEST_MSG}), 403
-    return render_template('error.html', code=403, message=_GUEST_MSG), 403
 def _license_before_request():
     """演示版本拦截业务写入: 非安全方法(POST/PUT/PATCH/DELETE)中,
     认证相关与纯读取接口放行, 其余业务写入在未授权时拦截。"""
@@ -221,7 +202,7 @@ def _license_before_request():
     if path in _LICENSE_READ_PATHS or path.startswith(('/kb/api/search',
                                                        '/kb/api/ask')):
         return
-    if path.startswith(('/api/', '/notes/api/', '/kb/api/')):
+    if path.startswith(('/api/', '/notes/api/', '/kb/api/', '/edu/api/')):
         return jsonify({'ok': False, 'error': _LICENSE_MSG}), 403
     return render_template('error.html', code=403, message=_LICENSE_MSG), 403
 
@@ -281,7 +262,6 @@ def _req_timing_start():
 
 
 app.before_request(_license_before_request)
-app.before_request(_guest_before_request)
 @app.after_request
 def _req_timing_log(resp):
     start = getattr(g, '_req_start', None)
@@ -382,7 +362,7 @@ def _csrf_protect():
     表单 token 由 base.html 的 JS 自动注入, AJAX 由全局 fetch 包装注入。
     /api/token 令牌获取接口与 API 令牌鉴权请求(Bearer)跳过 CSRF。"""
     if request.method in ('POST', 'PUT', 'PATCH', 'DELETE'):
-        if (request.path == '/api/token' or request.path.startswith('/edu/api/')
+        if (request.path == '/api/token'
                 or _api_token_user() is not None):
             return
         supplied = (request.form.get('_csrf_token')
@@ -411,7 +391,7 @@ def _touch_last_seen():
 @app.errorhandler(404)
 @app.errorhandler(413)
 def _http_error(e):
-    if request.path.startswith(('/api/', '/kb/api/', '/notes/api/', '/astro/api/')):
+    if request.path.startswith(('/api/', '/kb/api/', '/notes/api/', '/astro/api/', '/edu/api/')):
         return jsonify({'ok': False, 'error': getattr(e, 'description', '') or e.name}), e.code
     return render_template('error.html', code=getattr(e, 'code', 400),
                            message=getattr(e, 'description', '') or e.name), e.code
@@ -419,7 +399,7 @@ def _http_error(e):
 def _internal_error(e):
     db.session.rollback()
     logger.error('Internal error: %s %s -> %s', request.method, request.path, e)
-    if request.path.startswith(('/api/', '/kb/api/', '/notes/api/', '/astro/api/')):
+    if request.path.startswith(('/api/', '/kb/api/', '/notes/api/', '/astro/api/', '/edu/api/')):
         return jsonify({'ok': False, 'error': '服务器内部错误'}), 500
     return render_template('error.html', code=500, message='服务器内部错误'), 500
 
@@ -501,7 +481,7 @@ def edu_static_version(_placeholder=None):
     except OSError:
         pass
     for tpl in ('edu_home.html', 'edu_learn.html', 'edu_wish.html',
-                'edu_badges.html', 'edu_stats.html', 'education.html'):
+                'edu_badges.html'):
         tp = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates', tpl)
         try:
             latest = max(latest, int(os.path.getmtime(tp)))
@@ -875,12 +855,6 @@ def init_db():
             admin.set_password('Bright@wangzhan')
             db.session.add(admin)
             db.session.commit()
-        # 体验客户只读账号: 始终保证存在(role='guest', 仅可查看不可写)
-        if not User.query.filter_by(username='guest').first():
-            guest = User(username='guest', name='体验客户', role='guest')
-            guest.set_password('guest123')
-            db.session.add(guest)
-            db.session.commit()
         try:
             seed_demo_data(force=fresh)
         except IntegrityError:
@@ -970,8 +944,6 @@ def seed_demo_data(force=False):
         db.session.flush()
         if td.get('assign') == 'all':
             target_users = users
-        elif td.get('assign') == 'guest':
-            target_users = []
         elif td.get('assign'):
             target_users = [u for u in users if u.username == td['assign']]
         else:

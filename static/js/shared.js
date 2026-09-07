@@ -95,23 +95,13 @@ window.eduKids = (function () {
 
 // ============ 教育数据 <-> 后端数据库 双向同步桥 ============
 // 教育模式使用独立后端数据库(edu.db)，本模块把 localStorage 缓存镜像到后端；
-// 后端为权威来源，本地为缓存/离线兜底。未登录按匿名 ID 归属，已登录按账号归属。
+// 后端为权威来源，本地为缓存/离线兜底。教育仅支持已登录账号，数据按账号归属。
 window.eduSync = (function () {
   var pushTimer = null;
-  function anonId() {
-    var k = 'edu_anon_id';
-    var v = null;
-    try { v = localStorage.getItem(k); } catch (e) {}
-    if (!v) {
-      v = 'a' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
-      try { localStorage.setItem(k, v); } catch (e) {}
-    }
-    return v;
-  }
   function api(method, url, body) {
     return fetch('/edu/api' + url, {
       method: method,
-      headers: { 'Content-Type': 'application/json', 'X-Edu-Anon': anonId() },
+      headers: { 'Content-Type': 'application/json' },
       body: body ? JSON.stringify(body) : undefined
     }).then(function (r) { return r.json().catch(function () { return {}; }); })
       .catch(function () { return {}; });
@@ -210,6 +200,18 @@ window.eduSync = (function () {
   // 与后端 _merge_blob 同一套保守归并规则: stars 取较大(运行合计会重复累加同一段学习
   // 历史, 只增不减才幂等、不伪造星星), 数组按 JSON 去重并集, 对象键合并(先到先得,
   // course 必须在列, 否则课程进度与里程碑发放标记会丢).
+  // 与后端 _merge_blob 的 json.dumps(sort_keys=True, separators=(',',':')) 对齐的规范化指纹,
+  // 保证两端「数组去重并集」判定一致(键序不同的同一对象视为重复项)。
+  function canon(v) {
+    if (v === null || typeof v !== 'object') return JSON.stringify(v);
+    if (Array.isArray(v)) return '[' + v.map(canon).join(',') + ']';
+    var keys = Object.keys(v).sort();
+    var parts = [];
+    for (var i = 0; i < keys.length; i++) {
+      parts.push(JSON.stringify(keys[i]) + ':' + canon(v[keys[i]]));
+    }
+    return '{' + parts.join(',') + '}';
+  }
   function mergeBlob(base, ext) {
     base = base && typeof base === 'object' && !Array.isArray(base) ? JSON.parse(JSON.stringify(base)) : {};
     if (!ext || typeof ext !== 'object' || Array.isArray(ext)) return base;
@@ -219,10 +221,10 @@ window.eduSync = (function () {
       if (!Array.isArray(e)) return;
       var b = Array.isArray(base[key]) ? base[key] : (base[key] = []);
       var seen = {};
-      b.forEach(function (it) { try { seen[JSON.stringify(it)] = 1; } catch (e2) {} });
+      b.forEach(function (it) { try { seen[canon(it)] = 1; } catch (e2) {} });
       e.forEach(function (it) {
         var h;
-        try { h = JSON.stringify(it); } catch (e3) { h = null; }
+        try { h = canon(it); } catch (e3) { h = null; }
         if (h && !seen[h]) { seen[h] = 1; b.push(it); }
       });
     });
@@ -293,7 +295,7 @@ window.eduSync = (function () {
       if (!res || !res.ok) return { ok: false };
       var serverKids = res.kids || [];
       var local = window.eduKids.all();
-      // 若后端做了「匿名→账号」归并, 返回了 dbIdMap: 把本地 dbId 从匿名档案纠正到账号档案,
+      // 若后端做了「同名去重」归并, 返回了 dbIdMap: 把本地 dbId 从被合并档案纠正到保留档案,
       // 避免 stale dbId 在 next push 时被当作新宝贝重建出重复。
       var remap = res.dbIdMap || {};
       var remapKeys = Object.keys(remap);
@@ -432,7 +434,7 @@ window.eduSync = (function () {
     });
   }
   return {
-    anonId: anonId, api: api, pushKids: pushKids, pushKidsDebounced: pushKidsDebounced,
+    api: api, pushKids: pushKids, pushKidsDebounced: pushKidsDebounced,
     pushState: pushState, pushStars: pushStars, deleteKid: deleteKid, hydrate: hydrate, setOnState: setOnState,
     qbankPull: qbankPull, qbankEnsure: qbankEnsure, qbankLearn: qbankLearn
   };

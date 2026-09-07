@@ -430,7 +430,7 @@
     .kid-bar .kb-chip{flex-shrink:0;min-width:0;font-size:.8rem;padding:4px 10px;}
     .kb-back{width:44px;height:44px;font-size:.9rem;}
     .mode-toggle{flex:0 0 auto;}
-    .mode-select{font-size:.74rem;}
+    .mode-select{font-size:1rem;}
     .kb-stars{padding:2px 8px;font-size:.74rem;}
     .kb-stars .st{font-size:.85rem;}
     .kb-lv{font-size:.52rem;right:-5px;bottom:-5px;}
@@ -445,7 +445,7 @@
   .edu-page .edu-wrap{padding-bottom:80px;}
 
   /* ===== 首页：孩子卡片 ===== */
-  body.edu-page.authed{padding-top:0 !important;padding-bottom:0 !important;}
+  body.edu-page.authed{padding-top:0 !important;}
   .kid-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:4px;}
   @media (max-width:680px){ .kid-grid{grid-template-columns:1fr;} }
   .kid-card{background:var(--edu-surface-2);border:2px solid var(--edu-border);border-radius:22px;padding:16px;cursor:pointer;transition:.13s;}
@@ -1216,7 +1216,7 @@
   .hw-hello{font-size:1.5rem;font-weight:900;color:var(--edu-ink);}
   .hw-sub{font-size:.95rem;font-weight:700;color:var(--edu-muted);margin-top:2px;}
   .hw-mode{margin-left:auto;background:#fff8e6;border:1.5px solid #ffe3a3;border-radius:999px;padding:6px 12px;flex-shrink:0;}
-  .hw-mode .mode-select{border:none;background:transparent;font-size:.95rem;font-weight:900;color:var(--edu-sun);cursor:pointer;padding:0 2px;}
+  .hw-mode .mode-select{border:none;background:transparent;font-size:1rem;font-weight:900;color:var(--edu-sun);cursor:pointer;padding:0 2px;}
   .hw-mode .mode-select:focus{outline:none;}
   .hw-kids{display:flex;gap:8px;align-items:center;overflow-x:auto;width:100%;padding-top:10px;}
   .hw-kid{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:4px 12px;border:none;border-radius:999px;
@@ -1265,7 +1265,7 @@
     color:var(--edu-ink);font-size:1.05rem;cursor:pointer;transition:.12s;line-height:1;}
   .ht-icon:hover{border-color:var(--edu-primary);background:var(--edu-chip);}
   .ht-mode{margin-left:0;}
-  .ht-mode .mode-select{border:none;background:transparent;font-size:.9rem;font-weight:900;
+  .ht-mode .mode-select{border:none;background:transparent;font-size:1rem;font-weight:900;
     color:var(--edu-sun);cursor:pointer;padding:1px 2px;}
   .ht-mode .mode-select:focus{outline:none;}
 
@@ -1388,7 +1388,7 @@
     .ht-hello{font-size:1.02rem;}
     .ht-sub{font-size:.78rem;}
     .ht-chip{font-size:.74rem;padding:2px 8px;}
-    .ht-mode .mode-select{font-size:.86rem;}
+    .ht-mode .mode-select{font-size:1rem;}
     .ht-icon,.ht-kd-item,.ht-kd-add{min-width:48px;min-height:48px;}
     /* 手机: 收紧目标卡统计, 勋章仅显示前 2 枚避免换行过高 */
     .home-goal{padding:12px 14px 11px;border-radius:18px;}
@@ -1908,7 +1908,7 @@
     .home-top{flex-wrap:wrap;align-content:flex-start;}
     .ht-greet{flex:1 1 100%;}
     .ht-actions{flex-wrap:wrap;margin-left:0;row-gap:4px;flex-shrink:1;min-width:0;max-width:100%;}
-    .ht-mode .mode-select{font-size:.78rem;}
+    .ht-mode .mode-select{font-size:1rem;}
     .ht-chip{font-size:.74rem;padding:2px 8px;}
   }
 

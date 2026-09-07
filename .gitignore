@@ -6,5 +6,8 @@ backups/
 .DS_Store
 *.db
 .env
+.github/
+.pytest_cache/
+.vscode/
 
 deps_install.log

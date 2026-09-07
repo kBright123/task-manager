@@ -62,7 +62,7 @@
     });
     var dsec = Store.state.dailySecs || {};
     var slog = Store.state.starLog || [];
-    slog.forEach(function (s) { if (s && map[s.date]) map[s.date].stars += (s.s || 0); });
+    slog.forEach(function (s) { if (s && map[s.date]) map[s.date].stars += (s.s || s.delta || 0); });
     Object.keys(dsec).forEach(function (k) { if (map[k]) map[k].secs += (dsec[k] || 0); });
     return days;
   }
@@ -319,7 +319,7 @@
     window.eduKids.setActive(id);
     Store.loadAllState();
     renderDash();
-    if (window.eduKids.renderKidBar) window.eduKids.renderKidBar();
+    if (typeof window.renderKidBar === 'function') window.renderKidBar();
   };
 
   // ---- 渲染 ----
@@ -438,8 +438,6 @@
     el.classList.add('page-enter');
   }
 
-  window.renderStats = renderDash;
-  if (window.Edu.Stats) window.Edu.Stats.renderStats = renderDash;
   if (window.Edu.Stats) window.Edu.Stats.SUBJ_LABEL = SUBJ_LABEL;
 
   window.Edu.Dash.renderDash = renderDash;

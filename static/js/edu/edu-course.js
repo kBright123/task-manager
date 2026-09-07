@@ -882,7 +882,9 @@
     // 全屏遮罩为 position:fixed 铺满视口, 故视口尺寸即可代表可用尺寸.
     var inner = body.querySelector('.cm-snake-inner');
     var wrap = body.querySelector('.cm-snake');
-    var availW = window.innerWidth;
+    // 用地图容器的实际内容宽度而非 window.innerWidth: 全屏遮罩可能有内边距,
+    // 若按整窗宽设定滑动盒宽度会多出容器内容区, 造成约一两个滚动条/内边距像素的横向溢出.
+    var availW = (body && body.clientWidth) || window.innerWidth;
     var availH = window.innerHeight - 60;
     // 平板+桌面: 放大到「一屏约 5 个大关卡」, 其余左右滑动查看.
     // 目标: 每屏显示约 5 个节点间距(5*SNAKE_DX), 同时纵向不超高 SNAKE_H.

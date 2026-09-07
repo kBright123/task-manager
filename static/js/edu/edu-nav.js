@@ -95,14 +95,14 @@
   function renderKidBar() {
     if (Kids && Kids.renderKidBar) return Kids.renderKidBar();
   }
-  function renderStars() { var fn = window.renderStars; if (fn) fn(); }
+  function renderStars() { var fn = (window.Edu.Parent && window.Edu.Parent.renderStars); if (fn) fn(); }
   function renderStarBar() {
     if (Kids && Kids.renderStarBar) return Kids.renderStarBar();
   }
   function renderHome() { var fn = (window.Edu.Home && window.Edu.Home.renderHome); if (fn) fn(); }
   function renderWish() { var fn = (window.Edu.Wish && window.Edu.Wish.renderWish); if (fn) fn(); }
   function renderBadges() { var fn = (window.Edu.Badges && window.Edu.Badges.renderBadges); if (fn) fn(); }
-  function renderStats() { var fn = (window.Edu.Stats && window.Edu.Stats.renderStats) || window.renderStats; if (fn) fn(); }
+  function renderStats() { var fn = (window.Edu.Dash && window.Edu.Dash.renderDash) || (window.Edu.Stats && window.Edu.Stats.renderStats); if (fn) fn(); }
   function renderMine() { var fn = (window.Edu.Mine && window.Edu.Mine.renderMine) || window.renderMine; if (fn) fn(); }
 
   var PAGE_TITLES = { home: '', learn: '学习', stats: '学习报告', badges: '闯关赢星星', mine: '我的宝贝', wish: '星愿' };

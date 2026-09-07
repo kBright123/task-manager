@@ -231,13 +231,6 @@
     var btn = document.getElementById('soundToggle');
     if (btn) btn.textContent = speakOn() ? '🔊' : '🔇';
   }
-  window.toggleSpeak = function () {
-    var on = !speakOn();
-    try { save(SPEAK_ON_KEY, on); } catch (e) {}
-    setSpeakIcon();
-    window.Edu.Speech.speak('声音已开启');
-    return on;
-  };
   window.playSpeak = function (text) {
     if (!text) return;
     if (!speakOn()) { try { save(SPEAK_ON_KEY, true); } catch (e) {} setSpeakIcon(); }
@@ -305,19 +298,7 @@
     wbKeyFor: wbKeyFor
   };
 
-  window.state = state;
-  window.wb = wb;
-  window.Edu.state = state;
-  window.loadAllState = loadAllState;
-  window.curSettings = curSettings;
-  window.saveState = saveState;
-  window.saveWb = saveWb;
-  window.usageForToday = usageForToday;
-  window.minsUsed = minsUsed;
-  window.checkLimit = checkLimit;
   window.todayStr = todayStr;
   window.esc = esc;
   window.anim = anim;
-  window.stateLevel = stateLevel;
-  window.setLevel = setLevel;
 })();

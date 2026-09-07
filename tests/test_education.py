@@ -22,12 +22,6 @@ def _edu(client, method, url, **kw):
     return r
 
 
-def _anon(client):
-    """impersonate 免登录访问(匿名 ID)."""
-    from app import app
-    return app.test_client()
-
-
 def test_edu_page_and_external_script(client):
     r = client.get('/edu/')
     assert r.status_code == 200
@@ -112,94 +106,6 @@ def test_kids_upsert_and_bulk_remove(client):
     assert all(k['id'] != pid for k in kids2)
 
 
-def _anon_client():
-    from app import app
-    return app.test_client()
-
-
-def test_anon_adopt_no_account_kid(client):
-    """已登录时, 请求带 X-Edu-Anon 会把当前匿名归属的宝贝整档归并入账号:
-    bootstrap 返回 adopted=true 与 dbIdMap, 宝贝及其星星/记录不再丢失."""
-    anon = 'adopt_A_' + str(id(client))
-    NAME = '星宝' + str(id(client))  # 每次运行唯一, 账号端必然没有, 保证走「整档迁移」分支
-    anon_c = _anon_client()
-    h = {'X-Edu-Anon': anon}
-    # 匿名端创建宝贝 + 数据
-    r = anon_c.post('/edu/api/kids', json={
-        'kids': [{'clientId': 'cA', 'name': NAME, 'birthYear': 2018, 'gender': 'male'}],
-        'removedIds': [],
-    }, headers=h)
-    pid = r.json['kids'][0]['id']
-    anon_c.post(f'/edu/api/kids/{pid}/state', json={
-        'dkey': 'state',
-        'data': {'stars': 40, 'records': [{'subj': 'math'}], 'wrong': [{'prompt': 'x'}], 'wishLog': [], 'redeemed': []},
-    }, headers=h)
-
-    # 账号端(用户1)用同一个匿名 header 调用 bootstrap -> 归并
-    res = client.post('/edu/api/bootstrap', headers=h).json
-    assert res.get('adopted') is True
-    assert any(k['name'] == NAME for k in res['kids'])
-    assert str(pid) in res['dbIdMap']
-    # dbId 保持不变(整档迁移, id 即账号端 id)
-    assert res['dbIdMap'][str(pid)] == str(pid)
-    # 数据已并入账号端
-    got = client.get(f'/edu/api/kids/{pid}/state').json['data']
-    assert got.get('stars') == 40
-    assert got.get('records') == [{'subj': 'math'}]
-    assert got.get('wrong') == [{'prompt': 'x'}]
-
-    # 再次 bootstrap 应为空操作(幂等)
-    res2 = client.post('/edu/api/bootstrap', headers=h).json
-    assert res2.get('adopted') is False
-    assert res2['dbIdMap'] == {}
-
-    # 清理: 删除并入账号的宝贝, 避免污染共享 edu.db 影响后续用例(如 kids count 断言)
-    client.post('/edu/api/kids', json={'kids': [], 'removedIds': [pid]})
-
-
-def test_anon_adopt_merge_matching_kid(client):
-    """已登录账号已有同名宝贝时, 归并应合并而非新建: 星星求和、数组去重并集、
-    宝贝不重复, dbIdMap 把匿名 id 映射到账号 id."""
-    anon = 'adopt_B_' + str(id(client))
-    h = {'X-Edu-Anon': anon}
-    NAME = '朵' + str(id(client))  # 用独立/唯一名字, 避免共享 edu.db 跨次运行受其他同名词干扰
-    # 账号端(用户1)先有一个「朵朵」
-    pid_acc = client.post('/edu/api/kids', json={
-        'kids': [{'clientId': 'cA', 'name': NAME, 'birthYear': 2018, 'gender': 'female'}],
-        'removedIds': [],
-    }).json['kids'][0]['id']
-    client.post(f'/edu/api/kids/{pid_acc}/state', json={
-        'dkey': 'state',
-        'data': {'stars': 10, 'records': [{'subj': 'zh'}], 'wishLog': [], 'redeemed': []},
-    })
-
-    # 匿名端也创建同名「朵朵」并有各自数据
-    anon_c = _anon_client()
-    r = anon_c.post('/edu/api/kids', json={
-        'kids': [{'clientId': 'cA', 'name': NAME, 'birthYear': 2018, 'gender': 'female'}],
-        'removedIds': [],
-    }, headers=h)
-    pid_anon = r.json['kids'][0]['id']
-    anon_c.post(f'/edu/api/kids/{pid_anon}/state', json={
-        'dkey': 'state',
-        'data': {'stars': 5, 'records': [{'subj': 'math'}], 'wishLog': [], 'redeemed': []},
-    }, headers=h)
-
-    res = client.post('/edu/api/bootstrap', headers=h).json
-    assert res.get('adopted') is True
-    # 宝贝不重复(仍只有这一个账号宝贝)
-    assert len([k for k in res['kids'] if k['name'] == NAME]) == 1
-    # dbIdMap: 匿名 pid -> 账号 pid(不同 id, 因为归并进账号已有的)
-    assert res['dbIdMap'][str(pid_anon)] == str(pid_acc)
-    # 合并后数据: 星星取较大(累计余额只增不减, 防重复累加同一段历史), records 并集去重(zh + math 两条)
-    merged = client.get(f'/edu/api/kids/{pid_acc}/state').json['data']
-    assert merged.get('stars') == 10
-    assert {r_['subj'] for r_ in merged.get('records', [])} == {'zh', 'math'}
-
-    # 清理: 删除账号端宝贝, 避免污染共享 edu.db
-    client.post('/edu/api/kids', json={'kids': [], 'removedIds': [pid_acc]})
-
-
 def test_account_dedup_same_name_kids(client):
     """同一账号下多个同名/同年/同性别宝贝: bootstrap 时合并为一个, 数据并入保留档案,
     dbIdMap 把重复档案 id 映射到保留档案 id(供前端纠正本地 stale dbId)."""
@@ -263,15 +169,44 @@ def test_qbank_ensure_dedup_pull_learn(client):
 
     # 清理: 删除测试宝贝, 避免共享 edu.db 残留影响其他用例
     client.post('/edu/api/kids', json={'kids': [], 'removedIds': [pid]})
+    # 清理 qbank 测试题(limit 有 50 上限, 若不删, 多次运行残留会堆满池导致本用例拉不回自己)
+    _delete_qbank(client, probe)
 
 
-def test_edu_csrf_exempt(client):
-    """/edu/api/** 应不被 CSRF 阻拦(免登录匿名也能写)."""
+def _delete_qbank(client, probe):
+    """直接删除某 owner 下指定 prompt 的题库条目(测试自清理)."""
+    import sqlite3
+    from app import app
+    db = os.path.join(app.instance_path, 'edu.db')
+    con = sqlite3.connect(db)
+    try:
+        con.execute("DELETE FROM edu_qbank WHERE prompt=?", (probe,))
+        con.commit()
+    finally:
+        con.close()
+
+
+def test_edu_csrf_applies(client):
+    """/edu/api/** 纳入全站 CSRF 保护: 已登录且带 token 可写, 缺 token 被拒."""
+    probe = BK + 'csrf'
+    # 带 token(客户端已自动注入) 可写
     r = client.post('/edu/api/qbank/ensure', json={
         'subj': 'en', 'type': 'word', 'difficulty': 3,
-        'items': [{'prompt': BK + 'csrf', 'options': [{'v': 'a', 'label': 'a'}], 'correct': 'a', 'note': ''}],
+        'items': [{'prompt': probe, 'options': [{'v': 'a', 'label': 'a'}], 'correct': 'a', 'note': ''}],
     })
     assert r.status_code == 200 and r.json.get('ok')
+    # 裸客户端(已登录但未注入 token 头): 应 CSRF 校验失败
+    from app import app
+    raw = app.test_client()
+    with raw.session_transaction() as s:
+        s['_user_id'] = '1'
+        s['_fresh'] = True
+        s['_csrf_token'] = 'test-csrf'
+    r2 = raw.post('/edu/api/qbank/ensure', json={
+        'subj': 'en', 'type': 'word', 'difficulty': 3,
+        'items': [{'prompt': probe + '_x', 'options': [{'v': 'b', 'label': 'b'}], 'correct': 'b', 'note': ''}],
+    })
+    assert r2.status_code == 400
 
 
 def test_reset_all(client):
@@ -417,7 +352,6 @@ _MODULE_FILES = [
     'edu-course.js',
     'edu-stats.js',
     'edu-dash.js',
-    'edu-backup.js',
     'edu-settings.js',
     'edu-fab.js',
     'edu-limit.js',
@@ -2203,36 +2137,6 @@ def test_dash_switch_kid_autosave():
         assert probe in out, out
 
 
-def test_backup_anonymized_and_restore():
-    """数据安全: 备份 JSON 不含姓名/头像等识别字段; 导入后按宝贝 id 写回并恢复状态."""
-    out = _harness(r'''
-(async()=>{
-  const t=new Date();
-  function kd(d){const p=x=>('0'+x).slice(-2);return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());}
-  store['edu_record_v1_kk']=JSON.stringify({stars:12,records:[{t:t.getTime(),date:kd(t),subj:'zh',type:'poem',prompt:'a',correct:'x',got:'x',ok:true}],wrong:[],wishes:[],settings:{sound:true,eyeMin:20},maxCombo:0,submits:1,badges:{},points:0,level:{}});
-  store['edu_workbench_v1_kk']=JSON.stringify({mode:'workbench',subj:'zh'});
-  store['edu_record_v1_kk2']=JSON.stringify({stars:5,records:[],wrong:[],wishes:[],settings:{},maxCombo:0,submits:0,badges:{},points:0,level:{}});
-  global.eduKids={active:()=>({id:'kk',name:'小米',gender:'male'}),all:()=>[{id:'kk',name:'小米',gender:'male'},{id:'kk2',name:'豆豆',gender:'female'}],tierOf:()=>'workbench',ageOf:()=>6,tierLabel:()=>'',genderIcon:()=>'?',remove(){},setActive(){},hasAny:()=>1,update(){},add(){}};
-  const bk=W.Edu.Backup.buildBackup();
-  const txt=JSON.stringify(bk);
-  console.log('BK_KIDS='+(bk.kids.length===2?'1':'0'));
-  console.log('BK_NO_NAME='+((txt.indexOf('小米')<0&&txt.indexOf('豆豆')<0)&&!(txt.indexOf('"name"')>=0)?'1':'0'));
-  console.log('BK_NO_AVATAR='+(txt.indexOf('avatar')<0?'1':'0'));
-  console.log('BK_STARS='+(bk.kids[0].state.stars===12?'1':'0'));
-  delete store['edu_record_v1_kk']; delete store['edu_workbench_v1_kk']; delete store['edu_record_v1_kk2'];
-  const ok=W.Edu.Backup.restoreJson(bk);
-  const s=JSON.parse(store['edu_record_v1_kk']||'{}');
-  const s2=JSON.parse(store['edu_record_v1_kk2']||'{}');
-  console.log('RESTORED='+(ok&&s.stars===12&&s2.stars===5?'1':'0'));
-  console.log('RESTORED_WB='+(store['edu_workbench_v1_kk']&&JSON.parse(store['edu_workbench_v1_kk']).subj==='zh'?'1':'0'));
-  console.log('STATE_ACTIVE='+(W.Edu.Store.state.stars===12?'1':'0'));
-})();
-''')
-    for probe in ('BK_KIDS=1','BK_NO_NAME=1','BK_NO_AVATAR=1','BK_STARS=1',
-                  'RESTORED=1','RESTORED_WB=1','STATE_ACTIVE=1'):
-        assert probe in out, out
-
-
 def test_settings_confirm_and_reset_gate():
     """安全二次确认: 删除需输入匹配文字才执行, 重置需勾选「我已知晓」."""
     out = _harness(r'''
@@ -2554,45 +2458,6 @@ if __name__ == '__main__':
             except Exception:
                 print(f'FAIL test_education.{name}')
                 raise
-
-
-def test_usage_extra_survives_anon_adopt_merge(client):
-    """学习守护解锁次数(usageExtra)在 匿名→账号 归并时不得丢失:
-    答对解锁(usageExtra=1)后归并, 合并弹必须保留当天解锁次数, 否则刷新后又会弹「到时间」."""
-    anon = 'adopt_lu_' + str(id(client))
-    h = {'X-Edu-Anon': anon}
-    import datetime
-    today = datetime.date.today().strftime('%Y-%m-%d')
-    NAME = '学守' + str(id(client))
-    pid_acc = client.post('/edu/api/kids', json={
-        'kids': [{'clientId': 'cA', 'name': NAME, 'birthYear': 2018, 'gender': 'female'}],
-        'removedIds': [],
-    }).json['kids'][0]['id']
-    client.post(f'/edu/api/kids/{pid_acc}/state', json={
-        'dkey': 'state',
-        'data': {'stars': 3, 'records': [], 'usage': {today: {'secs': 1800, 'count': 60, 'n': 60}}},
-    })
-
-    anon_c = _anon_client()
-    r = anon_c.post('/edu/api/kids', json={
-        'kids': [{'clientId': 'cA', 'name': NAME, 'birthYear': 2018, 'gender': 'female'}],
-        'removedIds': [],
-    }, headers=h)
-    pid_anon = r.json['kids'][0]['id']
-    # 匿名端答对解锁: usageExtra[today]=1, 又学了 900 秒
-    anon_c.post(f'/edu/api/kids/{pid_anon}/state', json={
-        'dkey': 'state',
-        'data': {'stars': 0, 'records': [], 'usage': {today: {'secs': 2700, 'count': 90, 'n': 90}},
-                 'usageExtra': {today: 1}},
-    }, headers=h)
-
-    res = client.post('/edu/api/bootstrap', headers=h).json
-    assert res.get('adopted') is True
-    got = client.get(f'/edu/api/kids/{pid_acc}/state').json['data']
-    # 解锁次数保留(取较大), 当天空时不丢; usage 按天求和
-    assert got.get('usageExtra', {}).get(today) == 1, got
-    assert got['usage'][today]['secs'] == 4500, got['usage']
-    client.post('/edu/api/kids', json={'kids': [], 'removedIds': [pid_acc]})
 
 
 def test_hydrate_force_preserves_usage_extra():

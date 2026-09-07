@@ -372,18 +372,6 @@ def logout():
     return redirect(url_for('login'))
 
 
-@app.route('/guest/login')
-def guest_login():
-    """体验客户一键登录: 免密登录只读的 guest 账号(仅可查看,不可写)。"""
-    user = User.query.filter_by(username='guest', role='guest').first()
-    if not user or user.is_disabled or user.status != 'approved':
-        flash('体验账号不可用，请稍后再试', 'warning')
-        return redirect(url_for('login'))
-    login_user(user)
-    session.permanent = True
-    return redirect(url_for('index'))
-
-
 @app.route('/profile', methods=['GET'])
 @login_required
 def profile():
@@ -470,10 +458,6 @@ def api_token():
         log_operation('api_token_fail', username, '账号已禁用,拒绝发放令牌')
         db.session.commit()
         return jsonify({'ok': False, 'error': '账号已被禁用'}), 403
-    if user.role == 'guest':
-        log_operation('api_token_fail', username, '体验客户账号拒绝发放令牌')
-        db.session.commit()
-        return jsonify({'ok': False, 'error': '体验客户账号不可获取 API 令牌'}), 403
     user.failed_login_count = 0
     user.locked_until = None
     if not user.api_token:

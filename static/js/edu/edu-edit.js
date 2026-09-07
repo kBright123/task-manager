@@ -36,9 +36,9 @@
     var name = document.getElementById('editNameInput').value.trim();
     var year = parseInt(document.getElementById('editYearInput').value, 10);
     if (!name || !year) { Speech.toast('请填写完整'); return; }
-    var data = { kids: [{ dbId: editKidId, name: name, birthYear: year, gender: (k && k.gender) || 'male', avatar: editKidAva }], removedIds: [] };
     var kids = window.eduKids ? window.eduKids.list() : [];
     var k = kids.find(function(x){ return x.id === editKidId; });
+    var data = { kids: [{ dbId: editKidId, name: name, birthYear: year, gender: (k && k.gender) || 'male', avatar: editKidAva }], removedIds: [] };
     fetch('/edu/api/kids', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) })
       .then(function(r){ return r.json(); })
       .then(function(res){
@@ -57,6 +57,7 @@
       return '<div class="kid-mgr-item" style="display:flex;align-items:center;gap:10px;padding:10px;border-bottom:1px solid var(--edu-border-2);">'+
         '<span style="font-size:1.5rem;">'+(k.avatar||'🧒')+'</span>'+
         '<div class="kid-mgr-info" style="flex:1;"><div>'+k.name+'</div><div style="font-size:.8rem;color:var(--edu-muted);">'+k.birthYear+'年生 · '+(k.gender==='male'?'男':'女')+'</div></div>'+
+        '<button type="button" class="btn-soft" style="font-size:.75rem;padding:4px 10px;" onclick="window.homeEditKid(\''+k.id+'\')">编辑</button>'+
         '<button type="button" class="btn-soft" style="font-size:.75rem;padding:4px 10px;" onclick="window.Edu.KidsMgr.mgrDeleteKid(\''+k.id+'\')">删除</button>'+
         '</div>';
     }).join('');

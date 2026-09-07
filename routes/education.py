@@ -18,7 +18,7 @@
 """教育娱乐模式：前端学习乐园 + 独立后端数据库。
 
 定位: 教育模式使用自己独立的数据库(edu.db), 不依赖也不写工作模式数据库,
-支持免登录访问(未登录时按浏览器生成的匿名 ID 归属数据)。
+仅支持已登录账号使用(数据按账号归属 u<id>)。
 
 数据:
 - 孩子档案(名字/出生年份/性别)
@@ -31,7 +31,6 @@
 """
 import gzip
 import hashlib
-import io
 import json
 import logging
 import os
@@ -40,10 +39,14 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 
-from flask import Blueprint, jsonify, request, render_template, current_app, abort, send_file
+from contextlib import contextmanager
+
+from flask import (Blueprint, jsonify, request, render_template, current_app,
+                   abort, send_file, redirect, url_for)
 from flask_login import current_user
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, text
-from sqlalchemy.orm import sessionmaker, scoped_session, declarative_base
+from sqlalchemy import (create_engine, Column, Integer, String, Text, DateTime,
+                        text, event)
+from sqlalchemy.orm import sessionmaker, declarative_base
 
 logger = logging.getLogger(__name__)
 
@@ -99,16 +102,46 @@ def _db_path():
     return os.path.join(current_app.instance_path, 'edu.db')
 
 
-def _get_session():
+def _sqlite_pragmas(dbapi_conn, _rec):
+    """edu.db 并发加固: 与主库一致的 WAL + busy_timeout."""
+    try:
+        cur = dbapi_conn.cursor()
+        cur.execute('PRAGMA journal_mode=WAL')
+        cur.execute('PRAGMA busy_timeout=5000')
+        cur.close()
+    except Exception:
+        pass
+
+
+def _session_factory():
     global _engine, _Session
     with _engine_lock:
         if _engine is None:
             path = _db_path()
             _engine = create_engine('sqlite:///' + path, echo=False)
+            event.listen(_engine, 'connect', _sqlite_pragmas)
             Base.metadata.create_all(_engine)
             _migrate(_engine)
-            _Session = scoped_session(sessionmaker(bind=_engine))
-    return _Session()
+            _Session = sessionmaker(bind=_engine)
+    return _Session
+
+
+@contextmanager
+def _session_scope():
+    """请求级会话上下文: 异常回滚, 结束时保证关闭, 不残留跨请求状态."""
+    s = _session_factory()()
+    try:
+        yield s
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def _get_session():
+    """一次性会话(旧调用兼容, 请优先改用 _session_scope() 上下文)."""
+    return _session_factory()()
 
 
 def _migrate(engine):
@@ -123,12 +156,34 @@ def _migrate(engine):
         conn.commit()
 
 
+@education_bp.before_request
+def _edu_require_login():
+    """教育乐园仅支持已登录账号使用(不再支持匿名/游客)."""
+    if current_user and getattr(current_user, 'is_authenticated', False):
+        return None
+    if request.path.startswith('/edu/api/'):
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+    return redirect(url_for('login', next=request.path or None))
+
+
 def _owner_id():
-    """数据归属: 已登录按账号 id, 免登录用前端匿名 ID."""
+    """数据归属: 已登录按账号 id 归属(匿名已移除, 未登录由 before_request 拦截)."""
     if current_user and getattr(current_user, 'is_authenticated', False):
         return 'u' + str(current_user.id)
-    anon = (request.headers.get('X-Edu-Anon') or request.args.get('anon') or '').strip()
-    return 'anon_' + (anon or 'unknown')
+    abort(401)
+
+
+def _kid_owned(sess, owner, pid):
+    """校验孩子档案归属: 返回 True 表示该 pid 属于当前 owner, 可安全操作."""
+    return sess.query(EduProfile).filter_by(id=pid, owner=owner).first() is not None
+
+
+def _safe_int(value, default):
+    """安全整数解析(供 user 输入的 diff/limit/birthYear 等)."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _drop_profile_data(sess, owner, pid):
@@ -138,7 +193,7 @@ def _drop_profile_data(sess, owner, pid):
 
 
 def _merge_blob(base, ext):
-    """把匿名端的 state/workbench JSON 弹归并进账号端.
+    """把另一档案的 state/workbench JSON 弹归并进主档案(用于同账号下同名档案去重).
 
     规则(保守、不丢数据):
     - stars 取较大而非求和: stars 是各设备上的「累计余额/累计获得」, 同一段学习历史
@@ -169,14 +224,14 @@ def _merge_blob(base, ext):
             if it is None:
                 continue
             try:
-                seen.add(json.dumps(it, ensure_ascii=False, sort_keys=True))
+                seen.add(json.dumps(it, ensure_ascii=False, sort_keys=True, separators=(',', ':')))
             except Exception:
                 pass
         for it in e:
             if it is None:
                 continue
             try:
-                h = json.dumps(it, ensure_ascii=False, sort_keys=True)
+                h = json.dumps(it, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
             except Exception:
                 h = None
             if h is not None and h in seen:
@@ -271,97 +326,6 @@ def _merge_star_ledger(base, ext):
     base['log'] = log
     base['total'] = total
     return base
-
-
-def _merge_profile_data(sess, anon_owner, anon_pid, account, acc_pid):
-    """把匿名端某宝贝的 data 弹并入账号端对应宝贝(优先合并同名, 无则整档迁移)."""
-    rows = sess.query(EduData).filter_by(owner=anon_owner, profile_id=anon_pid).all()
-    for r in rows:
-        acc_row = sess.query(EduData).filter_by(
-            owner=account, profile_id=acc_pid, dkey=r.dkey).first()
-        if acc_row:
-            # stars 账本按事件去重合并, 其余弹按通用归并规则
-            if r.dkey == 'stars':
-                try:
-                    base = json.loads(acc_row.payload or '{}')
-                except Exception:
-                    base = {}
-                try:
-                    ext = json.loads(r.payload or '{}')
-                except Exception:
-                    ext = {}
-                merged = _merge_star_ledger(base, ext)
-                acc_row.payload = json.dumps(merged, ensure_ascii=False)
-                acc_row.updated_at = datetime.utcnow()
-                sess.delete(r)
-                continue
-            try:
-                base = json.loads(acc_row.payload or '{}')
-            except Exception:
-                base = {}
-            try:
-                ext = json.loads(r.payload or '{}')
-            except Exception:
-                ext = {}
-            merged = _merge_blob(base, ext)
-            acc_row.payload = json.dumps(merged, ensure_ascii=False)
-            acc_row.updated_at = datetime.utcnow()
-            sess.delete(r)
-        else:
-            r.owner = account
-            r.profile_id = acc_pid
-            sess.add(r)
-
-
-def _adopt_anonymous(sess):
-    """已登录时, 把当前浏览器匿名 owner(X-Edu-Anon) 的宝贝与数据归并进账号(u<id>).
-
-    幂等: 匿名档案被吸收后, 再调用即为空操作。
-    返回 (adopted: bool, dbIdMap: dict[str,str] 匿名profile_id -> 账号profile_id)。
-    前端据此在本地把 dbId 纠正到账号端, 避免 stale dbId 产生重复宝贝。
-    """
-    if not (current_user and getattr(current_user, 'is_authenticated', False)):
-        return False, {}
-    if getattr(current_user, 'role', '') == 'guest':
-        return False, {}
-    anon = (request.headers.get('X-Edu-Anon') or '').strip()
-    if not anon or anon in ('unknown', ''):
-        return False, {}
-    anon_owner = 'anon_' + anon
-    account = _owner_id()  # u<id> (已登录)
-    if anon_owner == account:
-        return False, {}
-    anon_profiles = sess.query(EduProfile).filter_by(owner=anon_owner).all()
-    if not anon_profiles:
-        return False, {}
-    account_profiles = sess.query(EduProfile).filter_by(owner=account).all()
-    db_id_map = {}
-    adopted = False
-    for ap in list(anon_profiles):
-        match = None
-        for acc in account_profiles:
-            if (acc.name == ap.name and acc.birth_year == ap.birth_year
-                    and acc.gender == ap.gender):
-                match = acc
-                break
-        if match is not None:
-            _merge_profile_data(sess, anon_owner, ap.id, account, match.id)
-            sess.delete(ap)
-            db_id_map[str(ap.id)] = str(match.id)
-        else:
-            ap.owner = account
-            sess.add(ap)
-            for r in sess.query(EduData).filter_by(owner=anon_owner, profile_id=ap.id).all():
-                r.owner = account
-                sess.add(r)
-            db_id_map[str(ap.id)] = str(ap.id)
-        adopted = True
-    if adopted:
-        for q in sess.query(EduQBank).filter_by(owner=anon_owner).all():
-            q.owner = account
-            sess.add(q)
-    sess.commit()
-    return adopted, db_id_map
 
 
 def _dedup_profiles_in_owner(sess, owner):
@@ -573,7 +537,7 @@ def tts():
     resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
     return resp
 
-# ---- 首屏 JS 打包: 将 29 个依赖有序模块合并为一个请求 ----
+# ---- 首屏 JS 打包: 将 33 个依赖有序模块合并为一个请求 ----
 # 手机端逐个串行请求这些模块会在移动 RTT 下累加数秒延迟; 合包后一次请求即可,
 # 配合 mtime 版本号(gzip + 不可变缓存)兼顾更新与速度。
 _EDU_JS_MODULES = [
@@ -631,28 +595,22 @@ def edu_bundle():
 
 @education_bp.route('/api/bootstrap', methods=['GET', 'POST'])
 def bootstrap():
-    """返回当前归属下的孩子档案列表.
+    """返回当前归属下的孩子档案列表(教育仅支持已登录账号).
 
-    免登录: 前端需带 X-Edu-Anon(匿名ID); POST 时 body 可带前端本地孩子用于合并。
-    已登录: 若请求带 X-Edu-Anon, 先把该匿名归属的宝贝/数据一次性地归并进账号,
-    保证「同一种宝贝」在 IP 访问与域名访问(不同匿名)下最终收敛到同一账号。
+    前台调用方仅需 kids; dbIdMap 用于把本地 stale dbId 收敛到去重后的保留档案。
     """
-    sess = _get_session()
-    owner = _owner_id()
-    adopted, db_id_map = _adopt_anonymous(sess)
-    # 同一归属下同名宝贝(旧版收养/多端同步可能产生重复)合并, 并把纠正后的 id 映射
-    # 一并交给前端, 让本地 stale dbId 收敛到保留档案
-    dedup_map = _dedup_profiles_in_owner(sess, owner)
-    for k, v in dedup_map.items():
-        db_id_map.setdefault(k, v)
-    rows = sess.query(EduProfile).filter_by(owner=owner).order_by(EduProfile.sort).all()
-    kids = [dict(id=p.id, name=p.name, birthYear=p.birth_year, gender=p.gender,
-                 created=getattr(p, 'created_at', None).isoformat() if p.created_at else '')
-            for p in rows]
-    sess.close()
-    changed = adopted or bool(dedup_map)
-    return jsonify(ok=True, owner=owner, kids=kids, adopted=adopted,
-                   dbIdMap=db_id_map if changed else {})
+    with _session_scope() as sess:
+        owner = _owner_id()
+        # 同一归属下同名宝贝(旧版收养/多端同步可能产生重复)合并, 并把纠正后的 id 映射
+        # 一并交给前端, 让本地 stale dbId 收敛到保留档案
+        dedup_map = _dedup_profiles_in_owner(sess, owner)
+        rows = sess.query(EduProfile).filter_by(owner=owner).order_by(EduProfile.sort).all()
+        kids = [dict(id=p.id, name=p.name, birthYear=p.birth_year, gender=p.gender,
+                     created=getattr(p, 'created_at', None).isoformat() if p.created_at else '')
+                for p in rows]
+        changed = bool(dedup_map)
+        return jsonify(ok=True, owner=owner, kids=kids, adopted=False,
+                       dbIdMap=dedup_map if changed else {})
 
 
 @education_bp.route('/api/kids', methods=['POST'])
@@ -663,50 +621,47 @@ def save_kids():
     返回 { kids: [{id, clientId, name, birthYear, gender}] }
     """
     data = request.get_json(silent=True) or {}
-    sess = _get_session()
-    owner = _owner_id()
-    out = []
-    for i, k in enumerate(data.get('kids') or []):
-        name = (k.get('name') or '宝贝')[:40]
-        birth_year = int(k.get('birthYear') or 2018)
-        gender = (k.get('gender') or '')[:12]
-        pid = k.get('dbId')
-        p = None
-        if pid:
-            try:
-                pid = int(pid)
-            except (TypeError, ValueError):
-                pid = None
+    with _session_scope() as sess:
+        owner = _owner_id()
+        out = []
+        for i, k in enumerate(data.get('kids') or []):
+            name = (k.get('name') or '宝贝')[:40]
+            birth_year = _safe_int(k.get('birthYear'), 2018)
+            gender = (k.get('gender') or '')[:12]
+            pid = _safe_int(k.get('dbId'), 0) or None
+            p = None
             if pid:
                 p = sess.query(EduProfile).filter_by(id=pid, owner=owner).first()
-        if p:
-            p.name = name; p.birth_year = birth_year; p.gender = gender; p.sort = i
-        else:
-            p = EduProfile(owner=owner, name=name, birth_year=birth_year, gender=gender, sort=i)
-            sess.add(p)
-        sess.flush()
-        pid2 = p.id
-        out.append(dict(id=pid2, clientId=k.get('clientId'), name=p.name,
-                        birthYear=p.birth_year, gender=p.gender))
-    # 删除已移除的本地孩子(仅限归属内)
-    for rid in data.get('removedIds') or []:
-        try:
-            _drop_profile_data(sess, owner, int(rid))
-        except (TypeError, ValueError):
-            continue
-    sess.commit()
-    sess.close()
-    return jsonify(ok=True, owner=owner, kids=out)
+            if p:
+                p.name = name; p.birth_year = birth_year; p.gender = gender; p.sort = i
+            else:
+                p = EduProfile(owner=owner, name=name, birth_year=birth_year, gender=gender, sort=i)
+                sess.add(p)
+            sess.flush()
+            pid2 = p.id
+            out.append(dict(id=pid2, clientId=k.get('clientId'), name=p.name,
+                            birthYear=p.birth_year, gender=p.gender))
+        # 删除已移除的本地孩子(仅限归属内; 排除本批刚 upsert 的档案, 避免误删)
+        upserted = set(k['id'] for k in out)
+        for rid in data.get('removedIds') or []:
+            try:
+                rid = int(rid)
+            except (TypeError, ValueError):
+                continue
+            if rid in upserted:
+                continue
+            _drop_profile_data(sess, owner, rid)
+        sess.commit()
+        return jsonify(ok=True, owner=owner, kids=out)
 
 
 @education_bp.route('/api/kids/<int:pid>/delete', methods=['POST'])
 def delete_kid(pid):
-    sess = _get_session()
-    owner = _owner_id()
-    _drop_profile_data(sess, owner, pid)
-    sess.commit()
-    sess.close()
-    return jsonify(ok=True)
+    with _session_scope() as sess:
+        owner = _owner_id()
+        _drop_profile_data(sess, owner, pid)
+        sess.commit()
+        return jsonify(ok=True)
 
 
 def _merge_nodes(na, nb):
@@ -805,53 +760,52 @@ def kid_state(pid):
     GET ?dkey=state  -> 返回 {data: {...}}
     POST body {dkey:'state', data:{...}} -> 保存
     """
-    sess = _get_session()
     owner = _owner_id()
     dkey = (request.args.get('dkey') or request.values.get('dkey') or 'state')
-    if request.method == 'GET':
+    with _session_scope() as sess:
+        if request.method == 'GET':
+            row = sess.query(EduData).filter_by(owner=owner, profile_id=pid, dkey=dkey).first()
+            payload = json.loads(row.payload) if row and row.payload else {}
+            if dkey == 'state':
+                # 服务端以 stars 权威账本为准覆盖展示值: 各设备提交的加/扣星星事件
+                # 按 key 幂等去重后, 账本 total 才是真实合计, 避免跨设备/旧弹重复累加
+                srow = sess.query(EduData).filter_by(
+                    owner=owner, profile_id=pid, dkey='stars').first()
+                if srow and srow.payload:
+                    try:
+                        ledger = json.loads(srow.payload)
+                    except Exception:
+                        ledger = {}
+                    if isinstance(ledger, dict) and isinstance(ledger.get('total'), int):
+                        payload['stars'] = ledger['total']
+            return jsonify(ok=True, data=payload)
+        # POST
+        body = request.get_json(silent=True) or {}
+        payload = body.get('data') or {}
+        # 空弹不覆盖: 初始化空推({})不得清空两端已合并的成绩数据
+        if not isinstance(payload, dict) or len(payload) == 0:
+            return jsonify(ok=True, noop=True)
+        # 写入前校验档案归属, 拒绝把数据写到他人/不存在的孩子名下
+        if not _kid_owned(sess, owner, pid):
+            return jsonify(ok=False, error='孩子不存在或无权访问'), 404
         row = sess.query(EduData).filter_by(owner=owner, profile_id=pid, dkey=dkey).first()
-        payload = json.loads(row.payload) if row and row.payload else {}
-        if dkey == 'state':
-            # 服务端以 stars 权威账本为准覆盖展示值: 各设备提交的加/扣星星事件
-            # 按 key 幂等去重后, 账本 total 才是真实合计, 避免跨设备/旧弹重复累加
-            srow = sess.query(EduData).filter_by(
-                owner=owner, profile_id=pid, dkey='stars').first()
-            if srow and srow.payload:
-                try:
-                    ledger = json.loads(srow.payload)
-                except Exception:
-                    ledger = {}
-                if isinstance(ledger, dict) and isinstance(ledger.get('total'), int):
-                    payload['stars'] = ledger['total']
-        sess.close()
-        return jsonify(ok=True, data=payload)
-# POST
-    body = request.get_json(silent=True) or {}
-    payload = body.get('data') or {}
-    row = sess.query(EduData).filter_by(owner=owner, profile_id=pid, dkey=dkey).first()
-    # 空弹不覆盖: 初始化空推({})不得清空两端已合并的成绩数据
-    if not isinstance(payload, dict) or len(payload) == 0:
+        now = datetime.utcnow()
+        if row:
+            # stars/课程进度/里程碑发放标记: 只增不减, 其余字段以最新弹为准,
+            # 避免旧设备/旧数据覆盖把已挣星星吞掉、里程碑重复发星或关卡进度倒退
+            try:
+                cur = json.loads(row.payload or '{}')
+            except Exception:
+                cur = {}
+            payload = _guard_write_payload(cur, payload) if isinstance(cur, dict) else payload
+            row.payload = json.dumps(payload, ensure_ascii=False)
+            row.updated_at = now
+        else:
+            sess.add(EduData(owner=owner, profile_id=pid, dkey=dkey,
+                             payload=json.dumps(payload, ensure_ascii=False),
+                             created_at=now, updated_at=now))
         sess.commit()
-        sess.close()
-        return jsonify(ok=True, noop=True)
-    now = datetime.utcnow()
-    if row:
-        # stars/课程进度/里程碑发放标记: 只增不减, 其余字段以最新弹为准,
-        # 避免旧设备/旧数据覆盖把已挣星星吞掉、里程碑重复发星或关卡进度倒退
-        try:
-            cur = json.loads(row.payload or '{}')
-        except Exception:
-            cur = {}
-        payload = _guard_write_payload(cur, payload) if isinstance(cur, dict) else payload
-        row.payload = json.dumps(payload, ensure_ascii=False)
-        row.updated_at = now
-    else:
-        sess.add(EduData(owner=owner, profile_id=pid, dkey=dkey,
-                         payload=json.dumps(payload, ensure_ascii=False),
-                         created_at=now, updated_at=now))
-    sess.commit()
-    sess.close()
-    return jsonify(ok=True)
+        return jsonify(ok=True)
 
 
 @education_bp.route('/api/kids/<int:pid>/stars', methods=['POST'])
@@ -867,106 +821,105 @@ def kid_stars(pid):
     body = request.get_json(silent=True) or {}
     events = body.get('events')
     if not isinstance(events, list) or not events:
-        empty = _get_session()
-        empty.close()
         return jsonify(ok=True, noop=True)
-    sess = _get_session()
-    owner = _owner_id()
-    row = sess.query(EduData).filter_by(owner=owner, profile_id=pid, dkey='stars').first()
-    cur = {}
-    if row:
-        try:
-            cur = json.loads(row.payload or '{}')
-        except Exception:
-            cur = {}
-        if not isinstance(cur, dict):
-            cur = {}
-    if not isinstance(cur.get('seen'), dict):
-        cur['seen'] = {}
-    if not isinstance(cur.get('log'), list):
-        cur['log'] = []
-    now = datetime.utcnow()
-    # 老数据迁移(窗口期): 账本还没有真实事件时, base 事件刻画「旧版累计余额」.
-    # 期间若本端/另一设备晚同步的旧弹余额更高, base 只「取较大」补齐差额, 不重复;
-    # 一旦有真实加/扣星事件入账, 窗口关闭, 此后合计完全由事件驱动(权威不再变),
-    # 避免「先收事件、后写旧弹」或「多设备先后上传旧余额」被反复解析造成虚增.
-    has_real = False
-    for _ev in cur['log']:
-        if isinstance(_ev, dict) and _ev.get('key') not in ('base', '__base'):
-            has_real = True
-            break
-    if not has_real:
-        blob_stars = 0
-        st_row = sess.query(EduData).filter_by(owner=owner, profile_id=pid, dkey='state').first()
-        if st_row and st_row.payload:
+    with _session_scope() as sess:
+        owner = _owner_id()
+        # 写入前校验档案归属
+        if not _kid_owned(sess, owner, pid):
+            return jsonify(ok=False, error='孩子不存在或无权访问'), 404
+        row = sess.query(EduData).filter_by(owner=owner, profile_id=pid, dkey='stars').first()
+        cur = {}
+        if row:
             try:
-                blob_stars = int((json.loads(st_row.payload) or {}).get('stars') or 0)
-            except (TypeError, ValueError, AttributeError):
-                blob_stars = 0
-        base_ev = None
+                cur = json.loads(row.payload or '{}')
+            except Exception:
+                cur = {}
+            if not isinstance(cur, dict):
+                cur = {}
+        if not isinstance(cur.get('seen'), dict):
+            cur['seen'] = {}
+        if not isinstance(cur.get('log'), list):
+            cur['log'] = []
+        now = datetime.utcnow()
+        # 老数据迁移(窗口期): 账本还没有真实事件时, base 事件刻画「旧版累计余额」.
+        # 期间若本端/另一设备晚同步的旧弹余额更高, base 只「取较大」补齐差额, 不重复;
+        # 一旦有真实加/扣星事件入账, 窗口关闭, 此后合计完全由事件驱动(权威不再变),
+        # 避免「先收事件、后写旧弹」或「多设备先后上传旧余额」被反复解析造成虚增.
+        has_real = False
         for _ev in cur['log']:
-            if isinstance(_ev, dict) and _ev.get('key') == 'base':
-                base_ev = _ev
+            if isinstance(_ev, dict) and _ev.get('key') not in ('base', '__base'):
+                has_real = True
                 break
-        if base_ev is None:
-            if blob_stars:
+        if not has_real:
+            blob_stars = 0
+            st_row = sess.query(EduData).filter_by(owner=owner, profile_id=pid, dkey='state').first()
+            if st_row and st_row.payload:
+                try:
+                    blob_stars = int((json.loads(st_row.payload) or {}).get('stars') or 0)
+                except (TypeError, ValueError, AttributeError):
+                    blob_stars = 0
+            base_ev = None
+            for _ev in cur['log']:
+                if isinstance(_ev, dict) and _ev.get('key') == 'base':
+                    base_ev = _ev
+                    break
+            if base_ev is None:
+                if blob_stars:
+                    cur['seen']['base'] = 1
+                    cur['log'].append({'key': 'base', 'amount': blob_stars,
+                                       'reason': '历史余额迁移', 'ts': str(int(now.timestamp()))})
+            else:
                 cur['seen']['base'] = 1
-                cur['log'].append({'key': 'base', 'amount': blob_stars,
-                                   'reason': '历史余额迁移', 'ts': str(int(now.timestamp()))})
+                if blob_stars > _safe_int(base_ev.get('amount'), 0):
+                    base_ev['amount'] = blob_stars
+        total = 0
+        for ev in cur['log']:
+            try:
+                total += int(ev.get('amount') or 0)
+            except (TypeError, ValueError):
+                pass
+        cur['total'] = total
+        for ev in events:
+            if not isinstance(ev, dict):
+                continue
+            k = ev.get('key')
+            if not k or k in cur['seen']:
+                continue
+            try:
+                amt = int(ev.get('amount') or 0)
+            except (TypeError, ValueError):
+                amt = 0
+            cur['seen'][k] = 1
+            cur['log'].append({'key': k, 'amount': amt,
+                               'reason': ev.get('reason') or '',
+                               'ts': ev.get('ts') or str(int(now.timestamp()))})
+            total += amt
+        if len(cur['log']) > 4000:
+            cur['log'] = cur['log'][-4000:]
+        cur['total'] = total
+        payload = json.dumps(cur, ensure_ascii=False)
+        if row:
+            row.payload = payload
+            row.updated_at = now
         else:
-            cur['seen']['base'] = 1
-            if blob_stars > (int(base_ev.get('amount') or 0)):
-                base_ev['amount'] = blob_stars
-    total = 0
-    for ev in cur['log']:
-        try:
-            total += int(ev.get('amount') or 0)
-        except (TypeError, ValueError):
-            pass
-    cur['total'] = total
-    for ev in events:
-        if not isinstance(ev, dict):
-            continue
-        k = ev.get('key')
-        if not k or k in cur['seen']:
-            continue
-        try:
-            amt = int(ev.get('amount') or 0)
-        except (TypeError, ValueError):
-            amt = 0
-        cur['seen'][k] = 1
-        cur['log'].append({'key': k, 'amount': amt,
-                           'reason': ev.get('reason') or '',
-                           'ts': ev.get('ts') or str(int(now.timestamp()))})
-        total += amt
-    if len(cur['log']) > 4000:
-        cur['log'] = cur['log'][-4000:]
-    cur['total'] = total
-    payload = json.dumps(cur, ensure_ascii=False)
-    if row:
-        row.payload = payload
-        row.updated_at = now
-    else:
-        sess.add(EduData(owner=owner, profile_id=pid, dkey='stars',
-                         payload=payload, created_at=now, updated_at=now))
-    sess.commit()
-    sess.close()
-    return jsonify(ok=True, stars=total)
+            sess.add(EduData(owner=owner, profile_id=pid, dkey='stars',
+                             payload=payload, created_at=now, updated_at=now))
+        sess.commit()
+        return jsonify(ok=True, stars=total)
 
 
 @education_bp.route('/api/reset', methods=['POST'])
 def reset_all():
     """家长重置: 删除当前归属下所有孩子与数据."""
-    sess = _get_session()
-    owner = _owner_id()
-    ids = [p.id for p in sess.query(EduProfile).filter_by(owner=owner).all()]
-    sess.query(EduProfile).filter_by(owner=owner).delete()
-    if ids:
-        sess.query(EduData).filter(
-            EduData.owner == owner, EduData.profile_id.in_(ids)).delete(synchronize_session=False)
-    sess.commit()
-    sess.close()
-    return jsonify(ok=True)
+    with _session_scope() as sess:
+        owner = _owner_id()
+        ids = [p.id for p in sess.query(EduProfile).filter_by(owner=owner).all()]
+        sess.query(EduProfile).filter_by(owner=owner).delete()
+        if ids:
+            sess.query(EduData).filter(
+                EduData.owner == owner, EduData.profile_id.in_(ids)).delete(synchronize_session=False)
+        sess.commit()
+        return jsonify(ok=True)
 
 
 # ==================== 题库 ====================
@@ -979,34 +932,33 @@ def qbank_ensure():
     data = request.get_json(silent=True) or {}
     subj = data.get('subj')
     typ = data.get('type')
-    diff = int(data.get('difficulty') or 3)
+    diff = _safe_int(data.get('difficulty'), 3)
     items = data.get('items') or []
     if not (subj and typ and items):
         return jsonify(ok=False, error='missing fields'), 400
-    sess = _get_session()
-    owner = _owner_id()
-    added = 0
-    for it in items:
-        prompt = (it.get('prompt') or '').strip()
-        if not prompt:
-            continue
-        exists = sess.query(EduQBank).filter_by(
-            owner=owner, subj=subj, type=typ, prompt=prompt
-        ).first()
-        if exists:
-            continue
-        opts = it.get('options') or []
-        row = EduQBank(
-            owner=owner, subj=subj, type=typ, difficulty=diff,
-            prompt=prompt, options=json.dumps(opts, ensure_ascii=False),
-            correct=str(it.get('correct') or ''), note=it.get('note') or '',
-            created_at=datetime.utcnow()
-        )
-        sess.add(row)
-        added += 1
-    sess.commit()
-    sess.close()
-    return jsonify(ok=True, added=added)
+    with _session_scope() as sess:
+        owner = _owner_id()
+        added = 0
+        for it in items:
+            prompt = (it.get('prompt') or '').strip()
+            if not prompt:
+                continue
+            exists = sess.query(EduQBank).filter_by(
+                owner=owner, subj=subj, type=typ, prompt=prompt
+            ).first()
+            if exists:
+                continue
+            opts = it.get('options') or []
+            row = EduQBank(
+                owner=owner, subj=subj, type=typ, difficulty=diff,
+                prompt=prompt, options=json.dumps(opts, ensure_ascii=False),
+                correct=str(it.get('correct') or ''), note=it.get('note') or '',
+                created_at=datetime.utcnow()
+            )
+            sess.add(row)
+            added += 1
+        sess.commit()
+        return jsonify(ok=True, added=added)
 
 
 @education_bp.route('/api/qbank/pull', methods=['POST'])
@@ -1017,37 +969,34 @@ def qbank_pull():
     data = request.get_json(silent=True) or {}
     subj = data.get('subj')
     typ = data.get('type')
-    diff = int(data.get('difficulty') or 3)
-    limit = int(data.get('limit') or 10)
+    diff = max(1, min(5, _safe_int(data.get('difficulty'), 3)))
+    limit = min(max(_safe_int(data.get('limit'), 10), 1), 50)
     exclude = set(data.get('exclude') or [])
     if not (subj and typ):
         return jsonify(ok=False, error='missing fields'), 400
-    sess = _get_session()
-    owner = _owner_id()
-    from sqlalchemy import func
-    q = sess.query(EduQBank).filter_by(owner=owner, subj=subj, type=typ)
-    # 难度优先: 同档 -> 相邻档
-    rows = q.filter(EduQBank.difficulty.in_([diff, max(1,diff-1), min(5,diff+1)])).all()
-    if not rows:
-        sess.close()
-        return jsonify(ok=True, items=[])
-    # 权重: wrong_count降序 -> used_count升序 -> 随机
-    scored = []
-    for r in rows:
-        if r.prompt in exclude:
-            continue
-        w = (r.wrong_count or 0) * 1000 - (r.used_count or 0) * 10 + (100 - abs((r.difficulty or 3) - diff))
-        scored.append((w, r))
-    scored.sort(key=lambda x: -x[0])
-    out = []
-    for _, r in scored[:limit]:
-        out.append(dict(
-            id=r.id, subj=r.subj, type=r.type, difficulty=r.difficulty,
-            prompt=r.prompt, options=json.loads(r.options or '[]'),
-            correct=r.correct, note=r.note
-        ))
-    sess.close()
-    return jsonify(ok=True, items=out)
+    with _session_scope() as sess:
+        owner = _owner_id()
+        q = sess.query(EduQBank).filter_by(owner=owner, subj=subj, type=typ)
+        # 难度优先: 同档 -> 相邻档
+        rows = q.filter(EduQBank.difficulty.in_([diff, max(1,diff-1), min(5,diff+1)])).all()
+        if not rows:
+            return jsonify(ok=True, items=[])
+        # 权重: wrong_count降序 -> used_count升序 -> 随机
+        scored = []
+        for r in rows:
+            if r.prompt in exclude:
+                continue
+            w = (r.wrong_count or 0) * 1000 - (r.used_count or 0) * 10 + (100 - abs((r.difficulty or 3) - diff))
+            scored.append((w, r))
+        scored.sort(key=lambda x: -x[0])
+        out = []
+        for _, r in scored[:limit]:
+            out.append(dict(
+                id=r.id, subj=r.subj, type=r.type, difficulty=r.difficulty,
+                prompt=r.prompt, options=json.loads(r.options or '[]'),
+                correct=r.correct, note=r.note
+            ))
+        return jsonify(ok=True, items=out)
 
 
 @education_bp.route('/api/qbank/learn', methods=['POST'])
@@ -1058,19 +1007,17 @@ def qbank_learn():
     typ = data.get('type')
     prompt = (data.get('prompt') or '').strip()
     correct = data.get('correct')
-    diff = int(data.get('difficulty') or 3)
     if not (subj and typ and prompt):
         return jsonify(ok=False, error='missing fields'), 400
-    sess = _get_session()
-    owner = _owner_id()
-    row = sess.query(EduQBank).filter_by(
-        owner=owner, subj=subj, type=typ, prompt=prompt
-    ).first()
-    if row:
-        row.used_count = (row.used_count or 0) + 1
-        if correct is False:
-            row.wrong_count = (row.wrong_count or 0) + 1
-        row.last_seen = datetime.utcnow()
-        sess.commit()
-    sess.close()
-    return jsonify(ok=True)
+    with _session_scope() as sess:
+        owner = _owner_id()
+        row = sess.query(EduQBank).filter_by(
+            owner=owner, subj=subj, type=typ, prompt=prompt
+        ).first()
+        if row:
+            row.used_count = (row.used_count or 0) + 1
+            if correct is False:
+                row.wrong_count = (row.wrong_count or 0) + 1
+            row.last_seen = datetime.utcnow()
+            sess.commit()
+        return jsonify(ok=True)

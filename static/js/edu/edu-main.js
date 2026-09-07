@@ -19,7 +19,7 @@
   } catch (e) {}
   var verQ = srcVer ? ('?v=' + encodeURIComponent(srcVer)) : '';
 
-  // 首屏提速: 28 个模块已按依赖顺序由服务端合并成一个 /edu/bundle.js(单次请求),
+  // 首屏提速: 33 个模块已按依赖顺序由服务端合并成一个 /edu/bundle.js(单次请求),
   // 手机端不再逐文件串行拉取(移动 RTT 下可省下数秒), 且服务端 gzip + 不可变长缓存。
   function loadScript(src) {
     return new Promise(function(resolve, reject) {

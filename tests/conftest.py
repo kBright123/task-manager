@@ -15,6 +15,19 @@ try:
 except ImportError:  # 零依赖运行(run_tests.py)时无 pytest
     pytest = None
 
+def _csrf_client(base):
+    """把 test_client 包装为: 教育请求自动携带 X-CSRF-Token(会话内 token 一致)."""
+    orig_post = base.post
+    def post(url, *a, **kw):
+        if str(url).startswith('/edu'):
+            h = dict(kw.get('headers') or {})
+            h.setdefault('X-CSRF-Token', 'test-csrf')
+            kw['headers'] = h
+        return orig_post(url, *a, **kw)
+    base.post = post
+    return base
+
+
 if pytest is not None:
     @pytest.fixture()
     def client():
@@ -24,7 +37,8 @@ if pytest is not None:
         with c.session_transaction() as s:
             s['_user_id'] = '1'
             s['_fresh'] = True
-        return c
+            s['_csrf_token'] = 'test-csrf'
+        return _csrf_client(c)
 
 
 def make_client():
@@ -35,4 +49,4 @@ def make_client():
         s['_user_id'] = '1'
         s['_fresh'] = True
         s['_csrf_token'] = 'test-csrf'
-    return c
+    return _csrf_client(c)

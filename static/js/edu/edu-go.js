@@ -294,7 +294,7 @@
           if (occupied[c + '_' + r]) continue;
           var hc = String.fromCharCode(64 + c) + '' + r;
           var hx = px(c), hy = py(r);
-          hits += '<circle cx="' + hx.toFixed(1) + '" cy="' + hy.toFixed(1) + '" r="' + (S * 0.5).toFixed(1) + '" fill="rgba(0,0,0,0.01)" data-coord="' + hc + '" style="cursor:pointer" onclick="window.Edu.QuizEngine.goTap(' + o.idx + ',\'' + hc + '\')"/>';
+          hits += '<circle cx="' + hx.toFixed(1) + '" cy="' + hy.toFixed(1) + '" r="' + (S * 0.62).toFixed(1) + '" fill="rgba(0,0,0,0.01)" data-coord="' + hc + '" style="cursor:pointer" onclick="window.Edu.QuizEngine.goTap(' + o.idx + ',\'' + hc + '\')"/>';
         }
       }
     }

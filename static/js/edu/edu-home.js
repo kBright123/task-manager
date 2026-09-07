@@ -451,62 +451,6 @@
     if (mask) mask.style.display = 'flex';
   };
 
-  window.homeEditKid = function (id) {
-    var k = window.eduKids ? window.eduKids.byId(id) : null;
-    if (!k) return;
-    Kids.populateYears();
-    editKidId = id;
-    editKidAva = kidAvatar(k);
-    var ni = document.getElementById('editNameInput');
-    if (ni) ni.value = k.name || '';
-    var yi = document.getElementById('editYearInput');
-    if (yi) yi.value = String(k.birthYear);
-    var mask = document.getElementById('eduMaskKidEdit');
-    if (mask) mask.style.display = 'flex';
-  };
-
-  window.openKidsMgr = function () {
-    var list = document.getElementById('kidsMgrList');
-    if (!list) return;
-    var kids = window.eduKids ? window.eduKids.all() : [];
-    list.innerHTML = kids.map(function (k) {
-      return '<div class="mgr-row" data-id="' + k.id + '">' +
-        '<span class="mgr-ava">' + kidAvatar(k) + '</span>' +
-        '<span class="mgr-name">' + esc(k.name || '宝贝') + ' · ' + (window.eduKids ? window.eduKids.ageOf(k.birthYear) : 6) + '岁</span>' +
-        '<span class="mgr-edit" onclick="homeEditKid(\'' + k.id + '\')" title="编辑">✎</span>' +
-        '<button type="button" class="mgr-del" onclick="mgrDeleteKid(\'' + k.id + '\')">删除</button>' +
-        '</div>';
-    }).join('') || '<p class="muted" style="text-align:center;">还没有宝贝</p>';
-    var mask = document.getElementById('eduMaskKidsMgr');
-    if (mask) mask.style.display = 'flex';
-  };
-  window.mgrDeleteKid = function (id) {
-    window.requireParent(function () {
-      if (!(window.confirm && window.confirm('确定删除该宝贝？此操作不可恢复。'))) return;
-      if (window.eduKids) window.eduKids.remove(id);
-      try {
-        localStorage.removeItem(C.LS_BASE + '_' + id);
-        localStorage.removeItem(C.STR_BASE + '_' + id);
-        localStorage.removeItem('edu_pref_v1_' + id);
-      } catch (e) {}
-      if (window.fetch) {
-        window.fetch('/edu/api/kids', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ kids:[], removedIds:[id] }) })
-          .then(function(r){ return r.json && r.json(); })
-          .catch(function(){});
-      }
-      renderKidsMgrList();
-      renderHome();
-      renderKidBar();
-    });
-  };
-  function renderKidsMgrList() {
-    var list = document.getElementById('kidsMgrList');
-    if (!list) return;
-    var kids = window.eduKids ? window.eduKids.all() : [];
-    list.innerHTML = kids.map(function (k) {
-      return '<div class="mgr-row" data-id="' + k.id + '"><span class="mgr-ava">' + kidAvatar(k) + '</span><span class="mgr-name">' + esc(k.name || '宝贝') + '</span><span class="mgr-edit">✎</span></div>';
-    }).join('') || '<p class="muted" style="text-align:center;">还没有宝贝</p>';
-  }
   window.kidEnter = function (id) {
     if (window.eduKids) window.eduKids.setActive(id);
     Store.loadAllState();
@@ -533,20 +477,13 @@
 
   // stub subjNow/parNow accessors bound to Nav
 
-  var editKidId = null;
-  var editKidAva = '🧒';
-
   window.renderHome = renderHome;
   window.Edu.Home = {
     renderHome: renderHome,
     homePickKid: window.homePickKid,
     homeStartLearn: window.homeStartLearn,
     homeContinue: window.homeContinue,
-    homeEditKid: window.homeEditKid,
     openDetail: window.openDetail,
-    openKidsMgr: window.openKidsMgr,
-    mgrDeleteKid: window.mgrDeleteKid,
-    switchKid: window.switchKid,
     toggleKidDrop: window.toggleKidDrop,
     kidEnter: window.kidEnter,
     kidEditById: window.kidEditById,

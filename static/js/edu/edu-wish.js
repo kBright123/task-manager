@@ -263,8 +263,6 @@
     window.requireParent(function () {
       if (Store.awardStars) Store.awardStars(stars, '家长加星·' + note);
       else Store.state.stars = (Store.state.stars || 0) + stars;
-      Store.state.starLog = Store.state.starLog || [];
-      Store.state.starLog.push({ delta: stars, reason: note, type: 'parent_add', t: Date.now(), date: fmtDate(new Date()) });
       Store.saveState();
       Kids.renderStarBar();
       renderWish();

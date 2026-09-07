@@ -73,7 +73,7 @@ AstroSub = None
 
 
 def init_models(database):
-    """由 app.py 注入 db 并定义模型(避免循环导入, 与 notes/pet 同模式)。"""
+    """由 app.py 注入 db 并定义模型(避免循环导入, 与 notes 同模式)。"""
     global db, AstroChart, AstroSub
     db = database
 

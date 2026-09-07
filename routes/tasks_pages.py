@@ -351,6 +351,7 @@ def user_tasks():
                 recurrence = request.form.get('recurrence', '')
                 recurrence_count = int(request.form.get('recurrence_count', '0') or '0')
                 recurrence_interval_days = int(request.form.get('recurrence_interval_days', '0') or '0')
+                recurrence_count = max(0, min(recurrence_count, 100))  # 防超量展开
                 duration = end_time - start_time
                 total = recurrence_count if recurrence and recurrence_count > 0 else 1
                 similar = find_similar_tasks(title, description, category,
@@ -643,6 +644,11 @@ def user_task_detail(task_id):
     if not task:
         flash('待办不存在', 'danger')
         return redirect(url_for('user_dashboard'))
+    if current_user.role != 'admin' and task.creator_id != current_user.id and \
+            not TaskAssignment.query.filter_by(
+                task_id=task.id, user_id=current_user.id).first():
+        flash('无权查看该待办', 'danger')
+        return redirect(url_for('user_dashboard'))
     assignment = TaskAssignment.query.filter_by(
         user_id=current_user.id, task_id=task_id).first()
     pending_assignments = TaskAssignment.query.filter(
@@ -660,7 +666,7 @@ def _sync_task_assignees_from_form(task):
     """Sync task assignees from form POST data (assignee_ids + group_ids + is_all)."""
     user_ids = request.form.getlist('assignee_ids')
     group_ids = request.form.getlist('group_ids')
-    is_all = request.form.get('is_all') == '1'
+    is_all = request.form.get('is_all') == '1' and current_user.role == 'admin'
     
     if group_ids:
         new_groups = [db.session.get(Group, int(gid)) for gid in group_ids
@@ -798,6 +804,11 @@ def user_update_assign_progress(assignment_id):
         f = request.files['file']
         if f and f.filename and f.filename.strip():
             if allowed_file(f.filename):
+                head = f.stream.read(8192)
+                f.stream.seek(0)
+                if not file_content_matches(f.filename, head):
+                    flash('文件内容与扩展名不匹配，已拒绝上传', 'danger')
+                    return redirect(request.referrer or url_for('user_tasks'))
                 original = secure_filename(f.filename)
                 if not original or '.' not in original:
                     ext = f.filename.rsplit('.', 1)[-1].lower() if '.' in f.filename else 'png'

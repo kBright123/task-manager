@@ -195,7 +195,11 @@ def restore_backup(name):
             return False, '恢复前安全备份失败,已中止恢复'
         with tempfile.TemporaryDirectory() as tmp:
             with tarfile.open(path, 'r:gz') as t:
-                t.extractall(tmp)
+                for m in t.getmembers():
+                    _p = os.path.realpath(os.path.join(tmp, m.name))
+                    if not _p.startswith(os.path.realpath(tmp) + os.sep):
+                        return False, '备份包存在非法路径(path traversal),已中止恢复(当前数据安全备份: %s)' % safe_name
+                t.extractall(tmp, filter='data')
             src = os.path.join(tmp, 'instance')
             if not os.path.isdir(src):
                 return False, '备份内容不完整,已中止恢复(当前数据安全备份: %s)' % safe_name

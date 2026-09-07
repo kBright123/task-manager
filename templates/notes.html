@@ -316,7 +316,7 @@ function renderNotes(list){
     '<button class="btn btn-sm btn-primary" onclick="document.getElementById(\'noteInput\').focus()"><i class="bi bi-pencil-square"></i> 开始记录</button>'+
     '</div>';return;}
   tl.innerHTML=list.map(function(n){
-    var tags=(n.tags||[]).map(function(t){return '<span class="pill" onclick="loadByTag(\''+esc(t)+'\')">'+esc(t)+'</span>';}).join('');
+    var tags=(n.tags||[]).map(function(t){return '<span class="pill" data-tag="'+esc(t)+'" role="button">'+esc(t)+'</span>';}).join('');
     return '<div class="note-bubble" data-nid="'+n.id+'"><div class="meta"><i class="bi bi-clock"></i> '+esc(n.created_at)+
       ' <span style="cursor:pointer;" onclick="showMeta('+n.id+',true)"><i class="bi bi-pencil"></i></span>'+
       ' <span style="cursor:pointer;" onclick="delNote('+n.id+')"><i class="bi bi-trash" style="color:var(--danger);"></i></span></div>'+
@@ -344,6 +344,12 @@ function loadByTag(tag){
   fetch('/notes/api/notes?tag='+encodeURIComponent(tag)).then(r=>r.json()).then(function(d){if(d.ok)renderNotes(d.notes);});
   loadTags();
 }
+document.addEventListener('click',function(e){
+  var el=e.target;if(!el.closest)return;
+  var rn=el.closest('[data-rename-tag]');if(rn){e.stopPropagation();renameTag(rn.getAttribute('data-rename-tag'));return;}
+  var rm=el.closest('[data-remove-tag]');if(rm){removeMetaTag(rm.getAttribute('data-remove-tag'));return;}
+  var tg=el.closest('[data-tag]');if(tg){loadByTag(tg.getAttribute('data-tag'));}
+});
 function renameTag(oldTag){
   var newTag=prompt('重命名标签「'+oldTag+'」为:', oldTag);
   if(newTag===null)return;
@@ -380,8 +386,8 @@ function loadTags(){
     var html='<span class="note-tag'+(curTag===''?' active':'')+'" onclick="loadNotes()">全部笔记</span>';
     if(!tags.length){box.innerHTML=html;return;}
     box.innerHTML=html+tags.map(function(t){
-      return '<span class="note-tag'+(curTag===t?' active':'')+'" onclick="loadByTag(\''+esc(t).replace(/'/g,"\\'")+'\')">'+esc(t)+
-        '<span class="tag-rename" onclick="event.stopPropagation();renameTag(\''+esc(t).replace(/'/g,"\\'")+'\')" title="重命名标签"><i class="bi bi-pencil"></i></span></span>';
+      return '<span class="note-tag'+(curTag===t?' active':'')+'" data-tag="'+esc(t)+'">'+esc(t)+
+        '<span class="tag-rename" data-rename-tag="'+esc(t)+'" title="重命名标签"><i class="bi bi-pencil"></i></span></span>';
     }).join('');
   });
 }
@@ -465,7 +471,7 @@ function renderMeta(){
     '<div class="mt-2 text-muted" style="font-size:.72rem;">创建 '+esc(n.created_at)+' · 版本 v'+n.version+'</div>'+
     '<div class="mt-3"><span class="text-muted" style="font-size:.72rem;">标签</span>'+
     '<div class="d-flex flex-wrap gap-1 mt-1">'+
-      (n.tags||[]).map(function(t){return '<span class="pill">'+esc(t)+' <span style="cursor:pointer;" onclick="removeMetaTag(\''+esc(t).replace(/'/g,"\\'")+'\')" title="移除标签" class="text-muted">&times;</span></span>';}).join('')+
+      (n.tags||[]).map(function(t){return '<span class="pill">'+esc(t)+' <span style="cursor:pointer;" data-remove-tag="'+esc(t)+'" title="移除标签" class="text-muted">&times;</span></span>';}).join('')+
       '<span class="text-muted" style="font-size:.7rem;align-self:center;'+(n.tags&&n.tags.length?'':'')+'"></span>'+
     '</div>'+
     '<div class="input-group input-group-sm mt-2" style="max-width:230px;">'+

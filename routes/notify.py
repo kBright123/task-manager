@@ -19,8 +19,8 @@
 from app import (app, login_required, Notification,
                  _clear_cached_notifications, db)
 
-from flask import (flash, jsonify, redirect, render_template, request,
-                   send_from_directory, url_for)
+from flask import (abort, flash, jsonify, redirect, render_template,
+                   request, send_from_directory, url_for)
 from flask_login import current_user
 
 @app.route('/notifications')
@@ -74,4 +74,12 @@ def api_unread_notifications():
 @app.route('/uploads/<filename>')
 @login_required
 def download_file(filename):
+    """任务附件下载:仅允许附件属主或管理员(文件名前缀为 用户id_)。"""
+    uid_str = (filename or '').split('_', 1)[0]
+    try:
+        uid = int(uid_str)
+    except (TypeError, ValueError):
+        uid = None
+    if uid != current_user.id and current_user.role != 'admin':
+        abort(403)
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)

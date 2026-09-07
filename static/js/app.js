@@ -212,7 +212,7 @@
                   } else { sel.value = ''; hint.textContent = ''; }
                 }
               }
-              document.getElementById('qtDupWarn').innerHTML = (d.duplicate_tasks && d.duplicate_tasks.length) ? '<div class="alert alert-warning py-1 px-2" style="font-size:.75rem;">⚠️ 存在相似待办：' + d.duplicate_tasks.map(function (t) { return t.title; }).slice(0, 3).join('、') + '</div>' : '';
+              document.getElementById('qtDupWarn').innerHTML = (d.duplicate_tasks && d.duplicate_tasks.length) ? '<div class="alert alert-warning py-1 px-2" style="font-size:.75rem;">⚠️ 存在相似待办：' + d.duplicate_tasks.map(function (t) { return window.esc ? window.esc(t.title) : String(t.title).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }).slice(0, 3).join('、') + '</div>' : '';
               qtBuildAssignees(d.assignee_ids, d.assignee_names);
               errEl.textContent = '';
               document.getElementById('qtStepInput').style.display = 'none';
@@ -232,10 +232,11 @@
           ids = ids || []; names = names || [];
           var box = document.getElementById('qtAssignBox');
           if (!box) return;
+          function qesc(s) { return window.esc ? window.esc(s) : String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
           var html = '';
           for (var i = 0; i < ids.length; i++) {
             var checked = ids[i] === selfId ? 'checked' : '';
-            html += '<label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:6px;"><input type="checkbox" class="form-check-input qt-assignee" value="' + ids[i] + '" ' + checked + '> ' + (names[i] || ('用户' + ids[i])) + '</label>';
+            html += '<label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:6px;"><input type="checkbox" class="form-check-input qt-assignee" value="' + qesc(ids[i]) + '" ' + checked + '> ' + (qesc(names[i]) || ('用户' + qesc(ids[i]))) + '</label>';
           }
           box.innerHTML = html;
         };
@@ -442,24 +443,8 @@
       }
     }, true);
 
-    // 全局 Toast 提示
-    window.toast = function (message, type) {
-      type = type || 'info';
-      var c = document.getElementById('globalToast');
-      if (!c) {
-        c = document.createElement('div');
-        c.id = 'globalToast';
-        c.style.cssText = 'position:fixed;right:18px;bottom:76px;z-index:2000;display:flex;flex-direction:column;gap:8px;max-width:320px;';
-        document.body.appendChild(c);
-      }
-      var colors = { success: 'var(--success)', warning: 'var(--warning)', danger: 'var(--danger)', info: 'var(--primary)' };
-      var color = colors[type] || colors.info;
-      var el = document.createElement('div');
-      el.style.cssText = 'background:#fff;border:1px solid var(--gray-200);border-left:4px solid ' + color + ';border-radius:10px;box-shadow:var(--shadow-lg);padding:10px 14px;font-size:.83rem;color:var(--gray-700);animation:tmFadeIn .18s ease-out;';
-      el.textContent = message;
-      c.appendChild(el);
-      setTimeout(function () { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(function () { el.remove(); }, 320); }, 3000);
-    };
+    // 全局 Toast 提示：由 base.html 提供单一实现(含 actionLabel 撤销按钮/类型配色)
+
     // 移动端下拉刷新(webview 内原生下拉刷新不可用时的兜底)
     (function () {
       if (!('ontouchstart' in window)) return;

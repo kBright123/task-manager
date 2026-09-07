@@ -10,7 +10,7 @@ import logging
 
 import markupsafe
 from cachetools import TTLCache
-from flask import request, current_app
+from flask import request, current_app, g
 from flask_login import current_user
 from sqlalchemy import func
 
@@ -78,7 +78,7 @@ def log_operation(action, target='', detail='', user=None):
         db.session.add(entry)
         db.session.commit()
     except Exception as e:
-        logger.warning('log_operation failed: %s', e)
+        logger.exception('log_operation failed: %s', e)
 
 COMMON_EMAIL_SUFFIXES = ['qq.com', '163.com', '126.com', 'gmail.com',
                          'outlook.com', 'hotmail.com', 'foxmail.com',
@@ -177,16 +177,40 @@ def load_user(user_id):
         return None
     return u
 
+def _token_hash(token):
+    """API 令牌单向哈希: DB 仅存哈希, 泄库不泄露可用令牌。"""
+    import hashlib
+    return hashlib.sha256((token or '').encode('utf-8')).hexdigest()
+
+
 def _api_token_user():
     """根据 Authorization: Bearer <token> 解析 API 令牌用户(供第三方接口调用)。
-    返回 User 或 None。"""
+    返回 User 或 None。DB 存 sha256 哈希; 兼容历史明文(命中后自动升级为哈希)。
+    结果按请求缓存到 g, 避免同一请求内 request_loader / CSRF 校验重复查询。"""
+    cached = getattr(g, '_api_token_user', _API_TOKEN_CACHE_SENTINEL)
+    if cached is not _API_TOKEN_CACHE_SENTINEL:
+        return cached
+    user = _resolve_api_token_user()
+    g._api_token_user = user
+    return user
+
+
+_API_TOKEN_CACHE_SENTINEL = object()
+
+
+def _resolve_api_token_user():
     auth = request.headers.get('Authorization', '')
     if not auth.startswith('Bearer '):
         return None
     token = auth[len('Bearer '):].strip()
     if not token:
         return None
-    u = User.query.filter_by(api_token=token).first()
+    u = User.query.filter_by(api_token=_token_hash(token)).first()
+    if u is None:
+        u = User.query.filter_by(api_token=token).first()
+        if u is not None:
+            u.api_token = _token_hash(token)
+            db.session.commit()
     if u is None or u.is_disabled or u.status != 'approved':
         return None
     return u

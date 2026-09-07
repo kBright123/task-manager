@@ -185,6 +185,10 @@
     if (old) old.remove();
     var t = document.createElement('div');
     t.className = 'app-toast';
+    var type = opts.type;
+    if (type === 'error' || type === 'danger') t.classList.add('toast-error');
+    else if (type === 'warning') t.classList.add('toast-warning');
+    else if (type === 'success') t.classList.add('toast-success');
     var span = document.createElement('span');
     span.textContent = msg;
     t.appendChild(span);
@@ -507,7 +511,7 @@
   {% if current_user.is_authenticated %}
   window.CURRENT_USER = {
     id: {{ current_user.id }},
-    name: '{{ (current_user.name or current_user.username)|tojson }}' === 'null' ? '{{ current_user.username }}' : ({{ (current_user.name or current_user.username)|tojson }}),
+    name: {{ (current_user.name or current_user.username)|tojson }},
     username: {{ current_user.username|tojson }},
     role: '{{ current_user.role }}'
   };
@@ -515,29 +519,6 @@
   </script>
   {% if current_user.is_authenticated %}
   <script src="{{ url_for('static', filename='js/search.js', v=staticv('js/search.js')) }}" defer></script>
-  <script>
-  // 双击导航栏 logo 打开电子宠物独立页面(区别于单击进入首页)
-  (function () {
-    var PET_CLICK_TIMEOUT = 300;
-    var petClickTimer = null;
-    document.addEventListener('click', function (e) {
-      var logo = e.target.closest('.top-nav-logo');
-      if (!logo) return;
-      e.preventDefault();
-      e.stopPropagation();
-      if (petClickTimer) {
-        clearTimeout(petClickTimer);
-        petClickTimer = null;
-        window.location.href = '{{ url_for('pet_page') }}';
-      } else {
-        petClickTimer = setTimeout(function () {
-          petClickTimer = null;
-          window.location.href = logo.getAttribute('href');
-        }, PET_CLICK_TIMEOUT);
-      }
-    }, true);
-  })();
-  </script>
   {% endif %}
   <script>
   // 深浅色切换: 写入 localStorage 并同步图标

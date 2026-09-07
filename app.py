@@ -26,13 +26,8 @@ from datetime import datetime, timedelta, date, timezone
 from flask import (Flask, render_template, request, redirect, url_for,
                    flash, jsonify, send_from_directory, g, session, abort)
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import (LoginManager, UserMixin, login_user,
-                         login_required, logout_user, current_user)
-from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.utils import secure_filename
+from flask_login import login_required, current_user
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import func, case
-from cachetools import TTLCache
 import os
 import time
 
@@ -103,19 +98,6 @@ apply_sensitive_log_filter()
 
 app = Flask(__name__)
 
-try:
-    from flask_compress import Compress
-    Compress(app)
-    # 压缩阈值:>=512B 才压缩;压缩级别 6(省 CPU)
-    app.config['COMPRESS_MIMETYPES'] = [
-        'text/html', 'text/css', 'application/javascript', 'application/json',
-        'application/xml', 'image/svg+xml', 'text/plain']
-    app.config['COMPRESS_MIN_SIZE'] = 512
-    app.config['COMPRESS_LEVEL'] = 6
-    app.config['COMPRESS_ALGORITHM'] = ['gzip']
-except Exception:
-    pass  # 未安装 Flask-Compress 时静默跳过,不影响启动
-
 # ---- 会话密钥 / 授权与演示限制 ----
 def _get_or_create_secret_key(root_path):
     """Persist a random SECRET_KEY in instance/ so sessions survive restarts,
@@ -149,7 +131,7 @@ app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 604800  # 静态资源缓存 7 天
 # 登录会话最长 4 小时(配合登录时 session.permanent = True 生效),
 # 超过则自动退出登录;所有登录会话共享该有效期。
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=5)
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=4)
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 # HTTPS 部署时设环境变量 COOKIE_SECURE=1: 会话 Cookie 仅经加密连接传输
@@ -218,30 +200,9 @@ db.init_app(app)
 from core.models import (User, Task, TaskAssignment, EmailLog, EmailRecord,
                     Group, Notification, OperationLog, SysSetting,
                     task_group, user_group)
-# ---- SQLite 并发加固: WAL + busy_timeout(多进程 worker 与 Web 共写同一库) ----
-from sqlalchemy.engine import Engine as _Engine  # noqa: E402
-from sqlalchemy import event as _sa_event  # noqa: E402
-
-
-def _sqlite_pragmas(dbapi_conn, _rec):
-    mod = type(dbapi_conn).__module__
-    if 'sqlite3' not in mod and not getattr(dbapi_conn, 'isolation_level', None):
-        return
-    try:
-        cur = dbapi_conn.cursor()
-        cur.execute('PRAGMA journal_mode=WAL')
-        cur.execute('PRAGMA synchronous=NORMAL')
-        cur.execute('PRAGMA busy_timeout=5000')
-        cur.execute('PRAGMA foreign_keys=ON')
-        cur.close()
-    except Exception:
-        pass
-
-
+# ---- SQLite 并发加固: WAL + busy_timeout 由 kb/knowledge.enable_sqlite_wal() 统一注册 ----
 login_manager.init_app(app)
 login_manager.login_view = 'login'
-
-login_manager.init_app(app)
 
 # ---- 请求钩子 ----
 @login_manager.unauthorized_handler
@@ -278,7 +239,7 @@ _CACHE_PRIVATE = 'private, max-age=31536000'
 _CACHE_REVALIDATE = 'no-cache, must-revalidate, max-age=0'
 
 _GZIP_TYPES = ('text/html', 'text/css', 'text/javascript',
-               'application/json', 'application/javascript')
+               'application/json', 'application/javascript', 'text/plain')
 _COMPRESS_MIN_SIZE = 500
 
 
@@ -305,6 +266,9 @@ def _gzip_response(resp):
     resp.set_data(_gzip_mod.compress(data, compresslevel=6))
     resp.headers['Content-Encoding'] = 'gzip'
     resp.headers['Content-Length'] = str(len(resp.get_data()))
+    vary = {v.strip() for v in resp.headers.get('Vary', '').split(',') if v.strip()}
+    vary.add('Accept-Encoding')
+    resp.headers['Vary'] = ', '.join(sorted(vary))
     return resp
 @app.after_request
 def _cdn_cache_policy(resp):
@@ -373,7 +337,10 @@ def _csrf_protect():
 
 @app.before_request
 def _touch_last_seen():
-    """每次请求更新 current_user.last_seen(限流 60 秒, 跳过静态/未登录)."""
+    """每次请求更新 current_user.last_seen(限流 60 秒, 跳过静态/未登录).
+
+    提交统一由 _commit_pending_changes 在请求末尾收口, 此处只标记脏数据。
+    """
     if request.path.startswith('/static/') or not current_user.is_authenticated:
         return
     now = cn_now()
@@ -381,10 +348,6 @@ def _touch_last_seen():
     if prev and (now - prev).total_seconds() < 60:
         return
     current_user.last_seen = now
-    try:
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
 
 @app.errorhandler(400)
 @app.errorhandler(403)
@@ -398,7 +361,7 @@ def _http_error(e):
 @app.errorhandler(500)
 def _internal_error(e):
     db.session.rollback()
-    logger.error('Internal error: %s %s -> %s', request.method, request.path, e)
+    logger.exception('Internal error: %s %s', request.method, request.path)
     if request.path.startswith(('/api/', '/kb/api/', '/notes/api/', '/astro/api/', '/edu/api/')):
         return jsonify({'ok': False, 'error': '服务器内部错误'}), 500
     return render_template('error.html', code=500, message='服务器内部错误'), 500
@@ -413,10 +376,6 @@ from routes.notes import init_models as notes_init_models, notes_bp
 notes_init_models(db)
 app.register_blueprint(notes_bp)
 
-from routes.pet import init_models as pet_init_models, pet_bp
-pet_init_models(db)
-app.register_blueprint(pet_bp)
-
 from routes.astro import init_models as astro_init_models, astro_bp
 astro_init_models(db)
 app.register_blueprint(astro_bp)
@@ -424,7 +383,7 @@ app.register_blueprint(astro_bp)
 from routes.education import education_bp  # 纯前端, 无需 init_models
 app.register_blueprint(education_bp)
 
-# ---- ServiceWorker / 宠物页 / 静态版本号 / 模板注入 ----
+# ---- ServiceWorker / 静态版本号 / 模板注入 ----
 @app.route('/sw.js')
 def service_worker_js():
     """根路径提供 SW(保证默认 scope=/ 覆盖页面), 仅做静态资源缓存。"""
@@ -432,11 +391,6 @@ def service_worker_js():
     resp.headers['Content-Type'] = 'application/javascript'
     resp.headers['Cache-Control'] = 'no-cache'
     return resp
-@app.route('/pet')
-@login_required
-def pet_page():
-    """电子宠物独立页面(双击导航栏 logo 打开)。"""
-    return render_template('pet.html')
 _STATIC_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 
 _STATIC_MTIME_TTL = 1.0
@@ -514,7 +468,7 @@ def inject_globals():
                 'edu_static_version': edu_static_version,
                 'unread_notifications': unread_count,
                 'recent_notifications': recent,
-                'users': User.query.filter(User.is_disabled == False).all(),
+                'users': get_same_group_users(current_user),
                 'user_groups': current_user.groups.all() if hasattr(current_user, 'groups') else [],
                 'is_admin': str(getattr(current_user, 'role', '')) == 'admin'}
     return {'now': cn_now, 'today_str': cn_now().strftime(
@@ -544,6 +498,12 @@ def _soft_delete_exclude(orm_exec_state):
             'include_deleted', False):
         orm_exec_state.statement = orm_exec_state.statement.options(
             _wlc(Task, Task.deleted_at.is_(None), include_aliases=True))
+
+
+# 激活全局软删除过滤: 所有 Task 查询默认排除已删除;
+# 需要已删除记录的路径显式带 execution_options(include_deleted=True)。
+from sqlalchemy.orm import Session as _ORM_Session  # noqa: E402
+_orm_event.listen(_ORM_Session, 'do_orm_execute', _soft_delete_exclude)
 
 # ---- 业务辅助与 NLP 解析(再导出保持 from app import X 兼容) ----
 from core.app_services import (get_job_setting, set_job_setting, client_ip,
@@ -653,6 +613,11 @@ def _run_sqlite_migrations():
         cols = [r[1] for r in c.fetchall()]
         if 'abandoned_at' not in cols:
             c.execute('ALTER TABLE task_assignment ADD COLUMN abandoned_at DATETIME')
+        c.execute('DELETE FROM task_assignment WHERE id NOT IN ('
+                  'SELECT MIN(id) FROM task_assignment '
+                  'GROUP BY task_id, user_id)')
+        c.execute('CREATE UNIQUE INDEX IF NOT EXISTS uq_task_assignment_task_user '
+                  'ON task_assignment(task_id, user_id)')
         c.execute('PRAGMA table_info(kb_document)')
         cols = [r[1] for r in c.fetchall()]
         if 'collection_id' not in cols:
@@ -693,31 +658,6 @@ def _run_sqlite_migrations():
             c.execute("ALTER TABLE note_job ADD COLUMN phase VARCHAR(50) DEFAULT ''")
         if 'updated_at' not in cols:
             c.execute('ALTER TABLE note_job ADD COLUMN updated_at DATETIME')
-        c.execute('PRAGMA table_info(pet)')
-        cols = [r[1] for r in c.fetchall()]
-        if cols:
-            if 'level' not in cols:
-                c.execute('ALTER TABLE pet ADD COLUMN level INTEGER DEFAULT 1')
-            if 'exp' not in cols:
-                c.execute('ALTER TABLE pet ADD COLUMN exp INTEGER DEFAULT 0')
-            if 'stars' not in cols:
-                c.execute('ALTER TABLE pet ADD COLUMN stars INTEGER DEFAULT 0')
-            if 'equipped_house' not in cols:
-                c.execute("ALTER TABLE pet ADD COLUMN equipped_house VARCHAR(40) DEFAULT 'none'")
-            if 'equipped_bowl' not in cols:
-                c.execute("ALTER TABLE pet ADD COLUMN equipped_bowl VARCHAR(40) DEFAULT 'none'")
-            if 'equipped_clothes' not in cols:
-                c.execute("ALTER TABLE pet ADD COLUMN equipped_clothes VARCHAR(40) DEFAULT 'none'")
-            if 'last_feed_at' not in cols:
-                c.execute('ALTER TABLE pet ADD COLUMN last_feed_at DATETIME')
-            if 'last_sleep_at' not in cols:
-                c.execute('ALTER TABLE pet ADD COLUMN last_sleep_at DATETIME')
-            if 'last_clean_at' not in cols:
-                c.execute('ALTER TABLE pet ADD COLUMN last_clean_at DATETIME')
-        c.execute('PRAGMA table_info(pet_record)')
-        cols = [r[1] for r in c.fetchall()]
-        if cols and 'stars' not in cols:
-            c.execute('ALTER TABLE pet_record ADD COLUMN stars INTEGER DEFAULT 0')
         c.execute('PRAGMA table_info(kb_document)')
         cols = [r[1] for r in c.fetchall()]
         if 'refined_at' not in cols:
@@ -851,8 +791,14 @@ def init_db():
         _migrate_utc_to_cn_time()
         fresh = not User.query.filter_by(username='bright').first()
         if fresh:
+            import secrets as _secrets
             admin = User(username='bright', role='admin')
-            admin.set_password('Bright@wangzhan')
+            admin_pw = os.environ.get('ADMIN_PASSWORD', '').strip()
+            if not admin_pw:
+                admin_pw = _secrets.token_urlsafe(16)
+                print(f'[init] 已创建管理员 bright，初始密码(仅本次显示，请立即修改): {admin_pw}')
+                logger.warning('Admin bright created with generated password; change it after first login.')
+            admin.set_password(admin_pw)
             db.session.add(admin)
             db.session.commit()
         try:
@@ -983,16 +929,6 @@ def seed_demo_data(force=False):
 
     db.session.commit()
     print('Demo data seeded successfully')
-def _ensure_soft_delete_column():
-    """幂等: 为 task 表补 deleted_at 列(SQLite ADD COLUMN 安全)."""
-    from sqlalchemy import text, inspect as sa_inspect
-    insp = sa_inspect(db.engine)
-    if 'deleted_at' not in [c['name'] for c in insp.get_columns('task')]:
-        db.session.execute(text(
-            'ALTER TABLE task ADD COLUMN deleted_at DATETIME'))
-        db.session.execute(text(
-            'CREATE INDEX IF NOT EXISTS ix_task_deleted_at ON task (deleted_at)'))
-        db.session.commit()
 
 # ---- 路由模块加载(显式声明各自依赖, 不再使用命名空间盲注入) ----
 import routes.auth

@@ -195,7 +195,7 @@ import subprocess
 import sys
 import time
 
-WATCHED = ('/app/app.py', '/app/kb/knowledge.py', '/app/kb/classifier.py', '/app/kb/nlp_parser.py', '/app/reminder_worker.py', '/app/job_worker.py', '/app/routes/admin.py', '/app/routes/auth.py', '/app/routes/tasks_api.py', '/app/routes/tasks_pages.py', '/app/routes/search.py', '/app/routes/notify.py', '/app/routes/notes.py', '/app/routes/pet.py')
+WATCHED = ('/app/app.py', '/app/kb/knowledge.py', '/app/kb/classifier.py', '/app/kb/nlp_parser.py', '/app/reminder_worker.py', '/app/job_worker.py', '/app/routes/admin.py', '/app/routes/auth.py', '/app/routes/tasks_api.py', '/app/routes/tasks_pages.py', '/app/routes/search.py', '/app/routes/notify.py', '/app/routes/notes.py')
 SCRIPTS = {k: v for k, v in {
     'kb': ('-m kb.knowledge', 'KB_WORKER_ENABLED'),
     'reminder': ('reminder_worker.py', 'REMINDER_WORKER_ENABLED'),

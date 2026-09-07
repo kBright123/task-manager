@@ -125,7 +125,9 @@ def test_feed_content_and_rotation(client):
     assert rr.status_code == 200, rr.status_code
     d = rr.get_json()
     assert d.get('ok') and d.get('feed_path', '').startswith('/user/todo.ics')
-    new = _get_token()
+    # DB 仅存哈希, 原始令牌只通过签发响应返回
+    assert _get_token() != d.get('token')
+    new = d.get('token')
     assert new and new != old
     assert _anon_client().get(f'/user/todo.ics?token={old}').status_code == 401
     r3 = _anon_client().get(f'/user/todo.ics?token={new}')

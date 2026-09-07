@@ -304,15 +304,15 @@ def admin_emails_cleanup():
     try:
         from datetime import datetime, timedelta
         cutoff = cn_now() - timedelta(days=30)
-        deleted, = db.session.query(EmailRecord).filter(
+        deleted = db.session.query(EmailRecord).filter(
             EmailRecord.created_at < cutoff).delete(synchronize_session=False)
         db.session.commit()
         _log_op('email_cleanup', f'{deleted} 条邮件记录', '邮件记录清理')
         return jsonify({'ok': True, 'deleted': deleted})
     except Exception as e:
         db.session.rollback()
-        logger.warning('email cleanup failed: %s', e)
-        return jsonify({'ok': False, 'error': str(e)}), 500
+        logger.exception('email cleanup failed: %s', request.path)
+        return jsonify({'ok': False, 'error': '清理失败，请稍后重试'}), 500
 
 
 @app.route('/admin/users', methods=['GET'])
@@ -735,6 +735,8 @@ def api_jobs():
     """组织待办列表(管理页用,返回最近 job)。"""
     from routes.notes import NoteJob
     jobs = NoteJob.query.order_by(NoteJob.created_at.desc()).limit(100).all()
+    if current_user.role != 'admin':
+        jobs = [j for j in jobs if j.created_by == current_user.id]
     return jsonify({'ok': True, 'jobs': [_job_dict(j) for j in jobs]})
 
 
@@ -975,26 +977,20 @@ def admin_clear_data():
 @admin_required
 def admin_send_daily_summary():
     """管理员手动触发日报发送（可选指定用户id）。"""
-    from reminder_worker import _send_daily_summary
-    from datetime import datetime
+    from reminder_worker import _send_daily_summary, _already_sent
     user_id = request.form.get('user_id', type=int)
-    now = datetime.now()
+    now = cn_now()
     try:
         if user_id:
-            from models import User
             user = User.query.get(user_id)
             if not user:
                 flash('用户不存在', 'danger')
                 return redirect(url_for('admin_dashboard'))
-            from reminder_worker import _already_sent, _mark_sent, _sec, _mk, _summary_html, _weekday_cn, _delta_text, DONE_STATUS
-            from models import Task, TaskAssignment
-            from core.models import db
-            today = now.strftime('%Y-%m-%d')
-            key = 'summary:%s:%d' % (today, user.id)
+            key = 'summary:%s:%d' % (now.strftime('%Y-%m-%d'), user_id)
             if _already_sent(key):
                 flash('今日日报已发送过该用户，如需重发请先清除 EmailLog', 'warning')
                 return redirect(url_for('admin_dashboard'))
-            _send_daily_summary(now)
+            _send_daily_summary(now, target_user_id=user_id)
         else:
             _send_daily_summary(now)
         flash('日报发送任务已触发', 'success')

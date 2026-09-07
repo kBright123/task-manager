@@ -97,7 +97,8 @@ def _remind_deadline_tasks(now):
                 '<p>待办 <b>「%s」</b>(%s类)即将在 <b>%d 分钟</b>后截止。</p>'
                 '<p>截止时间:<b>%s</b></p>'
                 '<p style="color:#94a3b8;font-size:12px;">请及时处理,以免逾期。</p></div>'
-            ) % (task.title, task.category, mins, task.end_time.strftime('%Y-%m-%d %H:%M'))
+            ) % (html.escape(task.title), html.escape(task.category), mins,
+                 task.end_time.strftime('%Y-%m-%d %H:%M'))
             ok, err = send_email(user.email, subject, html, text, category='deadline')
             if ok:
                 _mark_sent(key)
@@ -147,12 +148,13 @@ def _delta_text(d):
     return '—'
 
 
-def _send_daily_summary(now):
+def _send_daily_summary(now, target_user_id=None):
     """工作日 9:00-9:10 向每个绑定邮箱的用户发送日报。
 
     周六/周日不发送;周一日报单列【周末到期】,把上个周六/周日截止的
     待办并入,避免与【已逾期】重复。
-    邮件内容包含:概览统计、今日待办、本周待办。"""
+    邮件内容包含:概览统计、今日待办、本周待办。
+    target_user_id: 指定只给某个用户发送(管理员手动触发),否则全量。"""
     today = now.strftime('%Y-%m-%d')
     today_fmt = now.strftime('%Y/%m/%d')
     is_monday = now.weekday() == 0
@@ -160,12 +162,19 @@ def _send_daily_summary(now):
     if is_monday:
         mon_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         sat_start = mon_start - timedelta(days=2)
-    users = User.query.filter(
+    query = User.query.filter(
         User.email != '',
         User.email_verified.is_(True),
         User.is_disabled.is_(False),
-        User.api_token.is_(None),
-    ).all()
+    )
+    if target_user_id:
+        query = query.filter(User.id == target_user_id)
+    else:
+        query = query.filter(User.api_token.is_(None))
+    users = query.all()
+    if target_user_id and not users:
+        logger.warning('daily summary target user=%s not found', target_user_id)
+        return
     for user in users:
         key = 'summary:%s:%d' % (today, user.id)
         if _already_sent(key):

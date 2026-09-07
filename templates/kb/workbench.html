@@ -636,7 +636,7 @@
 {% endblock %}
 {% block extra_js %}
 <script>
-window.KB_INIT = {{ docs_json|safe }};
+window.KB_INIT = {{ docs_json|tojson }};
 window.KB_VIEW = {{ (view or 'docs')|tojson }};
 window.KB_FILTER = {collection: {{ active_collection or 'null' }}, group: {{ group|tojson }}, q: {{ q|tojson }}, doc: {{ doc or 'null' }}};
 window.KB_POINTS = {{ point_rows|tojson }};

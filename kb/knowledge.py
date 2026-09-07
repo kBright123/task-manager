@@ -1848,7 +1848,7 @@ def _refine_points_llm(rows, max_text=220):
 
 def _apply_refined_points(rows, mapping):
     old_titles = {pid: title for pid, title, _c in rows}
-    now = datetime.cn_now()
+    now = cn_now()
     conn = _db_conn()
     try:
         for pid, v in mapping.items():
@@ -1993,7 +1993,7 @@ def _refine_docs(full, max_docs):
     mapping = _refine_doc_titles_llm(built)
     if not mapping:
         return 0
-    now = datetime.cn_now()
+    now = cn_now()
     conn = _db_conn()
     try:
         for doc_id, t in mapping.items():
@@ -2550,6 +2550,26 @@ def _resolve_avatar_user(target_id):
     if target is None or getattr(target, 'is_disabled', False):
         return None, None
     return target, (target.name or target.username)
+
+
+def can_query_avatar(target_user):
+    """判断当前用户能否基于 target_user 的知识库提问/检索。
+
+    允许: 本人 / 管理员 / 同组成员; 其余一律拒绝, 防止利用 @ 参数
+    水平越权读取他人私有知识库内容。target_user 为 None(查自己)时放行。
+    """
+    if target_user is None:
+        return True
+    me_id = getattr(current_user, 'id', None)
+    tgt_id = getattr(target_user, 'id', None)
+    if me_id is None or tgt_id is None:
+        return False
+    if me_id == tgt_id:
+        return True
+    if getattr(current_user, 'role', '') == 'admin':
+        return True
+    return bool(set(_current_user_group_ids()) &
+                set(_user_group_ids_sql(tgt_id)))
 
 
 def _kb_user_list():
@@ -3474,21 +3494,28 @@ def workbench():
                 KbDocument.title.ilike(like) | KbDocument.filename.ilike(like))
         rows = query.order_by(KbDocument.created_at.desc()).all()
         # Convert rows to mock document objects
+        def _as_dt(v):
+            if v is None:
+                return None
+            if isinstance(v, (int, float)):
+                return datetime.datetime.fromtimestamp(v)
+            return v
+
         docs = []
         for r in rows:
             doc_obj = type('Doc', (), {})()
             doc_obj.id, doc_obj.title, doc_obj.filename = r[0], r[1], r[2]
             doc_obj.file_path, doc_obj.file_type, doc_obj.file_size = r[3], r[4], r[5]
-            doc_obj.page_count, doc_obj.status = r[5], r[6]
-            doc_obj.attempts, doc_obj.error = r[7], r[8]
-            doc_obj.collection_id, doc_obj.uploaded_by = r[9], r[10]
-            doc_obj.created_at = datetime.datetime.fromtimestamp(r[11]) if r[11] else None
-            doc_obj.updated_at = r[12] if r[12] else None
-            doc_obj.last_recognition_at = r[13] if r[13] else None
-            doc_obj.last_recognition_type = r[14]
-            doc_obj.last_recognition_result, doc_obj.recognition_count = r[15], r[16]
-            doc_obj.cancel, doc_obj.auto_classified = r[17], r[18]
-            doc_obj.refined_at = datetime.datetime.fromtimestamp(r[19]) if r[19] else None
+            doc_obj.page_count, doc_obj.status = r[6], r[7]
+            doc_obj.attempts, doc_obj.error = r[8], r[9]
+            doc_obj.collection_id, doc_obj.uploaded_by = r[10], r[11]
+            doc_obj.created_at = _as_dt(r[12])
+            doc_obj.updated_at = _as_dt(r[13])
+            doc_obj.last_recognition_at = _as_dt(r[14])
+            doc_obj.last_recognition_type = r[15]
+            doc_obj.last_recognition_result, doc_obj.recognition_count = r[16], r[17]
+            doc_obj.cancel, doc_obj.auto_classified = r[18], r[19]
+            doc_obj.refined_at = _as_dt(r[20])
             doc_obj.collection = None
             docs.append(doc_obj)
     visible_cols = _visible_collection_ids()
@@ -3852,6 +3879,8 @@ def api_ask():
         data.get('target_user_id'))
     if data.get('target_user_id') and target_user is None:
         return jsonify({'ok': False, 'error': '目标用户不存在或已禁用'}), 404
+    if not can_query_avatar(target_user):
+        return jsonify({'ok': False, 'error': '无权查询该用户的知识库'}), 403
     scope = target_user.id if target_user else current_user.id
     key = cache_key('ask', f'{scope}:{question}')
     cached = cache_get(key, KB_ASK_CACHE_TTL)
@@ -3900,6 +3929,8 @@ def api_search():
     if not q:
         return jsonify({'ok': False, 'error': '请输入关键词'}), 400
     target_user, _ = _resolve_avatar_user(data.get('target_user_id'))
+    if not can_query_avatar(target_user):
+        return jsonify({'ok': False, 'error': '无权查询该用户的知识库'}), 403
     scope = target_user.id if target_user else current_user.id
     key = cache_key('search', f'{scope}:{q}')
     cached = cache_get(key, KB_SEARCH_CACHE_TTL)
@@ -3960,6 +3991,8 @@ def api_history_answer():
         return jsonify({'ok': False, 'error': '缺少问题'}), 400
     target_user, avatar_name = _resolve_avatar_user(
         request.args.get('target_user_id'))
+    if not can_query_avatar(target_user):
+        return jsonify({'ok': False, 'error': '无权查询该用户的知识库'}), 403
     scope = target_user.id if target_user else current_user.id
     cached = cache_get(cache_key('ask', f'{scope}:{q}'), KB_ASK_CACHE_TTL)
     if cached is None:
@@ -4041,6 +4074,8 @@ def api_avatar_ask():
         data.get('target_user_id'))
     if data.get('target_user_id') and target_user is None:
         return jsonify({'ok': False, 'error': '目标用户不存在或已禁用'}), 404
+    if not can_query_avatar(target_user):
+        return jsonify({'ok': False, 'error': '无权查询该用户的知识库'}), 403
     scope_user_id = target_user.id if target_user else current_user.id
     # 构建该用户可访问的文档 ID 列表:其本人上传文档 + 私有集合 + 公共集合。
     # 必须包含 uploaded_by 项,否则未分类/被分类器归到他人集合的文档会不可见,
@@ -4107,7 +4142,7 @@ def api_refine_all():
     if current_user.role != 'admin':
         return jsonify({'ok': False, 'error': '仅管理员可操作'}), 403
     from routes.notes import NoteJob
-    now = datetime.cn_now()
+    now = cn_now()
     recent = NoteJob.query.filter(
         NoteJob.scope == 'refine',
         NoteJob.status.in_(['queued', 'running'])
@@ -4461,6 +4496,42 @@ def upload():
 
 
 MAX_CHUNKED_FILE_MB = 512
+_CHUNK_ID_RE = re.compile(r'^[A-Za-z0-9_-]{1,64}$')
+
+
+def _valid_upload_id(upload_id):
+    """分片上传 id 白名单校验, 防止路径穿越/任意目录创建。"""
+    return bool(_CHUNK_ID_RE.match(upload_id or ''))
+
+
+def _chunk_dir_size(d):
+    """分片目录当前累计字节数。"""
+    total = 0
+    try:
+        for name in os.listdir(d):
+            fp = os.path.join(d, name)
+            if os.path.isfile(fp):
+                total += os.path.getsize(fp)
+    except OSError:
+        pass
+    return total
+
+
+def _cleanup_stale_chunks(max_age_hours=24):
+    """清理超时未完成的分片目录, 防止永久占盘。"""
+    root = os.path.join(_kb_upload_dir(), 'chunks')
+    try:
+        for name in os.listdir(root):
+            d = os.path.join(root, name)
+            if not os.path.isdir(d):
+                continue
+            try:
+                if time.time() - os.path.getmtime(d) > max_age_hours * 3600:
+                    shutil.rmtree(d, ignore_errors=True)
+            except OSError:
+                continue
+    except OSError:
+        pass
 
 
 def _chunk_dir(upload_id):
@@ -4477,10 +4548,20 @@ def api_upload_chunk():
     index = request.form.get('index', type=int)
     total = request.form.get('total', type=int)
     f = request.files.get('file')
-    if not upload_id or index is None or total is None or not f \
+    if not upload_id or not _valid_upload_id(upload_id) \
+            or index is None or total is None or not f \
             or index < 0 or index >= total:
         return jsonify({'ok': False, 'error': '分片参数不完整'}), 400
-    f.save(os.path.join(_chunk_dir(upload_id), f'{index}.part'))
+    file_size = f.content_length or 0
+    if file_size > MAX_CHUNKED_FILE_MB * 1024 * 1024:
+        return jsonify({'ok': False, 'error': '单分片过大'}), 400
+    d = _chunk_dir(upload_id)
+    max_bytes = MAX_CHUNKED_FILE_MB * 1024 * 1024
+    if _chunk_dir_size(d) + file_size > max_bytes:
+        shutil.rmtree(d, ignore_errors=True)
+        return jsonify({'ok': False, 'error': '文件过大'}), 400
+    f.save(os.path.join(d, f'{index}.part'))
+    _cleanup_stale_chunks()
     return jsonify({'ok': True})
 
 
@@ -4492,7 +4573,8 @@ def api_upload_complete():
     filename = (request.form.get('filename') or '').strip()
     total = request.form.get('total', type=int)
     cid = request.form.get('collection_id', type=int)
-    if not upload_id or not filename or not total:
+    if not upload_id or not _valid_upload_id(upload_id) \
+            or not filename or not total:
         return jsonify({'ok': False, 'error': '参数不完整'}), 400
     err = _validate_collection_upload(cid)
     if err:

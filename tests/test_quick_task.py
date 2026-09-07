@@ -216,9 +216,16 @@ def test_cascade_delete_multi_session_subsequent(client):
             headers=CSRF).get_json()
         assert r and r['ok'], r
         with app.app_context():
-            f1 = db.session.get(Task, first.id)
-            f2 = db.session.get(Task, second.id)
-            f3 = db.session.get(Task, third.id)
+            from sqlalchemy import select
+            f1 = db.session.execute(
+                select(Task).where(Task.id == first.id)
+                .execution_options(include_deleted=True)).scalar_one_or_none()
+            f2 = db.session.execute(
+                select(Task).where(Task.id == second.id)
+                .execution_options(include_deleted=True)).scalar_one_or_none()
+            f3 = db.session.execute(
+                select(Task).where(Task.id == third.id)
+                .execution_options(include_deleted=True)).scalar_one_or_none()
             assert f1.deleted_at is None, '更早的第一阶段不应被级联删除'
             assert f2.deleted_at is not None, '目标(第二阶段)应被删除'
             assert f3.deleted_at is not None, '后续的第三阶段应被级联删除'

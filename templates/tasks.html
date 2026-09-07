@@ -408,12 +408,7 @@
     {% endif %}
   </div>
   <script>
-  var mentionUsers = [
-    {id: 0, name: '所有人', keyword: '@所有人'},
-    {% for u in users %}
-    {id: {{ u.id }}, name: '{{ u.name or u.username }}', keyword: '{{ u.name or u.username }}'{% if u.name %}, uname: '{{ u.username }}'{% endif %}},
-    {% endfor %}
-  ];
+  var mentionUsers = {{ ([{'id': 0, 'name': '所有人', 'keyword': '@所有人'}] + [{'id': u.id, 'name': (u.name or u.username), 'keyword': (u.name or u.username), 'uname': u.username if u.name else None} for u in users])|tojson }};
   (function(){
     var ta = document.getElementById('adminTaskText');
     var dd = document.getElementById('mentionDropdown');
@@ -427,8 +422,8 @@
       });
       if(!items.length){ dd.style.display = 'none'; return; }
       dd.innerHTML = items.map(function(u, i){
-        var label = u.name;
-        if(u.uname) label += ' <small style="color:var(--gray-400)">@' + u.uname + '</small>';
+        var label = window.esc(u.name);
+        if(u.uname) label += ' <small style="color:var(--gray-400)">@' + window.esc(u.uname) + '</small>';
         return '<div class="mention-item" data-idx="' + i + '" style="padding:6px 12px;cursor:pointer;font-size:.82rem;' + (i===0?'background:var(--gray-50);':'') + '">' + label + '</div>';
       }).join('');
       dd.style.display = 'block';
@@ -916,7 +911,7 @@ function renderTaskDetail(t, body){
   }
   var info = document.createElement('div');
   info.style.cssText = 'border:1px solid var(--gray-200);border-radius:8px;padding:10px 12px;margin-bottom:12px;';
-  info.innerHTML = metaRow('开始时间', t.start_time) + metaRow('截止时间', t.end_time) + metaRow('发布人', t.creator) + metaRow('创建时间', esc(t.created_at));
+  info.innerHTML = metaRow('开始时间', t.start_time) + metaRow('截止时间', t.end_time) + metaRow('发布人', esc(t.creator)) + metaRow('创建时间', esc(t.created_at));
   card.appendChild(info);
   if (t.assignments && t.assignments.length) {
     var assign = document.createElement('div');
@@ -957,10 +952,7 @@ function linkify(s){
     return '<a href="' + m + '" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:underline;word-break:break-all;">' + m + '</a>';
   });
 }
-var activeUsers = [{id:0,name:'-- 请选择 --'}];
-{% for u in users %}
-activeUsers.push({id: {{ u.id }}, name: '{{ u.name or u.username }}'{% if u.id == current_user.id %}, self: true{% endif %}});
-{% endfor %}
+var activeUsers = {{ ([{'id': 0, 'name': '-- 请选择 --'}] + [{'id': u.id, 'name': (u.name or u.username), 'self': (u.id == current_user.id)} for u in users])|tojson }};
 function autoGrowDesc(el){
   if(!el) return;
   el.style.height='auto';
@@ -1251,10 +1243,7 @@ async function reopenTask(id){
   </div>
 </div>
 <script>
-var tmUsers=[];
-{% for u in users %}
-tmUsers.push({id:{{ u.id }}, name:'{{ u.name or u.username }}'{% if u.id == current_user.id %}, self:true{% endif %}});
-{% endfor %}
+var tmUsers = {{ [{'id': u.id, 'name': (u.name or u.username), 'self': (u.id == current_user.id)} for u in users]|tojson }};
 function tmBuildAssignees(ids){
   var box=document.getElementById('tmAssignBox');
   if(!box) return;
@@ -1264,7 +1253,7 @@ function tmBuildAssignees(ids){
     if(u.self) window.tmSelfId=u.id;
     return '<label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:4px;">'+
       '<input type="checkbox" class="form-check-input tm-assignee" value="'+u.id+'"'+(checked?' checked':'')+'> '+
-      u.name+(u.self?' <small style="color:var(--gray-400);font-size:.68rem;">(自己)</small>':'')+
+      (window.esc?window.esc(u.name):u.name)+(u.self?' <small style="color:var(--gray-400);font-size:.68rem;">(自己)</small>':'')+
       '</label>';
   }).join('');
 }
@@ -1369,7 +1358,7 @@ function tmApplyRecurrenceToSelect(){
     }
   }
 }
-function tmSessRowHtml(lbl,ss,ee){return '<div class="d-flex align-items-center gap-1 mb-1 tm-sess-row"><input type="text" class="form-control form-control-sm tm-sl" value="'+(lbl||'')+'" placeholder="场次名" style="width:76px;flex-shrink:0;font-size:.78rem;padding:2px 6px;"><input type="datetime-local" class="form-control form-control-sm tm-ss" value="'+(ss||'')+'" style="flex:1.05;min-width:0;font-size:.75rem;padding:2px 6px;"><input type="datetime-local" class="form-control form-control-sm tm-se" value="'+(ee||'')+'" style="flex:1.05;min-width:0;font-size:.75rem;padding:2px 6px;"><button type="button" class="btn btn-sm btn-outline-primary" style="padding:0 8px;font-size:.9rem;line-height:1;" onclick="tmAddSessionRow()" title="追加一场">+</button><button type="button" class="btn btn-sm btn-outline-secondary" style="padding:0 8px;font-size:.9rem;line-height:1;" onclick="this.closest(\'.tm-sess-row\').remove()" title="删除该场次">×</button></div>';}
+function tmSessRowHtml(lbl,ss,ee){var L=esc(lbl||''),S=esc(ss||''),E=esc(ee||'');return '<div class="d-flex align-items-center gap-1 mb-1 tm-sess-row"><input type="text" class="form-control form-control-sm tm-sl" value="'+L+'" placeholder="场次名" style="width:76px;flex-shrink:0;font-size:.78rem;padding:2px 6px;"><input type="datetime-local" class="form-control form-control-sm tm-ss" value="'+S+'" style="flex:1.05;min-width:0;font-size:.75rem;padding:2px 6px;"><input type="datetime-local" class="form-control form-control-sm tm-se" value="'+E+'" style="flex:1.05;min-width:0;font-size:.75rem;padding:2px 6px;"><button type="button" class="btn btn-sm btn-outline-primary" style="padding:0 8px;font-size:.9rem;line-height:1;" onclick="tmAddSessionRow()" title="追加一场">+</button><button type="button" class="btn btn-sm btn-outline-secondary" style="padding:0 8px;font-size:.9rem;line-height:1;" onclick="this.closest(\'.tm-sess-row\').remove()" title="删除该场次">×</button></div>';}
 function tmRenderSessions(list){var rows=list&&list.length?list:[{label:'-',start_time:'',end_time:''}];rows=rows.map(function(s){if(rows.length===1)return{label:'-',start_time:s.start_time||'',end_time:s.end_time||''};return{label:s.label,start_time:s.start_time,end_time:s.end_time};});document.getElementById('tmSessionRows').innerHTML=rows.map(function(s){return tmSessRowHtml(s.label,s.start_time,s.end_time);}).join('');}
 function tmAddSessionRow(){var box=document.getElementById('tmSessionRows');var rows=box.querySelectorAll('.tm-sess-row');var last=rows[rows.length-1];var ss='',ee='';if(last){ss=last.querySelector('.tm-ss').value;ee=last.querySelector('.tm-se').value;}box.insertAdjacentHTML('beforeend',tmSessRowHtml('第'+(rows.length+1)+'期',ss,ee));}
 function tmGetSessions(){var out=[];document.querySelectorAll('#tmSessionRows .tm-sess-row').forEach(function(r){var lbl=r.querySelector('.tm-sl').value.trim();var ss=r.querySelector('.tm-ss').value;var ee=r.querySelector('.tm-se').value;if(ss&&ee)out.push({label:lbl,start_time:ss,end_time:ee});});return out;}

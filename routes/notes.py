@@ -56,6 +56,38 @@ _NOTE_ATTACH_EXT = (
     '.txt', '.md', '.csv', '.zip', '.rar', '.7z', '.tar', '.gz',
 )
 
+
+def _note_magic_matches(ext, head):
+    """浅层魔数校验: 可识别类型必须与扩展名相符; 文本类拒绝含 NUL 的伪装二进制。
+
+    无法可靠识别的类型(未知/罕见)放行以避免误伤合法文件。"""
+    ext = ext.lower()
+    head = head or b''
+    if ext == '.pdf':
+        return head.startswith(b'%PDF')
+    if ext in ('.docx', '.xlsx', '.pptx'):
+        return head.startswith(b'PK\x03\x04') or head.startswith(b'PK\x05\x06')
+    if ext in ('.zip', '.7z', '.rar'):
+        return (head.startswith(b'PK') or head.startswith(b'7z\xbc\xaf\x27\x1c')
+                or head.startswith(b'Rar!'))
+    if ext == '.gz':
+        return head.startswith(b'\x1f\x8b')
+    if ext == '.tar':
+        return head.startswith(b'ustar') or head.startswith(b'\x00' * 257 + b'ustar')
+    if ext == '.doc':
+        # 旧版二进制 Word 头 D0 CF 11 E0 或 RTF(其余情况难以可靠判定, 放行)
+        return (head.startswith(b'\xd0\xcf\x11\xe0')
+                or head.startswith(b'{\\rtf') or True)
+    if ext == '.ppt':
+        return (head.startswith(b'\xd0\xcf\x11\xe0')
+                or head.startswith(b'{\\rtf') or True)
+    if ext == '.xls':
+        return (head.startswith(b'\xd0\xcf\x11\xe0')
+                or head.startswith(b'{\\rtf') or True)
+    if ext in ('.txt', '.md', '.csv'):
+        return b'\x00' not in head
+    return True
+
 db = None
 Note = None
 Thread = None
@@ -530,8 +562,11 @@ def api_note_list():
         query = query.filter(or_(Note.tags.like(like_raw),
                                  Note.tags.like(like_esc)))
     if q:
-        pat = f'%{q}%'
-        query = query.filter(or_(Note.title.like(pat), Note.content.like(pat)))
+        _esc = {'\\': '\\\\', '%': r'\%', '_': r'\_'}
+        escaped_q = ''.join(_esc.get(c, c) for c in q)
+        pat = f'%{escaped_q}%'
+        query = query.filter(or_(Note.title.like(pat, escape='\\'),
+                                 Note.content.like(pat, escape='\\')))
     items = query.order_by(Note.created_at.desc()).limit(400).all()
     return jsonify({'ok': True, 'notes': [_note_dict(n, current_user.id)
                                           for n in items]})
@@ -673,6 +708,10 @@ def api_upload_note_attachment():
     if ext not in _NOTE_ATTACH_EXT:
         return jsonify({'ok': False,
                         'error': '不支持该文件类型,仅支持 doc/docx/ppt/pptx/pdf/xls/xlsx/txt/md/csv/zip 等'}), 400
+    _head = f.stream.read(8192)
+    f.stream.seek(0)
+    if not _note_magic_matches(ext, _head):
+        return jsonify({'ok': False, 'error': '文件内容与扩展名不匹配，已拒绝上传'}), 400
     uid = str(current_user.id)
     target_dir = os.path.join(_NOTE_ATTACH_DIR, uid)
     try:

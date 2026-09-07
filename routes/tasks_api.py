@@ -29,7 +29,7 @@ from app import (app, login_required, Group, Notification, Task,
 from flask import flash, jsonify, redirect, render_template, request, url_for, Response
 from services.task_service import purge_task, restore_task, soft_delete_task
 from flask_login import current_user
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from werkzeug.utils import secure_filename
 import json
 import os
@@ -300,6 +300,8 @@ def _day_span_entries(t, status, now, ref=None):
         diff_days = (d - today_date).days
         section, section_label = _section_of_diff(diff_days)
         if section in seen:
+            if len(seen) >= 8:  # 仅 8 个分组, 全部覆盖后无需继续展开
+                break
             d += timedelta(days=1)
             continue
         seen.add(section)
@@ -812,8 +814,15 @@ def api_quick_task():
 
     is_all = current_user.role == 'admin' and bool(data.get('is_all'))
     assign_self = bool(data.get('assign_self', True))
-    recurrence_interval_days = int(data.get('recurrence_interval_days') or 0)
-    recurrence_count = int(data.get('recurrence_count') or 0)
+    try:
+        recurrence_interval_days = int(data.get('recurrence_interval_days') or 0)
+    except (TypeError, ValueError):
+        recurrence_interval_days = 0
+    try:
+        recurrence_count = int(data.get('recurrence_count') or 0)
+    except (TypeError, ValueError):
+        recurrence_count = 0
+    recurrence_count = max(0, min(recurrence_count, 100))  # 防超量展开(DoS)
     total = recurrence_count if recurrence_interval_days and recurrence_count > 0 else 1
 
     # 多场次(第X期): 每场独立时间拆分为多个待办, 优先于等间隔周期展开
@@ -840,20 +849,30 @@ def api_quick_task():
 
     assignee_ids = set()
     if not is_all:
+        if current_user.role == 'admin':
+            visible_ids = None
+        else:
+            visible_ids = {u.id for u in get_same_group_users(current_user)}
+            visible_ids.add(current_user.id)
         for uid in data.get('assignee_ids') or []:
             try:
-                assignee_ids.add(int(uid))
+                uid = int(uid)
             except (TypeError, ValueError):
                 continue
+            if visible_ids is None or uid in visible_ids:
+                assignee_ids.add(uid)
         if assign_self:
             assignee_ids.add(current_user.id)
 
     group_ids = []
+    my_group_ids = {g.id for g in current_user.groups} if current_user.role != 'admin' else None
     for gid in data.get('group_ids') or []:
         try:
-            group_ids.append(int(gid))
+            gid = int(gid)
         except (TypeError, ValueError):
             continue
+        if my_group_ids is None or gid in my_group_ids:
+            group_ids.append(gid)
     if not is_all and not assignee_ids and not group_ids:
         return jsonify({'ok': False, 'error': '请至少选择一位负责人(可勾选自己)'}), 400
 
@@ -929,7 +948,16 @@ def api_quick_note():
     from routes.notes import Thread
     thread = None
     if tid:
-        thread = Thread.query.filter_by(id=int(tid)).first()
+        try:
+            tid = int(tid)
+        except (TypeError, ValueError):
+            tid = None
+        if tid:
+            thread = Thread.query.filter(
+                or_(Thread.user_id == current_user.id, Thread.user_id.is_(None))
+            ).filter_by(id=tid).first()
+            if not thread:
+                return jsonify({'ok': False, 'error': '话题不存在或无权使用'}), 400
     note = Note(user_id=current_user.id,
                 thread_id=thread.id if thread else None,
                 title=title, content=content, version=1)
@@ -1211,12 +1239,17 @@ def api_tasks_trash():
         stmt = stmt.where(Task.creator_id == current_user.id)
     rows = db.session.execute(
         stmt.order_by(Task.deleted_at.desc())).scalars().all()
+    counts = dict(db.session.query(
+        TaskAssignment.task_id,
+        func.count(TaskAssignment.id)).filter(
+            TaskAssignment.task_id.in_([t.id for t in rows])
+        ).group_by(TaskAssignment.task_id).all()) if rows else {}
     return jsonify({'ok': True, 'items': [{
         'id': t.id, 'title': t.title, 'category': t.category,
         'start_time': t.start_time.strftime('%Y-%m-%d %H:%M') if t.start_time else '',
         'end_time': t.end_time.strftime('%Y-%m-%d %H:%M') if t.end_time else '',
         'deleted_at': t.deleted_at.strftime('%m-%d %H:%M'),
-        'assignee_count': t.assignments.count()} for t in rows]})
+        'assignee_count': counts.get(t.id, t.assignments.count())} for t in rows]})
 
 
 @app.route('/api/task/<int:task_id>/restore', methods=['POST'])
@@ -1236,12 +1269,15 @@ def api_task_restore(task_id):
 @login_required
 def api_tasks_batch_restore():
     """批量恢复回收站待办(创建者或管理员)。"""
-    tasks = Task.query.filter(
-        Task.deleted_at.isnot(None),
-        Task.creator_id == current_user.id,
-    ).all()
     if current_user.role == 'admin':
-        tasks = Task.query.filter(Task.deleted_at.isnot(None)).all()
+        tasks = Task.query.filter(
+            Task.deleted_at.isnot(None),
+        ).execution_options(include_deleted=True).all()
+    else:
+        tasks = Task.query.filter(
+            Task.deleted_at.isnot(None),
+            Task.creator_id == current_user.id,
+        ).execution_options(include_deleted=True).all()
     if not tasks:
         return jsonify({'ok': False, 'error': '回收站为空'}), 404
     for t in tasks:
@@ -1392,71 +1428,6 @@ def api_task_assign(task_id):
     return jsonify({'ok': True, 'added': added})
 
 
-def _sync_task_assignees_from_form(task):
-    """Sync task assignees from form POST data (assignee_ids + group_ids + is_all)."""
-    user_ids = request.form.getlist('assignee_ids')
-    group_ids = request.form.getlist('group_ids')
-    is_all = request.form.get('is_all') == '1'
-    
-    if group_ids:
-        new_groups = [db.session.get(Group, int(gid)) for gid in group_ids
-                      if str(gid).lstrip('-').isdigit()]
-        new_groups = [g for g in new_groups if g is not None]
-        task.groups = new_groups
-    else:
-        task.groups = []
-    
-    keep = set()
-    existing = TaskAssignment.query.filter_by(task_id=task.id).all()
-    existing_map = {a.user_id: a for a in existing}
-    
-    if is_all:
-        all_users = User.query.filter_by(status='approved').all()
-        for u in all_users:
-            if not u.is_disabled:
-                keep.add(u.id)
-    else:
-        if group_ids:
-            for gid in group_ids:
-                try:
-                    gid = int(gid)
-                except (TypeError, ValueError):
-                    continue
-                group = db.session.get(Group, gid)
-                if group:
-                    for member in group.members:
-                        keep.add(member.id)
-        for uid in user_ids:
-            try:
-                uid = int(uid)
-            except (TypeError, ValueError):
-                continue
-            keep.add(uid)
-    
-    if task.is_all:
-        keep.add(task.creator_id)
-    
-    kept_ids = set(keep)
-    for uid in kept_ids:
-        a = existing_map.get(uid)
-        if a is None:
-            u = db.session.get(User, uid)
-            if u and not u.is_disabled and u.status == 'approved':
-                db.session.add(TaskAssignment(task_id=task.id, user_id=uid))
-                create_notification(uid, 'task_assigned',
-                                  f'你收到一个新待办：「{task.title}」', task.id)
-        elif a.status == 'abandoned':
-            a.status = 'pending'
-            a.abandoned_at = None
-            a.progress = 0
-    
-    now = cn_now()
-    for a in existing:
-        if a.user_id not in kept_ids and a.status != 'abandoned':
-            a.status = 'abandoned'
-            a.abandoned_at = now
-
-
 
 
 # ---- 日历订阅(iCal/.ics): 手机日历一次性订阅, 自动同步待办 ----
@@ -1586,7 +1557,13 @@ def user_todo_ics():
     token = (request.args.get('token') or '').strip()
     user = None
     if token:
-        u = User.query.filter_by(api_token=token).first()
+        from core.app_services import _token_hash
+        u = User.query.filter_by(api_token=_token_hash(token)).first()
+        if u is None:
+            u = User.query.filter_by(api_token=token).first()
+            if u is not None:
+                u.api_token = _token_hash(token)
+                db.session.commit()
         if u is not None and not u.is_disabled and u.status == 'approved':
             user = u
     elif current_user.is_authenticated:

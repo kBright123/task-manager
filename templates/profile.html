@@ -128,8 +128,9 @@
     <div class="card">
       <div class="card-header py-2 px-3"><i class="bi bi-calendar-week"></i> 日历订阅（同步到手机日历）</div>
       <div class="card-body py-3 px-3">
-        {% if current_user.api_token %}
-        {% set feed_url = request.url_root.rstrip('/') ~ url_for('user_todo_ics', token=current_user.api_token) %}
+        {% if current_user.api_token and session.get('api_token_raw') %}
+        {% set feed_token = session.get('api_token_raw') %}
+        {% set feed_url = request.url_root.rstrip('/') ~ url_for('user_todo_ics', token=feed_token) %}
         <div class="input-group mb-1">
           <input type="text" id="calFeedUrl" class="form-control"
                  value="{{ feed_url }}"
@@ -152,6 +153,13 @@
           默认同步<b>未来 3 天</b>未完成的待办（已完成的自动消失）；提醒规则：开始时间在今天的提前 <b>30 分钟</b>，其余在截止前 <b>1 小时</b>。
           地址可编辑：想看更多天追加 <code>?days=N</code>、换成局域网 IP。
         </div>
+        {% elif current_user.api_token %}
+        <div class="mb-2" style="font-size:.82rem;color:var(--gray-600);">
+          当前登录环境未持有订阅令牌明文（已哈希加密存储），如需复制/更新订阅链接请重新生成。
+        </div>
+        <button type="button" class="btn btn-outline-primary" style="font-size:.84rem;" onclick="rotateCalToken(this)">
+          <i class="bi bi-arrow-repeat"></i> 重新生成订阅链接
+        </button>
         {% else %}
         <div class="mb-2" style="font-size:.82rem;color:var(--gray-600);">
           还未生成订阅链接。生成后把它添加到手机日历，新建/修改的待办会自动同步过去。
@@ -191,7 +199,7 @@ var bindCodeEl = document.getElementById('bindCode');
 var codeResultEl = document.getElementById('codeResult');
 
 function showResult(msg, isError) {
-  codeResultEl.innerHTML = '<span style="color:' + (isError ? 'var(--danger)' : 'var(--success)') + ';">' + msg + '</span>';
+  codeResultEl.innerHTML = '<span style="color:' + (isError ? 'var(--danger)' : 'var(--success)') + ';">' + (window.esc ? window.esc(msg) : msg) + '</span>';
 }
 
 function sendCode() {

@@ -26,6 +26,7 @@ from flask import (flash, jsonify, redirect, render_template, request,
 from flask_login import current_user, login_user, logout_user
 import secrets
 from datetime import timedelta
+import re
 
 @app.route('/')
 def index():
@@ -41,6 +42,7 @@ UNLOCK_CODE_TTL_MINUTES = 10
 # --- 轻量 IP 限速(内存滑动窗口): 与按账号锁定互补, 防脚本高频撞库 ---
 import threading
 import time as _time_mod
+import hmac
 from collections import deque as _deque
 
 _ip_attempts = {}
@@ -57,15 +59,19 @@ def _ip_rate_limited(key, limit=10, window=60):
         if len(dq) >= limit:
             return True
         dq.append(now)
-        if len(_ip_attempts) > 10000:  # 防字典无限增长, 清理空桶
+        if len(_ip_attempts) > 10000:  # 防字典无限增长: 清理过期/空桶
             for k in [k for k, v in _ip_attempts.items() if not v]:
+                _ip_attempts.pop(k, None)
+            for k in [k for k, v in _ip_attempts.items()
+                      if v and now - v[-1] > window * 2]:
                 _ip_attempts.pop(k, None)
         return False
 
 
 def _client_key():
-    return (request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
-            or request.remote_addr or 'unknown')
+    """限速键: 优先真实远端地址, 避免伪造 X-Forwarded-For 自刷。"""
+    return request.remote_addr or request.headers.get(
+        'X-Forwarded-For', '').split(',')[0].strip() or 'unknown'
 
 
 def mask_email(email):
@@ -153,12 +159,17 @@ def login():
             user.last_login = cn_now()
             user.last_seen = cn_now()
             login_user(user)
-            session.permanent = True  # 会话 4 小时后自动过期退出登录
+            session.permanent = True  # 会话会自动过期退出登录(见 PERMANENT_SESSION_LIFETIME)
             db.session.commit()
             flash('登录成功！', 'success')
             next_page = request.args.get('next')
-            if next_page and next_page.startswith('/') and not next_page.startswith('//'):
-                return redirect(next_page)
+            if next_page:
+                from urllib.parse import urlsplit
+                parts = urlsplit(next_page)
+                if (next_page.startswith('/') and not next_page.startswith('//')
+                        and not next_page.startswith('/\\') and not parts.netloc
+                        and '\n' not in next_page and '\r' not in next_page):
+                    return redirect(next_page)
             return redirect(url_for('index'))
         if not user:
             log_operation('login_fail', username, '用户不存在')
@@ -190,6 +201,9 @@ def login():
 @app.route('/login/unlock/send', methods=['POST'])
 def login_unlock_send():
     """锁定账号重发解锁验证码。"""
+    if _ip_rate_limited('unlock_send:' + _client_key(), limit=3, window=300):
+        flash('重发过于频繁，请 5 分钟后再试', 'warning')
+        return redirect(url_for('login'))
     username = request.form.get('username', '').strip()
     user = User.query.filter_by(username=username).first()
     now = cn_now()
@@ -205,6 +219,9 @@ def login_unlock_send():
 @app.route('/login/unlock', methods=['POST'])
 def login_unlock():
     """邮箱验证码解锁:验证通过后解锁账号,可同时重置密码。"""
+    if _ip_rate_limited('unlock:' + _client_key(), limit=10, window=300):
+        flash('尝试过于频繁，请 5 分钟后再试', 'warning')
+        return redirect(url_for('login'))
     username = request.form.get('username', '').strip()
     code = (request.form.get('code') or '').strip()
     new_password = request.form.get('new_password', '')
@@ -219,7 +236,7 @@ def login_unlock():
     if not user.unlock_code or user.unlock_code_expires_at < now:
         flash('验证码已过期，请重新获取', 'danger')
         return redirect(url_for('login'))
-    if user.unlock_code != code:
+    if not hmac.compare_digest(str(user.unlock_code or ''), code):
         log_operation('login_fail', username, '解锁验证码错误')
         db.session.commit()
         flash('验证码错误，请重新输入', 'danger')
@@ -246,6 +263,16 @@ def login_unlock():
 # --- 自助注册: 邮箱验证码(10分钟有效), 验证通过即自动开通账号, 无需管理员审批 ---
 _REG_CODE_TTL_MINUTES = 10
 _reg_pending = {}  # email -> {username, name, password_hash, code, expires_at} (内存态)
+
+
+def _prune_reg_pending():
+    """清理过期的待注册记录, 防止内存无限增长。"""
+    _now = cn_now()
+    for _e in [e for e, p in _reg_pending.items()
+               if p.get('expires_at', _now) < _now]:
+        _reg_pending.pop(_e, None)
+    if len(_reg_pending) > 1000:  # 兜底: 大量唯一邮箱轰炸时直接收敛
+        _reg_pending.clear()
 
 
 def _send_register_code(email, username, name, password):
@@ -289,13 +316,20 @@ def register():
     password = request.form.get('password', '')
     code = (request.form.get('code') or '').strip()
     step = request.values.get('step') or ('verify' if code else 'send_code')
+    _prune_reg_pending()
     errs = []
 
     if request.method == 'POST':
+        if _ip_rate_limited('register:' + _client_key(), limit=6, window=600):
+            flash('注册/发码过于频繁，请 10 分钟后再试', 'warning')
+            return render_template('register.html', username=username, name=name,
+                                   email=email, code=code, step=step)
         if not username or not name:
             errs.append('用户名和昵称不能为空')
         if len(username) < 2 or len(username) > 80:
             errs.append('用户名长度需在 2-80 个字符之间')
+        if not re.match(r'^[A-Za-z0-9_.@-]+$', username):
+            errs.append('用户名仅支持字母、数字、下划线、点、@ 与中横线')
         if len(name) > 80:
             errs.append('昵称不能超过 80 个字符')
         if len(password) < 6:
@@ -367,6 +401,7 @@ def register():
 @app.route('/logout')
 @login_required
 def logout():
+    session.pop('api_token_raw', None)
     logout_user()
     flash('已退出登录', 'info')
     return redirect(url_for('login'))
@@ -383,6 +418,8 @@ def profile():
 @login_required
 def profile_send_verify_code():
     """发送邮箱绑定校验码。"""
+    if _ip_rate_limited('bind_code:' + _client_key(), limit=5, window=600):
+        return jsonify({'ok': False, 'error': '发送过于频繁，请 10 分钟后再试'})
     data = request.get_json(silent=True) or {}
     email = normalize_email(data.get('email'))
     if not email:
@@ -460,16 +497,28 @@ def api_token():
         return jsonify({'ok': False, 'error': '账号已被禁用'}), 403
     user.failed_login_count = 0
     user.locked_until = None
-    if not user.api_token:
-        user.api_token = secrets.token_urlsafe(32)
-        user.api_token_created_at = now
+    cached = session.get('api_token_raw')
+    if cached and user.api_token:
+        # 会话内已签发过: 原样返回, 避免重复请求把令牌轮换掉
         db.session.commit()
+        return jsonify({
+            'ok': True,
+            'token': cached,
+            'user': {'id': user.id, 'username': user.username,
+                     'name': user.name, 'role': user.role}
+        })
+    raw = secrets.token_urlsafe(32)
+    from core.app_services import _token_hash
+    user.api_token = _token_hash(raw)
+    user.api_token_created_at = now
+    session['api_token_raw'] = raw
+    db.session.commit()
     log_operation('api_token', username,
                   f'用户 {user.name or user.username} 获取 API 令牌')
     db.session.commit()
     return jsonify({
         'ok': True,
-        'token': user.api_token,
+        'token': raw,
         'user': {'id': user.id, 'username': user.username,
                  'name': user.name, 'role': user.role}
     })
@@ -498,10 +547,13 @@ def profile_unbind_email():
 def profile_rotate_api_token():
     """重新生成 API 令牌(日历订阅链接共用), 旧令牌立即失效。"""
     user = current_user._get_current_object()
-    user.api_token = secrets.token_urlsafe(32)
+    raw = secrets.token_urlsafe(32)
+    from core.app_services import _token_hash
+    user.api_token = _token_hash(raw)
     user.api_token_created_at = cn_now()
+    session['api_token_raw'] = raw
     db.session.commit()
     log_operation('api_token_rotate', user.username,
                   f'用户 {user.name or user.username} 重新生成日历订阅/API 令牌')
-    feed = url_for('user_todo_ics', token=user.api_token)
-    return jsonify({'ok': True, 'token': user.api_token, 'feed_path': feed})
+    feed = url_for('user_todo_ics', token=raw)
+    return jsonify({'ok': True, 'token': raw, 'feed_path': feed})

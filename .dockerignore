@@ -3,4 +3,14 @@ __pycache__/
 *.pyc
 .git/
 .env
-instance/*.db
+backups/
+instance/
+hf_cache/
+.pytest_cache/
+.mypy_cache/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+node_modules/
+dist/

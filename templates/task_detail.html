@@ -43,7 +43,7 @@
     <span class="badge bg-info d-none d-sm-inline" style="font-size:.7rem;">完成率 {{ rate }}%</span>
     {% if task.creator_id == current_user.id or task.is_all %}
     <button type="button" class="btn btn-sm btn-outline-secondary" style="padding:3px 8px;font-size:.75rem;" onclick="openEditModal()" title="编辑"><i class="bi bi-pencil"></i></button>
-    <form method="POST" action="{{ url_for('admin_delete_task', task_id=task.id) }}" style="display:inline;" onsubmit="uiConfirmSubmit(event,'确定删除待办「{{ task.title }}」吗？')">
+    <form method="POST" action="{{ url_for('admin_delete_task', task_id=task.id) }}" style="display:inline;" data-title="{{ task.title|e }}" onsubmit="uiConfirmSubmit(event,'确定删除待办「'+this.dataset.title+'」吗？')">
       <button type="submit" class="btn btn-sm btn-outline-danger" style="padding:3px 8px;font-size:.75rem;" title="删除"><i class="bi bi-trash"></i></button>
     </form>
     {% endif %}
@@ -228,7 +228,7 @@
             </form>
             {% endif %}
             {% if a.status in ('pending', 'completed') %}
-            <button type="button" class="btn btn-sm btn-outline-danger" style="padding:2px 8px;font-size:.65rem;" onclick="showReject({{ a.id }},'{{ a.user.username }}')" title="驳回"><i class="bi bi-x-lg"></i></button>
+            <button type="button" class="btn btn-sm btn-outline-danger" style="padding:2px 8px;font-size:.65rem;" data-uid="{{ a.user.username }}" onclick="showReject({{ a.id }},this.dataset.uid)" title="驳回"><i class="bi bi-x-lg"></i></button>
             {% endif %}
           </div>
         </div>
@@ -276,20 +276,15 @@ function openEditModal() {
   var assignBox = document.getElementById('editAssignList');
   if (assignBox) {
     var taskAssignees = {{ task_assignee_ids|tojson if task_assignee_ids else '[]' }};
-    var users = {{ users|selectattr('id')|map(attribute='id')|list if users else [] }};
-    var userName = {};
-    {% for u in users %}
-    userName[{{ u.id }}] = '{{ (u.name or u.username)|replace("'", "\\'") }}';
-    {% endfor %}
-    var userList = users.map(function(id){ return {id: id, name: userName[id] || ''}; });
+    var userList = {{ [{'id': u.id, 'name': (u.name or u.username)} for u in users]|tojson }};
     var curUser = {{ current_user.id }};
     assignBox.innerHTML = userList.filter(function(u){ return u.id !== 0; }).map(function(u) {
       var self = u.id === curUser ? ' <small style="color:var(--gray-400);font-size:.68rem;">(自己)</small>' : '';
       var checked = taskAssignees.indexOf(u.id) >= 0 ? ' checked' : '';
       if (u.id === curUser) checked = checked || ' checked';
-      return '<label class="edit-assign-item form-check form-check-inline" data-search="' + (u.name || u.username || '').toLowerCase() + '" style="font-size:.8rem;cursor:pointer;margin-right:4px;">' +
+      return '<label class="edit-assign-item form-check form-check-inline" data-search="' + (u.name || '').toLowerCase() + '" style="font-size:.8rem;cursor:pointer;margin-right:4px;">' +
         '<input type="checkbox" class="edit-assign-cb" name="assignee_ids" value="' + u.id + '"' + checked + '> ' +
-        u.name + self + '</label>';
+        (window.esc ? window.esc(u.name) : u.name) + self + '</label>';
     }).join('');
   }
   new bootstrap.Modal(document.getElementById('editTaskModal')).show();

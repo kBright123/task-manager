@@ -165,6 +165,31 @@ window.eduSync = (function () {
     }
     api('POST', '/kids/' + dbIdOf(kid) + '/state', { dkey: dkey, data: data });
   }
+  // 逐笔星星事件同步到服务端权威账本(/stars, 按 key 幂等去重, 返回 {ok, stars}).
+  // 服务端 total 是真实合计, 超过本地乐观计数的部分回填到展示, 跨设备/旧弹重复累加问题不再出现。
+  function pushStars(kidId, events) {
+    if (!events || !events.length) return Promise.resolve();
+    var kid = window.eduKids.byId(kidId);
+    if (!kid) return Promise.resolve();
+    var doPush = function () {
+      return api('POST', '/kids/' + dbIdOf(kid) + '/stars', { events: events }).then(function (res) {
+        if (res && res.ok && typeof res.stars === 'number') {
+          try {
+            var st = window.Edu && window.Edu.Store && window.Edu.Store.state;
+            if (st && res.stars > (Number(st.stars) || 0)) st.stars = res.stars;
+          } catch (e2) {}
+        }
+        return res;
+      });
+    };
+    if (!dbIdOf(kid)) {
+      return pushKids().then(function (res) {
+        var k2 = window.eduKids.byId(kidId);
+        if (k2 && dbIdOf(k2)) return doPush();
+      });
+    }
+    return doPush();
+  }
   function deleteKid(dbId) {
     api('POST', '/kids/' + dbId + '/delete', {});
   }
@@ -182,13 +207,14 @@ window.eduSync = (function () {
   function qbankLearn(p) {
     return api('POST', '/qbank/learn', p || {});
   }
-  // 与后端 _merge_blob 同一套保守归并规则: stars 求和, 数组按 JSON 去重并集,
-  // 对象键合并(先到先得), maxCombo/submits 取较大, usage 求和, settings 以已存端为准
+  // 与后端 _merge_blob 同一套保守归并规则: stars 取较大(运行合计会重复累加同一段学习
+  // 历史, 只增不减才幂等、不伪造星星), 数组按 JSON 去重并集, 对象键合并(先到先得,
+  // course 必须在列, 否则课程进度与里程碑发放标记会丢).
   function mergeBlob(base, ext) {
     base = base && typeof base === 'object' && !Array.isArray(base) ? JSON.parse(JSON.stringify(base)) : {};
     if (!ext || typeof ext !== 'object' || Array.isArray(ext)) return base;
-    try { base.stars = (Number(base.stars) || 0) + (Number(ext.stars) || 0); } catch (e) {}
-    ['records', 'wrong', 'wishLog', 'redeemed', 'starLog', 'wishes'].forEach(function (key) {
+    try { base.stars = Math.max(Number(base.stars) || 0, Number(ext.stars) || 0); } catch (e) {}
+    ['records', 'wrong', 'wishLog', 'redeemed', 'starLog', 'starAwards', 'wishes'].forEach(function (key) {
       var e = ext[key];
       if (!Array.isArray(e)) return;
       var b = Array.isArray(base[key]) ? base[key] : (base[key] = []);
@@ -200,7 +226,7 @@ window.eduSync = (function () {
         if (h && !seen[h]) { seen[h] = 1; b.push(it); }
       });
     });
-    ['badges', 'adv', 'level', 'dailySecs', 'giftPrices'].forEach(function (key) {
+    ['badges', 'adv', 'level', 'course', 'dailySecs', 'giftPrices'].forEach(function (key) {
       var e = ext[key];
       if (!e || typeof e !== 'object' || Array.isArray(e)) return;
       var b = base[key];
@@ -407,7 +433,7 @@ window.eduSync = (function () {
   }
   return {
     anonId: anonId, api: api, pushKids: pushKids, pushKidsDebounced: pushKidsDebounced,
-    pushState: pushState, deleteKid: deleteKid, hydrate: hydrate, setOnState: setOnState,
+    pushState: pushState, pushStars: pushStars, deleteKid: deleteKid, hydrate: hydrate, setOnState: setOnState,
     qbankPull: qbankPull, qbankEnsure: qbankEnsure, qbankLearn: qbankLearn
   };
 })();

@@ -21,14 +21,29 @@
       // 学习守护例外: 本地「当天已解锁次数」即便未同步到服务端也予以保留(取较大),
       // 避免「答对解锁后刷新, 服务端旧弹又拉回超时」反复弹窗。
       if (force && dkey === 'state') {
+        var prevData = {};
+        try { prevData = JSON.parse(localStorage.getItem(key) || '{}'); } catch (e) { prevData = {}; }
         var clue = {};
-        try { clue = JSON.parse(localStorage.getItem(key) || '{}').usageExtra || {}; } catch (e) { clue = {}; }
+        try { clue = prevData.usageExtra || {}; } catch (e) { clue = {}; }
         var slue = (data && data.usageExtra) || {};
         var mergedLue = {};
         Object.keys(clue).forEach(function (k) { mergedLue[k] = Number(clue[k]) || 0; });
         Object.keys(slue).forEach(function (k) { mergedLue[k] = Math.max(mergedLue[k] || 0, Number(slue[k]) || 0); });
         data = JSON.parse(JSON.stringify(data));
         data.usageExtra = mergedLue;
+        // 星星账本: 保留本地「服务端尚未确认」的加/扣星事件(离线期间积累), 覆盖后回放,
+        // 避免 force 覆盖把离线挣的星星吞掉; 已入账的以服务端权威 total 展示, 不重复累加。
+        var localAwards = (prevData && Array.isArray(prevData.starAwards)) ? prevData.starAwards : [];
+        var serverKeys = {};
+        (Array.isArray(data.starAwards) ? data.starAwards : []).forEach(function (ev) { if (ev && ev.key) serverKeys[ev.key] = 1; });
+        var pendingAwards = localAwards.filter(function (ev) { return ev && ev.key && !serverKeys[ev.key]; });
+        if (pendingAwards.length) {
+          var pendingSum = 0;
+          pendingAwards.forEach(function (ev) { pendingSum += Number(ev.amount) || 0; });
+          data.starAwards = (Array.isArray(data.starAwards) ? data.starAwards : []).concat(pendingAwards);
+          data.stars = (Number(data.stars) || 0) + pendingSum;
+          if (window.eduSync && window.eduSync.pushStars) window.eduSync.pushStars(kidId, pendingAwards);
+        }
       }
       // 并入式加载: 只回填当前缺数据的本地键, 并保持 Store 对象引用不变,
       // 避免「整体替换 Store.state/wb」导致闭包 state 与导出对象分叉而丢数据

@@ -222,7 +222,8 @@
     var g = giftOf(t.id);
     if (!g) return;
     window.requireParent(function () {
-      Store.state.stars -= t.price;
+      if (Store.awardStars) Store.awardStars(-t.price, '兑换·' + g.name);
+      else Store.state.stars -= t.price;
       Store.state.redeemed = (Store.state.redeemed && Array.isArray(Store.state.redeemed)) ? Store.state.redeemed : [];
       Store.state.redeemed.push({ id: g.id, name: g.name, emoji: g.emoji, price: t.price, t: Date.now(), date: fmtDate(new Date()) });
       Store.saveState();
@@ -260,7 +261,8 @@
     if (!stars || stars < 1) { Speech.toast('请输入有效的星星数'); return; }
     if (!note) { Speech.toast('请填写备注说明'); if (noteInput) noteInput.focus(); return; }
     window.requireParent(function () {
-      Store.state.stars = (Store.state.stars || 0) + stars;
+      if (Store.awardStars) Store.awardStars(stars, '家长加星·' + note);
+      else Store.state.stars = (Store.state.stars || 0) + stars;
       Store.state.starLog = Store.state.starLog || [];
       Store.state.starLog.push({ delta: stars, reason: note, type: 'parent_add', t: Date.now(), date: fmtDate(new Date()) });
       Store.saveState();
@@ -361,7 +363,8 @@
     if (!w) return;
     if ((Store.state.stars || 0) < w.cost) { Speech.toast('星星不足'); return; }
     window.requireParent(function () {
-      Store.state.stars -= w.cost;
+      if (Store.awardStars) Store.awardStars(-w.cost, '心愿达成·' + w.title);
+      else Store.state.stars -= w.cost;
       Store.state.wishLog = Store.state.wishLog || [];
       Store.state.wishLog.push({ title: w.title, cost: w.cost, t: Date.now() });
       Store.state.wishes = (Store.state.wishes && Array.isArray(Store.state.wishes)) ? Store.state.wishes : [];
@@ -382,7 +385,8 @@
     var name = r.name || (g ? g.name : '礼物');
     var refund = sellRefundOf(r);
     window.requireParent(function () {
-      Store.state.stars = (Store.state.stars || 0) + refund;
+      if (Store.awardStars) Store.awardStars(refund, '卖出·' + name);
+      else Store.state.stars = (Store.state.stars || 0) + refund;
       red.splice(i, 1);
       Store.saveState();
       Kids.renderStarBar();

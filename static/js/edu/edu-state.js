@@ -6,7 +6,7 @@
   function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
-  var state = { stars: 0, records: [], wrong: [], settings: {}, usage: {}, maxCombo: 0, badges: {}, submits: 0, wishes: [], wishLog: [], level: {}, starLog: [], dailySecs: {}, giftPrices: {}, redeemed: [], usageExtra: {} };
+  var state = { stars: 0, records: [], wrong: [], settings: {}, usage: {}, maxCombo: 0, badges: {}, submits: 0, wishes: [], wishLog: [], level: {}, starLog: [], starAwards: [], dailySecs: {}, giftPrices: {}, redeemed: [], usageExtra: {} };
   var wb = {};
   var recentExclude = [];
 
@@ -46,6 +46,7 @@
     state.wishes = Array.isArray(state.wishes) ? state.wishes : [];
     state.wishLog = Array.isArray(state.wishLog) ? state.wishLog : [];
     state.starLog = Array.isArray(state.starLog) ? state.starLog : [];
+    state.starAwards = Array.isArray(state.starAwards) ? state.starAwards : [];
     state.giftPrices = (state.giftPrices && typeof state.giftPrices === 'object') ? state.giftPrices : {};
     state.redeemed = Array.isArray(state.redeemed) ? state.redeemed : [];
     if (!state.stars) state.stars = 0;
@@ -163,6 +164,39 @@
     if (state.starLog.length > 400) state.starLog.shift();
   }
 
+  // 星星事件自动去重键: 页面未显式传 key 时(答题临时加星), 用时间+序号保证唯一
+  var _awardSeq = 0;
+  function starEventKey() {
+    _awardSeq = (_awardSeq + 1) % 1000000;
+    return 'auto_' + Date.now() + '_' + _awardSeq;
+  }
+
+  // 所有「加/扣星星」的唯一入口: 本地乐观更新 + 记流水 + 同步服务端权威账本(按 key 幂等).
+  // amount>0 加星(答题/通关/里程碑/每日), amount<0 扣星(解锁/兑换);
+  // 通关/里程碑/每日等请传稳定可重现的 key, 网络重试/多设备回放不会重复累加.
+  function awardStars(amount, reason, key) {
+    amount = Number(amount) || 0;
+    if (amount === 0) return state.stars;
+    key = key || starEventKey();
+    state.starAwards = state.starAwards || [];
+    for (var i = 0; i < state.starAwards.length; i++) {
+      if (state.starAwards[i] && state.starAwards[i].key === key) return state.stars;
+    }
+    var ev = { key: key, amount: amount, reason: (reason || '').slice(0, 60), ts: Date.now() };
+    state.starAwards.push(ev);
+    if (state.starAwards.length > 2000) state.starAwards.splice(0, state.starAwards.length - 2000);
+    state.stars = (Number(state.stars) || 0) + amount;
+    if (amount > 0) addStarLog(amount);
+    save(stateKey(), state);
+    try {
+      if (window.eduSync && window.eduSync.pushStars) {
+        var kid = window.eduKids ? window.eduKids.active() : null;
+        if (kid && kid.id) window.eduSync.pushStars(kid.id, [ev]);
+      }
+    } catch (e) {}
+    return state.stars;
+  }
+
   window.Edu.Store = {
     state: state,
     wb: wb,
@@ -179,6 +213,7 @@
     setLevel: setLevel,
     addDailySecs: addDailySecs,
     addStarLog: addStarLog,
+    awardStars: awardStars,
     usageExtraToday: usageExtraToday,
     usageLimitMin: usageLimitMin,
     usageLimitSec: usageLimitSec,

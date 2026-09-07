@@ -260,8 +260,10 @@
   .quiz-item .qi-feed.ok{color:var(--edu-green);}
   .quiz-item .qi-feed.no{color:#d94c4c;}
   .quiz-item.graded{border-left:6px solid var(--edu-green);}
-  .qi-go-board{width:100%;max-width:320px;margin:6px auto 12px;}
+  .qi-go-board{width:100%;max-width:400px;margin:6px auto 12px;}
   .qi-go-board svg{display:block;width:100%;height:auto;}
+  .qi-go-board[data-lock="1"] svg circle{pointer-events:none;}
+  .qi-gohint{width:100%;max-width:320px;margin:-6px auto 10px;text-align:center;font-size:1rem;font-weight:600;color:#8a5a20;}
   .spk{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;flex-shrink:0;box-sizing:border-box;border:none;border-radius:50%;background:linear-gradient(135deg,#8ec5ff,#4e8bff);color:#fff;font-size:1.1rem;line-height:1;cursor:pointer;box-shadow:0 3px 8px rgba(78,139,255,.35);transition:.15s;padding:0;}
   .spk:hover{transform:scale(1.06);filter:brightness(1.03);}
   .spk:active{transform:scale(.96);}
@@ -1402,6 +1404,15 @@
     .hg-badge{font-size:.68rem;padding:2px 8px;}
     .hg-badge.xtra{display:none;}
     .hg-more{display:inline-flex;}
+  }
+
+  /* 平板(iPad 竖/横屏): 4 个学科卡固定 2×2 网格, 卡片够宽避免文字/按钮挤出方块 */
+  @media (min-width:768px) and (max-width:1199px){
+    .home-course-scroll{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+    .home-course{padding:12px 12px 12px 14px;}
+    .hc-main{gap:8px;}
+    .hc-lv{font-size:.72rem;padding:2px 9px;max-width:100%;}
+    .hc-mode{padding:5px 10px;font-size:.72rem;}
   }
 
   html[data-theme="dark"] .home-course{background:var(--edu-soft);border-color:var(--edu-border);}

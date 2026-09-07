@@ -74,12 +74,7 @@
         { t: 'go_liberty', name: '找气与逃跑', em: '🏃' },
         { t: 'go_capture', name: '打吃与提子', em: '🎯' },
         { t: 'go_connect', name: '连接与分断', em: '🔗' },
-        { t: 'go_life_death', name: '死活与二眼', em: '👁️' },
-        { t: 'go_ko', name: '打劫与劫材', em: '♻️' },
-        { t: 'go_semeai', name: '共活与双活', em: '⚖️' },
-        { t: 'go_opening', name: '布局与定式', em: '📐' },
-        { t: 'go_endgame', name: '官子与收官', em: '🏁' },
-        { t: 'go_quiz', name: '围棋大闯关', em: '🏆' }
+        { t: 'go_life_death', name: '死活与二眼', em: '👁️' }
       ]
     }
   };
@@ -262,11 +257,16 @@
   }
 
   // ---- 激励: 星星(唯一货币, 可兑换星愿) ----
-  // 星星主页里已积累(答题评星 addStarLog), 这里补充「通关/每日挑战/里程碑」的额外奖励星星
-  function addStarBonus(n, label) {
-    Store.state.stars = (Store.state.stars || 0) + (n || 0);
-    if (Store.addStarLog) Store.addStarLog(n);
-    return Store.state.stars;
+  // 星星主页里已积累(答题评星 addStarLog), 这里补充「通关/每日挑战/里程碑」的额外奖励星星.
+  // 统一走 Store.awardStars 同步服务端权威账本; key 必须稳定: 通关/每日/里程碑是固定发放,
+  // 用可重现 key 保证重放/多设备去重, 不会重复累加.
+  function addStarBonus(n, label, key) {
+    if (!Store.awardStars) {
+      Store.state.stars = (Store.state.stars || 0) + (n || 0);
+      if (Store.addStarLog) Store.addStarLog(n);
+      return Store.state.stars;
+    }
+    return Store.awardStars(n, label || '星星奖励', key || ('bonus_' + Date.now()));
   }
 
   // 星星里程碑: 达到阈值给一次性点数和徽章
@@ -278,7 +278,7 @@
     STAR_REWARDS.forEach(function (r) {
       if (stars >= r.at && !sc.rewards['star_' + r.at]) {
         sc.rewards['star_' + r.at] = Date.now();
-        addStarBonus(r.bonus, '星星里程碑·' + r.txt);
+        addStarBonus(r.bonus, '星星里程碑·' + r.txt, 'milestone_' + r.at);
         newly.push(r);
       }
     });
@@ -310,7 +310,7 @@
       st.passedAt = Date.now();
     }
     // 首次通关该小关才 +3 星星(重打同一小关不重复奖励)
-    if (isNew) addStarBonus(3, (SUBJ_LABEL[subj] || subj) + '通关·' + bigName);
+    if (isNew) addStarBonus(3, (SUBJ_LABEL[subj] || subj) + '通关·' + bigName, 'pass_' + subj + '_' + idx + '_' + stage);
     var bigDone = st.done;
     // 整科通关
     var allPassed = true;
@@ -395,8 +395,8 @@
         out.tryAgain = true;
       }
     } else if (passed && type === 'daily') {
-      // 每日挑战: 完成 +1 星星
-      if (pct >= 60) addStarBonus(1, '完成每日挑战');
+      // 每日挑战: 完成 +1 星星(以日期为 key, 一天最多发一次, 重放不重复)
+      if (pct >= 60) addStarBonus(1, '完成每日挑战', 'daily_' + keyOf(new Date()));
       out.dailyDone = true;
     } else {
       // 非关卡自由练习: 不推进课程进度, 高分仍计入星星里程碑
@@ -877,28 +877,31 @@
     // 学科主题背景铺满整个全屏地图(含顶栏/进度提示), 而非仅地图盒子
     full.className = 'edu-map-full ' + subjTheme(subj);
     full.style.display = 'flex';
-    // 立即(同步)按视口缩放蛇形画布: 避免先以 1680×560 原尺寸渲染再缩小造成闪烁.
+    // 立即(同步)按视口缩放蛇形画布: 避免先以 2340×560 原尺寸渲染再缩放造成闪烁.
     // 用 window 视口尺寸而非 clientHeight, 避免触发一次性同步 reflow(点击更快);
     // 全屏遮罩为 position:fixed 铺满视口, 故视口尺寸即可代表可用尺寸.
     var inner = body.querySelector('.cm-snake-inner');
     var wrap = body.querySelector('.cm-snake');
     var availW = window.innerWidth;
     var availH = window.innerHeight - 60;
-    // 仅宽屏桌面才整体缩放铺满; 窄屏与平板(含 iPad 竖/横屏)保持画布原生宽度, 靠 .cm-snake 横向滚动,
-    // 避免 iPad(竖屏 ~768px) 被缩到最小且 overflow:hidden 导致无法左右滚动.
-    if (inner && wrap && availW >= 1100) {
-      var k = Math.min(availW / SNAKE_W, availH / SNAKE_H);
-      k = Math.max(0.25, Math.min(1.6, k));
+    // 平板+桌面: 放大到「一屏约 5 个大关卡」, 其余左右滑动查看.
+    // 目标: 每屏显示约 5 个节点间距(5*SNAKE_DX), 同时纵向不超高 SNAKE_H.
+    // 这样关卡更大更清晰; 画布展开后宽度约 2340*k > 视口, 靠 .cm-snake 横向滚动.
+    if (inner && wrap && availW >= 768) {
+      var k = Math.min(availW / (5 * SNAKE_DX), availH / SNAKE_H);
+      k = Math.max(0.35, Math.min(2.2, k));
       inner.style.width = SNAKE_W + 'px';
       inner.style.height = SNAKE_H + 'px';
-      inner.style.transform = 'scale(' + k + ')';
-      inner.style.transformOrigin = 'top left';
-      inner.style.marginBottom = (-(SNAKE_H * (1 - k))) + 'px';
-      wrap.style.width = Math.round(SNAKE_W * k) + 'px';
+      inner.style.zoom = k;
+      inner.style.minHeight = '0px';
+      wrap.style.width = Math.round(availW) + 'px';
       wrap.style.height = Math.round(SNAKE_H * k) + 'px';
+      wrap.style.minHeight = '0px';
       wrap.style.margin = '0 auto';
-      wrap.style.overflow = 'hidden';
-      if (body) { body.style.display = 'flex'; body.style.alignItems = 'center'; }
+      wrap.style.overflowX = 'auto';
+      wrap.style.overflowY = 'hidden';
+      wrap.style.overscrollBehaviorX = 'contain';
+      if (body) { body.style.display = 'block'; }
     } else if (inner && wrap) {
       // 手机窄屏: 保持原横向滑动 + 高度撑满
       var rectW = wrap.getBoundingClientRect();

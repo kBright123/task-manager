@@ -253,15 +253,9 @@
       '</section>';
 
     // ===== 4 个学习入口卡: 2×2 网格, 等高不换行 =====
-    var today = todayStr();
-    function rKey(r) {
-      if (r.date) return r.date;
-      var dt = r.t ? new Date(r.t) : new Date();
-      return dt.getFullYear() + '-' + ('0' + (dt.getMonth()+1)).slice(-2) + '-' + ('0'+dt.getDate()).slice(-2);
-    }
     var recs = Store.state.records || [];
     var subjN = { zh: 0, math: 0, en: 0, go: 0 };
-    recs.forEach(function (r) { if (rKey(r) === today && subjN[r.subj] !== undefined) subjN[r.subj]++; });
+    recs.forEach(function (r) { if (subjN[r.subj] !== undefined) subjN[r.subj]++; });
     var lvMap = (Store.state.level || {});
     var courses = [
       { s: 'zh', type: 'zi', em: '📖', name: '语文识字', sub: '认识新汉字', locked: false },

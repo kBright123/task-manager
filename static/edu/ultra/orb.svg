@@ -78,7 +78,25 @@
         <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
-  </defs>
+      <radialGradient id="en_orb" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#f57c00" stop-opacity="0.9"/>
+      <stop offset="70%" stop-color="#f57c00" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#f57c00" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ray_orb" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#f57c00" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#f57c00" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="spark_orb" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="2.2" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 2.2 0"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+</defs>
 
   <!-- 背景光环（融合光） -->
   <ellipse cx="200" cy="200" rx="150" ry="140" fill="url(#au_orb)">
@@ -86,6 +104,27 @@
     <animate attributeName="rx" values="150;165;150" dur="3.5s" repeatCount="indefinite"/>
     <animate attributeName="ry" values="140;155;140" dur="3.5s" repeatCount="indefinite"/>
   </ellipse>
+  <!-- 能量气场增强层 -->
+  <g opacity="0.95">
+    <ellipse cx="200" cy="384" rx="116" ry="15" fill="url(#en_orb)" opacity="0.4">
+      <animate attributeName="rx" values="116;126;116" dur="3.5s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+      <animate attributeName="opacity" values="0.4;0.6;0.4" dur="3.5s" repeatCount="indefinite"/>
+    </ellipse>
+    <ellipse cx="200" cy="205" rx="88" ry="82" fill="none" stroke="url(#ray_orb)" stroke-width="2.2" opacity="0.55">
+      <animate attributeName="rx" values="88;112;88" dur="0.85s" repeatCount="indefinite"/>
+      <animate attributeName="ry" values="82;104;82" dur="0.85s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.55;0.1;0.55" dur="0.85s" repeatCount="indefinite"/>
+    </ellipse>
+    <path d="M52 148 Q200 132 348 148" stroke="url(#ray_orb)" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.5">
+      <animate attributeName="opacity" values="0.15;0.65;0.15" dur="2.6s" repeatCount="indefinite"/>
+      <animate attributeName="d" values="M52 148 Q200 132 348 148;M52 144 Q200 128 348 144;M52 148 Q200 132 348 148" dur="2.6s" repeatCount="indefinite"/>
+    </path>
+    <path d="M52 262 Q200 248 348 262" stroke="url(#ray_orb)" stroke-width="2.2" fill="none" stroke-linecap="round" opacity="0.4">
+      <animate attributeName="opacity" values="0.1;0.5;0.1" dur="3.2s" repeatCount="indefinite"/>
+      <animate attributeName="d" values="M52 262 Q200 248 348 262;M52 266 Q200 252 348 266;M52 262 Q200 248 348 262" dur="3.2s" repeatCount="indefinite"/>
+    </path>
+  </g>
+
 
   <!-- 主体组 -->
   <g filter="url(#soft_shadow)">
@@ -158,6 +197,16 @@
 
       <!-- 胸部金色护甲条 -->
       <path d="M150 200 Q180 192 200 192 Q220 192 250 200 L245 212 Q220 205 200 205 Q180 205 155 212 Z" fill="url(#silver_orb)" stroke="rgba(255,255,255,0.4)" stroke-width="0.5" opacity="0.95"/>
+      <!-- 装甲细节增强 -->
+      <path d="M128 248 L122 300" stroke="url(#silver_orb)" stroke-width="2.2" stroke-linecap="round" fill="none" opacity="0.55"/>
+      <path d="M272 248 L278 300" stroke="url(#silver_orb)" stroke-width="2.2" stroke-linecap="round" fill="none" opacity="0.55"/>
+      <path d="M118 310 Q150 302 200 302 Q250 302 282 310 L278 322 Q200 316 122 322 Z" fill="url(#mn_orb)" opacity="0.8"/>
+      <path d="M118 310 Q150 302 200 302 Q250 302 282 310 L278 322 Q200 316 122 322 Z" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.1" opacity="0.7"/>
+      <ellipse cx="200" cy="310" rx="11" ry="5.5" fill="#ffffff" opacity="0.6">
+        <animate attributeName="opacity" values="0.6;1;0.6" dur="2s" repeatCount="indefinite"/>
+      </ellipse>
+      <path d="M113 199 Q98 191 91 205" stroke="rgba(255,255,255,0.8)" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.6"/>
+      <path d="M287 199 Q302 191 309 205" stroke="rgba(255,255,255,0.8)" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.6"/>
 
       <!-- 双肩装甲（融合风格：赛罗肩甲+捷德爪+泽塔护肩） -->
       <path d="M110 195 Q90 185 85 205 Q95 225 115 225 Q110 205 110 195 Z" fill="url(#mn_orb)" stroke="rgba(20,24,36,0.2)" stroke-width="1.5"/>
@@ -240,6 +289,14 @@
           <animate attributeName="opacity" values="0.8;1;0.8" dur="1.5s" repeatCount="indefinite"/>
           <animate attributeName="rx" values="8;9;8" dur="1.5s" repeatCount="indefinite"/>
         </ellipse>
+      <!-- 光点星芒 -->
+      <g fill="#ffffff" filter="url(#spark_orb)">
+        <path d="M200 98 L203 105 L210 106 L204 110 L206 118 L200 113 L194 118 L196 110 L190 106 L197 105 Z">
+          <animate attributeName="opacity" values="0.15;0.95;0.15" dur="1.6s" repeatCount="indefinite"/>
+          <animateTransform attributeName="transform" type="rotate" values="0 200 108;90 200 108" dur="3.2s" repeatCount="indefinite"/>
+        </path>
+      </g>
+
 
         <!-- 耳部装饰 -->
         <path d="M135 140 Q118 135 110 155 Q120 155 132 148 Q138 142 135 140 Z" fill="url(#sv_orb)" stroke="url(#silver_orb)" stroke-width="1"/>

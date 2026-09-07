@@ -156,8 +156,12 @@
       h += '<div class="qi-head"><span class="qi-no">'+(i+1)+'</span><span class="qi-prompt">'+M.stripBlank(headPrompt)+'</span>'+spk+'</div>';
     }
     if (isCharPick) h += '<div class="qi-big">'+M.stripBlank(it.prompt)+'</div>';
-    // 围棋题: 题干下方渲染棋盘与棋子(黑先白后, 交替落子)
-    if (it.board && it.moves && window.Edu.GoWorkbench && window.Edu.GoWorkbench.boardSvg) {
+    // 围棋题: 坐标题渲染可点击棋盘(点在交叉点上作答); 其余渲染静态棋盘与棋子
+    if (it.goTap && window.Edu.GoWorkbench && window.Edu.GoWorkbench.boardSvgTap) {
+      var goTapSvg = window.Edu.GoWorkbench.boardSvgTap(it.moves, it.board, goTapBoardOpts(i));
+      if (goTapSvg) h += '<div class="qi-go-board" id="qi-goboard-' + i + '">' + goTapSvg + '</div>';
+      if (!judged[i]) h += '<div class="qi-gohint">👆 在棋盘上点出你选择的交叉点</div>';
+    } else if (it.board && it.moves && window.Edu.GoWorkbench && window.Edu.GoWorkbench.boardSvg) {
       var goSvg = window.Edu.GoWorkbench.boardSvg(it.moves, it.board);
       if (goSvg) h += '<div class="qi-go-board">' + goSvg + '</div>';
     }
@@ -184,6 +188,9 @@
       '<input id="qi-in-'+i+'" class="qi-in" data-idx="'+i+'" type="number" inputmode="numeric" autocomplete="off" placeholder="?" aria-label="答案" oninput="window.Edu.QuizEngine.onQuizInput('+i+',this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();window.Edu.QuizEngine.quizInputSubmit('+i+',this.value)}">';
       h += '<button type="button" class="qi-submit" onclick="window.Edu.QuizEngine.quizInputSubmit('+i+',document.getElementById(\'qi-in-'+i+'\').value)">确认</button>';
       h += '</div></div>';
+    } else if (it.goTap) {
+      // 坐标题: 已在棋盘上点选作答, 不渲染文字选项
+      h += '</div>';
     } else {
       // 选项题: 题干用大字突出展示(拼音/笔顺等带 big 的), 建立"看图字→选"的清晰对应
       if (it.big != null && it.big !== '') {
@@ -447,6 +454,80 @@
     });
   }
 
+  // 棋盘坐标题: 构建棋盘渲染所需的展示状态(已点选/揭示正确答案等)
+  function goTapBoardOpts(i) {
+    var it = quiz && quiz.items && quiz.items[i];
+    if (!it) return null;
+    var a = (quiz.answers || {})[i];
+    var reveal = !!judged[i] && String(a || '') !== String(it.correct);
+    var ok = !!judged[i] && String(a || '') === String(it.correct);
+    return { idx: i, tapped: a || '', reveal: reveal, ok: ok, correct: String(it.correct) };
+  }
+
+  // 棋盘坐标题: 在棋盘交叉点上点选作答(点选即判, 与选项题一致的重试/揭示流程)
+  window.Edu.QuizEngine.goTap = function (idx, coord) {
+    if (gateBlocked()) return;
+    if (!quiz || quiz.submitted) return;
+    var it = quiz.items[idx];
+    if (!it || !it.goTap || judged[idx]) return;
+    window.Edu.QuizEngine.onQuizInput(idx, coord);
+    renderGoBoard(idx);
+    judgeGoTap(idx);
+  };
+
+  // 重绘棋盘以反映当前点选/判定状态
+  function renderGoBoard(idx) {
+    var box = document.getElementById('qi-goboard-' + idx);
+    var it = quiz.items && quiz.items[idx];
+    if (box && it && window.Edu.GoWorkbench && window.Edu.GoWorkbench.boardSvgTap &&
+        !box.getAttribute('data-lock')) {
+      box.innerHTML = window.Edu.GoWorkbench.boardSvgTap(it.moves, it.board, goTapBoardOpts(idx));
+    }
+  }
+
+  function judgeGoTap(idx) {
+    if (!quiz || quiz.submitted) return;
+    var it = quiz.items[idx];
+    if (!it || !it.goTap || judged[idx]) return;
+    judged[idx] = true;
+    var val = quiz.answers && quiz.answers[idx];
+    if (val === undefined || val === '') return;
+    lastJVal[idx] = val;
+    var ok = M.isCorrect(it, val);
+    if (ok) {
+      lockGoTap(idx);
+      showSingleFeedback(idx, true);
+      scheduleNext(1500);
+    } else {
+      wrongTries[idx] = (wrongTries[idx] || 0) + 1;
+      if (wrongTries[idx] >= 2) {
+        // 第二次答错: 揭示正确答案(棋盘上红/绿环标记), 锁定棋盘
+        lockGoTap(idx);
+        showSingleFeedback(idx, false, true);
+        addNextButton();
+      } else {
+        // 第一次答错: 温和提示, 棋盘仍可再点(重新点选即判)
+        judged[idx] = false;
+        showSingleFeedback(idx, false, false);
+      }
+    }
+  }
+
+  function lockGoTap(idx) {
+    var item = document.getElementById('qi-' + idx);
+    if (!item) return;
+    var box = document.getElementById('qi-goboard-' + idx);
+    var it = quiz.items && quiz.items[idx];
+    if (box && it && window.Edu.GoWorkbench && window.Edu.GoWorkbench.boardSvgTap) {
+      box.setAttribute('data-lock', '1');
+      box.innerHTML = window.Edu.GoWorkbench.boardSvgTap(it.moves, it.board, goTapBoardOpts(idx));
+    } else if (box) {
+      box.setAttribute('data-lock', '1');
+    }
+    var hint = item.querySelector('.qi-gohint');
+    if (hint) hint.style.display = 'none';
+  }
+
   window.Edu.QuizEngine.tapOrder = function (idx, oi) {
     if (gateBlocked()) return;
     if (!quiz || quiz.submitted) return;
@@ -571,12 +652,12 @@
         window.Edu.Course.isLevelCleared && window.Edu.Course.isLevelCleared(cIn)) {
       starsEarned = Math.max(1, Math.round(starsEarned / 2));
     }
-    Store.state.stars = (Store.state.stars || 0) + starsEarned;
+    if (Store.awardStars) Store.awardStars(starsEarned, '答题·' + quizSubject);
+    else Store.state.stars = (Store.state.stars || 0) + starsEarned;
     Store.state.submits = (Store.state.submits || 0) + 1;
     // 今日答题数/题量上限统计(自动回写 usage[date])
     var us = Store.usageForToday ? Store.usageForToday() : null;
     if (us) { us.n = (us.n || 0) + quiz.items.length; us.count = (us.count || 0) + quiz.items.length; }
-    Store.addStarLog(starsEarned);
     Store.saveState();
     window.Edu.Parent.renderStars();
     if (window.Edu.Legacy) window.Edu.Legacy.evalBadges(quiz.items.length - right, maxCombo);

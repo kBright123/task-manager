@@ -191,9 +191,9 @@ def test_anon_adopt_merge_matching_kid(client):
     assert len([k for k in res['kids'] if k['name'] == NAME]) == 1
     # dbIdMap: 匿名 pid -> 账号 pid(不同 id, 因为归并进账号已有的)
     assert res['dbIdMap'][str(pid_anon)] == str(pid_acc)
-    # 合并后数据: 星星求和, records 并集去重(zh + math 两条)
+    # 合并后数据: 星星取较大(累计余额只增不减, 防重复累加同一段历史), records 并集去重(zh + math 两条)
     merged = client.get(f'/edu/api/kids/{pid_acc}/state').json['data']
-    assert merged.get('stars') == 15
+    assert merged.get('stars') == 10
     assert {r_['subj'] for r_ in merged.get('records', [])} == {'zh', 'math'}
 
     # 清理: 删除账号端宝贝, 避免污染共享 edu.db
@@ -226,9 +226,9 @@ def test_account_dedup_same_name_kids(client):
     # 重复档案全部映射到保留档案
     for dup in ids[1:]:
         assert res['dbIdMap'][str(dup)] == str(keep)
-    # 数据合并: 星星求和(5+5+5=15), records 三条都保留
+    # 数据合并: 星星取较大(5, 5, 5 → 5, 只增不减不伪造), records 三条都保留
     merged = client.get(f'/edu/api/kids/{keep}/state').json['data']
-    assert merged.get('stars') == 15
+    assert merged.get('stars') == 5
     assert len(merged.get('records', [])) == 3
     assert {r_['i'] for r_ in merged.get('records', [])} == {0, 1, 2}
 
@@ -279,6 +279,109 @@ def test_reset_all(client):
     client.post(f'/edu/api/kids/{pid}/state', json={'dkey': 'state', 'data': {'stars': 3}})
     assert client.post('/edu/api/reset').json.get('ok')
     assert len(client.get('/edu/api/bootstrap').json['kids']) == 0
+
+
+def test_state_overwrite_monotonic_guards(client):
+    """跨端全量覆盖写 state 时, stars/课程进度/里程碑标记「只增不减」:
+    旧设备旧数据覆盖不会吞掉已挣星星、不会倒退关卡进度、不会擦掉里程碑标记导致重复发星."""
+    pid = _setup_kid(client)
+    client.post(f'/edu/api/kids/{pid}/state', json={
+        'dkey': 'state',
+        'data': {'stars': 42, 'course': {'zh': {
+            'nodes': [{'passStage': 2, 'stars': [3, 3, 3, 0, 0], 'done': False},
+                      {'passStage': -1, 'stars': [0, 0, 0, 0, 0], 'done': False}],
+            'unlocked': 2, 'done': False, 'rewards': {'star_20': 1}}}},
+    })
+    # 旧端的旧数据覆盖写入: 星星更低、进度更旧、里程碑标记丢失
+    client.post(f'/edu/api/kids/{pid}/state', json={
+        'dkey': 'state',
+        'data': {'stars': 30, 'course': {'zh': {
+            'nodes': [{'passStage': 1, 'stars': [3, 3, 0, 0, 0], 'done': False},
+                      {'passStage': -1, 'stars': [0, 0, 0, 0, 0], 'done': False}],
+            'unlocked': 1, 'done': False, 'rewards': {}}}},
+    })
+    got = client.get(f'/edu/api/kids/{pid}/state').json['data']
+    assert got.get('stars') == 42, got
+    zh = got['course']['zh']
+    assert zh['rewards'].get('star_20') == 1, got
+    assert zh['nodes'][0]['passStage'] == 2, got
+    assert zh['nodes'][0]['stars'] == [3, 3, 3, 0, 0], got
+    assert zh['unlocked'] == 2, got
+
+
+def test_kid_stars_ledger_idempotent_and_migration(client):
+    """「所有加/扣星星操作同步后端」: 逐笔事件进服务端权威账本, 按 key 幂等去重, 不重复累加.
+
+    首次收账前自动把旧 state 弹余额迁移为 base 事件, 升级后星星不回退.
+    """
+    pid = _setup_kid(client)
+    # 既有弹余额 50(旧版累计剩余), 首次收账应迁移为 base
+    client.post(f'/edu/api/kids/{pid}/state', json={'dkey': 'state', 'data': {'stars': 50, 'records': []}})
+    r = client.post(f'/edu/api/kids/{pid}/stars', json={'events': [{'key': 'a1', 'amount': 3, 'reason': '答题'}]})
+    assert r.json.get('ok') and r.json['stars'] == 53, r.json
+    # 同 key 重放(网络重试/多设备)不重复累加
+    r = client.post(f'/edu/api/kids/{pid}/stars', json={'events': [{'key': 'a1', 'amount': 3, 'reason': '答题'}]})
+    assert r.json['stars'] == 53, r.json
+    # 扣星星(解锁/兑换): amount 为负
+    r = client.post(f'/edu/api/kids/{pid}/stars', json={'events': [{'key': 'sp2', 'amount': -10, 'reason': '解锁'}]})
+    assert r.json['stars'] == 43, r.json
+    # 新 key 正常累加
+    r = client.post(f'/edu/api/kids/{pid}/stars', json={'events': [{'key': 'a3', 'amount': 7, 'reason': '通关'}]})
+    assert r.json['stars'] == 50, r.json
+    # 账本已建后不再重复迁移 base(可疑的 key 重复不影响合计)
+    r = client.post(f'/edu/api/kids/{pid}/stars', json={'events': [{'key': 'base', 'amount': 99999, 'reason': '伪造'}]})
+    assert r.json['stars'] == 50, r.json
+    # 空请求 noop
+    r = client.post(f'/edu/api/kids/{pid}/stars', json={'events': []})
+    assert r.json.get('ok') and r.json.get('noop')
+    # 账本直接可读
+    r = client.post(f'/edu/api/kids/{pid}/stars', json={'events': [{'key': 'a4', 'amount': 2, 'reason': 'x'}]})
+    assert r.json['stars'] == 52, r.json
+
+
+def test_kid_stars_get_state_override_with_ledger(client):
+    """GET state 以账本 total 覆盖弹内 stars(服务端权威): 旧弹/其余设备陈值不干扰展示."""
+    pid = _setup_kid(client)
+    client.post(f'/edu/api/kids/{pid}/stars', json={'events': [
+        {'key': 'x1', 'amount': 10, 'reason': 'a'},
+        {'key': 'x2', 'amount': 5, 'reason': 'b'},
+        {'key': 'x3', 'amount': -2, 'reason': 'c'},
+    ]})
+    assert client.get(f'/edu/api/kids/{pid}/state').json['data']['stars'] == 13
+    # 即使另一设备把陈旧弹值写上来(100), 展示仍以账本为准
+    client.post(f'/edu/api/kids/{pid}/state', json={'dkey': 'state', 'data': {'stars': 100, 'records': []}})
+    assert client.get(f'/edu/api/kids/{pid}/state').json['data']['stars'] == 13
+    # 打满同一批事件再多发一次(重复回放)也不变
+    client.post(f'/edu/api/kids/{pid}/stars', json={'events': [
+        {'key': 'x1', 'amount': 10, 'reason': 'a'},
+        {'key': 'x2', 'amount': 5, 'reason': 'b'},
+        {'key': 'x3', 'amount': -2, 'reason': 'c'},
+    ]})
+    assert client.get(f'/edu/api/kids/{pid}/state').json['data']['stars'] == 13
+
+
+def test_kid_stars_ledger_dedup_merge(client):
+    """同名宝贝去重时 stars 账本按事件键合并: 重复 key 只取一次, 不重复累加."""
+    import uuid as _uuid
+    name = '重名' + _uuid.uuid4().hex[:6]
+    r = client.post('/edu/api/kids', json={'kids': [
+        {'clientId': 'd1', 'name': name, 'birthYear': 2019, 'gender': 'female'},
+        {'clientId': 'd2', 'name': name, 'birthYear': 2019, 'gender': 'female'},
+    ], 'removedIds': []})
+    ids = sorted(int(k['id']) for k in r.json['kids'])
+    p1, p2 = ids  # p1 为保留档案(id 较小)
+    client.post(f'/edu/api/kids/{p1}/stars', json={'events': [
+        {'key': 'a1', 'amount': 10, 'reason': 'x'}, {'key': 'a2', 'amount': 5, 'reason': 'x'}]})
+    client.post(f'/edu/api/kids/{p2}/stars', json={'events': [
+        {'key': 'a2', 'amount': 5, 'reason': 'x'}, {'key': 'a3', 'amount': 7, 'reason': 'x'}]})
+    assert client.get(f'/edu/api/kids/{p1}/state').json['data']['stars'] == 15
+    assert client.get(f'/edu/api/kids/{p2}/state').json['data']['stars'] == 12
+    client.get('/edu/api/bootstrap')  # 触发同名去重
+    kids = client.get('/edu/api/bootstrap').json['kids']
+    surv = [k for k in kids if k['name'] == name]
+    assert len(surv) == 1, kids
+    assert client.get(f'/edu/api/kids/{int(surv[0]["id"])}/state').json['data']['stars'] == 22, \
+        client.get(f'/edu/api/kids/{int(surv[0]["id"])}/state').json  # 10+5(a1,a2) + 7(a3), a2 去重
 
 
 # ============ 前端逻辑不变量(node --check + DOM 桩评估) ============
@@ -744,6 +847,98 @@ const C=W.Edu.Course;
     assert 'STARS=29' in out, out     # 21 + 3(通关) + 5(里程碑奖励星星)
     assert 'MIL2_COUNT=0' in out, out
     assert 'STARS2=29' in out, out    # 里程碑不重复发, 已通关的关卡也不重复 +3
+
+
+def test_award_stars_client_event_ledger_and_sync():
+    """Store.awardStars: 本地乐观更新 + starAwards 事件账 + 按 key 幂等 + 立即同步服务端.
+
+    覆盖「所有加星星操作同步后端服务」的客户端一侧.
+    """
+    out = _harness(r'''
+store['edu_record_v1_kk']=JSON.stringify({stars:0,records:[],wrong:[],wishes:[],course:{},starAwards:[]});
+W.Edu.Store.loadAllState();
+const pushed=[];
+W.eduSync.pushStars=(kid,ev)=>{pushed.push.apply(pushed,ev);return Promise.resolve({ok:true,stars:0});};
+const S=W.Edu.Store.state;
+let st=W.Edu.Store.awardStars(3,'答题·math');
+console.log('T1='+(st===3&&S.stars===3?'1':'0'));
+console.log('T2='+(S.starAwards.length===1&&S.starAwards[0].amount===3&&S.starAwards[0].reason==='答题·math'?'1':'0'));
+console.log('T3='+(pushed.length===1&&pushed[0].key===S.starAwards[0].key?'1':'0'));
+console.log('LOG='+(S.starLog.length===1&&S.starLog[0].s===3?'1':'0'));
+// 同 key 重放(网络重试)幂等: 不重复加星/不重复记流/不重复推送
+const k=S.starAwards[0].key;
+W.Edu.Store.awardStars(3,'答题·math',k);
+console.log('T4='+(S.stars===3&&S.starAwards.length===1?'1':'0'));
+console.log('T5='+(pushed.length===1?'1':'0'));
+// 扣星星(解锁): amount 为负, 仍同步
+W.Edu.Store.awardStars(-2,'解锁学习时间');
+console.log('T6='+(S.stars===1&&S.starAwards.length===2&&S.starAwards[1].amount===-2?'1':'0'));
+console.log('T6B='+(pushed.length===2&&pushed[1].amount===-2?'1':'0'));
+// 零值/空值不记
+W.Edu.Store.awardStars(0,'忽略');
+console.log('T7='+(S.starAwards.length===2?'1':'0'));
+// 固定 key(通关/里程碑/每日): 可重现, 再次调用同 key 不重复累加
+W.Edu.Store.awardStars(3,'数学通关·口算峡谷','pass_math_0_0');
+W.Edu.Store.awardStars(3,'数学通关·口算峡谷','pass_math_0_0');
+console.log('T8='+(S.stars===4&&S.starAwards.length===3?'1':'0'));
+// 事件已持久化到本地弹(离线也能重放)
+const saved=JSON.parse(store['edu_record_v1_kk']);
+console.log('T9='+(saved.starAwards.length===3&&saved.stars===4?'1':'0'));
+''')
+    for k in ('T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T6B', 'T7', 'T8', 'T9', 'LOG'):
+        assert k + '=1' in out, out
+
+
+def test_bootstrap_force_overwrite_replays_pending_star_events():
+    """hydrate force(收养/归并)覆盖时, 服务端未确认的离线星星事件要保留并回放:
+    已入账的以服务端权威 total 展示(不重复), 未入账的补回并重新同步."""
+    out = _harness(r'''
+store['edu_record_v1_kk']=JSON.stringify({
+  stars:573, starAwards:[{key:'p1',amount:3,reason:'答题·math',ts:1}],
+  records:[],wrong:[],wishes:[],usageExtra:{'2026-01-01':2}
+});
+const cb=W.eduSync._onState;
+const pushed=[];
+W.eduSync.pushStars=(kid,ev)=>{pushed.push.apply(pushed,ev);return Promise.resolve();};
+cb('kk','state',
+  {stars:600,starAwards:[{key:'s1',amount:5,reason:'通关·x',ts:2}],records:[],usageExtra:{'2026-01-01':5}},
+  true);
+const st=JSON.parse(store['edu_record_v1_kk']);
+console.log('KEEP_PENDING='+(st.starAwards.length===2?'1':'0'));   // s1(已入账) + p1(未确认保留)
+console.log('STARS_REPLAYED='+(st.stars===603?'1':'0'));            // 600(账本权威) + 3(未确认)
+console.log('REPUSH='+(pushed.length===1&&pushed[0].key==='p1'?'1':'0'));
+console.log('EXTRA_MAX='+(st.usageExtra['2026-01-01']===5?'1':'0')); // 原 usageExtra 保留逻辑不受影响
+console.log('NO_DUP='+((st.starAwards.filter(function(e){return e.key==='s1';}).length===1)?'1':'0'));
+// 已入账的事件不会被重复补回
+const st2=JSON.parse(store['edu_record_v1_kk']);
+console.log('STARS2='+(st2.stars===603?'1':'0'));
+''')
+    for k in ('KEEP_PENDING', 'STARS_REPLAYED', 'REPUSH', 'EXTRA_MAX', 'NO_DUP', 'STARS2'):
+        assert k + '=1' in out, out
+
+
+def test_frontend_push_stars_syncs_ledger():
+    """eduSync.pushStars: 带 dbId 直接推事件到服务端账本, 返回权威 total 回填本地展示(按需)."""
+    out = _shared_harness(r'''
+(async()=>{
+  const W=R; // store 由桩暴露为全局 S
+  const kids=[{id:'db8',dbId:8,name:'小豆豆',birthYear:2019,gender:'male'}];
+  S['edu_kids_v1']=JSON.stringify({list:kids,activeId:'db8'});
+  W.Edu.Store.state={stars:57};
+  Routes['/kids/8/stars']={ok:true,stars:602};
+  const ev=[{key:'a1',amount:3,reason:'x',ts:1}];
+  const res=await W.eduSync.pushStars('db8',ev);
+  if(!res.ok||res.stars!==602) throw new Error('pushStars resp '+JSON.stringify(res));
+  console.log('AUTH_ADOPT='+(W.Edu.Store.state.stars===602?'1':'0'));   // 602>57: 回填权威值
+  Routes['/kids/8/stars']={ok:true,stars:601};
+  const res2=await W.eduSync.pushStars('db8',ev);
+  if(res2.stars!==601) throw new Error('resp2');
+  console.log('NO_ROLLBACK='+(W.Edu.Store.state.stars===602?'1':'0'));  // 601<602: 不回包本地乐观值
+  console.log('PUSH_STARS=1');
+})().catch(e=>{console.log('ERR='+e.message);process.exit(2);});
+''')
+    assert 'PUSH_STARS=1' in out, out
+    assert 'AUTH_ADOPT=1' in out and 'NO_ROLLBACK=1' in out, out
 
 
 def test_course_integration_quiz_engine(client):

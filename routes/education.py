@@ -141,9 +141,12 @@ def _merge_blob(base, ext):
     """把匿名端的 state/workbench JSON 弹归并进账号端.
 
     规则(保守、不丢数据):
-    - stars 求和(两台设备各自挣的星都保留)
+    - stars 取较大而非求和: stars 是各设备上的「累计余额/累计获得」, 同一段学习历史
+      会被镜像到多个档案/设备; 若按运行合计求和, 重叠部分会被重复累加(出现虚假高星)。
+      取较大保持幂等、只反映真实最高余额, 绝不伪造星星。
     - 数组(records/wrong/wishLog/redeemed/starLog/wishes 等): 按 JSON 去重并集
-    - 对象(badges/adv/level/dailySecs/giftPrices 等): 键合并(账号优先, 匿名仅补缺)
+    - 对象(badges/adv/level/course/dailySecs/giftPrices 等): 键合并(账号优先, 匿名仅补缺);
+      course 必须并入, 否则课程进度与里程碑发放标记丢失, 会触发重复发星
     - 计数器(maxCombo/submits): 取较大; usage 秒数/题数: 求和
     - settings/课程难度: 以账号端为准, 匿名不覆盖
     """
@@ -151,10 +154,10 @@ def _merge_blob(base, ext):
         return base
     base = dict(base or {})
     try:
-        base['stars'] = int(base.get('stars') or 0) + int(ext.get('stars') or 0)
+        base['stars'] = max(int(base.get('stars') or 0), int(ext.get('stars') or 0))
     except (TypeError, ValueError):
         pass
-    for key in ('records', 'wrong', 'wishLog', 'redeemed', 'starLog', 'wishes'):
+    for key in ('records', 'wrong', 'wishLog', 'redeemed', 'starLog', 'starAwards', 'wishes'):
         e = ext.get(key)
         if not isinstance(e, list):
             continue
@@ -182,7 +185,7 @@ def _merge_blob(base, ext):
                 seen.add(h)
             b.append(it)
         base[key] = b
-    for key in ('badges', 'adv', 'level', 'dailySecs', 'giftPrices'):
+    for key in ('badges', 'adv', 'level', 'course', 'dailySecs', 'giftPrices'):
         e = ext.get(key)
         if not isinstance(e, dict):
             continue
@@ -235,6 +238,41 @@ def _merge_blob(base, ext):
     return base
 
 
+def _merge_star_ledger(base, ext):
+    """stars 权威账本(dkey='stars')合并: 事件按 key 幂等去重, total 重新求和.
+
+    state 弹里的 stars 只是展示镜像, 账本才是服务端唯一权威合计.
+    匿名/去重归并时, 两端的「加/扣星星事件」只需取一次(O(重叠)), total=Σ事件.
+    """
+    base = dict(base or {})
+    if not isinstance(ext, dict):
+        return base
+    seen = dict(base.get('seen') or {})
+    log = list(base.get('log') or [])
+    total = 0
+    for ev in log:
+        try:
+            total += int(ev.get('amount') or 0)
+        except (TypeError, ValueError):
+            pass
+    for ev in (ext.get('log') or []):
+        if not isinstance(ev, dict):
+            continue
+        k = ev.get('key')
+        if not k or k in seen:
+            continue
+        seen[k] = 1
+        log.append(ev)
+        try:
+            total += int(ev.get('amount') or 0)
+        except (TypeError, ValueError):
+            pass
+    base['seen'] = seen
+    base['log'] = log
+    base['total'] = total
+    return base
+
+
 def _merge_profile_data(sess, anon_owner, anon_pid, account, acc_pid):
     """把匿名端某宝贝的 data 弹并入账号端对应宝贝(优先合并同名, 无则整档迁移)."""
     rows = sess.query(EduData).filter_by(owner=anon_owner, profile_id=anon_pid).all()
@@ -242,6 +280,21 @@ def _merge_profile_data(sess, anon_owner, anon_pid, account, acc_pid):
         acc_row = sess.query(EduData).filter_by(
             owner=account, profile_id=acc_pid, dkey=r.dkey).first()
         if acc_row:
+            # stars 账本按事件去重合并, 其余弹按通用归并规则
+            if r.dkey == 'stars':
+                try:
+                    base = json.loads(acc_row.payload or '{}')
+                except Exception:
+                    base = {}
+                try:
+                    ext = json.loads(r.payload or '{}')
+                except Exception:
+                    ext = {}
+                merged = _merge_star_ledger(base, ext)
+                acc_row.payload = json.dumps(merged, ensure_ascii=False)
+                acc_row.updated_at = datetime.utcnow()
+                sess.delete(r)
+                continue
             try:
                 base = json.loads(acc_row.payload or '{}')
             except Exception:
@@ -336,6 +389,19 @@ def _dedup_profiles_in_owner(sess, owner):
                 acc_row = sess.query(EduData).filter_by(
                     owner=owner, profile_id=canonical.id, dkey=r.dkey).first()
                 if acc_row:
+                    if r.dkey == 'stars':
+                        try:
+                            base = json.loads(acc_row.payload or '{}')
+                        except Exception:
+                            base = {}
+                        try:
+                            ext = json.loads(r.payload or '{}')
+                        except Exception:
+                            ext = {}
+                        acc_row.payload = json.dumps(_merge_star_ledger(base, ext), ensure_ascii=False)
+                        acc_row.updated_at = datetime.utcnow()
+                        sess.delete(r)
+                        continue
                     try:
                         base = json.loads(acc_row.payload or '{}')
                     except Exception:
@@ -643,6 +709,95 @@ def delete_kid(pid):
     return jsonify(ok=True)
 
 
+def _merge_nodes(na, nb):
+    """课程节点取并集: 大关 passStage/done/星级/重打次数 只增不减."""
+    la = na if isinstance(na, list) else []
+    lb = nb if isinstance(nb, list) else []
+    out = []
+    for i in range(max(len(la), len(lb))):
+        a = la[i] if i < len(la) else None
+        b = lb[i] if i < len(lb) else None
+        if not isinstance(a, dict) and not isinstance(b, dict):
+            out.append(a if isinstance(a, dict) else b)
+            continue
+        m = dict(a if isinstance(a, dict) else {})
+        e = b if isinstance(b, dict) else {}
+        try:
+            m['passStage'] = max(int(m.get('passStage') or -1), int(e.get('passStage') or -1))
+        except (TypeError, ValueError):
+            pass
+        m['done'] = bool(m.get('done') or e.get('done'))
+        try:
+            m['passedAt'] = max(int(m.get('passedAt') or 0), int(e.get('passedAt') or 0))
+        except (TypeError, ValueError):
+            pass
+        try:
+            m['tries'] = max(int(m.get('tries') or 0), int(e.get('tries') or 0))
+        except (TypeError, ValueError):
+            pass
+        sa, sb = m.get('stars'), e.get('stars')
+        if isinstance(sa, list) or isinstance(sb, list):
+            la2 = sa if isinstance(sa, list) else []
+            lb2 = sb if isinstance(sb, list) else []
+            stars = []
+            for i2 in range(max(len(la2), len(lb2))):
+                try:
+                    v = max(int(la2[i2] if i2 < len(la2) else 0), int(lb2[i2] if i2 < len(lb2) else 0))
+                except (TypeError, ValueError):
+                    v = 0
+                stars.append(v)
+            m['stars'] = stars
+        out.append(m)
+    return out
+
+
+def _guard_write_payload(cur, incoming):
+    """跨端全量覆盖写入时, 对「只增不减」字段做对齐, 其余字段以最新弹为准:
+    - stars 取较大(累计余额, 防旧端覆盖吞星 / 防重复累加)
+    - course.rewards(里程碑发放标记)取并集: 防旧弹擦掉标记导致重复发星
+    - course 各大关 passStage/done/星级取较大: 防旧弹倒退进度导致重复发 +3 星
+    """
+    if not isinstance(cur, dict) or not isinstance(incoming, dict):
+        return incoming
+    out = dict(incoming)
+    try:
+        out['stars'] = max(int(cur.get('stars') or 0), int(incoming.get('stars') or 0))
+    except (TypeError, ValueError):
+        pass
+    c0, c1 = cur.get('course'), incoming.get('course')
+    if isinstance(c0, dict) and not isinstance(c1, dict):
+        out['course'] = c0
+        return out
+    if not (isinstance(c0, dict) and isinstance(c1, dict)):
+        return out
+    merged = {}
+    for subj in set(c0) | set(c1):
+        a, b = c0.get(subj), c1.get(subj)
+        if not isinstance(a, dict) and not isinstance(b, dict):
+            continue
+        base = dict(a if isinstance(a, dict) else {})
+        ext = b if isinstance(b, dict) else {}
+        if isinstance(a, dict) and isinstance(b, dict):
+            for k in ('rewards', 'unlocked'):
+                va, vb = a.get(k), b.get(k)
+                if isinstance(va, dict) or isinstance(vb, dict):
+                    r = dict(va if isinstance(va, dict) else {})
+                    if isinstance(vb, dict):
+                        for kk, vv in vb.items():
+                            r.setdefault(kk, vv)
+                    base[k] = r
+                elif va is not None or vb is not None:
+                    try:
+                        base[k] = max(int(va or 0), int(vb or 0))
+                    except (TypeError, ValueError):
+                        base[k] = va if va is not None else vb
+            base['done'] = bool(a.get('done') or b.get('done'))
+            base['nodes'] = _merge_nodes(a.get('nodes'), b.get('nodes'))
+        merged[subj] = base
+    out['course'] = merged
+    return out
+
+
 @education_bp.route('/api/kids/<int:pid>/state', methods=['GET', 'POST'])
 def kid_state(pid):
     """读写某个孩子的数据弹(state/levels 等).
@@ -656,6 +811,18 @@ def kid_state(pid):
     if request.method == 'GET':
         row = sess.query(EduData).filter_by(owner=owner, profile_id=pid, dkey=dkey).first()
         payload = json.loads(row.payload) if row and row.payload else {}
+        if dkey == 'state':
+            # 服务端以 stars 权威账本为准覆盖展示值: 各设备提交的加/扣星星事件
+            # 按 key 幂等去重后, 账本 total 才是真实合计, 避免跨设备/旧弹重复累加
+            srow = sess.query(EduData).filter_by(
+                owner=owner, profile_id=pid, dkey='stars').first()
+            if srow and srow.payload:
+                try:
+                    ledger = json.loads(srow.payload)
+                except Exception:
+                    ledger = {}
+                if isinstance(ledger, dict) and isinstance(ledger.get('total'), int):
+                    payload['stars'] = ledger['total']
         sess.close()
         return jsonify(ok=True, data=payload)
 # POST
@@ -669,6 +836,13 @@ def kid_state(pid):
         return jsonify(ok=True, noop=True)
     now = datetime.utcnow()
     if row:
+        # stars/课程进度/里程碑发放标记: 只增不减, 其余字段以最新弹为准,
+        # 避免旧设备/旧数据覆盖把已挣星星吞掉、里程碑重复发星或关卡进度倒退
+        try:
+            cur = json.loads(row.payload or '{}')
+        except Exception:
+            cur = {}
+        payload = _guard_write_payload(cur, payload) if isinstance(cur, dict) else payload
         row.payload = json.dumps(payload, ensure_ascii=False)
         row.updated_at = now
     else:
@@ -678,6 +852,106 @@ def kid_state(pid):
     sess.commit()
     sess.close()
     return jsonify(ok=True)
+
+
+@education_bp.route('/api/kids/<int:pid>/stars', methods=['POST'])
+def kid_stars(pid):
+    """星星权威账本: 逐笔「加/扣星星」同步到服务端.
+
+    body: {events:[{key, amount, reason, ts}]}
+    - 服务端按事件 key 幂等去重(网络重试/多设备回放不会重复累加);
+    - total = Σ已入账事件, 是全局唯一权威星星数;
+    - 首次收账前自动把旧 state 弹的历史余额迁移为 base 事件, 升级后星星不回退;
+    - 返回 {ok, stars}: 前端展示以返回值为准。
+    """
+    body = request.get_json(silent=True) or {}
+    events = body.get('events')
+    if not isinstance(events, list) or not events:
+        empty = _get_session()
+        empty.close()
+        return jsonify(ok=True, noop=True)
+    sess = _get_session()
+    owner = _owner_id()
+    row = sess.query(EduData).filter_by(owner=owner, profile_id=pid, dkey='stars').first()
+    cur = {}
+    if row:
+        try:
+            cur = json.loads(row.payload or '{}')
+        except Exception:
+            cur = {}
+        if not isinstance(cur, dict):
+            cur = {}
+    if not isinstance(cur.get('seen'), dict):
+        cur['seen'] = {}
+    if not isinstance(cur.get('log'), list):
+        cur['log'] = []
+    now = datetime.utcnow()
+    # 老数据迁移(窗口期): 账本还没有真实事件时, base 事件刻画「旧版累计余额」.
+    # 期间若本端/另一设备晚同步的旧弹余额更高, base 只「取较大」补齐差额, 不重复;
+    # 一旦有真实加/扣星事件入账, 窗口关闭, 此后合计完全由事件驱动(权威不再变),
+    # 避免「先收事件、后写旧弹」或「多设备先后上传旧余额」被反复解析造成虚增.
+    has_real = False
+    for _ev in cur['log']:
+        if isinstance(_ev, dict) and _ev.get('key') not in ('base', '__base'):
+            has_real = True
+            break
+    if not has_real:
+        blob_stars = 0
+        st_row = sess.query(EduData).filter_by(owner=owner, profile_id=pid, dkey='state').first()
+        if st_row and st_row.payload:
+            try:
+                blob_stars = int((json.loads(st_row.payload) or {}).get('stars') or 0)
+            except (TypeError, ValueError, AttributeError):
+                blob_stars = 0
+        base_ev = None
+        for _ev in cur['log']:
+            if isinstance(_ev, dict) and _ev.get('key') == 'base':
+                base_ev = _ev
+                break
+        if base_ev is None:
+            if blob_stars:
+                cur['seen']['base'] = 1
+                cur['log'].append({'key': 'base', 'amount': blob_stars,
+                                   'reason': '历史余额迁移', 'ts': str(int(now.timestamp()))})
+        else:
+            cur['seen']['base'] = 1
+            if blob_stars > (int(base_ev.get('amount') or 0)):
+                base_ev['amount'] = blob_stars
+    total = 0
+    for ev in cur['log']:
+        try:
+            total += int(ev.get('amount') or 0)
+        except (TypeError, ValueError):
+            pass
+    cur['total'] = total
+    for ev in events:
+        if not isinstance(ev, dict):
+            continue
+        k = ev.get('key')
+        if not k or k in cur['seen']:
+            continue
+        try:
+            amt = int(ev.get('amount') or 0)
+        except (TypeError, ValueError):
+            amt = 0
+        cur['seen'][k] = 1
+        cur['log'].append({'key': k, 'amount': amt,
+                           'reason': ev.get('reason') or '',
+                           'ts': ev.get('ts') or str(int(now.timestamp()))})
+        total += amt
+    if len(cur['log']) > 4000:
+        cur['log'] = cur['log'][-4000:]
+    cur['total'] = total
+    payload = json.dumps(cur, ensure_ascii=False)
+    if row:
+        row.payload = payload
+        row.updated_at = now
+    else:
+        sess.add(EduData(owner=owner, profile_id=pid, dkey='stars',
+                         payload=payload, created_at=now, updated_at=now))
+    sess.commit()
+    sess.close()
+    return jsonify(ok=True, stars=total)
 
 
 @education_bp.route('/api/reset', methods=['POST'])

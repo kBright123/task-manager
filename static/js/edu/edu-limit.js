@@ -137,7 +137,8 @@
       if (err) { err.textContent = '星星不足 ' + C.USAGE_UNLOCK_STARS + ' 颗，答对题目也能解锁哦'; }
       return;
     }
-    Store.state.stars = starV() - C.USAGE_UNLOCK_STARS;
+    if (Store.awardStars) Store.awardStars(-C.USAGE_UNLOCK_STARS, '解锁学习时间');
+    else Store.state.stars = starV() - C.USAGE_UNLOCK_STARS;
     Store.addUsageUnlock();
     var adv = pendingAdvance;
     closeGate(adv);

@@ -24,6 +24,33 @@
   .gd-drawer-head { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:12px 16px; border-bottom:1px solid var(--gray-100); flex-shrink:0; font-weight:600; color:var(--gray-800); font-size:.9rem; }
   #gdBody { flex:1; min-height:0; }
   #gdWrap { width:100%; height:100%; }
+  .gm-mask { position:fixed; inset:0; background:rgba(15,23,42,.5); opacity:0; visibility:hidden; transition:opacity .2s ease, visibility .2s ease; z-index:1050; }
+  .gm-mask.show { opacity:1; visibility:visible; }
+  .gm-modal { position:fixed; left:50%; top:48%; transform:translate(-50%,-46%) scale(.97); width:min(920px,94vw); max-height:86vh; background:#fff; border-radius:10px; box-shadow:0 18px 50px rgba(0,0,0,.28); z-index:1055; display:flex; flex-direction:column; opacity:0; visibility:hidden; transition:opacity .2s ease, transform .2s ease, visibility .2s ease; }
+  .gm-modal.show { opacity:1; visibility:visible; transform:translate(-50%,-50%) scale(1); }
+  .gm-head { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--gray-100); flex-shrink:0; }
+  .gm-title { font-weight:700; color:var(--gray-900); font-size:.95rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gm-spacer { flex:1; }
+  .gm-full { font-size:.75rem; color:var(--primary); text-decoration:none; white-space:nowrap; display:inline-flex; align-items:center; gap:3px; }
+  .gm-close { border:none; background:transparent; color:var(--gray-500); font-size:.85rem; padding:4px 6px; border-radius:4px; }
+  .gm-close:hover { background:var(--gray-100); color:var(--gray-800); }
+  .gm-body { display:flex; gap:14px; min-height:0; padding:14px 16px 16px; overflow:auto; }
+  .gm-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:12px; }
+  .gm-side { width:300px; flex-shrink:0; }
+  @media (max-width:768px){ .gm-body{flex-direction:column;} .gm-side{width:auto;} }
+  .gm-card { border:1px solid var(--gray-100); border-radius:8px; display:flex; flex-direction:column; min-height:0; }
+  .gm-card-head { padding:8px 12px; border-bottom:1px solid var(--gray-100); font-size:.82rem; font-weight:600; color:var(--gray-800); display:flex; align-items:center; gap:6px; }
+  .gm-count { font-size:.68rem; font-weight:600; background:var(--primary-light); color:var(--primary); border-radius:100px; padding:1px 7px; }
+  .gm-pre { margin:0; padding:12px; white-space:pre-wrap; font-family:var(--font); font-size:.86rem; color:var(--gray-700); overflow:auto; flex:1; min-height:120px; max-height:46vh; }
+  .gm-meta { font-size:.75rem; color:var(--gray-500); line-height:1.7; }
+  .gm-rel { padding:6px 10px; overflow:auto; max-height:60vh; }
+  .gm-rel-item { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:9px 2px; border-bottom:1px solid var(--gray-100); cursor:pointer; border-radius:4px; }
+  .gm-rel-item:last-child { border-bottom:none; }
+  .gm-rel-item:hover { background:#f8fafc; }
+  .gm-rel-t { font-size:.83rem; font-weight:600; color:var(--gray-800); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gm-rel-d { font-size:.7rem; color:var(--gray-500); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gm-badge { font-size:.62rem; font-weight:700; color:var(--primary); background:var(--primary-light); border-radius:100px; padding:2px 8px; flex-shrink:0; }
+  .gm-empty { text-align:center; color:var(--gray-400); padding:24px 8px; font-size:.8rem; }
 </style>
 <div class="gd-mask" id="gdMask" onclick="closeGraphDrawer()"></div>
 <div class="gd-drawer" id="gdDrawer" role="dialog" aria-modal="true">
@@ -32,6 +59,30 @@
     <button type="button" class="btn btn-sm" style="border:none;color:var(--gray-500);" onclick="closeGraphDrawer()" title="关闭"><i class="bi bi-x-lg"></i></button>
   </div>
   <div id="gdBody"><div id="gdWrap"></div></div>
+</div>
+<div class="gm-mask" id="gmMask" onclick="closePointModal()"></div>
+<div class="gm-modal" id="gmModal" role="dialog" aria-modal="true" aria-labelledby="gmTitleTxt">
+  <div class="gm-head">
+    <span class="gm-title" id="gmTitleTxt">知识点</span>
+    <span class="gm-spacer"></span>
+    <a class="gm-full" id="gmFullLink" href="#" target="_blank" rel="noopener">完整详情 <i class="bi bi-box-arrow-up-right"></i></a>
+    <button type="button" class="gm-close" onclick="closePointModal()" title="关闭"><i class="bi bi-x-lg"></i></button>
+  </div>
+  <div class="gm-body">
+    <div class="gm-main">
+      <div class="gm-card">
+        <div class="gm-card-head"><i class="bi bi-fonts"></i> 知识点正文</div>
+        <pre class="gm-pre" id="gmPointText"></pre>
+      </div>
+      <div class="gm-meta" id="gmMeta"></div>
+    </div>
+    <div class="gm-side">
+      <div class="gm-card">
+        <div class="gm-card-head"><i class="bi bi-link-45deg"></i> 相关知识点 <span class="gm-count" id="gmRelCount">0</span></div>
+        <div class="gm-rel" id="gmRelated"></div>
+      </div>
+    </div>
+  </div>
 </div>
 <script>
 (function () {
@@ -102,7 +153,7 @@
           edgeSymbolSize: 6
         }]
       });
-      chart.on('click', function (p) { if (p.dataType === 'node') { window.open('/kb/point/' + p.data.id, '_blank'); } });
+      chart.on('click', function (p) { if (p.dataType === 'node') { openPointModal(p.data.id, p.data.name); } });
       setTimeout(function () { if (window.gdChart) window.gdChart.resize(); }, 300);
     }).catch(function () {
       statusEl.textContent = '图谱加载失败';
@@ -118,6 +169,78 @@
     document.getElementById('gdMask').classList.remove('show');
     document.getElementById('gdDrawer').classList.remove('show');
     document.body.style.overflow = '';
+  };
+  function gmSetText(id, txt) { document.getElementById(id).textContent = txt; }
+  function gmRenderPoint(d) {
+    if (!d || !d.ok) {
+      gmSetText('gmPointText', '');
+      document.getElementById('gmRelated').innerHTML = '<div class="gm-empty">加载失败</div>';
+      return;
+    }
+    var p = d.point, doc = d.doc, rel = d.related || [];
+    gmSetText('gmTitleTxt', p.title || '知识点');
+    gmSetText('gmPointText', p.content || '(空文档,暂无正文)');
+    var meta = [];
+    if (doc && doc.title) {
+      var dl = document.createElement('a');
+      dl.href = doc.url || '#';
+      dl.style.cssText = 'color:var(--primary);font-weight:600;text-decoration:none;';
+      dl.textContent = doc.title;
+      meta.push(dl.outerHTML);
+    }
+    var info = (p.word_count || 0) + ' 字';
+    if (p.page_start) { info += ' · 第 ' + p.page_start + (p.page_end && p.page_end !== p.page_start ? '-' + p.page_end : '') + ' 页'; }
+    if (p.refined_at) { info += ' · 提炼于 ' + p.refined_at; }
+    meta.push('<span>' + info.replace(/</g, '&lt;') + '</span>');
+    var tags = p.tags || [];
+    if (tags.length) { meta.push('<span>' + tags.map(function (t) { return '#' + String(t).replace(/</g, '&lt;'); }).join(' ') + '</span>'); }
+    document.getElementById('gmMeta').innerHTML = meta.join('<br>');
+    var link = document.getElementById('gmFullLink');
+    link.href = p.detail_url || '#';
+    gmSetText('gmRelCount', String(rel.length));
+    var box = document.getElementById('gmRelated');
+    box.innerHTML = '';
+    if (!rel.length) { box.innerHTML = '<div class="gm-empty">暂无相似关联</div>'; return; }
+    rel.forEach(function (r) {
+      var item = document.createElement('div');
+      item.className = 'gm-rel-item';
+      var left = document.createElement('div');
+      left.style.cssText = 'min-width:0;';
+      var t = document.createElement('div');
+      t.className = 'gm-rel-t';
+      t.textContent = r.title || '';
+      var dd = document.createElement('div');
+      dd.className = 'gm-rel-d';
+      dd.textContent = r.doc_title || '';
+      left.appendChild(t); left.appendChild(dd);
+      var badge = document.createElement('span');
+      badge.className = 'gm-badge';
+      badge.textContent = Math.round((r.score || 0) * 100) + '%';
+      badge.title = '相似度';
+      item.appendChild(left); item.appendChild(badge);
+      item.addEventListener('click', function () { openPointModal(r.id); });
+      box.appendChild(item);
+    });
+  }
+  window.openPointModal = function (pid, name) {
+    var mask = document.getElementById('gmMask');
+    var modal = document.getElementById('gmModal');
+    mask.classList.add('show');
+    modal.classList.add('show');
+    gmSetText('gmTitleTxt', name || '知识点');
+    gmSetText('gmPointText', '加载中...');
+    document.getElementById('gmMeta').innerHTML = '';
+    gmSetText('gmRelCount', '0');
+    document.getElementById('gmRelated').innerHTML = '<div class="gm-empty">加载中...</div>';
+    document.getElementById('gmFullLink').href = '#';
+    fetch('/kb/api/point/' + pid + '/json')
+      .then(function (r) { return r.json(); })
+      .then(gmRenderPoint)
+      .catch(function () { gmRenderPoint({ ok: false }); });
+  };
+  window.closePointModal = function () {
+    document.getElementById('gmMask').classList.remove('show');
+    document.getElementById('gmModal').classList.remove('show');
   };
 })();
 </script>

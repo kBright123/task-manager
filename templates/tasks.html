@@ -408,7 +408,10 @@
     {% endif %}
   </div>
   <script>
-  var mentionUsers = {{ ([{'id': 0, 'name': '所有人', 'keyword': '@所有人'}] + [{'id': u.id, 'name': (u.name or u.username), 'keyword': (u.name or u.username), 'uname': u.username if u.name else None} for u in users])|tojson }};
+  var mentionUsers = [{{ {'id': 0, 'name': '所有人', 'keyword': '@所有人'}|tojson }}];
+  {% for u in users %}
+  mentionUsers.push({{ {'id': u.id, 'name': (u.name or u.username), 'keyword': (u.name or u.username), 'uname': (u.username if u.name else None)}|tojson }});
+  {% endfor %}
   (function(){
     var ta = document.getElementById('adminTaskText');
     var dd = document.getElementById('mentionDropdown');
@@ -952,7 +955,10 @@ function linkify(s){
     return '<a href="' + m + '" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:underline;word-break:break-all;">' + m + '</a>';
   });
 }
-var activeUsers = {{ ([{'id': 0, 'name': '-- 请选择 --'}] + [{'id': u.id, 'name': (u.name or u.username), 'self': (u.id == current_user.id)} for u in users])|tojson }};
+var activeUsers = [{{ {'id': 0, 'name': '-- 请选择 --'}|tojson }}];
+{% for u in users %}
+activeUsers.push({{ {'id': u.id, 'name': (u.name or u.username), 'self': (u.id == current_user.id)}|tojson }});
+{% endfor %}
 function autoGrowDesc(el){
   if(!el) return;
   el.style.height='auto';
@@ -1243,7 +1249,10 @@ async function reopenTask(id){
   </div>
 </div>
 <script>
-var tmUsers = {{ [{'id': u.id, 'name': (u.name or u.username), 'self': (u.id == current_user.id)} for u in users]|tojson }};
+var tmUsers = [];
+{% for u in users %}
+tmUsers.push({{ {'id': u.id, 'name': (u.name or u.username), 'self': (u.id == current_user.id)}|tojson }});
+{% endfor %}
 function tmBuildAssignees(ids){
   var box=document.getElementById('tmAssignBox');
   if(!box) return;

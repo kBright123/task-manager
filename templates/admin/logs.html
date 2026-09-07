@@ -65,7 +65,10 @@
       <span class="badge" style="background:var(--primary-light);color:var(--primary);font-size:.7rem;">{{ total_users }} 位用户操作</span>
       <span class="badge" style="background:rgba(13,110,253,.12);color:var(--info);font-size:.7rem;">星运访问 {{ astro_visits }} 次{% if astro_visits_today %}（今日 {{ astro_visits_today }}）{% endif %}</span>
     </div>
-    <button class="btn btn-sm btn-outline-danger flex-shrink-0" type="button" data-bs-toggle="modal" data-bs-target="#cleanupLogsModal"><i class="bi bi-trash3"></i> 清理日志</button>
+    <form method="POST" action="{{ url_for('admin_logs_cleanup') }}" class="flex-shrink-0">
+      <input type="hidden" name="mode" value="all">
+      <button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash3"></i> 清空日志</button>
+    </form>
   </div>
 
   <div class="table-responsive d-none d-md-block admin-scroll">
@@ -152,25 +155,5 @@
     </nav>
   </div>
   {% endif %}
-</div>
-
-<div class="modal fade" id="cleanupLogsModal" tabindex="-1">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content">
-      <div class="modal-header py-2"><span style="font-weight:600;font-size:.9rem;"><i class="bi bi-trash3 text-danger"></i> 清理操作日志</span><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-      <form method="POST" action="{{ url_for('admin_logs_cleanup') }}" onsubmit="return confirm('确认执行清理?此操作不可恢复。')">
-        <div class="modal-body">
-          <div class="form-check mb-2"><input class="form-check-input" type="radio" name="mode" id="cl7" value="7d"><label class="form-check-label" for="cl7" style="font-size:.82rem;">删除 7 天以前的日志</label></div>
-          <div class="form-check mb-2"><input class="form-check-input" type="radio" name="mode" id="cl30" value="30d" checked><label class="form-check-label" for="cl30" style="font-size:.82rem;">删除 30 天以前的日志</label></div>
-          <div class="form-check mb-2"><input class="form-check-input" type="radio" name="mode" id="cl90" value="90d"><label class="form-check-label" for="cl90" style="font-size:.82rem;">删除 90 天以前的日志</label></div>
-          <div class="form-check"><input class="form-check-input" type="radio" name="mode" id="clall" value="all"><label class="form-check-label" for="clall" style="font-size:.82rem;color:var(--danger);">清空全部日志</label></div>
-        </div>
-        <div class="modal-footer py-2">
-          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
-          <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-trash3"></i> 确认清理</button>
-        </div>
-      </form>
-    </div>
-  </div>
 </div>
 {% endblock %}

@@ -276,7 +276,10 @@ function openEditModal() {
   var assignBox = document.getElementById('editAssignList');
   if (assignBox) {
     var taskAssignees = {{ task_assignee_ids|tojson if task_assignee_ids else '[]' }};
-    var userList = {{ [{'id': u.id, 'name': (u.name or u.username)} for u in users]|tojson }};
+    var userList = [];
+    {% for u in users %}
+    userList.push({{ {'id': u.id, 'name': (u.name or u.username)}|tojson }});
+    {% endfor %}
     var curUser = {{ current_user.id }};
     assignBox.innerHTML = userList.filter(function(u){ return u.id !== 0; }).map(function(u) {
       var self = u.id === curUser ? ' <small style="color:var(--gray-400);font-size:.68rem;">(自己)</small>' : '';

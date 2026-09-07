@@ -3603,9 +3603,7 @@ def workbench():
                            total_points=len(point_rows),
                            tag_counts=tag_counts,
                            selected_point=selected_point,
-                           docs_json=json.dumps(
-                               [_doc_row(d) for d in docs],
-                               ensure_ascii=False))
+                           docs_json=[_doc_row(d) for d in docs])
 
 
 def _point_detail_data(pid):

@@ -7,6 +7,7 @@
   var speakFBTimer = null;
   var lastSpeakText = '', lastSpeakAt = 0;
   var netAudio = null, netAudioUrl = '';
+  var speakSeq = 0;   // 播放会话序号: 新增/停止播放时自增, 作废所有在途播放/重试回调
 
   function pickZhVoice() {
     if (typeof speechSynthesis === 'undefined') return;
@@ -51,8 +52,17 @@
   }
 
   function stopNetAudio() {
+    speakSeq++;                       // 作废在途播放/重试回调, 杜绝旧音频晚到“再放一遍”
     if (netAudio) { netAudio.pause(); netAudio.src = ''; netAudio = null; }
     netAudioUrl = '';
+  }
+
+  // 停止一切语音: 网络音频 + 本地 speechSynthesis(切到下一题/退出答题时调用)
+  function stopSpeech() {
+    stopNetAudio();
+    try {
+      if (typeof speechSynthesis !== 'undefined' && speechSynthesis.cancel) speechSynthesis.cancel();
+    } catch (e) {}
   }
 
   function playAudio(urls) {
@@ -105,11 +115,12 @@
   // 网络 TTS(edge-tts 高音质, 服务端缓存同源 mp3) 带超时: 仅在本地合成不可用/失败时兜底
   function playNetTimed(text, onFail, timeout) {
     var url = ttsUrl(text);
+    var mySeq = speakSeq;             // 捕获当前会话; 一旦有新播放/停止即整体作废
     var attempts = 0, MAX_ATTEMPTS = 2, T_TIMEOUT = timeout || 12000;
-    var done = false, played = false, current = null, cleanTimer = null;
+    var done = false, played = false, started = false, current = null, cleanTimer = null;
 
     function finish(ok, err) {
-      if (done) return;
+      if (done || mySeq !== speakSeq) return;
       done = true;
       if (cleanTimer) clearTimeout(cleanTimer);
       if (current) { try { current.onerror = current.oncanplaythrough = current.onended = null; } catch (e) {} }
@@ -117,13 +128,20 @@
     }
 
     function attempt() {
-      if (done || attempts >= MAX_ATTEMPTS) { if (!done) finish(false, 'network_error'); return; }
+      if (done || mySeq !== speakSeq) return;
+      if (attempts >= MAX_ATTEMPTS) { if (!done && mySeq === speakSeq) finish(false, 'network_error'); return; }
       attempts++;
       var a = new Audio(url);
       current = a;
+      function tryPlay() {
+        if (started || done || mySeq !== speakSeq) return;
+        played = true; started = true;
+        if (cleanTimer) clearTimeout(cleanTimer);
+        var p = a.play();
+        if (p && p.catch) p.catch(function(){});
+      }
       function failOnce(err) {
-        if (done) return;
-        // 出错/未播放成功 → 清理后重试一次
+        if (done || mySeq !== speakSeq) return;
         try { a.onerror = a.oncanplaythrough = a.onended = a.onloadeddata = null; a.pause(); a.src = ''; } catch (e) {}
         a = null;
         if (attempts < MAX_ATTEMPTS) {
@@ -134,21 +152,15 @@
         }
       }
       a.onerror = function(){ failOnce('network_error'); };
-      a.onloadeddata = function(){ played = true; };
-      a.oncanplaythrough = function(){
-        if (cleanTimer) clearTimeout(cleanTimer);
-        if (done) return;
-        played = true;
-        var p = a.play();
-        if (p && p.catch) p.catch(function(){});
-      };
+      a.onloadeddata = tryPlay;         // 首帧数据就绪即播放, 减小等待感
+      a.oncanplaythrough = tryPlay;     // 缓冲充足后再兜底触发(幂等)
       a.onended = function(){
-        if (done) return;
+        if (done || mySeq !== speakSeq) return;
         finish(true);
         stopNetAudio();
       };
       if (cleanTimer) clearTimeout(cleanTimer);
-      cleanTimer = setTimeout(function(){ failOnce(played ? 'autoplay_blocked' : 'network_timeout'); }, T_TIMEOUT);
+      cleanTimer = setTimeout(function(){ if (mySeq === speakSeq) failOnce(played ? 'autoplay_blocked' : 'network_timeout'); }, T_TIMEOUT);
       try { a.load(); } catch (e) {}
       netAudio = a;
     }
@@ -156,30 +168,36 @@
   }
 
   // 用户点击触发的网络 TTS(有用户交互, 可绕过自动播放策略)
-  // 强化: 超时 + 失败重试(重新建 Audio 元素), 降低「有概率网络失败」
-  function playNetTTSUserGesture(text) {
+  // 强化: 超时 + 失败重试(重新建 Audio 元素); 网络迟迟不出声时回退本地合成(不干等)
+  function playNetTTSUserGesture(text, onFail) {
     if (typeof window === 'undefined' || typeof window.Audio === 'undefined') return;
     var url = ttsUrl(text);
-    stopNetAudio();
-    var attempts = 0, MAX_ATTEMPTS = 2, T_TIMEOUT = 12000;
-    var played = false, done = false;
+    stopNetAudio();                       // 停旧播放并自增会话, 作废在途回调
+    var mySeq = speakSeq;                 // 本次点击独占本次会话
+    var attempts = 0, MAX_ATTEMPTS = 2, T_TIMEOUT = 4500;
+    var played = false, started = false, done = false, cleanTimer = null;
 
     function finish(ok, msg) {
-      if (done) return;
+      if (done || mySeq !== speakSeq) return;
       done = true;
       if (cleanTimer) clearTimeout(cleanTimer);
-      if (!ok) { stopNetAudio(); if (msg) window.Edu.Speech.toast(msg); }
+      if (!ok) { stopNetAudio(); if (onFail) onFail(msg || 'network_error'); }
     }
 
-    var cleanTimer = null;
-
     function attempt() {
-      if (done || attempts >= MAX_ATTEMPTS) return;
+      if (done || mySeq !== speakSeq) return;
+      if (attempts >= MAX_ATTEMPTS) { if (!done && mySeq === speakSeq) finish(false, played ? '' : 'network_error'); return; }
       attempts++;
       var a = new Audio(url);
-      // 出错/超时 → 清理后重试
+      function tryPlay() {
+        if (started || done || mySeq !== speakSeq) return;
+        started = true; played = true;
+        if (cleanTimer) clearTimeout(cleanTimer);
+        var p = a.play();
+        if (p && p.catch) p.catch(function(){});
+      }
       function fail() {
-        if (done) return;
+        if (done || mySeq !== speakSeq) return;
         a.onerror = a.oncanplaythrough = a.onended = a.onloadeddata = null;
         try { a.pause(); a.src = ''; } catch (e) {}
         if (attempts < MAX_ATTEMPTS) {
@@ -190,17 +208,11 @@
         }
       }
       a.onerror = fail;
-      a.onended = function(){ stopNetAudio(); };
-      a.onloadeddata = function(){ played = true; };
-      // 首次尝试成功进入可播放状态即视为成功, 开始播放并保持
-      a.oncanplaythrough = function(){
-        played = true;
-        if (cleanTimer) clearTimeout(cleanTimer);
-        var p = a.play();
-        if (p && p.catch) p.catch(function(){});
-      };
+      a.onended = function(){ if (done || mySeq !== speakSeq) return; finish(true); stopNetAudio(); };
+      a.onloadeddata = tryPlay;           // 首帧数据就绪即播放, 减小等待感
+      a.oncanplaythrough = tryPlay;       // 兜底触发(幂等)
       if (cleanTimer) clearTimeout(cleanTimer);
-      cleanTimer = setTimeout(fail, T_TIMEOUT);
+      cleanTimer = setTimeout(function(){ if (mySeq === speakSeq) fail(); }, T_TIMEOUT);
       try { a.load(); } catch (e) {}
       netAudio = a;
     }
@@ -247,7 +259,7 @@
     // 网络 TTS 失败/超时/被拦截 → 本地 speechSynthesis 兜底(短超时, 尽快出声)
     playNetTimed(t, function(){
       speakLocal(t);
-    }, 3000);
+    }, 2500);
   }
 
   // 供按钮点击调用: 强制走网络 TTS(有用户交互, 成功率最高)
@@ -255,7 +267,7 @@
     if (!text || !speakOn()) return;
     var t = M.mathToSpeak(String(text));
     lastSpeakText = t; lastSpeakAt = Date.now();
-    playNetTTSUserGesture(t);
+    playNetTTSUserGesture(t, function(){ speakLocal(t); });  // 网络慢/失败 → 本地秒开兜底, 不干等
   }
 
   // 组装整题朗读文本: 题干(或听音词) + 每个选项的「序号、选项」(如 「。一、香蕉。二、苹果。」)
@@ -294,6 +306,7 @@
   window.Edu.Speech.questionReadText = questionReadText;
   window.Edu.Speech.setSpeakIcon = setSpeakIcon;
   window.Edu.Speech.stopNetAudio = stopNetAudio;
+  window.Edu.Speech.stopSpeech = stopSpeech;
   window.Edu.Speech.playNetTTS = playNetTTS;
   window.Edu.Speech.preloadTTS = preloadTTS;
   window.Edu.Speech.speakOn = speakOn;

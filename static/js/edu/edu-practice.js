@@ -9,6 +9,7 @@
   var PRACTICE_SECS = C.PRACTICE_SECS;
   var PRACTICE = { active: false };
   window.PRACTICE = PRACTICE;
+  var pracAutoTimer = null;   // 听音题自动播定时器: 用户重播/切题时取消
 
   function practiceItem() {
     if (!PRACTICE.active) return null;
@@ -97,10 +98,21 @@
     return 'wb-zh-body';
   }
 
+  // 切题/退出练习时停止当前语音(网络音频 + 本地合成); 无 Speech 模块时静默忽略
+  function stopSpeaking() {
+    try {
+      if (window.Edu && window.Edu.Speech) {
+        if (window.Edu.Speech.stopSpeech) window.Edu.Speech.stopSpeech();
+        else if (window.Edu.Speech.stopNetAudio) window.Edu.Speech.stopNetAudio();
+      }
+    } catch (e) {}
+  }
+
   function practiceNext() {
     if (!PRACTICE.active) return;
     var it = practiceItem();
     if (!it) return;
+    stopSpeaking();					// 切到下一题先停止当前语音
     PRACTICE.cur = it; PRACTICE.idx++; PRACTICE.lock = false;
     var box = document.getElementById(practiceContainer());
     if (!box) return;
@@ -110,9 +122,15 @@
     var inp = document.getElementById('pqi');
     if (inp && inp.querySelector) { var inn = inp.querySelector('.qi-in'); if (inn) setTimeout(function(){ inn.focus(); }, 100); }
     if (it.listen && window.Speech && Speech.questionReadText && Speech.playSpeak) {
-      if (Speech.preloadTTS) Speech.preloadTTS(it.listen);
-      var readTxt = Speech.questionReadText(it.listen, it.options);
-      setTimeout(function(){ if (window.Speech && Speech.playSpeak) Speech.playSpeak(readTxt); }, 60);
+      if (Speech.preloadTTS) Speech.preloadTTS(Speech.questionReadText(it.listen, it.options));
+      if (pracAutoTimer) clearTimeout(pracAutoTimer);
+      var firedItem = it;
+      pracAutoTimer = setTimeout(function(){
+        pracAutoTimer = null;
+        if (window.Speech && Speech.playSpeak && PRACTICE.cur === firedItem) {
+          Speech.playSpeak(Speech.questionReadText(firedItem.listen, firedItem.options));
+        }
+      }, 60);
     }
   }
 
@@ -129,6 +147,7 @@
 
   window.Edu.Practice.replaySpeak = function () {
     var it = window.Edu.Practice && window.Edu.Practice.PRACTICE && window.Edu.Practice.PRACTICE.cur;
+    if (pracAutoTimer) { clearTimeout(pracAutoTimer); pracAutoTimer = null; }
     if (it && it.listen && window.Speech && Speech.questionReadText && Speech.playSpeak) Speech.playSpeak(Speech.questionReadText(it.listen, it.options), 1);
   };
 
@@ -179,6 +198,7 @@
   }
 
   window.startPractice = function (subj, type) {
+    stopSpeaking();                    // 进入练习: 停止正在播放的语音
     if (window.Edu.QuizEngine.quiz) window.Edu.QuizEngine.quiz.submitted = true;
     if (window.Edu.QuizEngine.advTimer) { clearTimeout(window.Edu.QuizEngine.advTimer); window.Edu.QuizEngine.advTimer = null; }
     PRACTICE = { active:true, subj:subj, type:type, idx:0, score:0, streak:0, maxStreak:0,
@@ -193,6 +213,7 @@
 
   window.stopPractice = function () {
     if (!PRACTICE.active) return;
+    stopSpeaking();                    // 退出练习: 停止正在播放的语音
     var n = PRACTICE.right + PRACTICE.wrong;
     if (n === 0) { Speech.toast('还没有作答哦'); return; }
     PRACTICE.active = false;

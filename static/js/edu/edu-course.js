@@ -76,9 +76,9 @@
         { t: 'go_connect', name: '连接与分断', em: '🔗' },
         { t: 'go_life_death', name: '死活与二眼', em: '👁️' },
         { t: 'go_defense', name: '防守自救·大龙脱险', em: '🛡️' },
-        { t: 'go_atari', name: '中盘双吃大战', em: '⚡' },
-        { t: 'go_liberty', name: '十三路大逃杀', em: '🌪️' },
-        { t: 'go_capture', name: '围剿提大龙', em: '🐉' },
+        { t: 'go_tactics', name: '中盘双吃大战', em: '⚡' },
+        { t: 'go_tactics', name: '十三路大逃杀', em: '🌪️' },
+        { t: 'go_tactics', name: '围剿提大龙', em: '🐉' },
         { t: 'go_connect', name: '渡桥连棋手', em: '🌉' },
         { t: 'go_life_death', name: '死活终局决战', em: '👑' }
       ]
@@ -377,12 +377,16 @@
 
     var out = { subj: subj, type: type, right: right, total: total, pct: pct, stars: stars, passed: false, levelIdx: -1, stage: -1 };
 
-    // 是否正处在关卡闯关中(若直接答题启动, courseIn 缺失则尝试按当前位置匹配)
-    var inflight = Store.state.courseIn || null;
-    var idx = -1, stage = 0;
+    // 是否正处在关卡闯关中: 优先用本次题面快照(quiz.courseIn, 结算时最准).
+    // Store.state.courseIn 会在 startQuiz/startFresh 时被清空, 若直接照它判断会让重打关卡
+    // 误落到「下一未通小关」(重复通关错误加星并推进错关). 缺失(直接答题启动)才按题型匹配.
+    var inflight = (stats.courseIn) ? stats.courseIn : (Store.state.courseIn || null);
+    var idx = -1, stage = 0, replayStage = false;
     if (inflight && inflight.subj === subj && inflight.t === type) {
       idx = inflight.idx;
       stage = (typeof inflight.stage === 'number') ? inflight.stage : 0;
+      // 该小关此前已通关 = 重打: 通关奖励不重复发放, 进度不推进
+      replayStage = (idx >= 0 && COURSES[subj]) && (nodeProg(subj, idx).passStage >= stage);
     } else {
       // 尝试按题型对映到当前未通关大关的第一未通小关
       var cp = (function(){ try { return curPos(subj); } catch (e) { return { big: 0, stage: 0 }; } })();
@@ -393,6 +397,7 @@
     if (idx >= 0 && COURSES[subj] && COURSES[subj].levels[idx]) {
       out.levelIdx = idx;
       out.stage = stage;
+      out.replay = !!replayStage;
       // 逐小关难度递增: 通关所需正确率逐小关抬高
       var th = STAGE_THRESH[Math.min(stage, STAGES_PER_BIG - 1)] | 0;
       var passed = (pct >= th) || (stars >= 3);

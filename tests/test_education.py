@@ -2413,6 +2413,34 @@ def test_wish_gift_exchange():
   Wish.giftTab('weapon');
   console.log('WEAPON_TAB_FEIDAO='+(bodyEl._h.indexOf('/static/edu/weapons/feidao.svg')>=0?'1':'0'));
   console.log('WEAPON_TAB_NOULTRA='+(bodyEl._h.indexOf('/static/edu/ultra/')>=0?'0':'1'));
+  // 文学武将专区: 三国/水浒武将名号, 兵器在名字上方+动画, 独一无二
+  console.log('CAT_HAS_GUAN='+(names.indexOf('关羽')>=0?'1':'0'));
+  console.log('CAT_HAS_WUSONG='+(names.indexOf('武松')>=0?'1':'0'));
+  console.log('HERO_UNIQUE='+(CAT.filter(g=>g.sec==='hero').every(g=>g.unique===true)?'1':'0'));
+  Wish.giftTab('hero');
+  console.log('HERO_TAB_PLAQUE='+(bodyEl._h.indexOf('hero-plaque')>=0?'1':'0'));
+  console.log('HERO_TAB_GUAN='+(bodyEl._h.indexOf('>关羽<')>=0?'1':'0'));
+  console.log('HERO_TAB_WEAPEN='+(bodyEl._h.indexOf('青龙偃月刀')>=0?'1':'0'));
+  console.log('HERO_TAB_ANIM='+(bodyEl._h.indexOf('hero-card anim-slice')>=0?'1':'0'));
+  console.log('HERO_TAB_NOIMAGE='+(bodyEl._h.indexOf('class="gift-emoji"')>=0?'0':'1'));
+  // 兑换武将: 唯一不可重复
+  Store.state.stars=999;
+  Wish.giftRedeem('h_guan'); Wish.giftConfirmOk();
+  const s7=W.Edu.Store.state;
+  console.log('HERO_REDEEM_COUNT='+((s7.redeemed||[]).filter(r=>r.id==='h_guan').length));
+  console.log('HERO_REDEEM_STARS='+s7.stars);
+  Wish.giftRedeem('h_guan');  // 重复兑换应被拒绝
+  const s8=W.Edu.Store.state;
+  console.log('HERO_BLOCKED_COUNT='+((s8.redeemed||[]).filter(r=>r.id==='h_guan').length));
+  console.log('HERO_CARD_OWNED='+(bodyEl._h.indexOf('已拥有')>=0?'1':'0'));
+  // 细节弹窗(武将): 牌匾渲染, 无 svg 图, 显示绰号+兵器, 自动朗读名字
+  const spH=SPOKE.length;
+  Wish.giftDetail('h_guan');
+  console.log('HERO_DETAIL_PLAQUE='+(detailBody._h.indexOf('hero-plaque')>=0?'1':'0'));
+  console.log('HERO_DETAIL_NOIMAGE='+(detailBody._h.indexOf('.svg')>=0?'0':'1'));
+  console.log('HERO_DETAIL_EPITHET='+(detailBody._h.indexOf('武圣')>=0?'1':'0'));
+  console.log('HERO_DETAIL_WEAPON='+(detailBody._h.indexOf('青龙偃月刀')>=0?'1':'0'));
+  console.log('HERO_SPOKE='+(SPOKE.length>spH && SPOKE[spH]==='关羽'?'1':'0'));
   // 细节弹窗(武器): 真实武器图(非 emoji) + 名称 + 自动朗读语音
   Wish.giftDetail('jian');
   console.log('DETAIL_IMG='+(detailBody._h.indexOf('/weapons/jian.svg')>=0?'1':'0'));
@@ -2431,7 +2459,7 @@ def test_wish_gift_exchange():
   console.log('SPOKE2='+(SPOKE.indexOf('化作光，飞向未来！')>=0?'1':'0'));
 })();
 ''')
-    for probe in ('SEC2=2','CAT_HAS_ULTRA=1','ULTRA_UNIQUE=1',
+    for probe in ('SEC2=3','CAT_HAS_ULTRA=1','ULTRA_UNIQUE=1',
                   'CAT_HAS_DAO=1','CAT_HAS_GONG=1','CAT_HAS_QIANG=1','CAT_HAS_JIAN=1','CAT_HAS_DUN=1',
                   'DEF_DAO=25','DEF_GONG=40','DEF_QIANG=45','STARS_AFTER=55','REDEEMED1=1','REDEEMED_FEIDAO=1',
                   'REDEEMED_HAS_PRICE=1','STARS_EXHAUST=10','COUNT2=4',
@@ -2441,6 +2469,10 @@ def test_wish_gift_exchange():
                   'ULTRA_TAB_WEAP=1','ULTRA_TAB_IMG=1','ULTRA_TAB_TITLE=1',
                   'NO_FOLD=1','ONELINE_DIGA=1','SELL_NO_PLUS=1','SELL_175=1',
                   'WEAPON_TAB_FEIDAO=1','WEAPON_TAB_NOULTRA=1',
+                  'CAT_HAS_GUAN=1','CAT_HAS_WUSONG=1','HERO_UNIQUE=1',
+                  'HERO_TAB_PLAQUE=1','HERO_TAB_GUAN=1','HERO_TAB_WEAPEN=1','HERO_TAB_ANIM=1','HERO_TAB_NOIMAGE=1',
+                  'HERO_REDEEM_COUNT=1','HERO_REDEEM_STARS=779','HERO_BLOCKED_COUNT=1','HERO_CARD_OWNED=1',
+                  'HERO_DETAIL_PLAQUE=1','HERO_DETAIL_NOIMAGE=1','HERO_DETAIL_EPITHET=1','HERO_DETAIL_WEAPON=1','HERO_SPOKE=1',
                   'DETAIL_IMG=1','DETAIL_NOEMOJI=1','DETAIL_NAME=1','DETAIL_TITLE=1','DETAIL_MASK=1',
                   'DETAIL_ULTRA_IMG=1','DETAIL_SLOGAN=1','DETAIL_OWNED=1','SPOKE1=1','SPOKE2=1'):
         assert probe in out, out

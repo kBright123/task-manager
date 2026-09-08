@@ -7,6 +7,7 @@
   // 兑换区分区: 每个专区(e.g. 武器区/奥特曼区)互斥折叠, 选中的才展示
   var GIFT_SECTIONS = [
     { id: 'weapon', icon: '🗡️', title: '武器专区', intro: '武器宝库的收藏，喜欢就兑换，可重复收集!' },
+    { id: 'hero', icon: '⚜️', title: '文学武将专区', intro: '三国、水浒的英雄豪杰名号，每位独一无二，只此一块牌匾!' },
     { id: 'ultra', icon: '🦸', title: '奥特曼专区', intro: '稀有的奥特曼英雄，每位只能兑换一次，独一无二!' }
   ];
   function sectionOf(id) { for (var i = 0; i < GIFT_SECTIONS.length; i++) if (GIFT_SECTIONS[i].id === id) return GIFT_SECTIONS[i]; return null; }
@@ -39,7 +40,29 @@
     { id: 'dyna', sec: 'ultra', unique: true, emoji: '🦸', name: '戴拿奥特曼', price: 140, desc: '来自未来的战士，在无垠宇宙中自由飞翔！', voice: '戴拿奥特曼', slogan: '感受宇宙的力量吧！' },
     { id: 'gaia', sec: 'ultra', unique: true, emoji: '🦸', name: '盖亚奥特曼', price: 130, desc: '大地之子，与地球的意志同在，守护我们成长的大地！', voice: '盖亚奥特曼', slogan: '大地的力量，与我同在！' },
     { id: 'orb', sec: 'ultra', unique: true, emoji: '🦸', name: '欧布奥特曼', price: 150, desc: '融合了两个光之力量的全新勇者！', voice: '欧布奥特曼', slogan: '燃烧吧，圣光！' },
-    { id: 'geed', sec: 'ultra', unique: true, emoji: '🦸', name: '捷德奥特曼', price: 140, desc: '背负命运的少年战士，守护自己的信念！', voice: '捷德奥特曼', slogan: '我只相信，我能守护的东西！' }
+    { id: 'geed', sec: 'ultra', unique: true, emoji: '🦸', name: '捷德奥特曼', price: 140, desc: '背负命运的少年战士，守护自己的信念！', voice: '捷德奥特曼', slogan: '我只相信，我能守护的东西！' },
+    // ===== 文学武将专区(独一无二, 名字篆刻 + 兵器动画) =====
+    // book: 出处(三国/水浒); camp: 阵营; seal: 印章单字; epithet: 绰号; weapon: 兵器; anim: 动画风格
+    { id: 'h_lvbu', sec: 'hero', unique: true, emoji: '🔱', name: '吕布', price: 220, book: '三国', camp: '群', seal: '武', epithet: '飞将', weapon: '🔱', weaponName: '方天画戟', anim: 'whirl', desc: '天下第一猛将，手持方天画戟，万军之中无人能挡！', voice: '吕布', slogan: '人中吕布，马中赤兔！' },
+    { id: 'h_guan', sec: 'hero', unique: true, emoji: '⚔️', name: '关羽', price: 220, book: '三国', camp: '蜀', seal: '义', epithet: '武圣', weapon: '⚔️', weaponName: '青龙偃月刀', anim: 'slice', desc: '忠义千秋的武圣，大刀过处，敌军望风而逃。', voice: '关羽', slogan: '温酒斩华雄，青龙偃月刀！' },
+    { id: 'h_zhaoyun', sec: 'hero', unique: true, emoji: '🗡️', name: '赵云', price: 200, book: '三国', camp: '蜀', seal: '勇', epithet: '常胜将军', weapon: '🗡️', weaponName: '龙胆亮银枪', anim: 'thrust', desc: '一身是胆的常山赵子龙，一杆亮银枪护主突围。', voice: '赵云', slogan: '长坂坡前，七进七出！' },
+    { id: 'h_zhangfei', sec: 'hero', unique: true, emoji: '🔱', name: '张飞', price: 200, book: '三国', camp: '蜀', seal: '猛', epithet: '万人敌', weapon: '🔱', weaponName: '丈八蛇矛', anim: 'thrust', desc: '豹头环眼的猛张飞，丈八蛇矛横扫千军。', voice: '张飞', slogan: '当阳桥头，一声喝退百万兵！' },
+    { id: 'h_caocao', sec: 'hero', unique: true, emoji: '⚔️', name: '曹操', price: 200, book: '三国', camp: '魏', seal: '枭', epithet: '乱世枭雄', weapon: '⚔️', weaponName: '倚天剑', anim: 'glow', desc: '挟天子以令诸侯的一代枭雄，倚天剑锋芒毕露。', voice: '曹操', slogan: '宁教我负天下人！' },
+    { id: 'h_zhugeliang', sec: 'hero', unique: true, emoji: '🎐', name: '诸葛亮', price: 200, book: '三国', camp: '蜀', seal: '谋', epithet: '卧龙', weapon: '🎐', weaponName: '白羽扇', anim: 'glow', desc: '神机妙算的卧龙，轻摇羽扇，运筹帷幄千里之外。', voice: '诸葛亮', slogan: '鞠躬尽瘁，死而后已！' },
+    { id: 'h_liubei', sec: 'hero', unique: true, emoji: '⚔️', name: '刘备', price: 190, book: '三国', camp: '蜀', seal: '仁', epithet: '仁德之君', weapon: '⚔️', weaponName: '雌雄双股剑', anim: 'slice', desc: '仁义为本的汉昭烈帝，雌雄双股剑护佑苍生。', voice: '刘备', slogan: '勿以善小而不为！' },
+    { id: 'h_machao', sec: 'hero', unique: true, emoji: '🗡️', name: '马超', price: 180, book: '三国', camp: '蜀', seal: '威', epithet: '锦马超', weapon: '🗡️', weaponName: '虎头湛金枪', anim: 'thrust', desc: '英姿飒爽的锦马超，西凉铁骑杀得曹操割须弃袍。', voice: '马超', slogan: '锦马超，杀得曹操割须弃袍！' },
+    { id: 'h_huangzhong', sec: 'hero', unique: true, emoji: '🏹', name: '黄忠', price: 180, book: '三国', camp: '蜀', seal: '弓', epithet: '老当益壮', weapon: '🏹', weaponName: '宝雕弓', anim: 'arc', desc: '老当益壮的神箭手，定军山一战立下奇功。', voice: '黄忠', slogan: '百步穿杨，箭无虚发！' },
+    { id: 'h_dianwei', sec: 'hero', unique: true, emoji: '🔱', name: '典韦', price: 160, book: '三国', camp: '魏', seal: '烈', epithet: '古之恶来', weapon: '🔱', weaponName: '双铁戟', anim: 'whirl', desc: '曹操麾下第一猛士，双铁戟护主，威震八方。', voice: '典韦', slogan: '双戟在手，以一敌百！' },
+    { id: 'h_wusong', sec: 'hero', unique: true, emoji: '🏏', name: '武松', price: 200, book: '水浒', camp: '梁山', seal: '虎', epithet: '行者', weapon: '🏏', weaponName: '哨棒', anim: 'swing', desc: '醉打猛虎的行者武松，哨棒挥舞鬼神惊。', voice: '武松', slogan: '景阳冈上，打虎英雄！' },
+    { id: 'h_linchong', sec: 'hero', unique: true, emoji: '🔱', name: '林冲', price: 200, book: '水浒', camp: '梁山', seal: '枪', epithet: '豹子头', weapon: '🔱', weaponName: '丈八蛇矛', anim: 'thrust', desc: '八十万禁军教头，枪法出神入化。', voice: '林冲', slogan: '豹子头风雪上梁山！' },
+    { id: 'h_lujunyi', sec: 'hero', unique: true, emoji: '🗡️', name: '卢俊义', price: 200, book: '水浒', camp: '梁山', seal: '义', epithet: '玉麒麟', weapon: '🗡️', weaponName: '丈二钢枪', anim: 'thrust', desc: '富甲一方却义字当先，枪棒打遍天下无对手。', voice: '卢俊义', slogan: '枪棒天下无双！' },
+    { id: 'h_luzhishen', sec: 'hero', unique: true, emoji: '🏏', name: '鲁智深', price: 180, book: '水浒', camp: '梁山', seal: '侠', epithet: '花和尚', weapon: '🏏', weaponName: '水磨禅杖', anim: 'whirl', desc: '力大无穷的花和尚，禅杖挥舞如天神下凡。', voice: '鲁智深', slogan: '拳打镇关西，倒拔垂杨柳！' },
+    { id: 'h_huarong', sec: 'hero', unique: true, emoji: '🏹', name: '花荣', price: 180, book: '水浒', camp: '梁山', seal: '箭', epithet: '小李广', weapon: '🏹', weaponName: '神箭弯弓', anim: 'arc', desc: '开弓如满月，箭去似流星，百发百中。', voice: '花荣', slogan: '小李广箭如流星！' },
+    { id: 'h_likui', sec: 'hero', unique: true, emoji: '🪓', name: '李逵', price: 170, book: '水浒', camp: '梁山', seal: '风', epithet: '黑旋风', weapon: '🪓', weaponName: '双板斧', anim: 'swing', desc: '性如烈火的黑旋风，一对板斧开路无敌。', voice: '李逵', slogan: '黑旋风斧劈两半！' },
+    { id: 'h_yangzhi', sec: 'hero', unique: true, emoji: '🗡️', name: '杨志', price: 160, book: '水浒', camp: '梁山', seal: '刀', epithet: '青面兽', weapon: '🗡️', weaponName: '祖传朴刀', anim: 'slice', desc: '杨家将后人的青面兽，一口朴刀走江湖。', voice: '杨志', slogan: '青面兽一口宝刀走天下！' },
+    { id: 'h_huyan', sec: 'hero', unique: true, emoji: '🔱', name: '呼延灼', price: 160, book: '水浒', camp: '梁山', seal: '鞭', epithet: '双鞭将', weapon: '🔱', weaponName: '雌雄双鞭', anim: 'whirl', desc: '朝廷名将之后，双鞭使开如雷贯日。', voice: '呼延灼', slogan: '连环马阵双鞭开道！' },
+    { id: 'h_qinming', sec: 'hero', unique: true, emoji: '🔨', name: '秦明', price: 160, book: '水浒', camp: '梁山', seal: '雷', epithet: '霹雳火', weapon: '🔨', weaponName: '狼牙棒', anim: 'swing', desc: '性如烈火的霹雳火，一根狼牙棒打得敌将胆寒。', voice: '秦明', slogan: '霹雳火狼牙棒扫敌阵！' },
+    { id: 'h_yanqing', sec: 'hero', unique: true, emoji: '🏹', name: '燕青', price: 150, book: '水浒', camp: '梁山', seal: '巧', epithet: '浪子', weapon: '🏹', weaponName: '川弩青箭', anim: 'arc', desc: '聪明机警的浪子燕青，百步穿杨还精通相扑。', voice: '燕青', slogan: '浪子燕青一弩定乾坤！' }
   ];
   var DEFAULT_PRICES = {};
   GIFT_CATALOG.forEach(function (g) { DEFAULT_PRICES[g.id] = g.price; });
@@ -49,7 +72,7 @@
     var g = giftOf(id);
     return (g && g.sec === 'ultra') ? '/static/edu/ultra/' + id + '.svg' : '/static/edu/weapons/' + id + '.svg';
   }
-  function isImageGift(id) { return !!giftOf(id); }
+  function isImageGift(id) { var g = giftOf(id); return !!g && g.sec !== 'hero'; }
   function giftIcon(id) {
     return isImageGift(id)
       ? '<img class="gift-emoji" src="' + imgOf(id) + '" alt="" draggable="false">'
@@ -58,6 +81,20 @@
   function giftOf(id) {
     for (var i = 0; i < GIFT_CATALOG.length; i++) if (GIFT_CATALOG[i].id === id) return GIFT_CATALOG[i];
     return null;
+  }
+  // 文学武将牌匾: 兵器在名字上方, 印章字体细节 + 动画体现人物风格
+  function heroPlaqueHtml(g, big) {
+    var b = big ? ' hero-p-lg' : '';
+    var anim = (g.anim && /^[a-z]+$/.test(g.anim)) ? g.anim : 'glow';
+    return '<div class="hero-plaque' + b + '">' +
+      '<span class="hero-seal">' + esc(g.seal || '') + '</span>' +
+      '<div class="hero-weapon"><span class="hw-emoji">' + (g.weapon || '⚔️') + '</span><span class="hw-name">' + esc(g.weaponName || '') + '</span></div>' +
+      '<div class="hero-camp"><span class="hc-book">' + esc(g.book || '') + '</span> · <span class="hc-camp">' + esc(g.camp || '') + '</span> · <span class="hc-epithet">' + esc(g.epithet || '') + '</span></div>' +
+      '<div class="hero-name">' + esc(g.name) + '</div>' +
+      '</div>';
+  }
+  function heroAnimCls(g) {
+    return 'hero-card anim-' + ((g.anim && /^[a-z]+$/.test(g.anim)) ? g.anim : 'glow');
   }
   // 补全缺失的礼物数据（旧宝贝可能没有 redeemed/wishes），价格一律使用默认定价
   function ensureGiftData() {
@@ -83,10 +120,11 @@
   }
   // 当前选中的专区(互斥折叠)
   function curTab() {
-    return (Store.state && Store.state.giftTab === 'ultra') ? 'ultra' : 'weapon';
+    var t = (Store.state && Store.state.giftTab);
+    return sectionOf(t) ? t : 'weapon';
   }
   window.giftTab = function (sec) {
-    Store.state.giftTab = (sec === 'ultra') ? 'ultra' : 'weapon';
+    Store.state.giftTab = sectionOf(sec) ? sec : 'weapon';
     Store.saveState();
     renderWish();
   };
@@ -172,9 +210,11 @@
       actions = '<button type="button" class="gift-buy" ' + (can ? '' : 'disabled') + ' onclick="event.stopPropagation();window.giftRedeem(\'' + g.id + '\')">兑换</button>' +
         (owned ? '<button type="button" class="gift-sell" onclick="event.stopPropagation();window.giftSellOf(\'' + g.id + '\')">卖出 ' + sellRefundOf({ id: g.id, price: price }) + '⭐</button>' : '');
     }
-    return '<div class="gift-card' + (can ? '' : ' off') + '" onclick="window.giftOpen(\'' + g.id + '\')">' +
+    return '<div class="' + (g.sec === 'hero' ? 'gift-card ' + heroAnimCls(g) : 'gift-card') + (can ? '' : ' off') + '" onclick="window.giftOpen(\'' + g.id + '\')">' +
       badge +
-      '<img class="gift-emoji" src="' + imgOf(g.id) + '" alt="' + esc(g.name) + '" draggable="false">' +
+      (g.sec === 'hero'
+        ? heroPlaqueHtml(g, false)
+        : '<img class="gift-emoji" src="' + imgOf(g.id) + '" alt="' + esc(g.name) + '" draggable="false">') +
       '<div class="gift-info">' +
       '<span class="gift-name">' + esc(g.name) + '</span>' +
       '<span class="gift-price">' + price + ' ⭐</span>' +
@@ -292,9 +332,11 @@
     }
     if (body) body.innerHTML =
       '<div class="gift-detail">' +
-      (isImageGift(g.id)
-        ? '<img class="gdetail-emoji" src="' + imgOf(g.id) + '" alt="' + esc(g.name) + '" draggable="false">'
-        : '<div class="gdetail-emoji">' + (g.emoji || '🎁') + '</div>') +
+      (g.sec === 'hero'
+        ? heroPlaqueHtml(g, true)
+        : (isImageGift(g.id)
+          ? '<img class="gdetail-emoji" src="' + imgOf(g.id) + '" alt="' + esc(g.name) + '" draggable="false">'
+          : '<div class="gdetail-emoji">' + (g.emoji || '🎁') + '</div>')) +
       '<div class="gdetail-name">' + esc(g.name) + '<span class="gdetail-sec">' + esc(secName) + '</span></div>' +
       '<div class="gdetail-desc">' + esc(g.desc) + '</div>' +
       sloganHtml +

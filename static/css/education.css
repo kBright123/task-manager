@@ -649,6 +649,51 @@
   html[data-theme="dark"] .ri-sell{background:linear-gradient(135deg,#3a3a2a,#33301f);border-color:#8a7a45;color:#e6c37a;}
   html[data-theme="dark"] .ri-sell:hover{border-color:#c9a227;color:#ffd76a;}
 
+  /* ===== 兑换区 · 文学武将专区(名字篆刻牌匾 + 兵器动画) ===== */
+  .hero-plaque{position:relative;background:linear-gradient(170deg,#fff8ec,#ffe3b0);border:2px solid #d9a441;border-radius:10px;padding:9px 6px 12px;width:100%;box-sizing:border-box;box-shadow:inset 0 0 0 3px rgba(247,207,107,.35),0 3px 8px rgba(0,0,0,.12);}
+  .hero-p-lg{padding:20px 16px 26px;border-radius:16px;}
+  .hero-seal{position:absolute;top:6px;left:7px;width:20px;height:20px;background:linear-gradient(160deg,#e04a4a,#b81f2c);color:#fff;font-size:.95rem;font-weight:900;line-height:20px;text-align:center;border-radius:5px;box-shadow:0 2px 5px rgba(184,31,44,.4);}
+  .hero-p-lg .hero-seal{width:28px;height:28px;line-height:28px;font-size:1.2rem;border-radius:6px;}
+  .hero-weapon{display:flex;flex-direction:column;align-items:center;gap:1px;}
+  .hero-weapon .hw-emoji{display:inline-block;font-size:1.55rem;line-height:1;transform-origin:50% 90%;will-change:transform;}
+  .hero-p-lg .hw-emoji{font-size:2.7rem;}
+  .hw-name{font-size:.6rem;font-weight:900;color:#9a6b15;letter-spacing:.1em;}
+  .hero-p-lg .hw-name{font-size:.82rem;}
+  .hero-camp{display:flex;justify-content:center;align-items:center;gap:4px;font-size:.62rem;font-weight:800;color:#8a6420;margin:7px 0 5px;letter-spacing:.02em;}
+  .hero-camp .hc-book,.hero-camp .hc-camp{background:rgba(240,180,92,.25);border:1px solid rgba(217,164,65,.6);border-radius:999px;padding:1px 6px;white-space:nowrap;}
+  .hero-camp .hc-epithet{color:#b81f2c;font-weight:900;font-size:.68rem;white-space:nowrap;}
+  .hero-p-lg .hero-camp{font-size:.86rem;gap:7px;margin:10px 0 8px;}
+  .hero-name{font-size:1.55rem;font-weight:900;letter-spacing:.12em;text-align:center;line-height:1.15;
+    background:linear-gradient(92deg,#8a5a0a 0%,#b8860b 22%,#f7cf6b 45%,#fff1c4 50%,#f7cf6b 55%,#b8860b 78%,#8a5a0a 100%);
+    background-size:220% 100%;
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;
+    -webkit-animation:heroNameShine 3.2s linear infinite;animation:heroNameShine 3.2s linear infinite;
+    filter:drop-shadow(0 2px 2px rgba(0,0,0,.22));}
+  .hero-p-lg .hero-name{font-size:3rem;letter-spacing:.16em;}
+  @-webkit-keyframes heroNameShine{0%{background-position:0% 50%;}100%{background-position:220% 50%;}}
+  @keyframes heroNameShine{0%{background-position:0% 50%;}100%{background-position:220% 50%;}}
+  /* 兵器动画: 按武将形象风格(挥/刺/旋/砍/射/曜) */
+  .hero-card .hw-emoji{display:inline-block;transform-origin:50% 90%;}
+  .hero-card.anim-slice .hw-emoji{-webkit-animation:hwSlice 1.7s ease-in-out infinite;animation:hwSlice 1.7s ease-in-out infinite;}
+  .hero-card.anim-thrust .hw-emoji{-webkit-animation:hwThrust 1.5s ease-in-out infinite;animation:hwThrust 1.5s ease-in-out infinite;}
+  .hero-card.anim-whirl .hw-emoji{-webkit-animation:hwWhirl 1.8s ease-in-out infinite;animation:hwWhirl 1.8s ease-in-out infinite;}
+  .hero-card.anim-swing .hw-emoji{-webkit-animation:hwSwing 1.4s ease-in-out infinite;animation:hwSwing 1.4s ease-in-out infinite;}
+  .hero-card.anim-arc .hw-emoji{-webkit-animation:hwArc 1.2s ease-in-out infinite;animation:hwArc 1.2s ease-in-out infinite;}
+  .hero-card.anim-glow .hw-emoji{-webkit-animation:hwGlow 2s ease-in-out infinite;animation:hwGlow 2s ease-in-out infinite;}
+  .hero-card.anim-glow .hero-plaque{border-color:#eec25a;-webkit-animation:heroGlowBorder 2.4s ease-in-out infinite;animation:heroGlowBorder 2.4s ease-in-out infinite;}
+  @keyframes hwSlice{0%,100%{transform:rotate(-24deg);}50%{transform:rotate(26deg);}}
+  @keyframes hwThrust{0%,100%{transform:translate(0,0) rotate(-10deg);}50%{transform:translate(4px,-2px) rotate(10deg);}}
+  @keyframes hwWhirl{0%,100%{transform:rotate(-14deg);}50%{transform:rotate(-208deg);}}
+  @keyframes hwSwing{0%,100%{transform:rotate(8deg);}50%{transform:rotate(-38deg);}}
+  @keyframes hwArc{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}
+  @keyframes hwGlow{0%,100%{filter:drop-shadow(0 0 2px rgba(255,190,70,.45));}50%{filter:drop-shadow(0 0 9px rgba(255,160,40,.95));}}
+  @keyframes heroGlowBorder{0%,100%{box-shadow:inset 0 0 0 3px rgba(247,207,107,.35),0 0 6px rgba(217,164,65,.35);}50%{box-shadow:inset 0 0 0 3px rgba(247,207,107,.6),0 0 14px rgba(240,160,60,.7);}}
+  html[data-theme="dark"] .hero-plaque{background:linear-gradient(170deg,#3a3a2a,#332c1b);border-color:#8a7a45;box-shadow:inset 0 0 0 3px rgba(140,120,60,.25),0 3px 10px rgba(0,0,0,.35);}
+  html[data-theme="dark"] .hw-name{color:#d7b45e;}
+  html[data-theme="dark"] .hero-camp{color:#d7b45e;}
+  html[data-theme="dark"] .hero-camp .hc-book,html[data-theme="dark"] .hero-camp .hc-camp{background:rgba(201,162,39,.18);border-color:rgba(201,162,39,.5);}
+  html[data-theme="dark"] .hero-camp .hc-epithet{color:#ff8f8f;}
+
   /* ===== 排序题 ===== */
   .quiz-item .qi-order .qo-pick.pick{border:3px solid #fff;background-image:linear-gradient(180deg,rgba(255,255,255,.35),rgba(255,255,255,.14));box-shadow:0 0 0 3px rgba(31,132,255,.35);}
   .quiz-item .qo-chips{display:flex;flex-wrap:wrap;gap:8px;}

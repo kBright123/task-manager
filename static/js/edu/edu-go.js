@@ -143,6 +143,20 @@
       { id: "d_12", prompt: "13 路：上面横排的黑棋大龙被白棋按住，黑棋下一手接哪一点才能和下面的墙连住？", board: "13", moves: ["D5", "D4", "E5", "F4", "F5", "C5", "G5", "I5", "H5", "D6", "D3", "E6", "E3", "F6", "F3", "G6", "I9", "H6", "I8", "G4", "I7", "H4"], answer: "E4", options: ["E4", "I11", "B3", "M9"], type: "defense", explain: "E4 把上下两条黑棋连成一座堡垒，白棋再围也提不掉这颗关键子后面的整片棋" },
       { id: "d_13", prompt: "13 路：右边这根超长黑棋大龙被白棋从头围到尾，上面藏着一道续命的口。黑棋连在哪？", board: "13", moves: ["F4", "E4", "F5", "E5", "F6", "E6", "F7", "E7", "F8", "E8", "F9", "E9", "F10", "E10", "G11", "G4", "H11", "G5", "I9", "G6", "I8", "G7", "I7", "G8", "I6", "G9", "I5", "G10", "I4", "E3", "I3", "F3", "I2", "G3"], answer: "F11", options: ["F11", "D9", "J1", "H8"], type: "defense", explain: "黑提 F11，把七颗子的大龙接到上方 G11、H11 的黑墙上；一步不接转眼就被白棋全吃" },
       { id: "d_14", prompt: "这条黑棋大龙被白棋围得密不透风，只剩下顶上最后一个出口。黑棋冲哪一点？", board: "9", moves: ["B3", "A3", "B4", "A4", "B5", "A5", "B6", "A6", "B7", "A7", "I9", "C3", "I8", "C4", "I7", "C5", "I6", "C6", "I5", "C7", "I4", "B2"], answer: "B8", options: ["B8", "E8", "I1", "D8"], type: "defense", explain: "黑冲 B8，顶上三个出口全部打开，这块龙就此彻底跑出白棋的包围圈" }
+    ],
+    "tactics": [
+      { id: "tac_1", prompt: "双叫吃：黑棋一手同时打吃左右两组白棋大块，让白棋顾此失彼，下在哪？", board: "9", moves: ["G4", "D4", "C4", "D5", "D3", "F4", "E4", "F5", "G5", "I9", "F3", "I8", "C5", "H9"], answer: "E5", options: ["E5", "D6", "F6", "A1"], type: "tactics", explain: "黑落 E5 挖进两组白棋中间，左边 D4·D5 和右边 F4·F5 同时只剩一口气（双叫吃），白棋只能救一边，另一边必被提" },
+      { id: "tac_2", prompt: "双提：黑棋一记妙手，把左右两组白棋一起提掉！", board: "9", moves: ["G4", "D4", "C4", "D5", "D3", "F4", "E4", "F5", "D6", "I9", "F6", "I8", "G5", "H9", "F3", "G9", "C5", "I7"], answer: "E5", options: ["E5", "C6", "E6", "A1"], type: "tactics", explain: "黑落 E5，左右两组白棋（各 2 子）都只剩 E5 这一口气，落子当场把四子全部提掉" },
+      { id: "tac_3", prompt: "渔网兜提：六颗白棋被兜在网中央，黑棋哪一子收网全提？", board: "9", moves: ["G4", "D4", "F2", "D3", "E5", "E4", "F5", "F4", "D2", "E3", "G3", "F3", "D5", "I9", "C3", "I8", "E2", "H9"], answer: "C4", options: ["C4", "C6", "G7", "A1"], type: "tactics", explain: "白棋 2×3 的棋块四周全是黑棋，只有 C4 一个气口；黑落 C4（从外侧勒），六子全部被兜提" },
+      { id: "tac_4", prompt: "13 路：中间两组白棋各带一条尾巴，黑棋一手「双叫吃」把两块同时逼入绝境！", board: "13", moves: ["J8", "I8", "H7", "I7", "F8", "G7", "I6", "G8", "J7", "M13", "F7", "M12", "G6", "L13"], answer: "H8", options: ["H8", "G9", "I9", "A1"], type: "tactics", explain: "黑落 H8，左边 G7·G8 和右边 I7·I8 两块白棋同时只剩一口气，白棋救不胜救，必丢一块" },
+      { id: "tac_5", prompt: "13 路：八颗白棋子被黑棋团团围住，黑棋一刀切在哪个气口？", board: "13", moves: ["G4", "F5", "J5", "I6", "E5", "I5", "H4", "G6", "G7", "H6", "H7", "F6", "F4", "G5", "F7", "H5", "E6", "M13", "I7", "M12", "I4", "L13"], answer: "J6", options: ["J6", "J7", "G10", "A1"], type: "tactics", explain: "白棋 2×4 的大块被四面围死，只剩 J6 一个气口，黑落 J6 一刀提掉八子" },
+      { id: "tac_6", prompt: "边上这条黑棋大龙只剩一口气，黑棋往哪里冲才能把白棋的包围圈撞开？", board: "9", moves: ["G4", "H4", "G5", "F5", "G3", "F4", "A1", "H3", "B1", "G6", "A2", "H6", "C1", "F6", "B2", "F3", "A3", "H5"], answer: "G2", options: ["G2", "F2", "E2", "H1"], type: "tactics", explain: "黑落 G2 冲出去，G1、F2、H2 三个出口同时打开，大龙一口气变成三口气，白棋再也提不動" },
+      { id: "tac_7", prompt: "13 路：F 列的黑棋大龙被白棋封成只剩一口气，黑棋往上冲出哪一点才能活？", board: "13", moves: ["F5", "E5", "F8", "G7", "F7", "E8", "F6", "F4", "F9", "E7", "A1", "G9", "B1", "G6", "A2", "E6", "C1", "E9", "B2", "G5", "A3", "G8"], answer: "F10", options: ["F10", "F11", "E10", "F13"], type: "tactics", explain: "黑落 F10 出头，E10、G10、F11 三个出口全开，大龙跳出白棋的长墙包围" },
+      { id: "tac_8", prompt: "下方两组白棋刚被黑棋切开，黑棋再补一子就能同时「双叫吃」拿住一块！", board: "9", moves: ["F1", "F2", "G3", "F3", "C3", "D2", "G2", "D3", "C2", "I9", "D1", "I8", "E2", "H9"], answer: "E3", options: ["E3", "D4", "F4", "A1"], type: "tactics", explain: "黑落 E3 尖端，左下 D2·D3 与右下 F2·F3 同时只剩一口气，白棋只能保住一边" },
+      { id: "tac_9", prompt: "白棋这条「弯刀」大龙拐了个弯，黑棋点在哪一点把它一刀全收？", board: "9", moves: ["D4", "F5", "G4", "D3", "F2", "F4", "E5", "E3", "D2", "F3", "G3", "I9", "C3", "I8", "F6", "H9", "G5", "G9", "E2", "H8"], answer: "E4", options: ["E4", "E6", "D5", "F7"], type: "tactics", explain: "白棋 D3·E3·F3·F4·F5 五子拐成弯刀，被黑棋封死只留 E4 一口气；黑落 E4 整条大龙全灭" },
+      { id: "tac_10", prompt: "13 路：两组白棋在棋盘中央抱成两团，黑棋一手把它们全提掉！", board: "13", moves: ["J8", "I8", "I9", "I7", "H7", "G7", "F8", "G8", "I6", "M13", "J7", "M12", "G9", "L13", "F7", "K13", "G6", "L12"], answer: "H8", options: ["H8", "G10", "I10", "A1"], type: "tactics", explain: "黑落 H8，两块白棋（G7·G8 与 I7·I8）都只剩这一口气，落子双提，四子全灭" },
+      { id: "tac_11", prompt: "13 路：右侧 K 列的黑棋大龙被白棋死死围住，黑棋冲哪一点才能连气逃命？", board: "13", moves: ["K7", "L7", "K8", "J8", "K9", "J7", "K6", "L9", "A1", "L6", "B1", "J6", "A2", "K5", "C1", "J9", "B2", "L8"], answer: "K10", options: ["K10", "K11", "J10", "L10"], type: "tactics", explain: "黑落 K10 冲开一条生路，J10、L10、K11 三个出口全打开，大龙脱险" },
+      { id: "tac_12", prompt: "13 路：右下角两组白棋正等着黑棋「一子两吃」，黑棋落哪一点？", board: "13", moves: ["K7", "H7", "G7", "H8", "J6", "J7", "H6", "J8", "K8", "M13", "I7", "M12", "G8", "L13"], answer: "I8", options: ["I8", "H9", "J9", "A1"], type: "tactics", explain: "黑落 I8，左 H7·H8 与右 J7·J8 两组白棋同时只剩一口气（双叫吃），白棋救不胜救" }
     ]
   };
 
@@ -259,7 +273,7 @@
   function renderGoWorkbench(body) {
     if (!body) return;
     // 旧版可能存过文字题模式, 回退到安全的基本玩法
-    if (['atari', 'liberty', 'capture', 'connect', 'life_death', 'defense'].indexOf(wbGoMode) === -1) wbGoMode = 'atari';
+    if (['atari', 'liberty', 'capture', 'connect', 'life_death', 'defense', 'tactics'].indexOf(wbGoMode) === -1) wbGoMode = 'atari';
     body.innerHTML = goSectionHtml();
     renderGoMode(body.querySelector('#wb-go-body'), wbGoMode);
   }
@@ -366,7 +380,8 @@
       { id: 'capture', label: '打吃与提子', emoji: '🎯' },
       { id: 'connect', label: '连接与分断', emoji: '🔗' },
       { id: 'life_death', label: '死活与二眼', emoji: '👁️' },
-      { id: 'defense', label: '防守自救', emoji: '🛡️' }
+      { id: 'defense', label: '防守自救', emoji: '🛡️' },
+      { id: 'tactics', label: '进阶战术', emoji: '⚔️' }
     ];
     var html = '<div id="wb-go">';
     html += '<div class="sm-tabs" style="overflow-x:auto;white-space:nowrap;margin-bottom:12px;">';
@@ -395,7 +410,7 @@
     // 兼容闯关关卡的 go_xxx 与工作台 tab 的 xxx 两种 mode 写法
     mode = String(mode || 'atari').replace(/^go_/, '') || 'atari';
     // 只保留「点选棋盘」的 6 种玩法; 旧版存下的文字题模式回退到基本玩法
-    if (['atari', 'liberty', 'capture', 'connect', 'life_death', 'defense'].indexOf(mode) === -1) mode = 'atari';
+    if (['atari', 'liberty', 'capture', 'connect', 'life_death', 'defense', 'tactics'].indexOf(mode) === -1) mode = 'atari';
     wbGoMode = mode;
     if (window.Edu.Workbench && window.Edu.Workbench.showSubjectSection) window.Edu.Workbench.showSubjectSection('go');
     var body = document.getElementById('wb-go-body');

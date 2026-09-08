@@ -117,19 +117,30 @@
       '</div>';
   }
 
+  // 听音题自动播放定时器句柄: 用户点击重播时取消, 防止自动播+手动播叠加
+  var autoListenTimer = null;
+
   // 听音选字: 重播按钮播放当前题目读音(题目+选项)
   function replaySpeak() {
     var it = quiz && quiz.items && quiz.items[quiz.view];
-    if (it && it.listen) Speech.playSpeak(Speech.questionReadText(it.listen, it.options), 1);
+    if (it && it.listen) {
+      if (autoListenTimer) { clearTimeout(autoListenTimer); autoListenTimer = null; }
+      Speech.playSpeak(Speech.questionReadText(it.listen, it.options), 1);
+    }
   }
 
   // 听音题自动播放: 渲染后播读音, 便于「听语音→选字」
   function autoplayListen(i) {
     var it = quiz.items[i];
     if (it && it.listen) {
-      Speech.preloadTTS(it.listen);          // 预热音频, 缓解首播延迟
       var readTxt = Speech.questionReadText(it.listen, it.options);
-      setTimeout(function(){ Speech.playSpeak(readTxt); }, 60);
+      Speech.preloadTTS(readTxt);          // 预热实际播报文本, 缓解首播延迟
+      if (autoListenTimer) clearTimeout(autoListenTimer);
+      autoListenTimer = setTimeout(function(){
+        autoListenTimer = null;
+        // 仍在当前题才自动播放; 已被用户手动重播/切题则不重复出声
+        if (quiz && quiz.view === i) Speech.playSpeak(readTxt);
+      }, 60);
     }
   }
 
@@ -246,6 +257,16 @@
   // 学习守护拦截期间暂停作答推进
   function gateBlocked() {
     return !!(window.Edu && window.Edu.UsageGate && window.Edu.UsageGate.isBlocking());
+  }
+
+  // 切题/退出时停止当前语音(网络音频 + 本地合成); 无 Speech 模块时静默忽略
+  function stopSpeaking() {
+    try {
+      if (window.Edu && window.Edu.Speech) {
+        if (window.Edu.Speech.stopSpeech) window.Edu.Speech.stopSpeech();
+        else if (window.Edu.Speech.stopNetAudio) window.Edu.Speech.stopNetAudio();
+      }
+    } catch (e) {}
   }
 
   window.Edu.QuizEngine = {
@@ -637,6 +658,7 @@
   window.Edu.QuizEngine.submitQuiz = function () {
     if (gateBlocked()) return;
     if (!quiz || quiz.submitted) return;
+    stopSpeaking();                    // 退出答题: 停止正在播放的语音
     quiz.submitted = true;
     var right = 0, maxCombo = 0, combo = 0;
     quiz.items.forEach(function(it, i){
@@ -673,7 +695,8 @@
     var courseRes = null;
     if (window.Edu && window.Edu.Course) {
       courseRes = window.Edu.Course.recordQuizResult(quizSubject, quiz.type || quizSubject, {
-        right: right, total: quiz.items.length, triesUsed: triesUsed, fast: fast
+        right: right, total: quiz.items.length, triesUsed: triesUsed, fast: fast,
+        courseIn: (quiz && quiz.courseIn) || null
       });
     }
 
@@ -698,9 +721,11 @@
         if (courseRes.passedNow) {
           courseLine = '<div class="qd-course pass">' +
             '<span class="qc-stars">'+String('⭐'.repeat(courseRes.stars) || '')+'</span>' +
-            '<span>恭喜通关「'+esc(courseRes.stageName || courseRes.levelName)+'」</span>' +
-            (courseRes.unlockedNext ? '<span class="qc-next">▶ 下一关：'+esc(courseRes.unlockedNext)+' 已解锁</span>' : '') +
-            (courseRes.bigDone ? '<span class="qc-next">🏁 第'+(courseRes.levelIdx+1)+'大关全部通关</span>' : '') +
+            '<span>'+(courseRes.replay
+              ? '复习过关「'+esc(courseRes.stageName || courseRes.levelName)+'」· 通关奖励不重复发放'
+              : '恭喜通关「'+esc(courseRes.stageName || courseRes.levelName)+'」')+'</span>' +
+            (courseRes.unlockedNext && !courseRes.replay ? '<span class="qc-next">▶ 下一关：'+esc(courseRes.unlockedNext)+' 已解锁</span>' : '') +
+            (courseRes.bigDone && !courseRes.replay ? '<span class="qc-next">🏁 第'+(courseRes.levelIdx+1)+'大关全部通关</span>' : '') +
             (courseRes.milestones && courseRes.milestones.length ? '<span class="qc-mil">🎖️ '+esc(courseRes.milestones[0].txt)+' 里程碑达成（+'+courseRes.milestones[0].bonus+' 星星）</span>' : '') +
             '</div>';
         } else if (courseRes.tryAgain) {
@@ -783,6 +808,7 @@
 
   window.Edu.QuizEngine.restartQuiz = function () {
     if (!quiz) return;
+    stopSpeaking();                    // “再练一次”退出本套题: 停止正在播放的语音
     clearQuizBodyClass();
     var subj = quizSubject, type = quiz.type, diff = quiz.difficulty;
     var cIn = quiz.courseIn || null;
@@ -836,6 +862,7 @@
   window.Edu.QuizEngine.quizNext = function () {
     if (gateBlocked()) { if (window.Edu && window.Edu.UsageGate) window.Edu.UsageGate.pendingAdvance = true; return; }
     if (!quiz || quiz.submitted) return;
+    stopSpeaking();                    // 切到下一题先停止当前语音(含本地合成)
     if (quiz.view < quiz.items.length - 1) {
       quiz.view++;
       renderQuiz();
@@ -847,6 +874,7 @@
   };
 
   function startFresh(subj, type, items, levelInfo) {
+    stopSpeaking();                    // 进入新一套题: 停止上一套仍在播放的语音
     quizSubject = subj;
     quiz = { items: items, type: type, difficulty: levelInfo && levelInfo.difficulty, answers: {}, view: 0, submitted: false, _t: Date.now(), startedAt: Date.now() };
     window.Edu.QuizEngine.quiz = quiz;

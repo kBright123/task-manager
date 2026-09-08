@@ -117,10 +117,10 @@
       '</div>';
   }
 
-  // 听音选字: 重播按钮播放当前题目读音
+  // 听音选字: 重播按钮播放当前题目读音(题目+选项)
   function replaySpeak() {
     var it = quiz && quiz.items && quiz.items[quiz.view];
-    if (it && it.listen) Speech.playSpeak(it.listen, 1);
+    if (it && it.listen) Speech.playSpeak(Speech.questionReadText(it.listen, it.options), 1);
   }
 
   // 听音题自动播放: 渲染后播读音, 便于「听语音→选字」
@@ -128,14 +128,16 @@
     var it = quiz.items[i];
     if (it && it.listen) {
       Speech.preloadTTS(it.listen);          // 预热音频, 缓解首播延迟
-      setTimeout(function(){ Speech.playSpeak(it.listen); }, 60);
+      var readTxt = Speech.questionReadText(it.listen, it.options);
+      setTimeout(function(){ Speech.playSpeak(readTxt); }, 60);
     }
   }
 
   function buildQuizCard(i) {
     var it = quiz.items[i];
     var isListen = !!it.listen;
-    var spk = isListen ? '' : Speech.spkBtn(it.prompt, 'qi-spk');
+    // 朗读键: 题干 + 每个选项的「序号、选项」
+    var spk = isListen ? '' : Speech.spkBtn(Speech.questionReadText(it.prompt, it.options), 'qi-spk');
     // 读物题(选项一个大字): 题干用大字展示目标字, 控制行用"看它不是"? 仍是"找出"引导
     var isCharPick = !it.order && !it.input && it.options && /^[\u4e00-\u9fa5]$/.test(String(it.prompt||''));
     var headPrompt = isCharPick ? '找一找：哪个是下面这个字？' : it.prompt;
@@ -771,6 +773,7 @@
     if (quizSubject === 'en') return ci + 'window.wbEn(\'' + (window.Edu.EnWorkbench.wbEnMode || 'word') + '\')';
     if (quizSubject === 'math') return ci + 'window.wbMath(\'' + (window.Edu.MathWorkbench.wbMathMode || 'calc') + '\')';
     if (quizSubject === 'go') return ci + 'window.wbGo(\'' + (window.Edu.GoWorkbench.wbGoMode || 'atari') + '\')';
+    if (quizSubject === 'lit') return ci + 'window.wbLit(\'' + (window.Edu.LitWorkbench.wbLitMode || 'sg') + '\')';
     return ci + 'window.wbZh(\'' + (window.Edu.ZhWorkbench.wbZhMode || 'zi') + '\')';
   }
 
@@ -790,6 +793,7 @@
     if (subj === 'math') window.wbMath(window.Edu.MathWorkbench.wbMathMode || 'calc');
     else if (subj === 'en') window.wbEn(window.Edu.EnWorkbench.wbEnMode || 'word');
     else if (subj === 'go') window.wbGo(window.Edu.GoWorkbench.wbGoMode || 'atari');
+    else if (subj === 'lit') window.wbLit(window.Edu.LitWorkbench.wbLitMode || 'sg');
     else window.wbZh(window.Edu.ZhWorkbench.wbZhMode || 'zi');
   };
 
@@ -859,6 +863,7 @@
     else if (subj === 'math') quizContainerId = 'wb-math-body';
     else if (subj === 'en') quizContainerId = 'wb-en-body';
     else if (subj === 'go') quizContainerId = 'wb-go-body';
+    else if (subj === 'lit') quizContainerId = 'wb-lit-body';
     else quizContainerId = 'wb-zh-body';
     renderQuiz();
     if (window.renderNav) window.renderNav();

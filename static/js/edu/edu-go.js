@@ -29,7 +29,13 @@
       { id: "atari_11", prompt: "中间的白棋被围住只差一口气，黑棋从上边点！", board: "9", moves: ["D7", "I2", "C6", "I1", "E6", "D6"], answer: "D5", options: ["D5", "C5", "E5", "D4"], type: "atari", explain: "白棋 D6 被三面包围，只剩 D5 一口气，黑落 D5 提掉" },
       { id: "atari_12", prompt: "右上角两颗白棋抱在一起，黑棋点住出口！", board: "9", moves: ["H8", "H9", "G9", "I9"], answer: "I8", options: ["I8", "G8", "H8", "I7"], type: "atari", explain: "白棋 H9、I9 在角里只剩 I8 一口气，黑落 I8 提两子" },
       { id: "atari_13", prompt: "黑棋一手双吃：边上两颗白棋一起打！", board: "9", moves: ["A7", "I2", "D6", "A6", "A5", "H1", "C7", "C6", "C5", "I1"], answer: "B6", options: ["B6", "B5", "B7", "C6"], type: "atari", explain: "黑落 B6，A6 和 C6 两颗白棋同时只剩一口气（双吃）" },
-      { id: "atari_14", prompt: "两颗白棋挤在三路，黑棋点破！", board: "9", moves: ["D2", "C2", "B1", "I2", "A2", "B2", "B3", "H1", "C1", "I1"], answer: "C3", options: ["C3", "B3", "D3", "C4"], type: "atari", explain: "白棋 B2、C2 被围，只剩 C3 一口气，黑落 C3 提两子" }
+      { id: "atari_14", prompt: "两颗白棋挤在三路，黑棋点破！", board: "9", moves: ["D2", "C2", "B1", "I2", "A2", "B2", "B3", "H1", "C1", "I1"], answer: "C3", options: ["C3", "B3", "D3", "C4"], type: "atari", explain: "白棋 B2、C2 被围，只剩 C3 一口气，黑落 C3 提两子" },
+      { id: "atari_15", prompt: "角上这颗白棋只剩一口气，黑棋下一手提掉它！", board: "9", moves: ["A2", "A1", "C3", "C4", "D5", "D6"], answer: "B1", options: ["B1", "A3", "C1", "B2"], type: "atari", explain: "白棋 A1 被 A2 堵住，只剩 B1 一口气，黑落 B1 直接提掉" },
+      { id: "atari_16", prompt: "边上这颗白棋只剩一口气，黑棋点住它的出口！", board: "9", moves: ["A1", "B1", "C1", "F5", "F6", "G8", "H9", "C3"], answer: "B2", options: ["B2", "B3", "A2", "C2"], type: "atari", explain: "白棋 B1 被 A1、C1 夹住，只剩 B2 一口气，黑落 B2 提掉" },
+      { id: "atari_17", prompt: "中间两颗白棋被团团围住，黑棋定点击破！", board: "9", moves: ["C5", "D5", "F5", "E5", "D4", "F8", "D6", "G9", "E6", "H7"], answer: "E4", options: ["E4", "D8", "E3", "C6"], type: "atari", explain: "黑落 E4，白棋 D5、E5 只剩这最后一口气，两颗全被提" },
+      { id: "atari_18", prompt: "角上两颗白棋抱在一起，黑棋点住唯一出口！", board: "9", moves: ["A2", "A1", "C1", "B1", "G6", "H7", "I8", "I9"], answer: "B2", options: ["B2", "B3", "C2", "A3"], type: "atari", explain: "白棋 A1、B1 只剩 B2 一口气，黑落 B2 全提" },
+      { id: "atari_19", prompt: "13 路棋盘：角上白棋只剩一口气，黑棋提掉它！", board: "13", moves: ["A2", "A1", "B2", "B4", "C6", "C7", "D8", "D9", "E10", "E11"], answer: "B1", options: ["B1", "A3", "B3", "C1"], type: "atari", explain: "黑落 B1，白棋 A1 最后的气被堵死，被提" },
+      { id: "atari_20", prompt: "13 路棋盘：边上的白棋快没气了，黑棋点住出口！", board: "13", moves: ["A1", "B1", "C1", "F5", "F6", "G8", "H9", "C3"], answer: "B2", options: ["B2", "B3", "A2", "C2"], type: "atari", explain: "黑落 B2，白棋 B1 最后的气被堵死，被提" }
     ],
     "liberty": [
       { id: "lib_1", prompt: "黑棋被打吃了，往哪里逃才安全？", board: "9", moves: ["H8", "C5", "D5", "E5", "H9", "D4"], answer: "D6", options: ["D6", "C6", "E6", "D7"], type: "liberty", explain: "黑落 D6 向上连出来，气变多，白棋吃不动了", subject: "D5" },
@@ -45,7 +51,13 @@
       { id: "lib_11", prompt: "左边中腹的黑棋被夹死，往中间逃！", board: "9", moves: ["I2", "B6", "C6", "D6", "I1", "C7"], answer: "C5", options: ["C5", "B5", "D5", "C4"], type: "liberty", explain: "黑落 C5，B5、D5、C4 三个出口全打开", subject: "C6" },
       { id: "lib_12", prompt: "底边黑棋气仅一口，往下一跑反而安全！", board: "9", moves: ["G9", "E2", "A9", "G2", "F2", "F3"], answer: "F1", options: ["F1", "E1", "G1", "F4"], type: "liberty", explain: "黑落 F1 抢到底线，E1、G1 还是出口", subject: "F2" },
       { id: "lib_13", prompt: "最左路的黑棋只剩一囗，沿边往上爬！", board: "9", moves: ["I1", "A6", "A5", "B5"], answer: "A4", options: ["A4", "B4", "A3", "C5"], type: "liberty", explain: "黑落 A4，B4、A3 两个新出口，黑棋逃掉", subject: "A5" },
-      { id: "lib_14", prompt: "黑棋在板上被追，往右上方探出一手！", board: "9", moves: ["I2", "G6", "H6", "I6", "I1", "H7"], answer: "H5", options: ["H5", "G5", "I5", "H4"], type: "liberty", explain: "黑落 H5，G5、I5、H4 全是新出口，脱离危险", subject: "H6" }
+      { id: "lib_14", prompt: "黑棋在板上被追，往右上方探出一手！", board: "9", moves: ["I2", "G6", "H6", "I6", "I1", "H7"], answer: "H5", options: ["H5", "G5", "I5", "H4"], type: "liberty", explain: "黑落 H5，G5、I5、H4 全是新出口，脱离危险", subject: "H6" },
+      { id: "lib_15", prompt: "黑棋被打吃了，往角里去逃出一口气！", board: "9", moves: ["C2", "D2", "A9", "C3", "B9", "B2"], answer: "C1", options: ["C1", "D1", "B1", "D4"], type: "liberty", explain: "黑落 C1 抢到角落出口，B1、D1 都是新气，越跑越多", subject: "C2" },
+      { id: "lib_16", prompt: "中间的黑棋只剩一口气，往上冲一个出口！", board: "9", moves: ["E6", "E5", "A2", "F6", "B3", "D6"], answer: "E7", options: ["E7", "E8", "D7", "F7"], type: "liberty", explain: "黑落 E7，D7、F7、E8 三个出口全打开", subject: "E6" },
+      { id: "lib_17", prompt: "黑棋被三面夹住，往一路伸出去才活！", board: "9", moves: ["G3", "F3", "C5", "H3", "D6", "G2"], answer: "G4", options: ["G4", "G5", "F4", "H4"], type: "liberty", explain: "黑落 G4，F4、H4、G5 都是新出口", subject: "G3" },
+      { id: "lib_18", prompt: "左边黑棋被追到只剩一气，往角里一挤！", board: "9", moves: ["B7", "A7", "D9", "C7", "E8", "B8"], answer: "B6", options: ["B6", "B4", "A6", "C6"], type: "liberty", explain: "黑落 B6，A6、B5、C6 三个出口全打开", subject: "B7" },
+      { id: "lib_19", prompt: "13 路：黑棋只剩一口气，往角里逃！", board: "13", moves: ["C2", "D2", "F6", "C3", "G8", "B2", "H10", "I11"], answer: "C1", options: ["C1", "D1", "B1", "B4"], type: "liberty", explain: "黑落 C1，B1、D1 新出口打开，安全了", subject: "C2" },
+      { id: "lib_20", prompt: "13 路：上边的黑棋被围，往上探一手！", board: "13", moves: ["F10", "F9", "B4", "G10", "C6", "E10", "D8", "I12"], answer: "F11", options: ["F11", "F12", "E11", "G11"], type: "liberty", explain: "黑落 F11，E11、G11、F12 三个方向全活了", subject: "F10" }
     ],
     "capture": [
       { id: "cap_1", prompt: "黑棋一次提掉边上两颗白棋，下哪里？", board: "9", moves: ["H8", "I2", "F1", "I1", "D2", "D1", "C1", "E1"], answer: "E2", options: ["E2", "D3", "F2", "D2"], type: "capture", explain: "白棋 D1、E1 只剩 E2 一口气，黑落 E2 全部提掉" },
@@ -61,7 +73,13 @@
       { id: "cap_11", prompt: "左路三颗白棋站成一队，黑棋从前面封口！", board: "9", moves: ["B3", "A3", "B1", "A1", "B2", "A2"], answer: "A4", options: ["A4", "B4", "A5", "C4"], type: "capture", explain: "白棋 A1、A2、A3 被 B 路堵住，只剩 A4 一口气，黑落 A4 全提" },
       { id: "cap_12", prompt: "黑棋围住底边三颗白棋，最后的出口在哪？", board: "9", moves: ["B1", "C2", "A2", "I2", "D3", "D2", "D1", "I3", "C3", "B2", "B3", "H1", "C1", "I1"], answer: "E2", options: ["E2", "D3", "E3", "E1"], type: "capture", explain: "白棋 B2、C2、D2 被围，只剩 E2 一口气，黑落 E2 全提" },
       { id: "cap_13", prompt: "四颗白棋抱成小方块，黑棋把它一锅端！", board: "9", moves: ["D2", "C2", "A1", "B1", "D1", "B2", "C3", "C1", "B3", "I1"], answer: "A2", options: ["A2", "A3", "A1", "D2"], type: "capture", explain: "白棋 2×2 方块只剩 A2 一口气，黑落 A2 四子全提" },
-      { id: "cap_14", prompt: "上面两颗白棋贴着边，黑棋从下面收口！", board: "9", moves: ["F9", "E9", "E8", "I1", "C9", "D9"], answer: "D8", options: ["D8", "D7", "C8", "E9"], type: "capture", explain: "白棋 D9、E9 被夹住，只剩 D8 一口气，黑落 D8 全提" }
+      { id: "cap_14", prompt: "上面两颗白棋贴着边，黑棋从下面收口！", board: "9", moves: ["F9", "E9", "E8", "I1", "C9", "D9"], answer: "D8", options: ["D8", "D7", "C8", "E9"], type: "capture", explain: "白棋 D9、E9 被夹住，只剩 D8 一口气，黑落 D8 全提" },
+      { id: "cap_15", prompt: "黑棋一手把角上两颗白棋全吃掉！", board: "9", moves: ["A2", "A1", "C1", "B1", "G6", "H7", "I8", "I9"], answer: "B2", options: ["B2", "B3", "C2", "A3"], type: "capture", explain: "黑落 B2，A1、B1 两颗白棋最后一口气被堵，全提" },
+      { id: "cap_16", prompt: "黑棋一口气提掉底边连着的一排白棋！", board: "9", moves: ["B1", "C1", "G1", "D1", "D2", "E1", "E2", "F1", "F2", "I9"], answer: "C2", options: ["C2", "C4", "B2", "D4"], type: "capture", explain: "黑落 C2，底边四颗白棋整排只剩这一口气，全提" },
+      { id: "cap_17", prompt: "白棋抱成小方块，黑棋一锅端！", board: "9", moves: ["B1", "C1", "E1", "D1", "B2", "C2", "C3", "D2", "D3", "I7"], answer: "E2", options: ["E2", "E3", "F2", "D4"], type: "capture", explain: "黑落 E2，2×2 方块白棋只剩这口气，四子全提" },
+      { id: "cap_18", prompt: "角上三颗白棋挤在一起，黑棋从旁边封口！", board: "9", moves: ["A3", "A1", "B2", "B1", "F6", "G7", "H8", "A2"], answer: "C1", options: ["C1", "C2", "D1", "B3"], type: "capture", explain: "黑落 C1，三颗白棋最后的气被堵，全提" },
+      { id: "cap_19", prompt: "13 路：黑棋一口把边上一连串白棋全提掉！", board: "13", moves: ["C1", "D1", "F1", "E1", "D2", "G8", "H9", "I10", "D8", "B13"], answer: "E2", options: ["E2", "E3", "F2", "D4"], type: "capture", explain: "黑落 E2，白棋 D1、E1 连同长排只剩一口气，全提" },
+      { id: "cap_20", prompt: "13 路：角上三颗白棋连成小三角，黑棋点破！", board: "13", moves: ["A3", "A1", "B2", "B1", "D4", "A2", "E5", "F6", "G7", "H8"], answer: "C1", options: ["C1", "B3", "D1", "C3"], type: "capture", explain: "黑落 C1，角上三颗白棋只剩这一口气，全提" }
     ],
     "connect": [
       { id: "conn_1", prompt: "黑棋两组棋被分开，下一手连起来！", board: "9", moves: ["D4", "I2", "F4", "H1", "C4", "I1"], answer: "E4", options: ["E4", "E3", "E5", "D3"], type: "connect", explain: "黑落 E4，把左右两组黑棋接在一起" },
@@ -77,7 +95,13 @@
       { id: "conn_11", prompt: "两个黑棋小组在等着搭桥，桥点在哪里？", board: "9", moves: ["D7", "I2", "B6", "H1", "B7", "I1"], answer: "C7", options: ["C7", "C6", "C8", "B8"], type: "connect", explain: "黑落 C7，把 B7 和 D7 两组连起来" },
       { id: "conn_12", prompt: "白棋想从中间连手，黑棋抢先占领要害！", board: "9", moves: ["I2", "D7", "I1", "F7"], answer: "E7", options: ["E7", "E6", "E8", "D8"], type: "connect", explain: "E7 是 D7、F7 两边的连接点，黑棋占住就切断了白棋", kind: "block", kpts: ["D7", "F7", "E7"] },
       { id: "conn_13", prompt: "黑棋斜斜的两小组，下一手连成一个大团！", board: "9", moves: ["D4", "I2", "B3", "H1", "C3", "I1"], answer: "C4", options: ["C4", "B4", "D4", "E4"], type: "connect", explain: "黑落 C4，把 C3 和 D4 两大组接在一起" },
-      { id: "conn_14", prompt: "角里的黑棋派出一手，接住上面的兄弟！", board: "9", moves: ["A9", "I2", "C9", "H1", "A8", "I1"], answer: "B9", options: ["B9", "C9", "B8", "A9"], type: "connect", explain: "黑落 B9，把 A9 和 C9 连成一条线" }
+      { id: "conn_14", prompt: "角里的黑棋派出一手，接住上面的兄弟！", board: "9", moves: ["A9", "I2", "C9", "H1", "A8", "I1"], answer: "B9", options: ["B9", "C9", "B8", "A9"], type: "connect", explain: "黑落 B9，把 A9 和 C9 连成一条线" },
+      { id: "conn_15", prompt: "黑棋两组被分开了，下一手连起来！", board: "9", moves: ["D4", "E3", "F4", "F5", "G6", "G7", "H8", "H9"], answer: "E4", options: ["E4", "E5", "D3", "D5"], type: "connect", explain: "黑落 E4，把左右两组黑棋接在一起" },
+      { id: "conn_16", prompt: "两颗黑棋一上一下，中间哪一点能连上？", board: "9", moves: ["C3", "D4", "C5", "D6", "E7", "E8", "F9", "G9"], answer: "C4", options: ["C4", "B4", "C6", "C2"], type: "connect", explain: "黑落 C4，把 C3 和 C5 连成一条竖线" },
+      { id: "conn_17", prompt: "角上的黑棋伸出一只手，接住外面的兄弟！", board: "9", moves: ["A1", "B2", "A3", "B4", "C5", "C6", "D7", "D8"], answer: "A2", options: ["A2", "B1", "A4", "C2"], type: "connect", explain: "黑落 A2，把 A1 和 A3 连成一串" },
+      { id: "conn_18", prompt: "中间两组黑棋隔一路，下一手搭桥连上！", board: "9", moves: ["C6", "D7", "E6", "F8", "G9", "I1", "I2", "I3"], answer: "D6", options: ["D6", "D5", "C5", "E5"], type: "connect", explain: "黑落 D6，C6-E6-D6 手拉手连成一条直线" },
+      { id: "conn_19", prompt: "13 路：两组黑棋隔一路，搭桥点在哪？", board: "13", moves: ["D9", "E10", "F9", "G11", "H12", "I13", "A1", "B2", "C3"], answer: "E9", options: ["E9", "E8", "C9", "F8"], type: "connect", explain: "黑落 E9，把 D9 和 F9 两组接在一起" },
+      { id: "conn_20", prompt: "13 路：角里黑棋分两段，连起来！", board: "13", moves: ["A1", "B2", "A3", "B4", "C5", "D6", "E7", "F8", "G9"], answer: "A2", options: ["A2", "B1", "A4", "C2"], type: "connect", explain: "黑落 A2，把 A1 和 A3 连成一串" }
     ],
     "life_death": [
       { id: "ld_1", prompt: "角上黑棋只剩一口气，白棋怎么提掉它？", board: "9", moves: ["A1", "A2"], answer: "B1", options: ["B1", "A3", "B2", "C1"], type: "life_death", explain: "白落 B1，黑棋 A1 只剩下的 B1 口也被堵，A1 被提" },
@@ -93,7 +117,32 @@
       { id: "ld_11", prompt: "右上角两颗黑棋抱团，白棋从里边拆散！", board: "9", moves: ["I8", "H8", "I9", "H9"], answer: "I7", options: ["I7", "H7", "I6", "J9"], type: "life_death", explain: "白落 I7，I8、I9 两颗黑棋最后的气被堵，全被提" },
       { id: "ld_12", prompt: "左边三颗黑棋排着队，白棋从下面断后！", board: "9", moves: ["A9", "B8", "A7", "B9", "A8", "B7"], answer: "A6", options: ["A6", "B6", "A5", "B5"], type: "life_death", explain: "白落 A6，三颗黑棋上方唯一出口被堵，全被提" },
       { id: "ld_13", prompt: "中间两颗黑棋被围住，白棋补上致命一击！", board: "9", moves: ["I2", "D2", "C3", "C4", "D3", "C2", "H1", "B3", "I1", "E3"], answer: "D4", options: ["D4", "B4", "E4", "D5"], type: "life_death", explain: "白落 D4，C3、D3 两颗黑棋最后的气被封，全被提" },
-      { id: "ld_14", prompt: "一颗黑棋被白棋包围，白棋点在哪就赢？", board: "9", moves: ["I2", "D7", "B7", "B6", "B8", "A7", "H1", "A8", "I1", "C8", "C7", "C6"], answer: "B9", options: ["B9", "A9", "C9"], type: "life_death", explain: "白落 B9，黑棋最后的一口气被堵死，三子全灭" }
+      { id: "ld_14", prompt: "一颗黑棋被白棋包围，白棋点在哪就赢？", board: "9", moves: ["I2", "D7", "B7", "B6", "B8", "A7", "H1", "A8", "I1", "C8", "C7", "C6"], answer: "B9", options: ["B9", "A9", "C9"], type: "life_death", explain: "白落 B9，黑棋最后的一口气被堵死，三子全灭" },
+      { id: "ld_15", prompt: "角上黑棋只剩一口气，白棋提掉它！", board: "9", moves: ["A1", "A2", "C3", "C4", "D5"], answer: "B1", options: ["B1", "A3", "B2", "C1"], type: "life_death", explain: "白落 B1，黑棋 A1 最后的出口被堵，被提" },
+      { id: "ld_16", prompt: "两颗黑棋站在角里，白棋收紧最后一口气！", board: "9", moves: ["A1", "A2", "B1", "C1", "D5", "F7", "G8"], answer: "B2", options: ["B2", "B3", "C2", "A3"], type: "life_death", explain: "白落 B2，A1、B1 两颗黑棋全部被提" },
+      { id: "ld_17", prompt: "一竖两颗黑棋，白棋从上面堵死！", board: "9", moves: ["A1", "B1", "A2", "B2", "C4", "E5", "F6"], answer: "A3", options: ["A3", "B3", "A4", "C3"], type: "life_death", explain: "白落 A3，A 路两颗黑棋一口气被提" },
+      { id: "ld_18", prompt: "中间孤零零的黑棋，白棋怎么提？", board: "9", moves: ["D4", "C4", "F6", "E4", "G7", "D3", "H8"], answer: "D5", options: ["D5", "C5", "E5", "D6"], type: "life_death", explain: "白落 D5，黑棋 D4 上下左右全无气，被提" },
+      { id: "ld_19", prompt: "13 路：角上三颗黑棋，白棋一手全提！", board: "13", moves: ["A1", "B2", "A2", "A3", "B1", "C3", "D4", "E5", "F6"], answer: "C1", options: ["C1", "B3", "D1", "C2"], type: "life_death", explain: "白落 C1，三颗黑棋最后一口气被堵，全提" },
+      { id: "ld_20", prompt: "13 路：中间黑棋无路可逃，白棋点在哪？", board: "13", moves: ["F6", "E6", "B3", "G6", "C4", "F5", "D5"], answer: "F7", options: ["F7", "E7", "G7", "F8"], type: "life_death", explain: "白落 F7，黑棋 F6 最后的气被堵死，被提" }
+    ],
+    // 防守自救: 黑棋的大龙被白棋死死围住, 几乎要被提; 只有「唯一一点」能接上
+    // 后援白墙/逃出重围, 且要经得住白棋的反扑(一律用规则引擎逐手读过两回合)。
+    // 题棋型刻意不一: 角部L、底边竖列、中腹横队、右缘镜像、13路大龙等交错使用。
+    "defense": [
+      { id: "d_1", prompt: "白棋马上要提掉角上这块黑棋大龙！黑棋下一步抢哪个要点连上大部队，才能救出来？", board: "9", moves: ["A1", "A4", "A2", "C1", "A3", "C2", "B1", "C3", "B2", "I1", "B4", "I2", "B5", "I3"], answer: "B3", options: ["B3", "C5", "H6", "C7"], type: "defense", explain: "B3 一落，角上的黑棋和 B5 一路黑棋连成一大片，白棋再也提不动整座大龙" },
+      { id: "d_2", prompt: "底边竖排的黑棋大龙被白棋死死封住，唯一的生路在上面。黑棋连哪一手才能接上后方的墙？", board: "9", moves: ["A1", "B1", "A2", "B2", "A3", "B3", "A4", "B4", "B5", "G7", "C5", "H8", "D5", "I9", "E5", "G9"], answer: "A5", options: ["A5", "F4", "B8", "D1"], type: "defense", explain: "黑落 A5，把竖排大龙与上方一排黑墙连起来，白棋怎么追也是白费" },
+      { id: "d_3", prompt: "右边的黑棋大龙只剩一口气，往上一接就能连上大部队。这个救命的出口在哪？", board: "9", moves: ["I1", "H1", "I2", "H2", "I3", "H3", "I4", "H4", "H5", "G7", "G5", "H8", "F5", "I9", "E5", "G9"], answer: "I5", options: ["I5", "A3", "C6", "E4"], type: "defense", explain: "黑冲 I5，右缘大龙和上面的黑墙连成一片，白棋只能看着它跑掉" },
+      { id: "d_4", prompt: "棋盘中间这条黑棋大龙被上下夹住，只有一个点能把龙身和上面的墙接上。是哪一点？", board: "9", moves: ["D5", "C5", "E5", "H5", "F5", "D6", "G5", "E6", "D3", "F6", "E3", "G6", "F3", "D4", "C3", "F4", "D2", "G4"], answer: "E4", options: ["E4", "D1", "E9", "I3"], type: "defense", explain: "E4 是这座龙唯一的“桥点”，一落，横列大龙与上面的三颗黑墙接通，逃生成功" },
+      { id: "d_5", prompt: "右上角的黑棋大龙被白棋层层围住、快被提了。哪个点是唯一能接回大本营的钥匙？", board: "9", moves: ["I1", "I4", "I2", "G1", "I3", "G2", "H1", "G3", "H2", "D1", "H4", "C1", "H5", "B1"], answer: "H3", options: ["H3", "G8", "C4", "A9"], type: "defense", explain: "黑落 H3，把角上大龙和右上方的黑棋一路接起来，提龙彻底没门" },
+      { id: "d_6", prompt: "黑棋大龙沿着 B 路往上一路爬，眼看上方就是生路。哪一手才能真的冲出去？", board: "9", moves: ["B4", "A4", "B5", "A5", "B6", "A6", "B7", "A7", "D4", "C4", "E4", "C5", "F4", "C6", "I9", "C7", "I8", "A3", "I7", "B2", "I6", "C3"], answer: "B8", options: ["B8", "F6", "G3", "H5"], type: "defense", explain: "冲 B8 正好打开了三个出口，白棋堵住一个还有两个，大龙稳稳活出" },
+      { id: "d_7", prompt: "下面这条黑棋大龙被白棋包成了饺子，只有一道缝能连上上面的墙。快找出那道缝在哪？", board: "9", moves: ["D4", "C4", "E4", "H4", "F4", "D3", "G4", "E3", "D6", "F3", "E6", "G3", "F6", "D5", "C6", "F5", "G6", "D7", "H6", "E7", "I9", "G5"], answer: "E5", options: ["E5", "B3", "A1", "D1"], type: "defense", explain: "E5 一接，下排大龙与上排黑墙立刻连成厚势，白棋的包围网反而被撞开" },
+      { id: "d_8", prompt: "13 路：这排黑棋大龙被白棋上下困住，哪一点是唯一能接到上面墙里的桥？", board: "13", moves: ["D8", "D7", "E8", "F7", "F8", "C8", "G8", "H8", "D6", "D9", "E6", "E9", "F6", "F9", "D5", "G9", "I9", "H7"], answer: "E7", options: ["E7", "I13", "A4", "G13"], type: "defense", explain: "黑落 E7，把第八排大龙和第六排黑墙接通；其它点一落白棋照样能把你全提" },
+      { id: "d_9", prompt: "13 路：C 路这根黑棋大龙被白棋两边夹住，往上一顶就能突围。顶在哪一点？", board: "13", moves: ["C4", "B4", "C5", "B5", "C6", "B6", "C7", "B7", "C8", "B8", "E5", "D4", "F6", "D5", "I9", "D6", "I8", "D7", "I7", "D8", "I6", "C2", "I5", "B3", "I4", "D3"], answer: "C9", options: ["C9", "E6", "I12", "K4"], type: "defense", explain: "C9 一冲，三个出口同时打开，白棋拦都拦不住；往别处跑都会被打吃" },
+      { id: "d_10", prompt: "右下角这块黑棋大龙只剩下最后一口气，唯一的救法是连上上面的黑棋。连哪里？", board: "9", moves: ["I9", "I6", "I8", "G9", "I7", "G8", "H9", "G7", "H8", "C9", "H6", "C8", "H5", "C7"], answer: "H7", options: ["H7", "G6", "C5", "D4"], type: "defense", explain: "H7 是角上这块龙与上方黑棋之间的唯一桥点，落下后两条龙合二为一，谁也提不掉" },
+      { id: "d_11", prompt: "13 路：底下横排的黑棋大龙被白棋围紧，黑棋走哪一手才能安全接到上面的墙？", board: "13", moves: ["D7", "D8", "E7", "F8", "F7", "C7", "G7", "I7", "H7", "D6", "D9", "E6", "E9", "F6", "F9", "G6", "I9", "H6", "I8", "G8", "I6", "H8"], answer: "E8", options: ["E8", "B7", "D2", "L13"], type: "defense", explain: "E8 一接，第七排大龙连上第九排黑墙，白棋的包围网被彻底撕开" },
+      { id: "d_12", prompt: "13 路：上面横排的黑棋大龙被白棋按住，黑棋下一手接哪一点才能和下面的墙连住？", board: "13", moves: ["D5", "D4", "E5", "F4", "F5", "C5", "G5", "I5", "H5", "D6", "D3", "E6", "E3", "F6", "F3", "G6", "I9", "H6", "I8", "G4", "I7", "H4"], answer: "E4", options: ["E4", "I11", "B3", "M9"], type: "defense", explain: "E4 把上下两条黑棋连成一座堡垒，白棋再围也提不掉这颗关键子后面的整片棋" },
+      { id: "d_13", prompt: "13 路：右边这根超长黑棋大龙被白棋从头围到尾，上面藏着一道续命的口。黑棋连在哪？", board: "13", moves: ["F4", "E4", "F5", "E5", "F6", "E6", "F7", "E7", "F8", "E8", "F9", "E9", "F10", "E10", "G11", "G4", "H11", "G5", "I9", "G6", "I8", "G7", "I7", "G8", "I6", "G9", "I5", "G10", "I4", "E3", "I3", "F3", "I2", "G3"], answer: "F11", options: ["F11", "D9", "J1", "H8"], type: "defense", explain: "黑提 F11，把七颗子的大龙接到上方 G11、H11 的黑墙上；一步不接转眼就被白棋全吃" },
+      { id: "d_14", prompt: "这条黑棋大龙被白棋围得密不透风，只剩下顶上最后一个出口。黑棋冲哪一点？", board: "9", moves: ["B3", "A3", "B4", "A4", "B5", "A5", "B6", "A6", "B7", "A7", "I9", "C3", "I8", "C4", "I7", "C5", "I6", "C6", "I5", "C7", "I4", "B2"], answer: "B8", options: ["B8", "E8", "I1", "D8"], type: "defense", explain: "黑冲 B8，顶上三个出口全部打开，这块龙就此彻底跑出白棋的包围圈" }
     ]
   };
 
@@ -210,7 +259,7 @@
   function renderGoWorkbench(body) {
     if (!body) return;
     // 旧版可能存过文字题模式, 回退到安全的基本玩法
-    if (['atari', 'liberty', 'capture', 'connect', 'life_death'].indexOf(wbGoMode) === -1) wbGoMode = 'atari';
+    if (['atari', 'liberty', 'capture', 'connect', 'life_death', 'defense'].indexOf(wbGoMode) === -1) wbGoMode = 'atari';
     body.innerHTML = goSectionHtml();
     renderGoMode(body.querySelector('#wb-go-body'), wbGoMode);
   }
@@ -316,7 +365,8 @@
       { id: 'liberty', label: '找气与逃跑', emoji: '🏃' },
       { id: 'capture', label: '打吃与提子', emoji: '🎯' },
       { id: 'connect', label: '连接与分断', emoji: '🔗' },
-      { id: 'life_death', label: '死活与二眼', emoji: '👁️' }
+      { id: 'life_death', label: '死活与二眼', emoji: '👁️' },
+      { id: 'defense', label: '防守自救', emoji: '🛡️' }
     ];
     var html = '<div id="wb-go">';
     html += '<div class="sm-tabs" style="overflow-x:auto;white-space:nowrap;margin-bottom:12px;">';
@@ -344,8 +394,8 @@
   window.wbGo = function (mode) {
     // 兼容闯关关卡的 go_xxx 与工作台 tab 的 xxx 两种 mode 写法
     mode = String(mode || 'atari').replace(/^go_/, '') || 'atari';
-    // 只保留「点选棋盘」的 5 种玩法; 旧版存下的文字题模式回退到基本玩法
-    if (['atari', 'liberty', 'capture', 'connect', 'life_death'].indexOf(mode) === -1) mode = 'atari';
+    // 只保留「点选棋盘」的 6 种玩法; 旧版存下的文字题模式回退到基本玩法
+    if (['atari', 'liberty', 'capture', 'connect', 'life_death', 'defense'].indexOf(mode) === -1) mode = 'atari';
     wbGoMode = mode;
     if (window.Edu.Workbench && window.Edu.Workbench.showSubjectSection) window.Edu.Workbench.showSubjectSection('go');
     var body = document.getElementById('wb-go-body');

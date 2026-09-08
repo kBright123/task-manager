@@ -543,7 +543,7 @@ def tts():
 _EDU_JS_MODULES = [
     'edu-constants.js', 'edu-math-utils.js', 'edu-core.js', 'edu-speech.js',
     'edu-state.js', 'edu-parent.js', 'edu-quiz-engine.js', 'edu-engine.js',
-    'edu-legacy.js', 'edu-zh.js', 'edu-math.js', 'edu-en.js', 'edu-go.js',
+    'edu-legacy.js', 'edu-zh.js', 'edu-math.js', 'edu-en.js', 'edu-go.js', 'edu-lit.js',
     'edu-paradise.js', 'edu-daily.js', 'edu-practice.js', 'edu-header.js',
     'edu-kids.js', 'edu-nav.js', 'edu-home.js',
     'edu-edit.js', 'edu-settings.js', 'edu-report.js',

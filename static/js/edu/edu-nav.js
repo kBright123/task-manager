@@ -191,7 +191,7 @@
     p.mode = 'workbench';
     p.subj = 'daily';
     p.lastSubj = 'daily';
-    p.wbZh = null; p.wbMath = null; p.wbEn = null; p.wbGo = null;
+    p.wbZh = null; p.wbMath = null; p.wbEn = null; p.wbGo = null; p.wbLit = null;
     savePref(p);
     parNow = null;
     subjNow = 'daily';

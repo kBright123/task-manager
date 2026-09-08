@@ -378,6 +378,9 @@
   .edu-map-full.cm-theme-go{background:
       radial-gradient(circle at 10px 10px, rgba(255,255,255,.7) 2px, transparent 2.8px) 0 0/32px 32px repeat,
       radial-gradient(130% 230% at 15% 0%, #fdf6e8 0%, #f5e6c8 25%, #e8d4a8 45%, #d4b888 65%, #c4a070 85%, #b89050 100%);}
+  .edu-map-full.cm-theme-lit{background:
+      radial-gradient(circle at 8px 8px, rgba(255,255,255,.6) 2px, transparent 2.6px) 0 0/28px 28px repeat,
+      radial-gradient(130% 230% at 15% 0%, #fdf6f0 0%, #f5e0c8 20%, #e8c8a8 40%, #d4a888 60%, #b07858 80%, #8b5a3a 100%);}
   .edu-map-full .emf-bar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1.5px solid var(--edu-border);background:transparent;border-bottom-color:transparent;}
   .edu-map-full .emf-back{flex:0 0 auto;border:1.5px solid var(--edu-border-2);background:rgba(255,255,255,.5);color:var(--edu-ink);border-radius:12px;padding:8px 16px;font-size:.9rem;font-weight:700;cursor:pointer;}
   .edu-map-full .emf-journey{margin-left:auto;max-width:calc(100% - 92px);font-size:.82rem;font-weight:700;color:var(--edu-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -1337,14 +1340,19 @@
   .home-course.hc-subj-en{background:
       radial-gradient(circle at 8px 14px, rgba(255,255,255,.8) 2.4px, transparent 2.9px) 0 0/26px 40px repeat,
       radial-gradient(130% 230% at 25% 0%, #eafcff 0%, #c8f3f5 30%, #99e3e6 50%, #58c2ce 72%, #2f9ebc 100%);}
+  .home-course.hc-subj-lit{background:
+      radial-gradient(circle at 10px 10px, rgba(255,255,255,.6) 2px, transparent 2.6px) 0 0/28px 28px repeat,
+      radial-gradient(130% 230% at 15% 0%, #fdf6f0 0%, #f5e0c8 20%, #e8c8a8 40%, #d4a888 60%, #b07858 80%, #8b5a3a 100%);}
   .home-course.locked{filter:grayscale(.75) brightness(.96);}
-  /* 内容区加半透明白底, 保证深色背景(数学星际)下文字/按钮仍清晰 */
+  /* 内容区加半透明白底, 保证深色背景(数学星际/文学古卷)下文字/按钮仍清晰 */
   .home-course.hc-subj-zh .hc-main,
   .home-course.hc-subj-math .hc-main,
   .home-course.hc-subj-en .hc-main,
+  .home-course.hc-subj-lit .hc-main,
   .home-course.hc-subj-zh .hc-foot,
   .home-course.hc-subj-math .hc-foot,
-  .home-course.hc-subj-en .hc-foot{background:rgba(255,255,255,.78);border-radius:12px;padding:7px 9px;margin-right:2px;}
+  .home-course.hc-subj-en .hc-foot,
+  .home-course.hc-subj-lit .hc-foot{background:rgba(255,255,255,.78);border-radius:12px;padding:7px 9px;margin-right:2px;}
   .hc-main{display:flex;align-items:center;gap:8px;min-width:0;}
   .hc-emo{font-size:1.45rem;flex-shrink:0;line-height:1;}
   .hc-nm{display:inline-block;font-size:.96rem;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;}
@@ -1600,6 +1608,30 @@
   .cm-theme-go .c-sakura2{position:absolute;bottom:14%;right:20%;font-size:2rem;opacity:.65;animation:cmSakuraFall 5s ease-in-out infinite reverse;}
   .cm-theme-go .c-lantern{position:absolute;bottom:34%;left:45%;font-size:2.2rem;opacity:.8;}
   .cm-theme-go .c-fan{position:absolute;bottom:36%;right:30%;font-size:2.5rem;opacity:.7;transform:rotate(-15deg);}
+
+  /* 文学·古籍书斋: 暖色书卷、墨笔灯笼、宝剑龙马 */
+  .cm-snake-wrap.cm-theme-lit{
+    background:radial-gradient(120% 220% at 15% 0%, #fdf6f0 0%, #f5e0c8 20%, #e8c8a8 38%, #d4a888 56%, #b07858 74%, #8b5a3a 100%);}
+  .cm-snake-wrap.cm-theme-lit .cm-swipe-hint{color:#6b3a2a;opacity:.85;}
+  .cm-theme-lit .c-book{position:absolute;bottom:30%;left:8%;font-size:4rem;opacity:.85;}
+  .cm-theme-lit .c-book2{position:absolute;bottom:28%;left:18%;font-size:3.6rem;opacity:.75;transform:rotate(8deg);}
+  .cm-theme-lit .c-book3{position:absolute;bottom:26%;left:26%;font-size:3.2rem;opacity:.65;transform:rotate(-5deg);}
+  .cm-theme-lit .c-scroll{position:absolute;bottom:22%;right:8%;font-size:3.4rem;opacity:.8;transform:rotate(5deg);}
+  .cm-theme-lit .c-scroll2{position:absolute;bottom:25%;right:16%;font-size:3rem;opacity:.6;transform:rotate(-10deg);}
+  .cm-theme-lit .c-quill{position:absolute;bottom:34%;left:40%;font-size:2.8rem;opacity:.75;transform:rotate(15deg);}
+  .cm-theme-lit .c-ink{position:absolute;bottom:18%;left:38%;font-size:2.2rem;opacity:.6;}
+  .cm-theme-lit .c-cloud{position:absolute;top:6%;left:12%;font-size:2.8rem;opacity:.65;}
+  .cm-theme-lit .c-moon{position:absolute;top:8%;right:14%;font-size:3.2rem;opacity:.75;}
+  .cm-theme-lit .c-star{position:absolute;top:14%;left:55%;font-size:1.6rem;opacity:.65;animation:cmTwinkle 3s ease-in-out infinite;}
+  .cm-theme-lit .c-brush{position:absolute;bottom:32%;right:32%;font-size:2.4rem;opacity:.7;}
+  .cm-theme-lit .c-brush2{position:absolute;bottom:34%;right:26%;font-size:2rem;opacity:.55;transform:rotate(-10deg);}
+  .cm-theme-lit .c-lantern{position:absolute;bottom:36%;left:48%;font-size:2.2rem;opacity:.8;}
+  .cm-theme-lit .c-fan{position:absolute;bottom:38%;left:60%;font-size:2.2rem;opacity:.65;transform:rotate(10deg);}
+  .cm-theme-lit .c-sword{position:absolute;top:16%;left:70%;font-size:2.6rem;opacity:.55;transform:rotate(15deg);}
+  .cm-theme-lit .c-sword2{position:absolute;bottom:20%;right:30%;font-size:2.4rem;opacity:.5;transform:rotate(-10deg);}
+  .cm-theme-lit .c-horse{position:absolute;bottom:12%;right:22%;font-size:3rem;opacity:.7;animation:cmKoiSwim 5s ease-in-out infinite;}
+  .cm-theme-lit .c-dragon{position:absolute;top:10%;right:6%;font-size:3.2rem;opacity:.45;transform:rotate(12deg);animation:cmRocketFloat 6s ease-in-out infinite;}
+  .cm-theme-lit .c-spear{position:absolute;bottom:8%;left:50%;font-size:3rem;opacity:.55;}
 
   @keyframes cmTwinkle{0%,100%{opacity:.5;}50%{opacity:1;}}
   @keyframes cmRocketFloat{0%,100%{transform:rotate(28deg) translateY(0);}50%{transform:rotate(28deg) translateY(-8px);}}

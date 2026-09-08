@@ -258,6 +258,19 @@
     playNetTTSUserGesture(t);
   }
 
+  // 组装整题朗读文本: 题干(或听音词) + 每个选项的「序号、选项」(如 「。一、香蕉。二、苹果。」)
+  function questionReadText(leadText, options) {
+    var t = String(leadText === undefined || leadText === null ? '' : leadText);
+    if (options && options.length) {
+      var parts = [];
+      for (var i = 0; i < options.length; i++) {
+        parts.push(M.numCn(i + 1) + '、' + M.optLabel(options[i]));
+      }
+      t += '。' + parts.join('。');
+    }
+    return t;
+  }
+
   function spkBtn(text, cls) {
     if (!text) return '';
     // 不安全: JSON.stringify 会产生双引号, 与 HTML 属性定界符冲突 => 用单引号定界并转义文本
@@ -278,6 +291,7 @@
 
   window.Edu.Speech.speak = speak;
   window.Edu.Speech.spkBtn = spkBtn;
+  window.Edu.Speech.questionReadText = questionReadText;
   window.Edu.Speech.setSpeakIcon = setSpeakIcon;
   window.Edu.Speech.stopNetAudio = stopNetAudio;
   window.Edu.Speech.playNetTTS = playNetTTS;

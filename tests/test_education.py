@@ -336,6 +336,7 @@ _MODULE_FILES = [
     'edu-math.js',
     'edu-en.js',
     'edu-go.js',
+    'edu-lit.js',
     'edu-paradise.js',
     'edu-daily.js',
     'edu-practice.js',

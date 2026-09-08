@@ -12,7 +12,7 @@
   // 参考 萌芽学前家长看板 · 幼小衔接工作台成长报告 · 芽芽星三端协同.
   // =====================================================================
 
-  var SUBJ_LABEL = { zh: '语文', math: '数学', en: '英语', go: '围棋', par: '乐园' };
+  var SUBJ_LABEL = { zh: '语文', math: '数学', en: '英语', go: '围棋', lit: '文学', par: '乐园' };
   var SUBJ_COLOR = { zh: '#ff6b4a', math: '#3b82f6', en: '#22b573', par: '#9b59b6' };
   var PALETTE = ['#ff6b4a', '#ffb64a', '#22b573', '#3b82f6', '#9b59b6', '#e879f9', '#14b8a6', '#f43f5e'];
   var MAP_TYPES = (window.Edu.Stats && window.Edu.Stats.MAP_TYPES) || [
@@ -20,7 +20,9 @@
     { s:'zh', t:'pinyin', n:'声母', e:'🔤' }, { s:'zh', t:'yun', n:'韵母', e:'🔡' }, { s:'zh', t:'read', n:'拼读', e:'🗣️' },
     { s:'zh', t:'tone', n:'四声', e:'🎵' }, { s:'zh', t:'fan', n:'反义词', e:'↔️' }, { s:'zh', t:'liang', n:'量词', e:'🔢' },
     { s:'math', t:'calc', n:'口算', e:'🧮' }, { s:'math', t:'judge', n:'判断', e:'⚖️' }, { s:'math', t:'word', n:'应用题', e:'📝' },
-    { s:'math', t:'order', n:'排序', e:'↕️' }, { s:'en', t:'word', n:'单词', e:'🔤' }, { s:'en', t:'dialogue', n:'对话', e:'💬' }
+    { s:'math', t:'order', n:'排序', e:'↕️' }, { s:'en', t:'word', n:'单词', e:'🔤' }, { s:'en', t:'dialogue', n:'对话', e:'💬' },
+    { s:'lit', t:'sg', n:'三国演义', e:'🏇' }, { s:'lit', t:'xy', n:'西游记', e:'🐒' },
+    { s:'lit', t:'sh', n:'水浒传', e:'⚔️' }, { s:'lit', t:'zong', n:'名著综合', e:'📚' }
   ];
 
   var dashRecs = [];
@@ -35,6 +37,7 @@
     if (subj === 'math' && type === 'word') return '应用题';
     var m = { zi: '识字', pinyin: '拼音', yun: '韵母', read: '拼读', tone: '四声', ciyu: '词语', poem: '古诗', stroke: '笔顺', trace: '描红', fan: '反义词', liang: '量词',
       calc: '口算', judge: '判断', order: '排序', wrong: '错题本', daily: '每日挑战', dialogue: '对话', match: '配对',
+      sg: '三国演义', xy: '西游记', sh: '水浒传', zong: '名著综合',
       color: '认颜色', shape: '认形状', number: '数数字', animal: '认动物', fruit: '认水果' };
     return m[type] || type || '练习';
   }

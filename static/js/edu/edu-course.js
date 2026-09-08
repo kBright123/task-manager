@@ -74,7 +74,25 @@
         { t: 'go_liberty', name: '找气与逃跑', em: '🏃' },
         { t: 'go_capture', name: '打吃与提子', em: '🎯' },
         { t: 'go_connect', name: '连接与分断', em: '🔗' },
-        { t: 'go_life_death', name: '死活与二眼', em: '👁️' }
+        { t: 'go_life_death', name: '死活与二眼', em: '👁️' },
+        { t: 'go_defense', name: '防守自救·大龙脱险', em: '🛡️' },
+        { t: 'go_atari', name: '中盘双吃大战', em: '⚡' },
+        { t: 'go_liberty', name: '十三路大逃杀', em: '🌪️' },
+        { t: 'go_capture', name: '围剿提大龙', em: '🐉' },
+        { t: 'go_connect', name: '渡桥连棋手', em: '🌉' },
+        { t: 'go_life_death', name: '死活终局决战', em: '👑' }
+      ]
+    },
+    lit: {
+      title: '文学名著', emoji: '📚', journey: '名著之旅', startEm: '📖',
+      levels: [
+        { t: 'lit_sg', name: '三国·卧龙凤雏', em: '🏇' },
+        { t: 'lit_sg', name: '三国·群英荟萃', em: '🗡️' },
+        { t: 'lit_xy', name: '西游·取经路上', em: '🐒' },
+        { t: 'lit_xy', name: '西游·妖魔大战', em: '🌟' },
+        { t: 'lit_sh', name: '水浒·梁山好汉', em: '⚔️' },
+        { t: 'lit_sh', name: '水浒·替天行道', em: '🏹' },
+        { t: 'lit_zong', name: '名著大闯关', em: '🎓' }
       ]
     }
   };
@@ -196,7 +214,7 @@
     stage = (typeof stage === 'number' && stage >= 0 && stage < STAGES_PER_BIG) ? stage : 0;
     if (!stageUnlocked(subj, idx, stage)) { if (Speech && Speech.toast) Speech.toast('先通过前面的小关才能解锁这里哦 🔒'); return; }
     // 语文题型在导入面板中有子模式(声母/韵母/拼读/四声), 需落到真正的答题 type 以匹配结算
-    var quizT = (subj === 'zh') ? zhLevelQuizType(lv.t) : (subj === 'go') ? goLevelQuizType(lv.t) : lv.t;
+    var quizT = (subj === 'zh') ? zhLevelQuizType(lv.t) : (subj === 'go') ? goLevelQuizType(lv.t) : (subj === 'lit') ? litLevelQuizType(lv.t) : lv.t;
     var type = lv.t;
     var NavP = window.Edu && window.Edu.Nav;
     var pref = (NavP && NavP.getPref) ? NavP.getPref() : null;
@@ -206,11 +224,12 @@
         if (origPref) { origPref.lastSubj = subj; origPref.mode = 'workbench'; origPref.subj = subj; if (key) origPref[key] = type; if (NavP && NavP.savePref) NavP.savePref(origPref); }
       };
     })(pref);
-    var prefKey = subj === 'math' ? 'wbMath' : (subj === 'en' ? 'wbEn' : (subj === 'go' ? 'wbGo' : (type === 'pinyin' || type === 'yun' || type === 'read' || type === 'tone' ? null : (type === 'ciyu' || type === 'liang' ? null : 'wbZh'))));
+    var prefKey = subj === 'math' ? 'wbMath' : (subj === 'en' ? 'wbEn' : (subj === 'go' ? 'wbGo' : (subj === 'lit' ? 'wbLit' : (type === 'pinyin' || type === 'yun' || type === 'read' || type === 'tone' ? null : (type === 'ciyu' || type === 'liang' ? null : 'wbZh')))));
     setPref(prefKey);
     if (type === 'pinyin' || type === 'yun' || type === 'read' || type === 'tone') { if (pref) { pref.wbZh = 'pinyin'; pref.wbPy = type; } setPref(); }
     else if (type === 'ciyu' || type === 'liang') { if (pref) { pref.wbZh = 'ciyu'; pref.wbCy = type === 'liang' ? 'liang' : 'fan'; } setPref(); }
     else if (subj === 'go') { if (pref) { pref.wbGo = type; } setPref(); }
+    else if (subj === 'lit') { if (pref) { pref.wbLit = type; } setPref(); }
 
     // 进入学习页展示答题(若从全屏闯关地图进入, 先关闭覆盖层, 否则遮挡答题页)。
     // 注意: eduNav('learn') 内部会 Store.loadAllState() 重读持久化状态, 从而清空内存里
@@ -242,6 +261,9 @@
     else if (subj === 'go' && window.wbGo) {
       window.wbGo(type);
     }
+    else if (subj === 'lit' && window.wbLit) {
+      window.wbLit(type);
+    }
   }
 
   // 语文关卡题型 → 实际渲染/结算的答题 type
@@ -254,6 +276,11 @@
   function goLevelQuizType(t) {
     // 围棋关卡 go_xxx → 归一化为工作台题型 xxx, 与 quiz.type/结算匹配
     return String(t || '').replace(/^go_/, '') || t;
+  }
+  // 文学名著关卡题型 → 实际渲染/结算的答题 type
+  function litLevelQuizType(t) {
+    // 文学关卡 lit_xxx → 归一化为工作台题型 xxx, 与 quiz.type/结算匹配
+    return String(t || '').replace(/^lit_/, '') || t;
   }
 
   // ---- 激励: 星星(唯一货币, 可兑换星愿) ----
@@ -359,7 +386,7 @@
     } else {
       // 尝试按题型对映到当前未通关大关的第一未通小关
       var cp = (function(){ try { return curPos(subj); } catch (e) { return { big: 0, stage: 0 }; } })();
-      var lvT = (subj === 'zh') ? zhLevelQuizType(COURSES[subj].levels[cp.big].t) : (subj === 'go') ? goLevelQuizType(COURSES[subj].levels[cp.big].t) : COURSES[subj].levels[cp.big].t;
+      var lvT = (subj === 'zh') ? zhLevelQuizType(COURSES[subj].levels[cp.big].t) : (subj === 'go') ? goLevelQuizType(COURSES[subj].levels[cp.big].t) : (subj === 'lit') ? litLevelQuizType(COURSES[subj].levels[cp.big].t) : COURSES[subj].levels[cp.big].t;
       if (lvT === type && stageUnlocked(subj, cp.big, cp.stage) && !nodeProg(subj, cp.big).done) { idx = cp.big; stage = cp.stage; }
     }
 
@@ -434,11 +461,12 @@
   var SNAKE_DX = 215;   // 节点中心 x 间距(加宽让蜿蜒山路与小关点更舒展)
   var SNAKE_Y_A = 210;  // 第一行节点中心 y
   var SNAKE_Y_B = 372;  // 第二行节点中心 y(蛇形)
-  var SUBJ_THEME = {    // 三学科各一固定主题(识别度高、场景各自不同)
+  var SUBJ_THEME = {    // 各学科一固定主题(识别度高、场景各自不同)
     zh: 'cm-theme-zh',
     math: 'cm-theme-math',
     en: 'cm-theme-en',
-    go: 'cm-theme-go'
+    go: 'cm-theme-go',
+    lit: 'cm-theme-lit'
   };
   function subjTheme(subj) {
     return SUBJ_THEME[subj] || 'cm-theme-zh';
@@ -472,6 +500,12 @@
         ['c-pavilion','🏯'],['c-stone','⚫'],['c-stone2','⚪'],
         ['c-bamboo','🎋'],['c-bamboo2','🎍'],['c-koi','🐟'],['c-dragon','🐉'],
         ['c-sakura','🌸'],['c-sakura2','🌸'],['c-lantern','🏮'],['c-fan','🪭']
+      ],
+      lit: [
+        ['c-book','📕'],['c-book2','📗'],['c-book3','📘'],['c-scroll','📜'],['c-scroll2','📜'],
+        ['c-quill','🖋️'],['c-ink','🫙'],['c-cloud','☁️'],['c-moon','🌙'],['c-star','⭐'],
+        ['c-brush','🖌️'],['c-brush2','🖌️'],['c-lantern','🏮'],['c-fan','🪭'],
+        ['c-sword','🗡️'],['c-sword2','🛡️'],['c-horse','🐎'],['c-dragon','🐉'],['c-spear','🌊']
       ]
     }[subj] || [];
     return '<div class="cm-campus" aria-hidden="true">' +

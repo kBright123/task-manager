@@ -6,7 +6,7 @@
   var Speech = window.Edu.Speech;
   var Legacy = window.Edu.Legacy;
 
-  var SUBJ_LABEL = { zh: '语文', math: '数学', en: '英语', go: '围棋', par: '乐园' };
+  var SUBJ_LABEL = { zh: '语文', math: '数学', en: '英语', go: '围棋', lit: '文学', par: '乐园' };
 
   function pad(n) { return (n < 10 ? '0' : '') + n; }
 
@@ -24,7 +24,9 @@
     { s:'zh', t:'pinyin', n:'声母', e:'🔤' }, { s:'zh', t:'yun', n:'韵母', e:'🔡' }, { s:'zh', t:'read', n:'拼读', e:'🗣️' },
     { s:'zh', t:'tone', n:'四声', e:'🎵' }, { s:'zh', t:'fan', n:'反义词', e:'↔️' }, { s:'zh', t:'liang', n:'量词', e:'🔢' },
     { s:'math', t:'calc', n:'口算', e:'🧮' }, { s:'math', t:'judge', n:'判断', e:'⚖️' }, { s:'math', t:'word', n:'应用题', e:'📝' },
-    { s:'math', t:'order', n:'排序', e:'↕️' }, { s:'en', t:'word', n:'单词', e:'🔤' }, { s:'en', t:'dialogue', n:'对话', e:'💬' }
+    { s:'math', t:'order', n:'排序', e:'↕️' }, { s:'en', t:'word', n:'单词', e:'🔤' }, { s:'en', t:'dialogue', n:'对话', e:'💬' },
+    { s:'lit', t:'sg', n:'三国演义', e:'🏇' }, { s:'lit', t:'xy', n:'西游记', e:'🐒' },
+    { s:'lit', t:'sh', n:'水浒传', e:'⚔️' }, { s:'lit', t:'zong', n:'名著综合', e:'📚' }
   ];
 
   function esc(s) { return String(s === undefined || s === null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }

@@ -57,7 +57,8 @@
   function practiceRenderItem() {
     var it = PRACTICE.cur;
     if (!it) return '';
-    var spk = Speech.spkBtn(it.prompt, 'qi-spk');
+    // 朗读键: 题干 + 每个选项的「序号、选项」
+    var spk = Speech.spkBtn(Speech.questionReadText(it.prompt, it.options), 'qi-spk');
     var h = '<div class="quiz-item active" style="margin-top:10px;">';
     if (it.listen) {
       // 听音选字(识字极速/闯关同款): 🔊 重播内联到题干同一行
@@ -108,9 +109,10 @@
     practiceRenderHud();
     var inp = document.getElementById('pqi');
     if (inp && inp.querySelector) { var inn = inp.querySelector('.qi-in'); if (inn) setTimeout(function(){ inn.focus(); }, 100); }
-    if (it.listen && window.Speech && Speech.playSpeak) {
+    if (it.listen && window.Speech && Speech.questionReadText && Speech.playSpeak) {
       if (Speech.preloadTTS) Speech.preloadTTS(it.listen);
-      setTimeout(function(){ if (window.Speech && Speech.playSpeak) Speech.playSpeak(it.listen); }, 60);
+      var readTxt = Speech.questionReadText(it.listen, it.options);
+      setTimeout(function(){ if (window.Speech && Speech.playSpeak) Speech.playSpeak(readTxt); }, 60);
     }
   }
 
@@ -127,7 +129,7 @@
 
   window.Edu.Practice.replaySpeak = function () {
     var it = window.Edu.Practice && window.Edu.Practice.PRACTICE && window.Edu.Practice.PRACTICE.cur;
-    if (it && it.listen && window.Speech && Speech.playSpeak) Speech.playSpeak(it.listen, 1);
+    if (it && it.listen && window.Speech && Speech.questionReadText && Speech.playSpeak) Speech.playSpeak(Speech.questionReadText(it.listen, it.options), 1);
   };
 
   window.Edu.Practice.practiceInput = function (v) {

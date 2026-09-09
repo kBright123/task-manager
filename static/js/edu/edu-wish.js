@@ -6,30 +6,42 @@
 
   // 兑换区分区: 每个专区(e.g. 武器区/奥特曼区)互斥折叠, 选中的才展示
   var GIFT_SECTIONS = [
-    { id: 'weapon', icon: '🗡️', title: '武器专区', intro: '武器宝库的收藏，喜欢就兑换，可重复收集!' },
+    { id: 'weapon', icon: '🗡️', title: '武器专区', intro: '武器宝库的收藏，喜欢就兑换，每样只此一件!' },
     { id: 'hero', icon: '⚜️', title: '武将专区', intro: '三国、水浒、西游记的英雄豪杰名号，每位独一无二，只此一块牌匾!' },
     { id: 'ultra', icon: '🦸', title: '奥特曼专区', intro: '稀有的奥特曼英雄，每位只能兑换一次，独一无二!' }
   ];
   function sectionOf(id) { for (var i = 0; i < GIFT_SECTIONS.length; i++) if (GIFT_SECTIONS[i].id === id) return GIFT_SECTIONS[i]; return null; }
 
-  // 礼物目录: sec 归属专区, unique 表示该礼物不可重复拥有(奥特曼)
+  // 礼物目录: sec 归属专区, unique 表示该礼物不可重复拥有(所有专区均为唯一)
   // voice: 详情自动朗读的名称/口播; slogan: 专属口号(朗读时附带)
   var GIFT_CATALOG = [
-    // ===== 武器专区(可重复收集) =====
-    { id: 'feidao', sec: 'weapon', emoji: '🗡️', name: '飞刀', price: 15, desc: '例无虚发的飞刀，又快又准！', voice: '飞刀' },
-    { id: 'dao', sec: 'weapon', emoji: '🔪', name: '宝刀', price: 25, desc: '削铁如泥的宝刀，挥舞起来呼呼作响！', voice: '宝刀' },
-    { id: 'dun', sec: 'weapon', emoji: '🛡️', name: '神盾', price: 30, desc: '坚固无比的神盾，守护你不受伤害！', voice: '神盾' },
-    { id: 'gong', sec: 'weapon', emoji: '🏹', name: '长弓', price: 40, desc: '百步穿杨的长弓，射出一支神箭！', voice: '长弓' },
-    { id: 'jian', sec: 'weapon', emoji: '⚔️', name: '宝剑', price: 40, desc: '寒光闪闪的宝剑，勇士的最爱！', voice: '宝剑' },
-    { id: 'qiang', sec: 'weapon', emoji: '🔫', name: '亮枪', price: 45, desc: '一击必中的亮枪，火力十足！', voice: '亮枪' },
-    { id: 'car', sec: 'weapon', emoji: '🏎️', name: '炫酷跑车', price: 50, desc: '风驰电掣的炫酷跑车，出发兜风吧！', voice: '炫酷跑车' },
-    { id: 'cannon', sec: 'weapon', emoji: '💣', name: '大炮', price: 55, desc: '威力无穷的大炮，轰出一发炮火！', voice: '大炮' },
-    { id: 'tank', sec: 'weapon', emoji: '💥', name: '坦克', price: 60, desc: '火力全开的坦克，铁甲护体所向披靡！', voice: '坦克' },
-    { id: 'armor', sec: 'weapon', emoji: '🚗', name: '装甲战车', price: 65, desc: '铁甲护体的装甲战车，开进战场如履平地！', voice: '装甲战车' },
-    { id: 'heli', sec: 'weapon', emoji: '🚁', name: '武装直升机', price: 75, desc: '展翅高飞的武装直升机，盘旋空中守护大地！', voice: '武装直升机' },
-    { id: 'plane', sec: 'weapon', emoji: '✈️', name: '战斗机', price: 80, desc: '制霸天空的战斗机，呼啸着冲上云霄！', voice: '战斗机' },
-    { id: 'ship', sec: 'weapon', emoji: '🚢', name: '航空母舰', price: 90, desc: '巡游四海的航空母舰，海上编队的指挥舰！', voice: '航空母舰' },
-    { id: 'mech', sec: 'weapon', emoji: '🤖', name: '机甲英雄', price: 100, desc: '勇敢无畏的机甲英雄，拯救世界的超级卫士！', voice: '机甲英雄', slogan: '机甲英雄，出击！' },
+    // ===== 武器专区(限一件) =====
+    { id: 'feidao', sec: 'weapon', unique: true, emoji: '🗡️', name: '飞刀', price: 15, desc: '例无虚发的飞刀，又快又准！', voice: '飞刀' },
+    { id: 'dao', sec: 'weapon', unique: true, emoji: '🔪', name: '宝刀', price: 25, desc: '削铁如泥的宝刀，挥舞起来呼呼作响！', voice: '宝刀' },
+    { id: 'dun', sec: 'weapon', unique: true, emoji: '🛡️', name: '神盾', price: 30, desc: '坚固无比的神盾，守护你不受伤害！', voice: '神盾' },
+    { id: 'axe', sec: 'weapon', unique: true, emoji: '🪓', name: '战斧', price: 35, desc: '势大力沉的战斧，一斧劈山裂石！', voice: '战斧' },
+    { id: 'gong', sec: 'weapon', unique: true, emoji: '🏹', name: '长弓', price: 40, desc: '百步穿杨的长弓，射出一支神箭！', voice: '长弓' },
+    { id: 'jian', sec: 'weapon', unique: true, emoji: '⚔️', name: '宝剑', price: 40, desc: '寒光闪闪的宝剑，勇士的最爱！', voice: '宝剑' },
+    { id: 'lance', sec: 'weapon', unique: true, emoji: '🔱', name: '长矛', price: 45, desc: '一枪刺出锐不可当，马上先锋的利器！', voice: '长矛' },
+    { id: 'qiang', sec: 'weapon', unique: true, emoji: '🔫', name: '亮枪', price: 45, desc: '一击必中的亮枪，火力十足！', voice: '亮枪' },
+    { id: 'grenade', sec: 'weapon', unique: true, emoji: '🧨', name: '手雷', price: 50, desc: '拉环一拔就炸，威力不可小觑！', voice: '手雷', slogan: '拔环、投出，砰！' },
+    { id: 'car', sec: 'weapon', unique: true, emoji: '🏎️', name: '炫酷跑车', price: 50, desc: '风驰电掣的炫酷跑车，出发兜风吧！', voice: '炫酷跑车' },
+    { id: 'crossbow', sec: 'weapon', unique: true, emoji: '🎯', name: '神弩', price: 55, desc: '机关弩臂百发百中，比弓更有劲！', voice: '神弩' },
+    { id: 'cannon', sec: 'weapon', unique: true, emoji: '💣', name: '大炮', price: 55, desc: '威力无穷的大炮，轰出一发炮火！', voice: '大炮' },
+    { id: 'mace', sec: 'weapon', unique: true, emoji: '🪵', name: '狼牙棒', price: 58, desc: '满身钢钉的狼牙棒，横扫一片！', voice: '狼牙棒' },
+    { id: 'tank', sec: 'weapon', unique: true, emoji: '💥', name: '坦克', price: 60, desc: '火力全开的坦克，铁甲护体所向披靡！', voice: '坦克' },
+    { id: 'flamer', sec: 'weapon', unique: true, emoji: '🔥', name: '火焰喷射器', price: 62, desc: '喷出冲天烈焰，烧得敌人抱头鼠窜！', voice: '火焰喷射器' },
+    { id: 'whip', sec: 'weapon', unique: true, emoji: '⛓️', name: '铁鞭', price: 63, desc: '呼啦一响的铁鞭，抽得对手找不到北！', voice: '铁鞭' },
+    { id: 'armor', sec: 'weapon', unique: true, emoji: '🚗', name: '装甲战车', price: 65, desc: '铁甲护体的装甲战车，开进战场如履平地！', voice: '装甲战车' },
+    { id: 'hammer', sec: 'weapon', unique: true, emoji: '⚒️', name: '紫金锤', price: 68, desc: '一锤定音的紫金锤，砸下去山崩地裂！', voice: '紫金锤' },
+    { id: 'sniper', sec: 'weapon', unique: true, emoji: '🔭', name: '狙击枪', price: 72, desc: '千里之外一枪命中，神出鬼没的狙击手！', voice: '狙击枪' },
+    { id: 'heli', sec: 'weapon', unique: true, emoji: '🚁', name: '武装直升机', price: 75, desc: '展翅高飞的武装直升机，盘旋空中守护大地！', voice: '武装直升机' },
+    { id: 'bazooka', sec: 'weapon', unique: true, emoji: '🚀', name: '火箭筒', price: 78, desc: '扛在肩上的火箭炮，一发轰碎铁甲！', voice: '火箭筒' },
+    { id: 'plane', sec: 'weapon', unique: true, emoji: '✈️', name: '战斗机', price: 80, desc: '制霸天空的战斗机，呼啸着冲上云霄！', voice: '战斗机' },
+    { id: 'laser', sec: 'weapon', unique: true, emoji: '⚡', name: '离子激光枪', price: 85, desc: '射出耀眼激光束，科幻感满满的超级武器！', voice: '离子激光枪' },
+    { id: 'ship', sec: 'weapon', unique: true, emoji: '🚢', name: '航空母舰', price: 90, desc: '巡游四海的航空母舰，海上编队的指挥舰！', voice: '航空母舰' },
+    { id: 'ufo', sec: 'weapon', unique: true, emoji: '🛸', name: '星际飞船', price: 95, desc: '来自外星文明的星际飞船，激光火力全开！', voice: '星际飞船', slogan: '外星来客，火力全开！' },
+    { id: 'mech', sec: 'weapon', unique: true, emoji: '🤖', name: '机甲英雄', price: 100, desc: '勇敢无畏的机甲英雄，拯救世界的超级卫士！', voice: '机甲英雄', slogan: '机甲英雄，出击！' },
     // ===== 奥特曼专区(独一无二, 不可重复) =====
     { id: 'diga', sec: 'ultra', unique: true, emoji: '🦸', name: '迪迦奥特曼', price: 180, desc: '光的继承者，把希望带给人类，化作光芒冲向未来！', voice: '迪迦奥特曼', slogan: '化作光，飞向未来！' },
     { id: 'zero', sec: 'ultra', unique: true, emoji: '🦸', name: '赛罗奥特曼', price: 170, desc: '正义的首席詹奈纳，武器大师，速度与力量并存的战士！', voice: '赛罗奥特曼', slogan: '拯救，不靠蛮力，靠这颗炽热的心！' },
@@ -286,15 +298,16 @@
     if (owned) badge = g.unique
       ? '<span class="gift-owned">已拥有</span>'
       : '<span class="gift-count">×' + cnt + '</span>';
+    var buyLabel = '兑换 ' + price + '⭐';
     var actions;
     if (g.unique) {
       if (owned) {
         actions = '<button type="button" class="gift-sell" onclick="event.stopPropagation();window.giftSellOf(\'' + g.id + '\')">卖出 ' + sellRefundOf({ id: g.id, price: price }) + '⭐</button>';
       } else {
-        actions = '<button type="button" class="gift-buy" ' + (can ? '' : 'disabled') + ' onclick="event.stopPropagation();window.giftRedeem(\'' + g.id + '\')">兑换</button>';
+        actions = '<button type="button" class="gift-buy" ' + (can ? '' : 'disabled') + ' onclick="event.stopPropagation();window.giftRedeem(\'' + g.id + '\')">' + buyLabel + '</button>';
       }
     } else {
-      actions = '<button type="button" class="gift-buy" ' + (can ? '' : 'disabled') + ' onclick="event.stopPropagation();window.giftRedeem(\'' + g.id + '\')">兑换</button>' +
+      actions = '<button type="button" class="gift-buy" ' + (can ? '' : 'disabled') + ' onclick="event.stopPropagation();window.giftRedeem(\'' + g.id + '\')">' + buyLabel + '</button>' +
         (owned ? '<button type="button" class="gift-sell" onclick="event.stopPropagation();window.giftSellOf(\'' + g.id + '\')">卖出 ' + sellRefundOf({ id: g.id, price: price }) + '⭐</button>' : '');
     }
     return '<div class="' + (g.sec === 'hero' ? 'gift-card ' + heroAnimCls(g) : 'gift-card') + (can ? '' : ' off') + '" onclick="window.giftOpen(\'' + g.id + '\')">' +
@@ -302,10 +315,9 @@
       (g.sec === 'hero'
         ? heroPlaqueHtml(g, false)
         : '<img class="gift-emoji" src="' + imgOf(g.id) + '" alt="' + esc(g.name) + '" draggable="false">') +
-      '<div class="gift-info">' +
-      (g.sec === 'hero' ? '' : '<span class="gift-name">' + esc(g.name) + '</span>') +
-      '<span class="gift-price">' + price + ' ⭐</span>' +
-      '</div>' +
+      (g.sec === 'hero'
+        ? ''
+        : '<div class="gift-info"><span class="gift-name">' + esc(g.name) + '</span></div>') +
       '<div class="gift-actions">' + actions + '</div>' +
       '</div>';
   }
@@ -324,7 +336,7 @@
       }).join('') + '</div>';
   }
 
-  // 兑换礼物（二次确认后，家长验证后扣星入已兑换）; 奥特曼不可重复
+  // 兑换礼物（二次确认后，家长验证后扣星入已兑换）; 每种礼物仅可兑换一件
   window.giftRedeem = function (id) {
     var g = giftOf(id);
     if (!g) { Speech.toast('没有这件礼物'); return; }
@@ -467,7 +479,7 @@
     var red = redeemedAll();
     var r = red[i];
     if (!r) return;
-    var g = giftOf(r.id) || { id: r.id, sec: 'weapon', emoji: r.emoji || '🎁', name: r.name || '礼物', desc: '已兑换的礼物' };
+    var g = giftOf(r.id) || { id: r.id, sec: 'weapon', unique: true, emoji: r.emoji || '🎁', name: r.name || '礼物', desc: '已兑换的礼物' };
     openGiftDetail(g, r.name ? '已拥有' : '');
   };
 

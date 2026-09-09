@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="wsteel6" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#eef3f7"/><stop offset=".4" stop-color="#a8b6c4"/><stop offset="1" stop-color="#55677c"/>
+    </linearGradient>
+    <linearGradient id="wgold6" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f5d678"/><stop offset="1" stop-color="#b1832c"/></linearGradient>
+  </defs>
+  <ellipse cx="100" cy="188" rx="30" ry="5" fill="#000" opacity=".13"/>
+  <g>
+    <animateTransform attributeName="transform" type="rotate" values="-4 100 120; 4 100 120; -4 100 120" dur="2.6s" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1" repeatCount="indefinite"/>
+    <path d="M98,24 C 104,30 108,38 108,50 L 108,128 C 108,140 104,150 100,156 C 96,150 92,140 92,128 L 92,50 C 92,38 92,30 98,24 Z" fill="url(#wsteel6)" stroke="#243343" stroke-width="2.5"/>
+    <path d="M94,40 C 92,58 92,72 94,80" stroke="#d7e1ea" stroke-width="2" opacity=".8"/>
+    <path d="M102,40 C 104,58 104,72 102,80" stroke="#d7e1ea" stroke-width="2" opacity=".8"/>
+    <path d="M92,50 L 78,70 L 92,72" fill="url(#wgold6)" stroke="#7a5c1e" stroke-width="2"/>
+    <path d="M108,50 L 122,70 L 108,72" fill="url(#wgold6)" stroke="#7a5c1e" stroke-width="2"/>
+    <rect x="88" y="126" width="24" height="10" rx="4" fill="url(#wgold6)" stroke="#7a5c1e" stroke-width="2"/>
+    <rect x="92" y="136" width="16" height="44" rx="5" fill="#5b3a20"/>
+    <line x1="92" y1="144" x2="108" y2="144" stroke="#241a10" stroke-width="1.6"/>
+    <line x1="92" y1="154" x2="108" y2="154" stroke="#241a10" stroke-width="1.6"/>
+    <line x1="92" y1="164" x2="108" y2="164" stroke="#241a10" stroke-width="1.6"/>
+    <circle cx="100" cy="184" r="8" fill="url(#wgold6)" stroke="#7a5c1e" stroke-width="2"/>
+    <g opacity=".9">
+      <animateTransform attributeName="transform" type="rotate" values="-30 100 96; -30 100 96" dur="2.6s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values=".5;1;.5" dur="2.6s" repeatCount="indefinite"/>
+      <path d="M92,110 C 70,112 56,104 48,88 C 66,98 80,100 94,100 Z" fill="none" stroke="url(#wsteel6)" stroke-width="3"/>
+      <path d="M92,108 C 72,106 60,96 54,78 C 70,90 82,92 94,92 Z" fill="none" stroke="url(#wsteel6)" stroke-width="3"/>
+    </g>
+  </g>
+</svg>

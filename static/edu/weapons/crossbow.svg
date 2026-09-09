@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="xbeam" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2f3b49"/><stop offset=".5" stop-color="#111820"/><stop offset="1" stop-color="#37434f"/>
+    </linearGradient>
+    <linearGradient id="xwood" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5e3d20"/><stop offset=".5" stop-color="#3a2412"/><stop offset="1" stop-color="#6f4a28"/>
+    </linearGradient>
+    <linearGradient id="xgold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3d477"/><stop offset="1" stop-color="#b8862f"/></linearGradient>
+  </defs>
+  <ellipse cx="100" cy="188" rx="36" ry="6" fill="#000" opacity=".13"/>
+  <g>
+    <animateTransform attributeName="transform" type="rotate" values="-1.5 100 110; 1.5 100 110; -1.5 100 110" dur="3.4s" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1" repeatCount="indefinite"/>
+    <rect x="30" y="62" width="128" height="34" rx="10" fill="url(#xbeam)" stroke="#0c1118" stroke-width="2.5" transform="rotate(-8 100 100)"/>
+    <path d="M30,70 L 18,96 L 30,94 Z" fill="#2f3b49" stroke="#0c1118" stroke-width="2"/>
+    <path d="M48,84 L 156,84" stroke="#1a2836" stroke-width="2" opacity=".6"/>
+    <line x1="72" y1="66" x2="70" y2="94" stroke="#0c1118" stroke-width="3"/>
+    <line x1="86" y1="66" x2="84" y2="94" stroke="#0c1118" stroke-width="3"/>
+    <line x1="100" y1="66" x2="98" y2="94" stroke="#0c1118" stroke-width="3"/>
+    <line x1="114" y1="66" x2="112" y2="94" stroke="#0c1118" stroke-width="3"/>
+    <line x1="128" y1="66" x2="126" y2="94" stroke="#0c1118" stroke-width="3"/>
+    <line x1="142" y1="66" x2="140" y2="94" stroke="#0c1118" stroke-width="3"/>
+    <rect x="34" y="96" width="60" height="30" rx="9" fill="url(#xbeam)" stroke="#0c1118" stroke-width="2.5"/>
+    <path d="M30,98 L 24,124 L 40,122 Z" fill="#2f3b49" stroke="#0c1118" stroke-width="2"/>
+    <path d="M86,118 C 96,150 106,166 116,178" fill="none" stroke="url(#xbeam)" stroke-width="9" stroke-linecap="round"/>
+    <line x1="92" y1="132" x2="114" y2="174" stroke="#0c1118" stroke-width="2"/>
+    <line x1="98" y1="146" x2="118" y2="184" stroke="#0c1118" stroke-width="2"/>
+    <g>
+      <animate attributeName="opacity" values="0;1;0" keyTimes="0;.2;.6" dur="2.2s" repeatCount="indefinite"/>
+      <path d="M94,96 L 120,96 L 118,84 L 96,86 Z" fill="#d8e2ea" stroke="#2c3a4a" stroke-width="1.5"/>
+      <line x1="98" y1="90" x2="112" y2="92" stroke="#5d7186" stroke-width="2"/>
+      <line x1="96" y1="86" x2="118" y2="84" stroke="#5d7186" stroke-width="2"/>
+    </g>
+  </g>
+</svg>

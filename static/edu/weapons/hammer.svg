@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="hmatt7" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#93a4b6"/><stop offset=".5" stop-color="#eef3f7"/><stop offset="1" stop-color="#4c5e71"/>
+    </linearGradient>
+    <linearGradient id="hside7" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a5282e"/><stop offset=".5" stop-color="#c94a4f"/><stop offset="1" stop-color="#7a1a22"/>
+    </linearGradient>
+    <linearGradient id="hwood7" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7c5230"/><stop offset=".5" stop-color="#482b18"/><stop offset="1" stop-color="#6a4526"/>
+    </linearGradient>
+    <linearGradient id="hgold7" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f5d678"/><stop offset="1" stop-color="#b8862f"/></linearGradient>
+  </defs>
+  <ellipse cx="100" cy="190" rx="28" ry="5" fill="#000" opacity=".13"/>
+  <g>
+    <animateTransform attributeName="transform" type="rotate" values="-8 100 130; 8 100 130; -8 100 130" dur="2.6s" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1" repeatCount="indefinite"/>
+    <g>
+      <rect x="60" y="30" width="80" height="62" rx="14" fill="url(#hmatt7)" stroke="#243343" stroke-width="3"/>
+      <rect x="60" y="30" width="40" height="62" rx="14" fill="url(#hside7)" stroke="#243343" stroke-width="3"/>
+      <rect x="60" y="30" width="80" height="16" rx="8" fill="url(#hgold7)" stroke="#7a5c1e" stroke-width="2"/>
+      <line x1="60" y1="60" x2="140" y2="60" stroke="#18232f" stroke-width="3"/>
+      <line x1="60" y1="72" x2="140" y2="72" stroke="#18232f" stroke-width="3"/>
+      <line x1="60" y1="84" x2="140" y2="84" stroke="#18232f" stroke-width="3"/>
+      <line x1="70" y1="42" x2="120" y2="42" stroke="#1a2430" stroke-width="2" opacity=".6"/>
+    </g>
+    <rect x="94" y="92" width="22" height="78" rx="7" fill="url(#hwood7)" stroke="#241a10" stroke-width="2.5" transform="rotate(6 105 130)"/>
+    <line x1="100" y1="104" x2="112" y2="102" stroke="#1c120a" stroke-width="1.6"/>
+    <line x1="100" y1="118" x2="112" y2="116" stroke="#1c120a" stroke-width="1.6"/>
+    <line x1="100" y1="132" x2="112" y2="130" stroke="#1c120a" stroke-width="1.6"/>
+    <line x1="100" y1="146" x2="112" y2="144" stroke="#1c120a" stroke-width="1.6"/>
+    <circle cx="106" cy="172" r="8" fill="url(#hgold7)" stroke="#7a5c1e" stroke-width="2"/>
+  </g>
+</svg>

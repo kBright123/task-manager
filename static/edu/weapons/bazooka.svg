@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="btube9" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3a4655"/><stop offset=".4" stop-color="#75869a"/><stop offset=".8" stop-color="#b2bfc9"/><stop offset="1" stop-color="#5d6b7b"/>
+    </linearGradient>
+    <linearGradient id="bhead9" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e04a3c"/><stop offset=".5" stop-color="#8a2020"/><stop offset="1" stop-color="#5c1216"/>
+    </linearGradient>
+    <linearGradient id="bbelt9" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#241b10"/><stop offset="1" stop-color="#4d3b29"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="100" cy="188" rx="34" ry="6" fill="#000" opacity=".14"/>
+  <g>
+    <animateTransform attributeName="transform" type="rotate" values="-3 100 120; 3 100 120; -3 100 120" dur="3s" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1" repeatCount="indefinite"/>
+    <rect x="40" y="84" width="100" height="34" rx="14" fill="url(#btube9)" stroke="#222c38" stroke-width="2.5"/>
+    <circle cx="50" cy="101" r="14" fill="#222c38" stroke="#10161d" stroke-width="2"/>
+    <circle cx="50" cy="101" r="8" fill="#3a4655"/>
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="0 0; 96 0; 96 0" dur="2.2s" keyTimes="0;.2;1" repeatCount="indefinite" calcMode="spline" keySplines=".45 0 .55 1"/>
+      <animate attributeName="opacity" values="0;1;1" keyTimes="0;.3;1" dur="2.2s" repeatCount="indefinite"/>
+      <path d="M118,88 L 178,92 L 178,110 L 118,118 Z" fill="url(#bhead9)" stroke="#42100f" stroke-width="2.5"/>
+      <circle cx="170" cy="101" r="6" fill="#d8e2ea" stroke="#42100f" stroke-width="2"/>
+      <path d="M168,99 Q 176,101 168,103 Z" fill="#222c38"/>
+    </g>
+    <rect x="54" y="118" width="70" height="60" rx="16" fill="url(#btube9)" stroke="#222c38" stroke-width="2.5"/>
+    <rect x="60" y="120" width="58" height="56" rx="14" fill="none" stroke="#10161d" stroke-width="2" opacity=".4"/>
+    <path d="M62,120 C 90,108 118,96 136,88 L 136,100 C 118,108 92,120 66,128 Z" fill="url(#bbelt9)"/>
+    <line x1="66" y1="132" x2="112" y2="132" stroke="#1c120a" stroke-width="2"/>
+    <line x1="66" y1="148" x2="112" y2="148" stroke="#1c120a" stroke-width="2"/>
+    <circle cx="89" cy="149" r="13" fill="url(#bhead9)" stroke="#42100f" stroke-width="2"/>
+    <circle cx="89" cy="149" r="6" fill="#d8e2ea" stroke="#42100f" stroke-width="1.5"/>
+  </g>
+</svg>

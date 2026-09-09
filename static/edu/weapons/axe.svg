@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="ablade" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f2f6fa"/><stop offset=".45" stop-color="#9fb0c0"/><stop offset="1" stop-color="#44566a"/>
+    </linearGradient>
+    <linearGradient id="aha" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7c5230"/><stop offset=".6" stop-color="#422818"/><stop offset="1" stop-color="#6a4526"/>
+    </linearGradient>
+    <linearGradient id="agold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f5d678"/><stop offset="1" stop-color="#b1832c"/></linearGradient>
+  </defs>
+  <ellipse cx="100" cy="190" rx="26" ry="5" fill="#000" opacity=".12"/>
+  <g>
+    <animateTransform attributeName="transform" type="rotate" values="-12 100 130; 12 100 130; -12 100 130" dur="2.8s" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1" repeatCount="indefinite"/>
+    <path d="M112,20 L188,66 C 196,71 196,82 188,88 L 114,118 L 96,70 Z" fill="url(#ablade)" stroke="#263545" stroke-width="2.5"/>
+    <path d="M118,30 C 128,42 134,56 140,70 L 120,80 Z" fill="#d7e1ea" stroke="#263545" stroke-width="1.5"/>
+    <rect x="92" y="64" width="40" height="12" rx="4" fill="url(#agold)" stroke="#7a5c1e" stroke-width="2"/>
+    <rect x="98" y="76" width="16" height="86" rx="5" fill="url(#aha)" stroke="#241a10" stroke-width="2.5"/>
+    <line x1="98" y1="88" x2="114" y2="88" stroke="#1c120a" stroke-width="1.6"/>
+    <line x1="98" y1="100" x2="114" y2="100" stroke="#1c120a" stroke-width="1.6"/>
+    <line x1="98" y1="112" x2="114" y2="112" stroke="#1c120a" stroke-width="1.6"/>
+    <line x1="98" y1="124" x2="114" y2="124" stroke="#1c120a" stroke-width="1.6"/>
+    <line x1="98" y1="136" x2="114" y2="136" stroke="#1c120a" stroke-width="1.6"/>
+    <circle cx="106" cy="166" r="8" fill="url(#agold)" stroke="#7a5c1e" stroke-width="2"/>
+  </g>
+</svg>

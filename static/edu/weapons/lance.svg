@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="lblade2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f7fafc"/><stop offset=".35" stop-color="#cdd8e2"/><stop offset=".7" stop-color="#8495a8"/><stop offset="1" stop-color="#4c5e71"/>
+    </linearGradient>
+    <linearGradient id="lwood" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7a4f26"/><stop offset=".5" stop-color="#4c2f16"/><stop offset="1" stop-color="#8a5c2c"/>
+    </linearGradient>
+    <linearGradient id="ltassel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e04a4a"/><stop offset="1" stop-color="#a11f2c"/></linearGradient>
+  </defs>
+  <ellipse cx="100" cy="190" rx="24" ry="5" fill="#000" opacity=".12"/>
+  <g>
+    <animateTransform attributeName="transform" type="rotate" values="-3 100 120; 3 100 120; -3 100 120" dur="3.2s" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1" repeatCount="indefinite"/>
+    <path d="M100,18 L108,42 L100,66 L92,42 Z" fill="url(#lblade2)" stroke="#263545" stroke-width="2"/>
+    <rect x="95" y="60" width="10" height="10" rx="3" fill="#5f4326" stroke="#241a10" stroke-width="1.5"/>
+    <rect x="95" y="70" width="12" height="92" rx="5" fill="url(#lwood)" stroke="#241a10" stroke-width="2"/>
+    <path d="M99,74 C 92,88 92,104 99,120" fill="none" stroke="#b07c45" stroke-width="2" opacity=".7"/>
+    <path d="M103,74 C 110,90 110,106 103,120" fill="none" stroke="#3c2412" stroke-width="2" opacity=".7"/>
+    <ellipse cx="101" cy="162" rx="8" ry="5" fill="#2a1a10"/>
+    <path d="M95,70 C 84,76 78,84 76,92 C 88,86 98,78 101,78 Z" fill="url(#ltassel)" stroke="#6d1220"/>
+    <path d="M76,92 C 70,102 66,112 64,122 C 78,112 88,102 96,96 Z" fill="url(#ltassel)" opacity=".9"/>
+  </g>
+</svg>

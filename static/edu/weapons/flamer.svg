@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="ftank5" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3a4655"/><stop offset=".35" stop-color="#697a8c"/><stop offset=".7" stop-color="#a9b6c2"/><stop offset="1" stop-color="#55657a"/>
+    </linearGradient>
+    <linearGradient id="fnozzle5" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c9d4de"/><stop offset="1" stop-color="#5d6b7b"/>
+    </linearGradient>
+    <radialGradient id="ffire5" cx=".35" cy=".3" r=".9">
+      <stop offset="0" stop-color="#fff3b0"/><stop offset=".35" stop-color="#ffb03a"/><stop offset=".7" stop-color="#e8552a"/><stop offset="1" stop-color="#a3202a"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="100" cy="188" rx="34" ry="6" fill="#000" opacity=".14"/>
+  <g>
+    <animateTransform attributeName="transform" type="rotate" values="-2 100 120; 2 100 120; -2 100 120" dur="3s" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1" repeatCount="indefinite"/>
+    <rect x="36" y="96" width="124" height="34" rx="10" fill="url(#ftank5)" stroke="#222c38" stroke-width="2.5" transform="rotate(-6 98 110)"/>
+    <rect x="36" y="86" width="60" height="16" rx="7" fill="url(#fnozzle5)" stroke="#222c38" stroke-width="2" transform="rotate(-6 66 94)"/>
+    <rect x="148" y="78" width="22" height="62" rx="9" fill="url(#fnozzle5)" stroke="#222c38" stroke-width="2.5" transform="rotate(-6 159 109)"/>
+    <circle cx="164" cy="80" r="8" fill="#5d6b7b" stroke="#222c38" stroke-width="2"/>
+    <path d="M48,96 C 52,118 60,128 72,132" fill="none" stroke="#55657a" stroke-width="6"/>
+    <rect x="46" y="104" width="9" height="18" rx="4" fill="#3a4655"/>
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="0 0; 26 0; -6 0" dur="2.4s" keyTimes="0;.18;.3" repeatCount="indefinite" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1"/>
+      <animate attributeName="opacity" values="0;.95;0" keyTimes="0;.15;.6" dur="2.4s" repeatCount="indefinite"/>
+      <path d="M176,86 L 150,104 L 172,130 L 196,96 Z" fill="url(#ffire5)" opacity=".9"/>
+      <circle cx="166" cy="104" r="14" fill="url(#ffire5)"/>
+    </g>
+  </g>
+</svg>

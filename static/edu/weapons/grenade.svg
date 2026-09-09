@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <radialGradient id="gbody3" cx=".4" cy=".35" r=".9">
+      <stop offset="0" stop-color="#cfe0ec"/><stop offset=".5" stop-color="#5d7186"/><stop offset="1" stop-color="#2c3c4e"/>
+    </radialGradient>
+    <radialGradient id="gbot3" cx=".45" cy=".4" r=".95">
+      <stop offset="0" stop-color="#8aa0b4"/><stop offset="1" stop-color="#3d5064"/>
+    </radialGradient>
+    <linearGradient id="gpin3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f5d678"/><stop offset="1" stop-color="#b8862f"/></linearGradient>
+  </defs>
+  <ellipse cx="100" cy="186" rx="26" ry="5" fill="#000" opacity=".14"/>
+  <g>
+    <animateTransform attributeName="transform" type="translate" values="0 0; 0 -5; 0 0" dur="1.6s" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1" repeatCount="indefinite"/>
+    <ellipse cx="100" cy="120" rx="46" ry="52" fill="url(#gbody3)" stroke="#223243" stroke-width="3"/>
+    <ellipse cx="100" cy="120" rx="34" ry="42" fill="none" stroke="#8fa4b8" stroke-width="2" opacity=".5"/>
+    <path d="M62,132 Q 100,150 138,132 Q 132,148 100,154 Q 68,148 62,132 Z" fill="url(#gpin3)" stroke="#7a5c1e" stroke-width="1.5"/>
+    <rect x="86" y="6" width="28" height="14" rx="7" fill="url(#gpin3)" stroke="#7a5c1e" stroke-width="2"/>
+    <path d="M98,16 Q 122,30 128,56" fill="none" stroke="#223243" stroke-width="4"/>
+    <path d="M98,14 Q 122,28 128,54" fill="none" stroke="#8fa4b8" stroke-width="1.5" opacity=".6"/>
+    <rect x="84" y="20" width="12" height="18" rx="4" fill="#223243"/>
+    <rect x="46" y="116" width="18" height="6" rx="3" fill="#223243" transform="rotate(-24 55 119)"/>
+    <rect x="136" y="116" width="18" height="6" rx="3" fill="#223243" transform="rotate(24 145 119)"/>
+  </g>
+</svg>

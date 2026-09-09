@@ -50,7 +50,7 @@
     var itemName = ({zh:{poem:'古诗',zi:'识字',stroke:'笔顺',pinyin:'拼音',yun:'拼音',read:'拼音',tone:'拼音',fan:'词语',liang:'词语',daily:'每日挑战'},
                      math:{calc:'口算',judge:'判断',word:'应用题',order:'排序',daily:'每日挑战'},
                      en:{word:'单词',dialogue:'对话',daily:'每日挑战'},
-                     go:{atari:'基本气与吃子',liberty:'找气与逃跑',capture:'打吃与提子',connect:'连接与分断',life_death:'死活与二眼'},
+                     go:{atari:'基本气与吃子',liberty:'找气与逃跑',capture:'打吃与提子',connect:'连接与分断',life_death:'死活与二眼',final:'死活终局'},
                      lit:{sg:'三国演义',xy:'西游记',sh:'水浒传',zong:'名著综合'}}[subj]||{})[gkey] || type;
     // 答题页不提供模式切换入口(模式在首页选择), 仅以只读标签展示当前关卡
     var modeChip = '<span class="lv-badge">' + (isSu ? '⚡ 极速练习' : ('🗺️ ' + lvTxt + ' · ' + esc(itemName))) + '</span>';

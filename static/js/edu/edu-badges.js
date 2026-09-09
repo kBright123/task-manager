@@ -8,12 +8,55 @@
   function badgeCard(k) {
     var b = Legacy.BADGES[k];
     var got = Store.state.badges && Store.state.badges[k];
-    return '<div class="badge-card '+(got?'on':'dim')+'" id="badge-'+k+'" onclick="window.Edu.Legacy.badgePulse(\''+k+'\')">'+
+    return '<div class="badge-card '+(got?'on':'dim')+'" id="badge-'+k+'" onclick="window.Edu.Badges.badgeOpen(\''+k+'\')">'+
       '<div class="badge-icon">'+(b?b.name.split(' ')[0]:'🏅')+'</div>'+
       '<div class="badge-name">'+(b?b.name:k)+'</div>'+
       '<div class="badge-desc">'+(b?b.desc:'')+'</div>'+
       (got?'<div class="badge-got">已获得</div>':'')+
       '</div>';
+  }
+
+  function catLabelOf(key) {
+    var cats = Legacy.BADGE_CATS || [];
+    for (var i=0;i<cats.length;i++) if (cats[i].key === key) return (cats[i].icon||'') + ' ' + (cats[i].label||key);
+    return key;
+  }
+
+  function fmtBadgeTime(ts) {
+    if (!ts) return '';
+    var d = new Date(ts);
+    if (isNaN(d.getTime())) return '';
+    return (d.getFullYear()) + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  function badgeSpeakText(b, got) {
+    if (!b) return '';
+    var txt = '勋章，' + (b.name||'').replace(/^[^\s]+\s+/, '') + '。' + (b.desc||'');
+    return got ? txt + '，你已经获得啦！' : txt + '，继续加油！';
+  }
+
+  function badgeOpen(k) {
+    var b = Legacy.BADGES[k];
+    if (!b) return;
+    var got = Store.state.badges && Store.state.badges[k];
+    var t = document.getElementById('detailTitle');
+    var sub = document.getElementById('detailSub');
+    var body = document.getElementById('detailBody');
+    var name = (b.name||k).replace(/^[^\s]+\s+/, '');
+    if (t) t.textContent = (b.name||k).split(' ')[0] + ' ' + name;
+    if (sub) sub.textContent = got ? '已获得 ✅' : '未解锁 · 快去争取吧';
+    if (body) body.innerHTML =
+      '<div class="badge-detail">' +
+        '<div class="badge-detail-em">' + (b.name.split(' ')[0]||'🏅') + '</div>' +
+        '<div class="badge-detail-cat">' + esc(catLabelOf(b.cat)) + '</div>' +
+        '<div class="badge-detail-name">' + esc(name) + '</div>' +
+        '<div class="badge-detail-desc">' + esc(b.desc) + '</div>' +
+        (got ? '<div class="badge-detail-st">🎉 已获得 · ' + fmtBadgeTime(Store.state.badges[k]) + '</div>' : '<div class="badge-detail-st">🔒 未解锁</div>') +
+        '<div class="badge-detail-spk">' + ((window.Edu.Speech && window.Edu.Speech.spkBtn) ? window.Edu.Speech.spkBtn(badgeSpeakText(b, got)) : '') + '</div>' +
+      '</div>';
+    var mask = document.getElementById('eduMaskDetail');
+    if (mask) mask.style.display = 'flex';
+    try { if (window.Edu.Speech && window.Edu.Speech.playSpeak) window.Edu.Speech.playSpeak(badgeSpeakText(b, got)); } catch(e) {}
   }
 
   function badgeSection(cat) {
@@ -73,6 +116,7 @@
 
   window.Edu.Badges = {
     renderBadges: renderBadges,
-    badgeCard: badgeCard
+    badgeCard: badgeCard,
+    badgeOpen: badgeOpen
   };
 })();

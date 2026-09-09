@@ -173,13 +173,13 @@
     if (Store.state.records.length > 500) Store.state.records.length = 500;
     if (ok) {
       PRACTICE.streak++; PRACTICE.maxStreak = Math.max(PRACTICE.maxStreak, PRACTICE.streak); PRACTICE.right++; PRACTICE.score += PRACTICE.streak;
-      Speech.playSpeak('答对了');
+      Speech.playSpeak(Speech.encPick(C.ENC_OK) || '答对了');
     } else {
       PRACTICE.streak = 0; PRACTICE.wrong++;
       Store.state.wrong = Store.state.wrong || [];
       Store.state.wrong.unshift({ subj:PRACTICE.subj, type:it.wtype || PRACTICE.type, qid:it.id, prompt:it.prompt, correct:it.correct, got:val, t:Date.now() });
       if (Store.state.wrong.length > 200) Store.state.wrong.length = 200;
-      Speech.playSpeak('再试一次');
+      Speech.playSpeak(Speech.encPick(C.ENC_WRONG) || '再试一次');
     }
     Store.saveState();
     if (window.eduSync && window.eduSync.qbankLearn) {

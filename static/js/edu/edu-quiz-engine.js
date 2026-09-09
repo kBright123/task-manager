@@ -630,7 +630,7 @@
       feed.className = 'qi-feed offer';
       feed.innerHTML = '<span class="pr-emoji">⭐</span><span class="star-collect" aria-hidden="true">⭐</span><span>'+Speech.encPick(C.PRAISE_MSGS)+'</span>';
       rewardFloat('⭐', Speech.encPick(C.PRAISE_MSGS));
-      Speech.playSpeak('答对啦');
+      Speech.playSpeak(Speech.encPick(C.ENC_OK) || '答对啦');
     } else if (reveal) {
       // 第二次答错: 揭示正确答案, 作为「教学时刻」(先给机会, 再展示答案)
       feed.className = 'qi-feed reveal';

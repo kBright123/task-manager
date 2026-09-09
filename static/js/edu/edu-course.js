@@ -725,7 +725,7 @@
   function badgeTileHtml(k) {
     var got = Store.state.badges && Store.state.badges[k];
     var b = Legacy.BADGES[k] || {};
-    return '<button type="button" class="cm-badge' + (got ? ' on' : ' dim') + '" data-k="' + k + '" onclick="window.Edu.Course.badgePulse(\'' + k + '\')">' +
+    return '<button type="button" class="cm-badge' + (got ? ' on' : ' dim') + '" data-k="' + k + '" onclick="window.Edu.Badges.badgeOpen(\'' + k + '\')">' +
       '<span class="cm-badge-em">' + ((b.name && b.name.split(' ')[0]) || '🏅') + '</span>' +
       '<span class="cm-badge-nm">' + (b.name || k) + '</span></button>';
   }

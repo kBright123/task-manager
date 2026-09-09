@@ -107,8 +107,8 @@
     if (!PAR.active || !PAR.items[PAR.idx]) return;
     var it = PAR.items[PAR.idx];
     var ok = val === it.correct;
-    if (ok) { PAR.score += 10; Speech.playSpeak('答对了'); }
-    else { Speech.playSpeak('再试一次'); }
+    if (ok) { PAR.score += 10; Speech.playSpeak(Speech.encPick(C.ENC_OK) || '答对了'); }
+    else { Speech.playSpeak(Speech.encPick(C.ENC_WRONG) || '再试一次'); }
     document.getElementById('parScore').textContent = '分数: ' + PAR.score;
     PAR.idx++;
     if (PAR.timer) clearTimeout(PAR.timer);

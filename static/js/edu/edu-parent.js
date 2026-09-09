@@ -24,8 +24,7 @@
     }
     // 同步刷新各页顶部「⭐ 已获得 N 颗星星 + 🔥 打卡第 N 天」文本(welcomeBarHtml 生成的只读节点)
     var recs = Store.state.records || [];
-    var streak = 0;
-    if (typeof window.Edu.Home === 'object' && window.Edu.Home.loginStreak) streak = window.Edu.Home.loginStreak(recs) || 0;
+    var streak = Store.checkin ? Store.checkin() : 0;
     var starChip = stars > 0 ? ('⭐ 已获得 ' + stars + ' 颗星星') : '继续闯关赢星星✨';
     var fireChip = '🔥 打卡第 ' + streak + ' 天';
     var nodes = document.querySelectorAll('.ht-star');
@@ -38,6 +37,38 @@
     toast: toast,
     renderStars: renderStars
   };
+
+  // 家长手动设置打卡天数: 把所有宝贝的打卡数补到至少指定值(取大, 不回退)
+  window.parentSetCheckin = function () {
+    var m = document.getElementById('eduMaskSetCheckin');
+    if (!m) return;
+    var input = document.getElementById('pscDays');
+    if (input) input.value = '';
+    m.style.display = 'flex';
+    setTimeout(function () { if (input) input.focus(); }, 100);
+  };
+  window.parentSetCheckinCancel = function () {
+    var m = document.getElementById('eduMaskSetCheckin');
+    if (m) m.style.display = 'none';
+  };
+  window.parentSetCheckinConfirm = function () {
+    var input = document.getElementById('pscDays');
+    var days = input ? parseInt(input.value, 10) : 0;
+    if (!days || days < 1 || days > 3650) { toast('请输入有效的打卡天数(1-3650)'); if (input) input.focus(); return; }
+    window.requireParent(function () {
+      if (Store.setAllCheckin) Store.setAllCheckin(days);
+      Store.saveState();
+      if (window.Edu.Home && window.Edu.Home.fireChipHtml) {
+        var streak = Store.checkin ? Store.checkin() : days;
+        var fires = document.querySelectorAll('.ht-fire');
+        for (var k = 0; k < fires.length; k++) fires[k].textContent = '🔥 打卡第 ' + streak + ' 天';
+      }
+      parentSetCheckinCancel();
+      toast('已将宝贝打卡数设为至少 ' + days + ' 天');
+      if (window.renderWish) { try { window.renderWish(); } catch (e) {} }
+    });
+  };
+  window.Edu.Parent.setCheckin = window.parentSetCheckin;
 
   window.requireParent = function (cb) {
     if (window.Edu.Core && window.Edu.Core.requireParent) return window.Edu.Core.requireParent(cb);

@@ -306,6 +306,44 @@ def test_state_overwrite_monotonic_guards(client):
     assert zh['unlocked'] == 2, got
 
 
+def test_state_merge_records_never_clobbered(client):
+    """跨端覆盖写: 记录类数组须按 JSON 去重并集, 不得被「另一台只加载了部分数据的设备
+    推送的空 records」整段清空, 否则打卡/答题记录因此丢失(打卡第 N 天归零)."""
+    pid = _setup_kid(client)
+    # 设备A: 打卡第 1 天, 有今天的做题记录
+    client.post(f'/edu/api/kids/{pid}/state', json={
+        'dkey': 'state',
+        'data': {'stars': 0, 'records': [{'t': 100, 'date': '2026-09-09', 'subj': 'zh', 'ok': True, 'prompt': 'a'}], 'maxCheckin': 1},
+    })
+    # 设备B(本地只加载了部分数据, records 为空)推送 -> 不得覆盖掉已有打卡记录
+    client.post(f'/edu/api/kids/{pid}/state', json={
+        'dkey': 'state',
+        'data': {'stars': 0, 'records': [], 'maxCheckin': 0},
+    })
+    got = client.get(f'/edu/api/kids/{pid}/state').json['data']
+    assert len(got.get('records', [])) == 1, got
+    # 打卡数取较大: 本地小值(1)推送不回退服务端较大值(保存 1); 先推到更大再测试
+    client.post(f'/edu/api/kids/{pid}/state', json={
+        'dkey': 'state', 'data': {'stars': 0, 'records': [], 'maxCheckin': 5},
+    })
+    got = client.get(f'/edu/api/kids/{pid}/state').json['data']
+    assert got.get('maxCheckin') == 5, got
+    # 设备B 携带旧的较小打卡数(2)推送 -> 应保留服务端较大值 5, 不回退
+    client.post(f'/edu/api/kids/{pid}/state', json={
+        'dkey': 'state', 'data': {'stars': 0, 'records': [], 'maxCheckin': 2},
+    })
+    got = client.get(f'/edu/api/kids/{pid}/state').json['data']
+    assert got.get('maxCheckin') == 5, got
+    # 设备C 推送一条新记录 -> 并集保留新旧两条(按 JSON 去重)
+    client.post(f'/edu/api/kids/{pid}/state', json={
+        'dkey': 'state',
+        'data': {'stars': 0, 'records': [{'t': 200, 'date': '2026-09-09', 'subj': 'zh', 'ok': True, 'prompt': 'b'}]},
+    })
+    got2 = client.get(f'/edu/api/kids/{pid}/state').json['data']
+    assert len(got2.get('records', [])) == 2, got2
+    assert {r_['prompt'] for r_ in got2['records']} == {'a', 'b'}
+
+
 def test_kid_stars_ledger_idempotent_and_migration(client):
     """「所有加/扣星星操作同步后端」: 逐笔事件进服务端权威账本, 按 key 幂等去重, 不重复累加.
 
@@ -760,8 +798,8 @@ console.log('CM_BADGE_DIM='+(iH.match(/class="cm-badge dim"/g)||[]).length);
     assert 'CM_WRAP=1' in out, out
     assert 'MAP_COURSE=0' in out and 'STG_CUR=0' in out and 'STG_LOCK=0' in out and 'BIG_LOCK=0' in out, out
     assert 'STAT_NO_POINTS=1' in out and 'STAT_STAR=1' in out and 'STAT_STREAK=0' in out, out
-    assert 'MILESTONE=1' in out, out
-    assert 'CM_BADGE_ON=6' in out and 'CM_BADGE_DIM=10' in out, out
+    assert 'MILESTONE=0' in out, out
+    assert 'CM_BADGE_ON=6' in out and 'CM_BADGE_DIM=36' in out, out
 
 
 def test_course_level_pass_unlock_stars():

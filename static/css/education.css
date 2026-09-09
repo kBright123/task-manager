@@ -1805,13 +1805,6 @@
   .cm-course.focus .cm-snake-wrap{outline:3px solid var(--edu-primary);outline-offset:2px;
     box-shadow:0 6px 22px rgba(255,107,74,.28);}
 
-  /* 星星里程碑 */
-  .cm-milestones{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
-  .cm-mil{border:2px solid var(--edu-border-2);background:var(--edu-soft);color:var(--edu-muted);border-radius:999px;
-    padding:6px 12px;font-size:.82rem;font-weight:800;}
-  .cm-mil.reached{border-color:var(--edu-gold);color:var(--edu-gold);background:#fff8e6;}
-  .cm-mil.got{border-color:var(--edu-green);color:var(--edu-green);background:#eafff4;}
-
   /* 打卡日历 */
   .cm-cal-wrap{margin-top:4px;}
   .cm-cal-h{font-size:.9rem;font-weight:900;color:var(--edu-ink);margin-bottom:8px;}

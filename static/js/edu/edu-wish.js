@@ -221,6 +221,7 @@
       '<div style="display:flex;gap:8px;">'+
       '<button type="button" class="btn-soft" onclick="window.wishAdd()">+ 新增星愿</button>'+
       '<button type="button" class="btn-soft" onclick="window.parentAddStars()">👑 家长加星</button>'+
+      '<button type="button" class="btn-soft" onclick="window.parentSetCheckin()">📅 打卡天数</button>'+
       '</div>'+
       '</div>';
 

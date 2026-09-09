@@ -52,6 +52,57 @@
     if (!state.stars) state.stars = 0;
     if (!state.maxCombo) state.maxCombo = 0;
     if (!state.submits) state.submits = 0;
+    if (!state.maxCheckin) state.maxCheckin = 0;
+  }
+
+  // 连续打卡天数(从做题记录推导"当前连续", 只增不减: 取与历史 maxCheckin 的较大值).
+  // 打卡数对时间单调递增, 跨设备/刷新只保留最大, 避免"打卡第 N 天"因已被清空的
+  // records(或本地小值)回退归零.
+  function consecutiveStreak(recs) {
+    var ds = {};
+    (recs || []).forEach(function (r) { if (r && r.date) ds[r.date] = 1; });
+    var d = new Date();
+    var streak = 0;
+    if (!ds[dayKey(d)]) d = new Date(d.getTime() - 86400000);
+    while (ds[dayKey(d)]) { streak++; d = new Date(d.getTime() - 86400000); }
+    return streak;
+  }
+  function checkin() {
+    var s = consecutiveStreak(state.records);
+    if (s > (Number(state.maxCheckin) || 0)) {
+      state.maxCheckin = s;
+      save(stateKey(), state);
+    }
+    return Number(state.maxCheckin) || 0;
+  }
+
+  // 家长手动设置打卡天数: 把当前账号下所有宝贝的打卡数补到至少 target(取大, 不回退).
+  // 每个宝贝独立读写本地 localStorage(stateKeyFor), 并同步服务端.
+  function setAllCheckin(target) {
+    target = Math.max(1, Math.floor(Number(target) || 0));
+    var kids = (window.eduKids && window.eduKids.all) ? window.eduKids.all() : [];
+    var n = 0;
+    kids.forEach(function (k) {
+      if (!k || !k.id) return;
+      var key = stateKeyFor(k.id);
+      var blob = {};
+      try { blob = JSON.parse(localStorage.getItem(key) || '{}'); } catch (e) { blob = {}; }
+      if (!blob || typeof blob !== 'object' || Array.isArray(blob)) blob = {};
+      var cur = Number(blob.maxCheckin) || 0;
+      if (cur >= target) { n++; return; }
+      blob.maxCheckin = target;
+      save(key, blob);
+      if (window.eduSync && window.eduSync.pushState) {
+        try { window.eduSync.pushState(k.id, 'state', blob); } catch (e) {}
+      }
+      n++;
+    });
+    // 同步当前激活宝贝的内存 state, 保证页面立即刷新即可见
+    if (Number(state.maxCheckin) || 0) {
+      state.maxCheckin = Math.max(Number(state.maxCheckin) || 0, target);
+      save(stateKey(), state);
+    }
+    return n;
   }
 
   function mergeSet(s) {
@@ -62,6 +113,7 @@
   function curSettings() { return state.settings; }
 
   function saveState() {
+    checkin();
     save(stateKey(), state);
     var kid = window.eduKids ? window.eduKids.active() : null;
     if (kid && kid.id && window.eduSync && window.eduSync.pushState) window.eduSync.pushState(kid.id, 'state', state);
@@ -223,7 +275,10 @@
     addUsageUnlock: addUsageUnlock,
     stateKeyFor: stateKeyFor,
     wbKeyFor: wbKeyFor,
-    kidSyncKey: kidSyncKey
+    kidSyncKey: kidSyncKey,
+    checkin: checkin,
+    consecutiveStreak: consecutiveStreak,
+    setAllCheckin: setAllCheckin
   };
 
   window.state = state;

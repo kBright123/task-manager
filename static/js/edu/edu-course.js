@@ -312,8 +312,9 @@
     return newly;
   }
 
-  // 连续打卡天数: 依据使用/做题记录
+  // 连续打卡天数(只增不减, 取与历史 maxCheckin 较大值): 依据打卡计数字段, 不随 records 清空归零
   function streakDays() {
+    if (Store.checkin) return Store.checkin();
     var daySet = {};
     (Store.state.records || []).forEach(function (r) { if (r && r.date) daySet[r.date] = 1; });
     var d = new Date();
@@ -708,13 +709,17 @@
   }
 
   function streakCalendar() {
+    // 打卡数(连续天数, 只增不减): 最近 N 天全部标记为已打卡, 即便单日 records 被清空也能连续展示
+    var streak = Store.checkin ? Store.checkin() : 0;
     var daySet = {};
     (Store.state.records || []).forEach(function (r) { if (r && r.date) daySet[r.date] = 1; });
+    var start = daySet[keyOf(new Date())] ? 0 : 1; // 今天已打卡 -> 从今天起算; 否则从昨天起算连续
     var days = [];
     var now = new Date();
     for (var d = 6; d >= 0; d--) {
       var t = new Date(now.getTime() - d * 86400000);
-      days.push({ key: keyOf(t), on: !!daySet[keyOf(t)] });
+      var on = (d >= start && d < start + streak);
+      days.push({ key: keyOf(t), on: on });
     }
     return '<div class="cm-streak">' + days.map(function (x, i) {
       return '<div class="cm-day' + (x.on ? ' on' : '') + '" title="' + x.key + '">' +
@@ -805,24 +810,13 @@
     var body = document.getElementById('eduBadgesBody');
     if (!body) return;
     if (typeof window.renderWelcomeInto === 'function') window.renderWelcomeInto('badgesWelcome', '闯关赢星星，集齐你的勋章');
-    var stars = Store.state.stars || 0;
 
     // 进入时的学科: 优先来自首页某科的「闯关模式」入口(focusSubj)
     if (focusSubj in COURSES) activeMapSubject = focusSubj;
 
-    var milestonesHtml = STAR_REWARDS.map(function (r) {
-      var sc = stateCourse();
-      var got = sc.rewards && sc.rewards['star_' + r.at];
-      var reached = stars >= r.at;
-      return '<span class="cm-mil' + (reached ? ' reached' : '') + (got ? ' got' : '') + '" title="累计 ' + r.at + ' 星 · 奖励 +' + r.bonus + ' 星星">' +
-        r.em + ' ' + r.at + ' 星</span>';
-    }).join('');
-
     body.innerHTML =
       '<div class="cm-wrap">' +
         '<section class="cm-card">' +
-          '<div class="cm-card-h"><span>🎖️ 星星里程碑</span></div>' +
-          '<div class="cm-milestones">' + milestonesHtml + '</div>' +
           '<div class="cm-cal-wrap"><div class="cm-cal-h">🔥 最近打卡日历</div>' + streakCalendar() + '</div>' +
         '</section>' +
 

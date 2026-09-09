@@ -48,25 +48,35 @@
     all: { cat: 'all', name:'🎨 全面发展', desc:'语文 / 数学 / 英语 / 围棋 / 文学 / 乐园 都练过' },
     w0: { cat: 'all', name:'🧹 错题清零', desc:'把错题全部消灭' },
     // 📖 语文
+    f10: { cat: 'zh', name:'🌱 识字小芽', desc:'语文答对 10 题' },
     f20: { cat: 'zh', name:'🍃 诗词小书生', desc:'语文答对 20 题' },
     zh50: { cat: 'zh', name:'✒️ 语文小文豪', desc:'语文答对 50 题' },
     zh150: { cat: 'zh', name:'📚 书香小博士', desc:'语文答对 150 题' },
+    zh300: { cat: 'zh', name:'🎓 语文翰林学士', desc:'语文答对 300 题' },
     // 🧮 数学
+    m10: { cat: 'math', name:'🔢 数数小能手', desc:'数学答对 10 题' },
     m5: { cat: 'math', name:'🧮 口算小神童', desc:'数学答对 30 题' },
     math50: { cat: 'math', name:'⚡ 计算小能手', desc:'数学答对 50 题' },
     math150: { cat: 'math', name:'🎯 数学小达人', desc:'数学答对 150 题' },
+    math300: { cat: 'math', name:'🚀 数学智多星', desc:'数学答对 300 题' },
     // 🌍 英语
+    en10: { cat: 'en', name:'🔡 字母小新芽', desc:'英语答对 10 题' },
     en20: { cat: 'en', name:'🔤 英语小萌牙', desc:'英语答对 20 题' },
     en50: { cat: 'en', name:'🌍 单词小达人', desc:'英语答对 50 题' },
     en150: { cat: 'en', name:'🦜 英语小外交官', desc:'英语答对 150 题' },
+    en300: { cat: 'en', name:'🎓 英语小大学士', desc:'英语答对 300 题' },
     // ⚫ 围棋
+    go10: { cat: 'go', name:'⚪ 围棋小新星', desc:'围棋答对 10 题' },
     go20: { cat: 'go', name:'⚫ 围棋小棋手', desc:'围棋答对 20 题' },
     go50: { cat: 'go', name:'⚪ 围棋小高手', desc:'围棋答对 50 题' },
     go150: { cat: 'go', name:'👑 围棋小棋圣', desc:'围棋答对 150 题' },
+    go300: { cat: 'go', name:'♟️ 围棋小国手', desc:'围棋答对 300 题' },
     // 📜 文学
+    lit10: { cat: 'lit', name:'📖 故事小听众', desc:'文学答对 10 题' },
     lit20: { cat: 'lit', name:'📜 名著小读者', desc:'文学答对 20 题' },
     lit50: { cat: 'lit', name:'🏯 名著小达人', desc:'文学答对 50 题' },
-    lit150: { cat: 'lit', name:'🎓 名著小状元', desc:'文学答对 150 题' }
+    lit150: { cat: 'lit', name:'🎓 名著小状元', desc:'文学答对 150 题' },
+    lit300: { cat: 'lit', name:'🏆 文学大文豪', desc:'文学答对 300 题' }
   };
 
   function catBadges(cat) {
@@ -113,21 +123,31 @@
     // 各学科累计答对 → 学科徽章
     var subjRight = { zh: 0, math: 0, en: 0, go: 0, lit: 0 };
     (s.records || []).forEach(function (r) { if (r && r.ok && subjRight[r.subj] !== undefined) subjRight[r.subj]++; });
+    if (subjRight.math >= 10) take('m10');
     if (subjRight.math >= 30) take('m5');
     if (subjRight.math >= 50) take('math50');
     if (subjRight.math >= 150) take('math150');
+    if (subjRight.math >= 300) take('math300');
+    if (subjRight.zh >= 10) take('f10');
     if (subjRight.zh >= 20) take('f20');
     if (subjRight.zh >= 50) take('zh50');
     if (subjRight.zh >= 150) take('zh150');
+    if (subjRight.zh >= 300) take('zh300');
+    if (subjRight.en >= 10) take('en10');
     if (subjRight.en >= 20) take('en20');
     if (subjRight.en >= 50) take('en50');
     if (subjRight.en >= 150) take('en150');
+    if (subjRight.en >= 300) take('en300');
+    if (subjRight.go >= 10) take('go10');
     if (subjRight.go >= 20) take('go20');
     if (subjRight.go >= 50) take('go50');
     if (subjRight.go >= 150) take('go150');
+    if (subjRight.go >= 300) take('go300');
+    if (subjRight.lit >= 10) take('lit10');
     if (subjRight.lit >= 20) take('lit20');
     if (subjRight.lit >= 50) take('lit50');
     if (subjRight.lit >= 150) take('lit150');
+    if (subjRight.lit >= 300) take('lit300');
 
     // 乐园玩满 5 次: 极速练习完成次数
     if (((s.wb && s.wb.done) || []).length >= 5) take('p10');

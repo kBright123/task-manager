@@ -250,7 +250,7 @@ def _merge_blob(base, ext):
         for k, v in e.items():
             b.setdefault(k, v)
         base[key] = b
-    for key in ('maxCombo', 'submits'):
+    for key in ('maxCombo', 'submits', 'maxCheckin'):
         try:
             base[key] = max(int(base.get(key) or 0), int(ext.get(key) or 0))
         except (TypeError, ValueError):
@@ -707,16 +707,55 @@ def _merge_nodes(na, nb):
 
 
 def _guard_write_payload(cur, incoming):
-    """跨端全量覆盖写入时, 对「只增不减」字段做对齐, 其余字段以最新弹为准:
+    """跨端全量覆盖写时, 对「只增不减」字段做对齐, 其余字段以最新弹为准:
     - stars 取较大(累计余额, 防旧端覆盖吞星 / 防重复累加)
+    - 记录类数组(records/wrong/wishLog/redeemed/wishLog/starLog 等)按 JSON 去重并集,
+      防「另一台只加载了部分数据的设备推送」把打卡/答题记录整段清空(打卡天数因此丢失)
     - course.rewards(里程碑发放标记)取并集: 防旧弹擦掉标记导致重复发星
     - course 各大关 passStage/done/星级取较大: 防旧弹倒退进度导致重复发 +3 星
     """
     if not isinstance(cur, dict) or not isinstance(incoming, dict):
         return incoming
     out = dict(incoming)
+    for key in ('records', 'wrong', 'wishLog', 'redeemed', 'starLog', 'wishes'):
+        e = incoming.get(key)
+        if not isinstance(e, list):
+            continue
+        b = cur.get(key)
+        if not isinstance(b, list):
+            b = []
+        seen = set()
+        res = []
+        for it in b:
+            try:
+                h = json.dumps(it, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+            except Exception:
+                h = None
+            if h is not None and h in seen:
+                continue
+            if h is not None:
+                seen.add(h)
+            res.append(it)
+        for it in e:
+            if it is None:
+                continue
+            try:
+                h = json.dumps(it, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+            except Exception:
+                h = None
+            if h is not None and h in seen:
+                continue
+            if h is not None:
+                seen.add(h)
+            res.append(it)
+        out[key] = res
     try:
         out['stars'] = max(int(cur.get('stars') or 0), int(incoming.get('stars') or 0))
+    except (TypeError, ValueError):
+        pass
+    # 打卡数: 时间上只增不减, 跨端取较大(本地小 → 保留服务端较大值, 不回退)
+    try:
+        out['maxCheckin'] = max(int(cur.get('maxCheckin') or 0), int(incoming.get('maxCheckin') or 0))
     except (TypeError, ValueError):
         pass
     c0, c1 = cur.get('course'), incoming.get('course')

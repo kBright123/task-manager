@@ -53,7 +53,7 @@
     var kids = window.eduKids ? window.eduKids.all() : [];
     var actName = act ? (act.name || '宝贝') : '宝贝';
     var stars = Store.state && Store.state.stars || 0;
-    var streak = loginStreak(Store.state && Store.state.records || []) || 0;
+    var streak = Store.checkin ? Store.checkin() : (loginStreak(Store.state && Store.state.records || []) || 0);
     var sub = subtitle ? '<span class="ht-sub">' + esc(subtitle) + '</span>' : '';
     var top = '<section class="home-top">' +
       '<div class="ht-greet">' +
@@ -148,7 +148,7 @@
     }
     return {
       today: today, goal: goal, total: recs.length, pct: pct, mins: minsUsedP(act), honor: badKeys.length,
-      streak: loginStreak(recs), badges: badKeys.length, zishi: zishi,
+      streak: Store.checkin ? Store.checkin() : (loginStreak(recs) || 0), badges: badKeys.length, zishi: zishi,
       dueChars: due.slice(0, 3), dueN: dueWrongListFor(stL).length,
       days: days, maxN: maxN, prevWeek: prevWeek, wList: wList, wDone: wDone,
       stars: stL.stars || 0

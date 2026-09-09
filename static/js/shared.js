@@ -235,7 +235,7 @@ window.eduSync = (function () {
       if (!b || typeof b !== 'object' || Array.isArray(b)) b = base[key] = {};
       for (var k in e) { if (b[k] === undefined) b[k] = e[k]; }
     });
-    ['maxCombo', 'submits'].forEach(function (key) {
+    ['maxCombo', 'submits', 'maxCheckin'].forEach(function (key) {
       base[key] = Math.max(Number(base[key]) || 0, Number(ext[key]) || 0);
     });
     // usage: 新版为按天 map {dayKey:{secs,count,n}}, 旧版为扁平 {secs,n,count}; 均合并不丢

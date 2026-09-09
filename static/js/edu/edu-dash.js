@@ -268,7 +268,7 @@
     var ok = recs.filter(function (r) { return r.ok; }).length;
     var rate = total ? Math.round(ok * 100 / total) : 0;
     var stars = Store.state.stars || 0;
-    var streak = (function () {
+    var streak = Store.checkin ? Store.checkin() : (function () {
       var daySet = {};
       recs.forEach(function (r) { if (dateOf(r)) daySet[dateOf(r)] = 1; });
       var d = new Date(), s = 0;
@@ -342,7 +342,7 @@
     var stars = Store.state.stars || 0;
     var wrong = (Store.state.wrong || []).length;
     var badges = Object.keys(Store.state.badges || {}).filter(function (k) { return Legacy.BADGES[k]; }).length;
-    var streak = (function () {
+    var streak = Store.checkin ? Store.checkin() : (function () {
       var daySet = {};
       recs.forEach(function (r) { daySet[dateOf(r)] = 1; });
       var d = new Date(), s = 0;

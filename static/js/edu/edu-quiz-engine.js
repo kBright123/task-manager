@@ -135,6 +135,11 @@
     if (it && it.listen) {
       var readTxt = Speech.questionReadText(it.listen, it.options);
       Speech.preloadTTS(readTxt);          // 预热实际播报文本, 缓解首播延迟
+      // 顺手预热下一题的听音文本: 切题后播报更跟手, 减少等待
+      var nx = quiz.items[i + 1];
+      if (nx && nx.listen && Speech.questionReadText && Speech.preloadTTS) {
+        try { Speech.preloadTTS(Speech.questionReadText(nx.listen, nx.options)); } catch (e) {}
+      }
       if (autoListenTimer) clearTimeout(autoListenTimer);
       autoListenTimer = setTimeout(function(){
         autoListenTimer = null;
@@ -261,6 +266,8 @@
 
   // 切题/退出时停止当前语音(网络音频 + 本地合成); 无 Speech 模块时静默忽略
   function stopSpeaking() {
+    // 作废「听音题自动播放」定时器: 防止切题/退出后旧题的定时播放迟到发声
+    if (autoListenTimer) { clearTimeout(autoListenTimer); autoListenTimer = null; }
     try {
       if (window.Edu && window.Edu.Speech) {
         if (window.Edu.Speech.stopSpeech) window.Edu.Speech.stopSpeech();

@@ -188,11 +188,27 @@
     </div>
   </div>
 
-  <!-- 重置所有进度 二次确认(勾选我已知晓) -->
+  <!-- 重置进度 二次确认: 分学科重置或全部清空(均需勾选我已知晓) -->
   <div class="edu-mask" id="eduMaskReset" style="display:none;">
     <div class="edu-modal">
-      <h3>🧹 重置所有进度</h3>
-      <p class="em-sub">将清除所有宝贝的学习进度、星星、徽章与错题记录，<b>无法恢复</b>。</p>
+      <h3>🧹 重置学习数据</h3>
+
+      <p class="em-sub">① 分学科重置（仅当前宝贝）：清除所选学科的学习记录、错题、闯关进度与对应徽章，星星与其他学科<b>不受影响</b>，无法恢复。</p>
+      <div class="rs-grid">
+        <label class="rs-chip"><input type="checkbox" class="rs-cb" data-s="zh"> 📖 语文</label>
+        <label class="rs-chip"><input type="checkbox" class="rs-cb" data-s="math"> 🧮 数学</label>
+        <label class="rs-chip"><input type="checkbox" class="rs-cb" data-s="en"> 🌍 英语</label>
+        <label class="rs-chip"><input type="checkbox" class="rs-cb" data-s="go"> ⚫ 围棋</label>
+        <label class="rs-chip"><input type="checkbox" class="rs-cb" data-s="lit"> 📜 文学</label>
+      </div>
+      <label class="set-check reset-ack"><input type="checkbox" id="resetSubjAck"> <span><b>我已知晓</b>重置后果</span></label>
+      <div class="edu-actions">
+        <button type="button" class="btn-soft" style="flex:1;" onclick="resetSubjectGo()">重置所选学科</button>
+      </div>
+
+      <div class="rs-divider"><span>或</span></div>
+
+      <p class="em-sub">② 清空全部：删除<b>所有宝贝</b>及全部学习数据（星星、徽章、错题、闯关…），无法恢复。</p>
       <label class="set-check reset-ack"><input type="checkbox" id="resetAck"> <span><b>我已知晓</b>重置后果</span></label>
       <div class="edu-actions">
         <button type="button" class="btn-ghost" style="flex:1;" onclick="resetCancel()">取消</button>

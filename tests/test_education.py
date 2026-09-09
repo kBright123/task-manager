@@ -216,6 +216,68 @@ def test_reset_all(client):
     assert len(client.get('/edu/api/bootstrap').json['kids']) == 0
 
 
+def test_reset_subject(client):
+    """分学科重置: 只清所选学科, 其余学科与星星/综合进度保留."""
+    pid = _setup_kid(client)
+    state = {
+        'stars': 88,
+        'records': [
+            {'t': 1, 'subj': 'zh', 'ok': True}, {'t': 2, 'subj': 'go', 'ok': True},
+            {'t': 3, 'subj': 'math', 'ok': False}, {'t': 4, 'subj': 'en', 'ok': True},
+        ],
+        'wrong': [
+            {'subj': 'zh', 'qid': 'a'}, {'subj': 'go', 'qid': 'b'}, {'subj': 'lit', 'qid': 'c'},
+        ],
+        'passedQuestions': {'zh::poem': 1, 'go::life_death': 1, 'math::calc': 1},
+        'course': {
+            'zh': {'nodes': [{'passStage': 4, 'done': True}], 'done': True},
+            'go': {'nodes': [{'passStage': 3, 'done': True}], 'done': False},
+            'math': {'nodes': [], 'done': False},
+        },
+        'level': {'zh': 3, 'go': 2},
+        'adv': {'zh': {'poem': {'passed': 5}}, 'en': {'word': {'passed': 2}}},
+        'badges': {'s10': 1, 'zh50': 1, 'zh150': 0, 'go150': 1, 'r500': 1},
+        'milestones': {'star_20': 1},
+    }
+    client.post(f'/edu/api/kids/{pid}/state', json={'dkey': 'state', 'data': state})
+
+    # 参数校验
+    assert client.post('/edu/api/reset_subject', json={'pid': pid, 'subjects': []}).status_code == 400
+    assert client.post('/edu/api/reset_subject', json={
+        'pid': pid, 'subjects': ['zh'], 'badgeKeys': ['f20', 'zh50', 'zh150']}).json.get('ok')
+
+    got = client.get(f'/edu/api/kids/{pid}/state').json['data']
+    assert got['stars'] == 88                       # 星星保留
+    assert got['records'] == [                      # 仅 zh 记录被删, 其余学科保留
+        {'t': 2, 'subj': 'go', 'ok': True},
+        {'t': 3, 'subj': 'math', 'ok': False},
+        {'t': 4, 'subj': 'en', 'ok': True},
+    ]
+    assert got['wrong'] == [                        # zh 错题被删, go/lit 保留
+        {'subj': 'go', 'qid': 'b'}, {'subj': 'lit', 'qid': 'c'},
+    ]
+    assert got['passedQuestions'] == {'go::life_death': 1, 'math::calc': 1}
+    assert 'zh' not in got['course'] and 'zh' not in got['level'] and 'zh' not in got['adv']
+    assert got['course']['go'] == {'nodes': [{'passStage': 3, 'done': True}], 'done': False}
+    assert got['adv']['en'] == {'word': {'passed': 2}}
+    assert got['badges'] == {'s10': 1, 'go150': 1, 'r500': 1}   # zh50 被删, 综合徽章保留
+    assert got['milestones'] == {'star_20': 1}
+
+    # 再清 go: go 数据一并清掉
+    assert client.post('/edu/api/reset_subject', json={
+        'pid': pid, 'subjects': ['go'], 'badgeKeys': ['go150']}).json.get('ok')
+    got2 = client.get(f'/edu/api/kids/{pid}/state').json['data']
+    assert 'go' not in got2['course'] and 'go' not in got2['level']
+    assert got2['badges'] == {'s10': 1, 'r500': 1}
+
+    # 越权/无权访问
+    assert client.post('/edu/api/reset_subject', json={
+        'pid': pid, 'subjects': ['zh', 'hack'], 'badgeKeys': []}).json.get('ok')  # 非法学科被忽略
+
+    # 清理
+    assert client.post(f'/edu/api/kids/{pid}/delete').json.get('ok')
+
+
 def test_state_overwrite_monotonic_guards(client):
     """跨端全量覆盖写 state 时, stars/课程进度/里程碑标记「只增不减」:
     旧设备旧数据覆盖不会吞掉已挣星星、不会倒退关卡进度、不会擦掉里程碑标记导致重复发星."""

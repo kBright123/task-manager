@@ -100,6 +100,8 @@
 
   // 切题/退出练习时停止当前语音(网络音频 + 本地合成); 无 Speech 模块时静默忽略
   function stopSpeaking() {
+    // 作废「听音题自动播放」定时器: 防止切到非听音题后旧题的定时播放迟到发声
+    if (pracAutoTimer) { clearTimeout(pracAutoTimer); pracAutoTimer = null; }
     try {
       if (window.Edu && window.Edu.Speech) {
         if (window.Edu.Speech.stopSpeech) window.Edu.Speech.stopSpeech();

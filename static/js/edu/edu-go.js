@@ -157,6 +157,26 @@
       { id: "tac_10", prompt: "13 路：两组白棋在棋盘中央抱成两团，黑棋一手把它们全提掉！", board: "13", moves: ["J8", "I8", "I9", "I7", "H7", "G7", "F8", "G8", "I6", "M13", "J7", "M12", "G9", "L13", "F7", "K13", "G6", "L12"], answer: "H8", options: ["H8", "G10", "I10", "A1"], type: "tactics", explain: "黑落 H8，两块白棋（G7·G8 与 I7·I8）都只剩这一口气，落子双提，四子全灭" },
       { id: "tac_11", prompt: "13 路：右侧 K 列的黑棋大龙被白棋死死围住，黑棋冲哪一点才能连气逃命？", board: "13", moves: ["K7", "L7", "K8", "J8", "K9", "J7", "K6", "L9", "A1", "L6", "B1", "J6", "A2", "K5", "C1", "J9", "B2", "L8"], answer: "K10", options: ["K10", "K11", "J10", "L10"], type: "tactics", explain: "黑落 K10 冲开一条生路，J10、L10、K11 三个出口全打开，大龙脱险" },
       { id: "tac_12", prompt: "13 路：右下角两组白棋正等着黑棋「一子两吃」，黑棋落哪一点？", board: "13", moves: ["K7", "H7", "G7", "H8", "J6", "J7", "H6", "J8", "K8", "M13", "I7", "M12", "G8", "L13"], answer: "I8", options: ["I8", "H9", "J9", "A1"], type: "tactics", explain: "黑落 I8，左 H7·H8 与右 J7·J8 两组白棋同时只剩一口气（双叫吃），白棋救不胜救" }
+    ],
+    "final": [
+      { id: "f_c1", prompt: "终极围杀：白棋大龙被重重围困只剩一口气，黑棋一子封口，提掉整条白龙！", board: "13", moves: ["C4", "A1", "C5", "D4", "D3", "D5", "D6", "E4", "E6", "E5", "F3", "F4", "F6", "F5", "G4", "I1", "G5", "K1"], answer: "E3", options: ["E3", "E8", "G11", "A9"], type: "final", explain: "白棋大龙被黑棋围死只剩唯一气口，黑落此点封口，一气提尽整条白龙。" },
+      { id: "f_c2", prompt: "终极围杀：白棋大龙被重重围困只剩一口气，黑棋一子封口，提掉整条白龙！", board: "13", moves: ["E3", "A1", "E4", "B2", "F2", "F3", "F5", "F4", "G2", "G3", "G5", "G4", "H2", "H3", "I2", "H4", "I5", "I3", "J3", "I4", "J4", "M1"], answer: "H5", options: ["H5", "C12", "G7", "K3"], type: "final", explain: "白棋大龙被黑棋围死只剩唯一气口，黑落此点封口，一气提尽整条白龙。" },
+      { id: "f_c3", prompt: "终极围杀：白棋大龙被重重围困只剩一口气，黑棋一子封口，提掉整条白龙！", board: "13", moves: ["B6", "A1", "B7", "C1", "B8", "C6", "C5", "C7", "C9", "C8", "D5", "D6", "D9", "D7", "E5", "D8", "E9", "E6", "F6", "E7", "F8", "E8"], answer: "F7", options: ["F7", "G12", "A7", "K9"], type: "final", explain: "白棋大龙被黑棋围死只剩唯一气口，黑落此点封口，一气提尽整条白龙。" },
+      { id: "f_c4", prompt: "终极围杀：白棋大龙被重重围困只剩一口气，黑棋一子封口，提掉整条白龙！", board: "13", moves: ["G2", "A1", "G3", "B2", "H1", "C1", "H4", "H2", "I1", "H3", "I4", "I2", "J4", "I3", "K1", "J2", "K4", "J3", "L1", "K2", "L4", "K3", "M2", "L2", "M3", "L3"], answer: "J1", options: ["J1", "A9", "D9", "L11"], type: "final", explain: "白棋大龙被黑棋围死只剩唯一气口，黑落此点封口，一气提尽整条白龙。" },
+      { id: "f_c5", prompt: "终极围杀：白棋大龙被重重围困只剩一口气，黑棋一子封口，提掉整条白龙！", board: "13", moves: ["A8", "A1", "A9", "B8", "A10", "B9", "B7", "B10", "B11", "C8", "C7", "C9", "C11", "C10", "D7", "D8", "E7", "D9", "E11", "D10", "F8", "E8", "F9", "E9", "F10", "E10"], answer: "D11", options: ["D11", "F2", "K7", "A5"], type: "final", explain: "白棋大龙被黑棋围死只剩唯一气口，黑落此点封口，一气提尽整条白龙。" },
+      { id: "f_c6", prompt: "终极围杀：白棋大龙被重重围困只剩一口气，黑棋一子封口，提掉整条白龙！", board: "13", moves: ["G8", "A1", "G9", "C1", "H7", "E1", "H10", "H8", "I7", "H9", "I10", "I8", "J7", "I9", "J10", "J8", "K7", "J9", "K10", "K8", "L8", "K9"], answer: "L9", options: ["L9", "B2", "J5", "A13"], type: "final", explain: "白棋大龙被黑棋围死只剩唯一气口，黑落此点封口，一气提尽整条白龙。" },
+      { id: "f_c7", prompt: "终极围杀：白棋大龙被重重围困只剩一口气，黑棋一子封口，提掉整条白龙！", board: "13", moves: ["A2", "B2", "A3", "B3", "A4", "B4", "A5", "B5", "B1", "C2", "B6", "C3", "C6", "C4", "D1", "C5", "D6", "D2", "E2", "D3", "E3", "D4", "E4", "D5", "E5", "H1"], answer: "C1", options: ["C1", "H13", "K10", "B8"], type: "final", explain: "白棋大龙被黑棋围死只剩唯一气口，黑落此点封口，一气提尽整条白龙。" },
+      { id: "f_c8", prompt: "终极围杀：白棋大龙被重重围困只剩一口气，黑棋一子封口，提掉整条白龙！", board: "13", moves: ["H2", "A1", "H3", "I2", "H4", "I3", "I1", "I4", "I5", "J2", "J1", "J3", "J5", "J4", "K1", "K2", "L1", "K3", "L5", "K4", "M2", "L2", "M3", "L3", "M4", "L4"], answer: "K5", options: ["K5", "B11", "H8", "K11"], type: "final", explain: "白棋大龙被黑棋围死只剩唯一气口，黑落此点封口，一气提尽整条白龙。" },
+      { id: "f_c9", prompt: "终极围杀：白棋大龙被重重围困只剩一口气，黑棋一子封口，提掉整条白龙！", board: "13", moves: ["C5", "A1", "D4", "C1", "D7", "D5", "E4", "D6", "E7", "E1", "F4", "E5", "F7", "E6", "G4", "F5", "G7", "F6", "H4", "G5", "H7", "G6", "I4", "H5", "I7", "H6", "J5", "I5", "J6", "I6"], answer: "C6", options: ["C6", "J12", "A2", "M8"], type: "final", explain: "白棋大龙被黑棋围死只剩唯一气口，黑落此点封口，一气提尽整条白龙。" },
+      { id: "f_c10", prompt: "终极围杀：白棋大龙被重重围困只剩一口气，黑棋一子封口，提掉整条白龙！", board: "13", moves: ["C7", "A1", "C8", "C1", "C9", "D7", "C10", "D8", "C11", "D9", "C12", "D10", "D6", "D11", "D13", "D12", "E6", "E1", "E13", "E7", "F7", "E8", "F8", "E9", "F9", "E10", "F11", "E11", "F12", "E12"], answer: "F10", options: ["F10", "A10", "M3", "M10"], type: "final", explain: "白棋大龙被黑棋围死只剩唯一气口，黑落此点封口，一气提尽整条白龙。" },
+      { id: "f_d1", prompt: "一石二鸟：黑棋一手同时让两组白棋只剩一口气！", board: "13", moves: ["D5", "A1", "E4", "C1", "G6", "E5", "H5", "G5"], answer: "F5", options: ["F5", "K3", "C11", "G13"], type: "final", explain: "黑落此点，两组白棋同时只剩一口气被叫吃，白棋必丢其一。" },
+      { id: "f_d2", prompt: "一石二鸟：黑棋一手同时让两组白棋只剩一口气！", board: "13", moves: ["F8", "A1", "G7", "C1", "I9", "G8", "J8", "I8"], answer: "H8", options: ["H8", "B2", "M4", "F5"], type: "final", explain: "黑落此点，两组白棋同时只剩一口气被叫吃，白棋必丢其一。" },
+      { id: "f_e1", prompt: "生死逃亡：黑棋大龙只剩一小口气，找出唯一的逃生出口冲出去！", board: "13", moves: ["A4", "A10", "C4", "B4", "C5", "B5", "C6", "B6", "C7", "B7", "C8", "B8", "C9", "B9", "C10", "B10", "E4", "C3", "F1", "D4", "H1", "D5", "H3", "D6", "I2", "D7", "J1", "D8", "K2", "D9", "L1", "D10", "M2", "E10"], answer: "C11", options: ["C11", "E9", "A12", "M6"], type: "final", explain: "黑棋大龙只剩这一口气，黑落此点连出后气变多，白棋再也吃不掉。" },
+      { id: "f_e2", prompt: "生死逃亡：黑棋大龙只剩一小口气，找出唯一的逃生出口冲出去！", board: "13", moves: ["A1", "H10", "A3", "I3", "B2", "I4", "B4", "I5", "C1", "I6", "C3", "I7", "D2", "I8", "E1", "I9", "E3", "I10", "H3", "J2", "J3", "K3", "J4", "K4", "J5", "K5", "J6", "K6", "J7", "K7", "J8", "K8", "J9", "K9", "J10", "K10", "L3", "L10"], answer: "J11", options: ["J11", "F9", "B3", "M10"], type: "final", explain: "黑棋大龙只剩这一口气，黑落此点连出后气变多，白棋再也吃不掉。" },
+      { id: "f_e3", prompt: "生死逃亡：黑棋大龙只剩一小口气，找出唯一的逃生出口冲出去！", board: "13", moves: ["A1", "J8", "A3", "K2", "B2", "K3", "C1", "K4", "C3", "K5", "E1", "K6", "F2", "K7", "G1", "K8", "J2", "L1", "L2", "M2", "L3", "M3", "L4", "M4", "L5", "M5", "L6", "M6", "L7", "M7", "L8", "M8"], answer: "L9", options: ["L9", "B9", "H13", "D2"], type: "final", explain: "黑棋大龙只剩这一口气，黑落此点连出后气变多，白棋再也吃不掉。" },
+      { id: "f_19_c1", prompt: "终极围杀：白棋大龙被重重围困只剩一口气，黑棋一子封口，提掉整条白龙！", board: "19", moves: ["H5", "A1", "H6", "I5", "H7", "I6", "I4", "I7", "I8", "J5", "J4", "J6", "J8", "J7", "K4", "K5", "K8", "K6", "L4", "K7", "L8", "L5", "M5", "L6", "M7", "L7"], answer: "M6", options: ["M6", "A13", "S7", "M15"], type: "final", explain: "白棋大龙被黑棋围死只剩唯一气口，黑落此点封口，一气提尽整条白龙。" },
+      { id: "f_19_c2", prompt: "终极围杀：白棋大龙被重重围困只剩一口气，黑棋一子封口，提掉整条白龙！", board: "19", moves: ["C12", "A1", "C13", "C1", "D11", "D12", "D14", "D13", "E11", "E1", "E14", "E12", "F11", "E13", "F14", "F12", "G14", "F13", "H11", "G12", "H14", "G13", "I11", "H12", "I14", "H13", "J12", "I12", "J13", "I13"], answer: "G11", options: ["G11", "M3", "S17", "B9"], type: "final", explain: "白棋大龙被黑棋围死只剩唯一气口，黑落此点封口，一气提尽整条白龙。" },
+      { id: "f_19_e1", prompt: "生死逃亡：黑棋大龙只剩一小口气，找出唯一的逃生出口冲出去！", board: "19", moves: ["A1", "F13", "B2", "G4", "C1", "G5", "E1", "G6", "F4", "G7", "H4", "G8", "H5", "G9", "H6", "G10", "H7", "G11", "H8", "G12", "H9", "G13", "H10", "H3", "H11", "I4", "H12", "I5", "H13", "I6", "J4", "I7", "K1", "I8", "M1", "I9", "N2", "I10", "O1", "I11", "P2", "I12", "Q1", "I13", "S1", "J13"], answer: "H14", options: ["H14", "K19", "B3", "R11"], type: "final", explain: "黑棋大龙只剩这一口气，黑落此点连出后气变多，白棋再也吃不掉。" }
     ]
   };
 
@@ -273,7 +293,7 @@
   function renderGoWorkbench(body) {
     if (!body) return;
     // 旧版可能存过文字题模式, 回退到安全的基本玩法
-    if (['atari', 'liberty', 'capture', 'connect', 'life_death', 'defense', 'tactics'].indexOf(wbGoMode) === -1) wbGoMode = 'atari';
+    if (['atari', 'liberty', 'capture', 'connect', 'life_death', 'defense', 'tactics', 'final'].indexOf(wbGoMode) === -1) wbGoMode = 'atari';
     body.innerHTML = goSectionHtml();
     renderGoMode(body.querySelector('#wb-go-body'), wbGoMode);
   }
@@ -381,7 +401,8 @@
       { id: 'connect', label: '连接与分断', emoji: '🔗' },
       { id: 'life_death', label: '死活与二眼', emoji: '👁️' },
       { id: 'defense', label: '防守自救', emoji: '🛡️' },
-      { id: 'tactics', label: '进阶战术', emoji: '⚔️' }
+      { id: 'tactics', label: '进阶战术', emoji: '⚔️' },
+      { id: 'final', label: '死活终局', emoji: '👑' }
     ];
     var html = '<div id="wb-go">';
     html += '<div class="sm-tabs" style="overflow-x:auto;white-space:nowrap;margin-bottom:12px;">';
@@ -410,7 +431,7 @@
     // 兼容闯关关卡的 go_xxx 与工作台 tab 的 xxx 两种 mode 写法
     mode = String(mode || 'atari').replace(/^go_/, '') || 'atari';
     // 只保留「点选棋盘」的 6 种玩法; 旧版存下的文字题模式回退到基本玩法
-    if (['atari', 'liberty', 'capture', 'connect', 'life_death', 'defense', 'tactics'].indexOf(mode) === -1) mode = 'atari';
+    if (['atari', 'liberty', 'capture', 'connect', 'life_death', 'defense', 'tactics', 'final'].indexOf(mode) === -1) mode = 'atari';
     wbGoMode = mode;
     if (window.Edu.Workbench && window.Edu.Workbench.showSubjectSection) window.Edu.Workbench.showSubjectSection('go');
     var body = document.getElementById('wb-go-body');

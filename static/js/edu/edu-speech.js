@@ -7,6 +7,7 @@
   var speakFBTimer = null;
   var lastSpeakText = '', lastSpeakAt = 0;
   var netAudio = null, netAudioUrl = '';
+  var liveNetAudios = [];   // 所有在途/正在播放的网络音频; 停止时一并停掉, 杜绝被覆盖后旧语音继续出声音
   var speakSeq = 0;   // 播放会话序号: 新增/停止播放时自增, 作废所有在途播放/重试回调
 
   function pickZhVoice() {
@@ -51,9 +52,22 @@
     return han >= lat ? 'zh' : 'en';
   }
 
+  // 注册/注销一个网络音频: 停止语音时能扫到所有在途元素, 不怕被新播放覆盖而丢失引用
+  function regLiveAudio(a) { liveNetAudios.push(a); netAudio = a; }
+  function unregLiveAudio(a) {
+    var k = liveNetAudios.indexOf(a);
+    if (k >= 0) liveNetAudios.splice(k, 1);
+    if (netAudio === a) netAudio = liveNetAudios.length ? liveNetAudios[liveNetAudios.length - 1] : null;
+  }
+
   function stopNetAudio() {
     speakSeq++;                       // 作废在途播放/重试回调, 杜绝旧音频晚到“再放一遍”
-    if (netAudio) { netAudio.pause(); netAudio.src = ''; netAudio = null; }
+    liveNetAudios.forEach(function (a) {
+      try { a.onended = a.onerror = a.onloadeddata = a.oncanplaythrough = null; } catch (e) {}
+      try { a.pause(); a.src = ''; } catch (e) {}
+    });
+    liveNetAudios = [];
+    netAudio = null;
     netAudioUrl = '';
   }
 
@@ -66,14 +80,15 @@
   }
 
   function playAudio(urls) {
-    stopNetAudio();
+    stopNetAudio();                   // 新语音开始前先停掉旧播放, 同一时间只保留一个声音
     var i = 0;
     function tryNext() {
       if (i >= urls.length) return;
-      netAudio = new Audio(urls[i]);
-      netAudio.onerror = function(){ i++; tryNext(); };
-      netAudio.onended = function(){ stopNetAudio(); };
-      netAudio.play().catch(function(){ i++; tryNext(); });
+      var a = new Audio(urls[i]);
+      regLiveAudio(a);
+      a.onerror = function(){ unregLiveAudio(a); i++; tryNext(); };
+      a.onended = function(){ unregLiveAudio(a); };
+      a.play().catch(function(){ unregLiveAudio(a); i++; tryNext(); });
     }
     tryNext();
   }
@@ -104,16 +119,24 @@
   }
 
   // 预加载 TTS 音频(浏览器走 HTTP 缓存), 缓解「语音首播 3 秒+ 延迟」
+  // 只预热不播放; 长时间使用会累积 inert 元素, 限制数量并回收最旧的
+  var preloadCache = [], PRELOAD_CAP = 24;
   function preloadTTS(text) {
     if (!text || typeof window === 'undefined' || typeof window.Audio === 'undefined') return;
     try {
       var a = new Audio(ttsUrl(text));
       if (typeof a.preload === 'string') a.preload = 'auto';
+      preloadCache.push(a);
+      if (preloadCache.length > PRELOAD_CAP) {
+        var old = preloadCache.shift();
+        try { old.pause(); old.src = ''; } catch (e) {}
+      }
     } catch (e) {}
   }
 
   // 网络 TTS(edge-tts 高音质, 服务端缓存同源 mp3) 带超时: 仅在本地合成不可用/失败时兜底
   function playNetTimed(text, onFail, timeout) {
+    stopNetAudio();                   // 新语音开始前停掉一切旧播放, 杜绝与上一段语音叠加
     var url = ttsUrl(text);
     var mySeq = speakSeq;             // 捕获当前会话; 一旦有新播放/停止即整体作废
     var attempts = 0, MAX_ATTEMPTS = 2, T_TIMEOUT = timeout || 12000;
@@ -143,6 +166,7 @@
       function failOnce(err) {
         if (done || mySeq !== speakSeq) return;
         try { a.onerror = a.oncanplaythrough = a.onended = a.onloadeddata = null; a.pause(); a.src = ''; } catch (e) {}
+        unregLiveAudio(a);
         a = null;
         if (attempts < MAX_ATTEMPTS) {
           if (cleanTimer) clearTimeout(cleanTimer);
@@ -157,12 +181,12 @@
       a.onended = function(){
         if (done || mySeq !== speakSeq) return;
         finish(true);
-        stopNetAudio();
+        unregLiveAudio(a);
       };
       if (cleanTimer) clearTimeout(cleanTimer);
       cleanTimer = setTimeout(function(){ if (mySeq === speakSeq) failOnce(played ? 'autoplay_blocked' : 'network_timeout'); }, T_TIMEOUT);
       try { a.load(); } catch (e) {}
-      netAudio = a;
+      regLiveAudio(a);
     }
     attempt();
   }
@@ -200,6 +224,7 @@
         if (done || mySeq !== speakSeq) return;
         a.onerror = a.oncanplaythrough = a.onended = a.onloadeddata = null;
         try { a.pause(); a.src = ''; } catch (e) {}
+        unregLiveAudio(a);
         if (attempts < MAX_ATTEMPTS) {
           if (cleanTimer) clearTimeout(cleanTimer);
           attempt();
@@ -208,24 +233,29 @@
         }
       }
       a.onerror = fail;
-      a.onended = function(){ if (done || mySeq !== speakSeq) return; finish(true); stopNetAudio(); };
+      a.onended = function(){ if (done || mySeq !== speakSeq) return; finish(true); unregLiveAudio(a); };
       a.onloadeddata = tryPlay;           // 首帧数据就绪即播放, 减小等待感
       a.oncanplaythrough = tryPlay;       // 兜底触发(幂等)
       if (cleanTimer) clearTimeout(cleanTimer);
       cleanTimer = setTimeout(function(){ if (mySeq === speakSeq) fail(); }, T_TIMEOUT);
       try { a.load(); } catch (e) {}
-      netAudio = a;
+      regLiveAudio(a);
     }
     attempt();
   }
 
   // 预加载网络音频到缓存(不播放)
   function preloadNetTTS(text) {
-    if (typeof window === 'undefined' || typeof window.Audio === 'undefined') return;
+    if (!text || typeof window === 'undefined' || typeof window.Audio === 'undefined') return;
     try {
       var a = new Audio(ttsUrl(text));
       a.preload = 'auto';
       a.onerror = function(){}; // 静默忽略预加载错误
+      preloadCache.push(a);
+      if (preloadCache.length > PRELOAD_CAP) {
+        var old = preloadCache.shift();
+        try { old.pause(); old.src = ''; } catch (e) {}
+      }
     } catch (e) {}
   }
 

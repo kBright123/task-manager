@@ -80,7 +80,7 @@
         { t: 'go_tactics', name: '十三路大逃杀', em: '🌪️' },
         { t: 'go_tactics', name: '围剿提大龙', em: '🐉' },
         { t: 'go_connect', name: '渡桥连棋手', em: '🌉' },
-        { t: 'go_life_death', name: '死活终局决战', em: '👑' }
+        { t: 'go_final', name: '死活终局决战', em: '👑' }
       ]
     },
     lit: {
@@ -722,16 +722,33 @@
     }).join('') + '</div>';
   }
 
+  function badgeTileHtml(k) {
+    var got = Store.state.badges && Store.state.badges[k];
+    var b = Legacy.BADGES[k] || {};
+    return '<button type="button" class="cm-badge' + (got ? ' on' : ' dim') + '" data-k="' + k + '" onclick="window.Edu.Course.badgePulse(\'' + k + '\')">' +
+      '<span class="cm-badge-em">' + ((b.name && b.name.split(' ')[0]) || '🏅') + '</span>' +
+      '<span class="cm-badge-nm">' + (b.name || k) + '</span></button>';
+  }
+
   function badgesHtml() {
-    var keys = Object.keys(Legacy.BADGES || {});
+    var cats = Legacy.BADGE_CATS || [];
+    if (!cats.length) {
+      return '<div class="cm-badges">' + Object.keys(Legacy.BADGES || {}).map(badgeTileHtml).join('') + '</div>';
+    }
     var unlocked = 0;
-    keys.forEach(function (k) { if (Store.state.badges && Store.state.badges[k]) unlocked++; });
-    return '<div class="cm-badges">' + keys.map(function (k) {
-      var got = Store.state.badges && Store.state.badges[k];
-      return '<button type="button" class="cm-badge' + (got ? ' on' : ' dim') + '" data-k="' + k + '" onclick="window.Edu.Course.badgePulse(\'' + k + '\')">' +
-        '<span class="cm-badge-em">' + ((Legacy.BADGES[k] && Legacy.BADGES[k].name.split(' ')[0]) || '🏅') + '</span>' +
-        '<span class="cm-badge-nm">' + ((Legacy.BADGES[k] && Legacy.BADGES[k].name) || k) + '</span></button>';
-    }).join('') + '</div>';
+    for (var k in (Legacy.BADGES || {})) if (Store.state.badges && Store.state.badges[k]) unlocked++;
+    return cats.map(function (cat) {
+      var list = Legacy.catBadges ? Legacy.catBadges(cat.key) : [];
+      if (!list.length) return '';
+      var got = list.filter(function (k) { return Store.state.badges && Store.state.badges[k]; }).length;
+      return '<div class="cm-badge-sec" data-cat="' + cat.key + '">' +
+        '<div class="cm-badge-sec-h"><span class="cm-badge-sec-ic">' + (cat.icon || '') + '</span>' +
+        '<span class="cm-badge-sec-t">' + cat.label + '</span>' +
+        '<span class="cm-badge-sec-n">' + got + ' / ' + list.length + '</span></div>' +
+        '<div class="cm-badges">' + list.map(badgeTileHtml).join('') + '</div>' +
+        '</div>';
+    }).join('') +
+      '<div class="cm-badge-sec-note">共解锁 <b>' + unlocked + '</b> 枚徽章</div>';
   }
 
   var activeMapSubject = 'zh';

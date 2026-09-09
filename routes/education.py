@@ -922,6 +922,87 @@ def reset_all():
         return jsonify(ok=True)
 
 
+@education_bp.route('/api/reset_subject', methods=['POST'])
+def reset_subject():
+    """家长分学科重置: 清除所选学科的学习数据而不影响其余学科.
+
+    body: { pid, subjects: ['zh','math','en','go','lit'], badgeKeys: [...] }
+    清理范围(按学科):
+    - 答题记录 records / 错题本 wrong(按 subj 过滤)
+    - 已过题 passedQuestions(subj:: 前缀键)
+    - 闯关 course[subj]、档位 level[subj]、掌握度 adv[subj]
+    - 属于该学科的徽章 badges(前端按学科算出键名传入 badgeKeys)
+    星星账本(stars)逐笔保留 —— 星星不分学科, 历史挣的星不因重置学科丢失。
+    与 /api/kids/<id>/state 不同, 这里直接改全量执行清除, 不走只增不减的保护合并。
+    """
+    body = request.get_json(silent=True) or {}
+    pid = _safe_int(body.get('pid'), 0)
+    subjects = body.get('subjects') or []
+    valid_subjects = {'zh', 'math', 'en', 'go', 'lit'}
+    subjects = [s for s in subjects if s in valid_subjects]
+    if pid <= 0:
+        return jsonify(ok=False, error='缺少宝贝信息'), 400
+    if not subjects:
+        return jsonify(ok=False, error='未选择要重置的学科'), 400
+    with _session_scope() as sess:
+        owner = _owner_id()
+        if not _kid_owned(sess, owner, pid):
+            return jsonify(ok=False, error='孩子不存在或无权访问'), 404
+        badge_keys = [
+            str(k) for k in (body.get('badgeKeys') or [])
+            if isinstance(k, str) and 0 < len(k) <= 64
+        ]
+        row = sess.query(EduData).filter_by(owner=owner, profile_id=pid, dkey='state').first()
+        payload = {}
+        if row and row.payload:
+            try:
+                payload = json.loads(row.payload)
+            except Exception:
+                payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
+
+        def _is_subj(entry):
+            return isinstance(entry, dict) and str(entry.get('subj')) in subjects
+
+        # 记录 / 错题: 按学科过滤
+        if isinstance(payload.get('records'), list):
+            payload['records'] = [r for r in payload['records'] if not _is_subj(r)]
+        if isinstance(payload.get('wrong'), list):
+            payload['wrong'] = [w for w in payload['wrong'] if not _is_subj(w)]
+
+        # 已过题: 键为 'subj::type'
+        pq = payload.get('passedQuestions')
+        if isinstance(pq, dict):
+            for s in subjects:
+                for k in [k for k in list(pq.keys()) if str(k).startswith(s + '::')]:
+                    pq.pop(k, None)
+
+        # 闯关 / 档位 / 掌握度: 按学科键删除
+        for key in ('course', 'level', 'adv'):
+            holder = payload.get(key)
+            if isinstance(holder, dict):
+                for s in subjects:
+                    holder.pop(s, None)
+
+        # 徽章: 只删前端按学科算出的键, 不动综合类
+        bd = payload.get('badges')
+        if isinstance(bd, dict):
+            for k in badge_keys:
+                bd.pop(k, None)
+
+        now = datetime.utcnow()
+        if row:
+            row.payload = json.dumps(payload, ensure_ascii=False)
+            row.updated_at = now
+        else:
+            sess.add(EduData(owner=owner, profile_id=pid, dkey='state',
+                             payload=json.dumps(payload, ensure_ascii=False),
+                             created_at=now, updated_at=now))
+        sess.commit()
+        return jsonify(ok=True, subjects=subjects)
+
+
 # ==================== 题库 ====================
 
 @education_bp.route('/api/qbank/ensure', methods=['POST'])

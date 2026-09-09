@@ -16,10 +16,25 @@
       '</div>';
   }
 
+  function badgeSection(cat) {
+    var list = Legacy.catBadges ? Legacy.catBadges(cat.key) : [];
+    if (!list.length) return '';
+    var got = 0;
+    list.forEach(function (k) { if (Store.state.badges && Store.state.badges[k]) got++; });
+    return '<div class="bd-sec" data-cat="' + cat.key + '">' +
+      '<div class="bd-sec-h"><span class="bd-sec-ic">' + (cat.icon || '') + '</span>' +
+      '<span class="bd-sec-t">' + cat.label + '</span>' +
+      '<span class="bd-sec-n">' + got + ' / ' + list.length + '</span></div>' +
+      '<div class="badge-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(140px,100%),1fr));gap:12px;">' +
+      list.map(badgeCard).join('') + '</div>' +
+      '</div>';
+  }
+
   function renderBadges() {
     var body = document.getElementById('eduBadgesBody');
     if (!body) return;
     renderWelcomeInto('badgesWelcome', '闯关赢星星，集齐你的勋章');
+    var cats = Legacy.BADGE_CATS || [];
     var keys = Object.keys(Legacy.BADGES);
     var unlocked = 0;
     for (var i=0;i<keys.length;i++) if (Store.state.badges && Store.state.badges[keys[i]]) unlocked++;
@@ -27,6 +42,14 @@
     var act = window.eduKids ? window.eduKids.active() : (kids[0] || null);
     var name = act ? (act.name || '宝贝') : '宝贝';
     var pct = keys.length ? Math.round(unlocked * 100 / keys.length) : 0;
+    var gridHtml;
+    if (cats.length) {
+      gridHtml = cats.map(badgeSection).join('') + '<p class="bd-count">共解锁 <b>' + unlocked + '</b> / ' + keys.length + ' 枚勋章</p>';
+    } else {
+      gridHtml = '<div class="badge-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(140px,100%),1fr));gap:12px;">'+
+        keys.map(badgeCard).join('')+'</div>'+
+        '<div class="badge-count">已解锁 '+unlocked+' / '+keys.length+' 枚勋章</div>';
+    }
     body.innerHTML =
       '<div class="bd-hero">'+
         '<div class="bd-hero-em">🏆</div>'+
@@ -34,8 +57,7 @@
         '<div class="bd-hero-sub">已解锁 <b>' + unlocked + '</b> / ' + keys.length + ' 枚 · 星星 ⭐ ' + (Store.state.stars || 0) + '</div>'+
         '<div class="bd-prog"><div class="bd-fill" style="width:' + pct + '%;"></div></div></div>'+
       '</div>'+
-      '<div class="badge-count">已解锁 '+unlocked+' / '+keys.length+' 枚勋章</div>'+
-      '<div class="badge-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(140px,100%),1fr));gap:12px;">'+keys.map(badgeCard).join('')+'</div>'+
+      gridHtml +
       '<p class="bd-tip">💡 闯关、极速练习与每日挑战都能赢星星换新勋章，继续加油！</p>';
     // 渲染宝贝切换器
     var picker = document.getElementById('badgesKidPicker');

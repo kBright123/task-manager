@@ -153,6 +153,53 @@
     if (mask) mask.style.display = 'none';
   };
 
+  // ---- 分学科重置: 仅清所选学科(记录/错题/闯关/档位/掌握度/该学科徽章), 星星保留 ----
+  window.resetSubjectGo = function () {
+    var boxes = document.querySelectorAll('.rs-cb');
+    var subjects = [];
+    boxes.forEach(function (b) { if (b.checked) subjects.push(b.dataset.s); });
+    if (!subjects.length) { Speech.toast('请先勾选要重置的学科'); return; }
+    var ack = document.getElementById('resetSubjAck');
+    if (ack && !ack.checked) { Speech.toast('请先勾选「我已知晓」'); return; }
+    var mask = document.getElementById('eduMaskReset');
+    if (mask) mask.style.display = 'none';
+    window.requireParent(function () {
+      var kid = (window.eduKids && window.eduKids.active()) || null;
+      if (!kid) { Speech.toast('请先选择宝贝'); return; }
+      var pid = kid.dbId || kid.id.replace(/^db/, '');
+      // 未同步的新宝贝先同步建档拿 dbId
+      var doReset = function () {
+        var badgeKeys = [];
+        var Legacy = window.Edu && window.Edu.Legacy;
+        if (Legacy && typeof Legacy.catBadges === 'function') {
+          subjects.forEach(function (s) {
+            (Legacy.catBadges(s) || []).forEach(function (k) {
+              var key = String(k);
+              if (badgeKeys.indexOf(key) < 0) badgeKeys.push(key);
+            });
+          });
+        }
+        fetch('/edu/api/reset_subject', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pid: Number(pid) || 0, subjects: subjects, badgeKeys: badgeKeys })
+        }).then(function (r) { return r.json(); }).then(function (res) {
+          if (res.ok) location.reload();
+          else Speech.toast(res.error || '重置失败');
+        }).catch(function () { Speech.toast('网络异常，重置失败'); });
+      };
+      if (pid && /^\d+$/.test(pid)) { doReset(); return; }
+      if (window.eduSync && window.eduSync.pushKids) {
+        window.eduSync.pushKids().then(function () {
+          var k2 = (window.eduKids && window.eduKids.active()) || null;
+          var p2 = k2 && (k2.dbId || String(k2.id).replace(/^db/, ''));
+          if (p2 && /^\d+$/.test(p2)) doReset();
+          else Speech.toast('宝贝尚未同步，请稍后重试');
+        }).catch(function () { Speech.toast('网络异常，重置失败'); });
+      } else { Speech.toast('宝贝尚未同步，请稍后重试'); }
+    });
+  };
+
   window.Edu.Settings.openSettings = window.openSettings;
   window.Edu.Settings.setSave = window.setSave;
   window.Edu.Settings.openConfirm = window.openConfirm;
@@ -163,6 +210,7 @@
   window.Edu.Settings.openResetConfirm = window.openReset;
   window.Edu.Settings.resetGo = window.resetGo;
   window.Edu.Settings.resetCancel = window.resetCancel;
+  window.Edu.Settings.resetSubjectGo = window.resetSubjectGo;
 
   // 兼容旧调用(第三批测试仍指向 resetAll)
   window.Edu.Settings.resetAll = window.resetGo;

@@ -27,3 +27,6 @@ jionlp>=1.5.29
 
 # 教育乐园语音朗读(服务端 TTS, 微软 edge-tts 在线合成; 未安装时自动降级有道词典)
 edge-tts>=7.0.0
+# edge-tts 输出 MPEG-2/24k 在 iPad 静默失败, 需转 MPEG-1 44.1k; av(PyAV)自带完整编解码,
+# 无需系统 ffmpeg 即可转码(不依赖镜像重建)
+av>=13.0.0

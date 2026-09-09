@@ -35,6 +35,7 @@ import json
 import logging
 import os
 import threading
+import subprocess
 import urllib.parse
 import urllib.request
 from datetime import datetime
@@ -438,6 +439,68 @@ _TTS_VOICES = {
 _TTS_VOICE_DEFAULT = 'xiaoxiao'
 
 
+def _mpeg_ver(data):
+    """识别 mp3 首帧流版本: 'mpeg1' | 'mpeg2' | 'mpeg2.5' | None(非 mp3 头)."""
+    if not data or len(data) < 3:
+        return None
+    if data[0] != 0xFF or (data[1] & 0xE0) != 0xE0:
+        return None
+    v = (data[1] >> 3) & 3
+    return {3: 'mpeg1', 2: 'mpeg2', 0: 'mpeg2.5'}.get(v)
+
+
+def _av_mp3(data):
+    """PyAV 转码(自带 ffmpeg 库, 无需系统 ffmpeg): MPEG-2/24k -> MPEG-1/44.1k mono."""
+    try:
+        import av
+        import io
+        i = av.open(io.BytesIO(data))
+        buf = io.BytesIO()
+        o = av.open(buf, 'w', format='mp3')
+        try:
+            st = o.add_stream('libmp3lame', rate=44100)
+            st.bit_rate = 64000
+            st.layout = 'mono'
+            for frame in i.decode(audio=0):
+                for p in st.encode(frame):
+                    o.mux(p)
+            for p in st.encode(None):
+                o.mux(p)
+        finally:
+            o.close()
+            i.close()
+        return buf.getvalue()
+    except Exception as e:
+        logger.warning('av transcode failed: %s', e)
+        return None
+
+
+def _to_ios_mp3(data):
+    """edge-tts 输出 MPEG-2 Layer III 24kHz, 旧 iOS WebKit 解码时静默失败(实测发声无/Android正常).
+    统一转成 MPEG-1 Layer III 44.1kHz mono, iOS 与各端都稳; 转码失败则原样返回(安卓仍能用)."""
+    if not data:
+        return data
+    if _mpeg_ver(data) == 'mpeg1':
+        return data
+    try:
+        p = subprocess.run(
+            ['ffmpeg', '-y', '-loglevel', 'error', '-i', 'pipe:0',
+             '-ac', '1', '-ar', '44100', '-codec:a', 'libmp3lame', '-b:a', '64k',
+             '-f', 'mp3', 'pipe:1'],
+            input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+        if p.returncode == 0 and p.stdout and len(p.stdout) > 500:
+            return p.stdout
+        logger.warning('ffmpeg transcode rc=%s len=%s, try av', p.returncode, len(p.stdout or b''))
+    except FileNotFoundError:
+        logger.warning('ffmpeg not installed in this env, fallback to PyAV')
+    except Exception as e:
+        logger.warning('ffmpeg transcode failed: %s, try av', e)
+    av = _av_mp3(data)
+    if av and len(av) > 500:
+        return av
+    return data
+
+
 def _fetch_tts(text, le, vkey=None):
     """在线获取 mp3: 优先 edge-tts(微软在线, 质量高不限流), 失败回退有道词典 TTS."""
     data = None
@@ -482,7 +545,7 @@ def _fetch_tts(text, le, vkey=None):
     except Exception:
         logger.warning('edge-tts failed le=%s', le, exc_info=True)
     if data:
-        return data
+        return _to_ios_mp3(data)
     # 回退: 有道词典 TTS(有反爬/限流, 不一定成功)
     url = 'https://dict.youdao.com/dictvoice?le=' + le + '&audio=' + urllib.parse.quote(text)
     try:
@@ -533,8 +596,25 @@ def tts():
                 os.replace(tmp, path)
             except OSError:
                 pass
+    elif os.path.isfile(path):
+        # 历史缓存是 edge-tts 的 MPEG-2 24kHz, iPad 静默失败; 懒转码一次后生效
+        try:
+            with open(path, 'rb') as f:
+                head = f.read(3)
+            if _mpeg_ver(head) == 'mpeg2':
+                with open(path, 'rb') as f:
+                    old = f.read()
+                conv = _to_ios_mp3(old)
+                if conv:
+                    tmp = path + '.tmp'
+                    with open(tmp, 'wb') as f:
+                        f.write(conv)
+                    os.replace(tmp, path)
+        except OSError:
+            pass
     resp = send_file(path, mimetype='audio/mpeg')
     resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+    resp.headers['X-TTS-V'] = '3'
     return resp
 
 # ---- 首屏 JS 打包: 将 33 个依赖有序模块合并为一个请求 ----

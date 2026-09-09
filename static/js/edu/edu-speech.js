@@ -7,7 +7,6 @@
   var speakFBTimer = null;
   var lastSpeakText = '', lastSpeakAt = 0;
   var netAudio = null, netAudioUrl = '';
-  var liveNetAudios = [];   // 所有在途/正在播放的网络音频; 停止时一并停掉, 杜绝被覆盖后旧语音继续出声音
   var speakSeq = 0;   // 播放会话序号: 新增/停止播放时自增, 作废所有在途播放/重试回调
 
   function pickZhVoice() {
@@ -29,7 +28,42 @@
     if (btn) btn.textContent = speakOn() ? '🔊' : '🔇';
   }
 
+  // iOS/iPad 判定: 网络音频几乎只能在手势内同步 .play() 才出声, 兜底也需手势内调系统音。
+  var isIos = (function () {
+    if (typeof navigator === 'undefined') return false;
+    return /iP(hone|ad|od)/.test(navigator.userAgent) ||
+      (/Macintosh/.test(navigator.userAgent) && typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 1);
+  })();
+
+  // iOS/iPad Safari: 音频需在首个手势内激活, 否则 new Audio().play() 会被自动播放策略
+  // 静默拒绝。首次 touch/click 时预热 AudioContext + 播放一段静音, 把页面标记为已交互。
+  var audioUnlocked = false;
+  var warmCtx = null;
+  function unlockAudio() {
+    if (audioUnlocked) return;
+    audioUnlocked = true;
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) {
+        if (!warmCtx) warmCtx = new AC();
+        if (warmCtx && warmCtx.state === 'suspended' && warmCtx.resume) warmCtx.resume();
+        var buf = warmCtx.createBuffer(1, 1, 22050);
+        var src = warmCtx.createBufferSource();
+        src.buffer = buf;
+        src.connect(warmCtx.destination);
+        src.start(0);
+      }
+    } catch (e) {}
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    var _waitUnlock = function () { unlockAudio(); };
+    ['pointerdown', 'touchstart', 'click'].forEach(function (ev) {
+      document.addEventListener(ev, _waitUnlock, { once: true, capture: true, passive: true });
+    });
+  }
+
   window.Edu.Speech = window.Edu.Speech || {};
+  window.Edu.Speech.unlockAudio = unlockAudio;
 
   window.Edu.Speech.toggleSpeak = function () {
     var on = !speakOn();
@@ -52,22 +86,9 @@
     return han >= lat ? 'zh' : 'en';
   }
 
-  // 注册/注销一个网络音频: 停止语音时能扫到所有在途元素, 不怕被新播放覆盖而丢失引用
-  function regLiveAudio(a) { liveNetAudios.push(a); netAudio = a; }
-  function unregLiveAudio(a) {
-    var k = liveNetAudios.indexOf(a);
-    if (k >= 0) liveNetAudios.splice(k, 1);
-    if (netAudio === a) netAudio = liveNetAudios.length ? liveNetAudios[liveNetAudios.length - 1] : null;
-  }
-
   function stopNetAudio() {
     speakSeq++;                       // 作废在途播放/重试回调, 杜绝旧音频晚到“再放一遍”
-    liveNetAudios.forEach(function (a) {
-      try { a.onended = a.onerror = a.onloadeddata = a.oncanplaythrough = null; } catch (e) {}
-      try { a.pause(); a.src = ''; } catch (e) {}
-    });
-    liveNetAudios = [];
-    netAudio = null;
+    if (netAudio) { netAudio.pause(); netAudio.src = ''; netAudio = null; }
     netAudioUrl = '';
   }
 
@@ -80,15 +101,14 @@
   }
 
   function playAudio(urls) {
-    stopNetAudio();                   // 新语音开始前先停掉旧播放, 同一时间只保留一个声音
+    stopNetAudio();
     var i = 0;
     function tryNext() {
       if (i >= urls.length) return;
-      var a = new Audio(urls[i]);
-      regLiveAudio(a);
-      a.onerror = function(){ unregLiveAudio(a); i++; tryNext(); };
-      a.onended = function(){ unregLiveAudio(a); };
-      a.play().catch(function(){ unregLiveAudio(a); i++; tryNext(); });
+      netAudio = new Audio(urls[i]);
+      netAudio.onerror = function(){ i++; tryNext(); };
+      netAudio.onended = function(){ stopNetAudio(); };
+      netAudio.play().catch(function(){ i++; tryNext(); });
     }
     tryNext();
   }
@@ -111,7 +131,9 @@
 
   function ttsUrl(text) {
     var le = ttLang(text);
-    return '/edu/api/tts?text=' + encodeURIComponent(text) + '&lang=' + le + '&v=' + curVoice();
+    // cv: 缓存版本号。服务端音频编码格式变更(MPEG-2→MPEG-1)后, 浏览器可能仍用 immutable 旧缓存,
+    // 升号强制重拉新字节。
+    return '/edu/api/tts?text=' + encodeURIComponent(text) + '&lang=' + le + '&v=' + curVoice() + '&cv=1';
   }
 
   function playNetTTS(text) {
@@ -119,24 +141,16 @@
   }
 
   // 预加载 TTS 音频(浏览器走 HTTP 缓存), 缓解「语音首播 3 秒+ 延迟」
-  // 只预热不播放; 长时间使用会累积 inert 元素, 限制数量并回收最旧的
-  var preloadCache = [], PRELOAD_CAP = 24;
   function preloadTTS(text) {
     if (!text || typeof window === 'undefined' || typeof window.Audio === 'undefined') return;
     try {
       var a = new Audio(ttsUrl(text));
       if (typeof a.preload === 'string') a.preload = 'auto';
-      preloadCache.push(a);
-      if (preloadCache.length > PRELOAD_CAP) {
-        var old = preloadCache.shift();
-        try { old.pause(); old.src = ''; } catch (e) {}
-      }
     } catch (e) {}
   }
 
   // 网络 TTS(edge-tts 高音质, 服务端缓存同源 mp3) 带超时: 仅在本地合成不可用/失败时兜底
   function playNetTimed(text, onFail, timeout) {
-    stopNetAudio();                   // 新语音开始前停掉一切旧播放, 杜绝与上一段语音叠加
     var url = ttsUrl(text);
     var mySeq = speakSeq;             // 捕获当前会话; 一旦有新播放/停止即整体作废
     var attempts = 0, MAX_ATTEMPTS = 2, T_TIMEOUT = timeout || 12000;
@@ -166,7 +180,6 @@
       function failOnce(err) {
         if (done || mySeq !== speakSeq) return;
         try { a.onerror = a.oncanplaythrough = a.onended = a.onloadeddata = null; a.pause(); a.src = ''; } catch (e) {}
-        unregLiveAudio(a);
         a = null;
         if (attempts < MAX_ATTEMPTS) {
           if (cleanTimer) clearTimeout(cleanTimer);
@@ -181,19 +194,19 @@
       a.onended = function(){
         if (done || mySeq !== speakSeq) return;
         finish(true);
-        unregLiveAudio(a);
+        stopNetAudio();
       };
       if (cleanTimer) clearTimeout(cleanTimer);
       cleanTimer = setTimeout(function(){ if (mySeq === speakSeq) failOnce(played ? 'autoplay_blocked' : 'network_timeout'); }, T_TIMEOUT);
       try { a.load(); } catch (e) {}
-      regLiveAudio(a);
+      netAudio = a;
     }
     attempt();
   }
 
   // 用户点击触发的网络 TTS(有用户交互, 可绕过自动播放策略)
   // 强化: 超时 + 失败重试(重新建 Audio 元素); 网络迟迟不出声时回退本地合成(不干等)
-  function playNetTTSUserGesture(text, onFail) {
+  function playNetTTSUserGesture(text, onFail, onstart) {
     if (typeof window === 'undefined' || typeof window.Audio === 'undefined') return;
     var url = ttsUrl(text);
     stopNetAudio();                       // 停旧播放并自增会话, 作废在途回调
@@ -224,7 +237,6 @@
         if (done || mySeq !== speakSeq) return;
         a.onerror = a.oncanplaythrough = a.onended = a.onloadeddata = null;
         try { a.pause(); a.src = ''; } catch (e) {}
-        unregLiveAudio(a);
         if (attempts < MAX_ATTEMPTS) {
           if (cleanTimer) clearTimeout(cleanTimer);
           attempt();
@@ -233,29 +245,33 @@
         }
       }
       a.onerror = fail;
-      a.onended = function(){ if (done || mySeq !== speakSeq) return; finish(true); unregLiveAudio(a); };
+      a.onplaying = function(){ if (!done && mySeq === speakSeq && onstart) onstart(); }; // 真正开始出声
+      a.onended = function(){ if (done || mySeq !== speakSeq) return; finish(true); stopNetAudio(); };
       a.onloadeddata = tryPlay;           // 首帧数据就绪即播放, 减小等待感
       a.oncanplaythrough = tryPlay;       // 兜底触发(幂等)
       if (cleanTimer) clearTimeout(cleanTimer);
       cleanTimer = setTimeout(function(){ if (mySeq === speakSeq) fail(); }, T_TIMEOUT);
       try { a.load(); } catch (e) {}
-      regLiveAudio(a);
+      netAudio = a;
+      // iOS: attempt() 此刻仍在点击手势内同步执行 —— 立即同步 .play() 满足
+      // "手势内起播"要求, 数据就绪后自动续播; 异步回调里的 .play() 在 iOS 会被拦截。
+      if (isIos) {
+        try {
+          var pr = a.play();
+          if (pr && pr.catch) pr.catch(function(){});
+        } catch (e) {}
+      }
     }
     attempt();
   }
 
   // 预加载网络音频到缓存(不播放)
   function preloadNetTTS(text) {
-    if (!text || typeof window === 'undefined' || typeof window.Audio === 'undefined') return;
+    if (typeof window === 'undefined' || typeof window.Audio === 'undefined') return;
     try {
       var a = new Audio(ttsUrl(text));
       a.preload = 'auto';
       a.onerror = function(){}; // 静默忽略预加载错误
-      preloadCache.push(a);
-      if (preloadCache.length > PRELOAD_CAP) {
-        var old = preloadCache.shift();
-        try { old.pause(); old.src = ''; } catch (e) {}
-      }
     } catch (e) {}
   }
 
@@ -297,7 +313,158 @@
     if (!text || !speakOn()) return;
     var t = M.mathToSpeak(String(text));
     lastSpeakText = t; lastSpeakAt = Date.now();
-    playNetTTSUserGesture(t, function(){ speakLocal(t); });  // 网络慢/失败 → 本地秒开兜底, 不干等
+    if (isIos) {
+      // 这台 iPad 实测: ① DOM <audio> 元素(http/blob 均)整条管线不工作; ② fetch+Web Audio
+      // decodeAudioData→AudioContext 播 PCM 反而能出晓晓音色(独立管线, 首手势已解锁)。
+      // 流程: 点击后只走 AC 解码晓晓(不先起系统音, 避免双音重叠); ~1.8s 未出声才补系统音兜底;
+      // AC 一旦出声立即取消系统音。
+      var url = ttsUrl(t);
+      iOSProbeShow(url, t);
+      var sysPending = true;
+      setTimeout(function () {
+        if (!sysPending) return;
+        iOSProbeMark('系统音兜底');
+        speakLocal(t);
+      }, 1800);
+      playIosAudio(url, function () {
+        iOSProbeMark('AC解码已出声');
+        sysPending = false;
+        try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
+      }, function (err) {
+        iOSProbeMark('iOS音频失败:' + err);
+      });
+      return;
+    }
+    playNetTTSUserGesture(t, function(){ speakLocal(t); });  // 网络慢/失败 → 本地兜底, 不干等
+  }
+
+  // iOS: AC decodeAudioData 解码播放(主) → blob <audio>(兜底)。若主路成功即停调系统音。
+  function playIosAudio(url, onStart, onFail) {
+    var mySeq = speakSeq, done = false;
+    function finish(started, msg) {
+      if (done || mySeq !== speakSeq) return;
+      done = true;
+      if (started) { if (onStart) onStart(); }
+      else if (onFail) onFail(msg || '音频不出声');
+    }
+    tryAc();
+    function tryAc() {
+      try {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) { tryBlob(); return; }
+        if (!warmCtx) warmCtx = new AC();
+        var ctx = warmCtx;
+        var t = setTimeout(function () {
+          clearTimeout(t);
+          tryBlob();  // 解码迟迟不回调 → 改走 blob 兜底
+        }, 4000);
+        fetch(url).then(function (r) { return r.arrayBuffer(); }).then(function (ab) {
+          return new Promise(function (res, rej) { ctx.decodeAudioData(ab, res, rej); });
+        }).then(function (buf) {
+          clearTimeout(t);
+          if (!buf || done || mySeq !== speakSeq) return;
+          if (ctx.state === 'suspended' && ctx.resume) ctx.resume();
+          var src = ctx.createBufferSource();
+          src.buffer = buf;
+          var g = ctx.createGain(); g.gain.value = 1;
+          src.connect(g); g.connect(ctx.destination);
+          src.onended = function () { try { src.disconnect(); g.disconnect(); } catch (e) {} };
+          src.start(0);
+          finish(true);
+        }, function (err) {
+          clearTimeout(t);
+          iOSProbeMark('AC解码失败:' + (err && err.message || err));
+          tryBlob();
+        });
+      } catch (e) { tryBlob(); }
+    }
+    function tryBlob() {
+      playBlobIos(url, function () {
+        iOSProbeMark('blob已出声');
+        finish(true);
+      }, function (err) {
+        finish(false, err || '媒体不出声');
+      }, 5000);
+    }
+  }
+
+  // iOS: 用 fetch 拿到 mp3 字节 → blob URL 播放(http 音频元素在该 iPad 渲染不出声)。
+  function playBlobIos(url, onStart, onFail, timeout) {
+    if (typeof fetch !== 'function' || typeof URL === 'undefined' || !URL.createObjectURL) { if (onFail) onFail('no_blob'); return; }
+    var mySeq = speakSeq;
+    var done = false, a = null, t = null;
+    function finish(ok, msg) {
+      if (done || mySeq !== speakSeq) return;
+      done = true;
+      if (t) clearTimeout(t);
+      if (!ok) { if (onFail) onFail(msg || 'blob_err'); }
+    }
+    t = setTimeout(function () { if (mySeq === speakSeq) finish(false, '超时'); }, timeout || 6000);
+    fetch(url).then(function (r) {
+      if (!r.ok) throw new Error('http_' + r.status);
+      return r.blob();
+    }).then(function (blob) {
+      if (done || mySeq !== speakSeq) return;
+      var bu = URL.createObjectURL(blob);
+      a = new Audio(bu);
+      netAudio = a;                            // stopNetAudio 可停掉它
+      a.onplaying = function () { if (onStart) onStart(); };
+      a.onended = function () { finish(true); try { URL.revokeObjectURL(a.src); } catch (e) {} if (netAudio === a) netAudio = null; };
+      a.onerror = function () { if (!done) { finish(false, '渲染失败'); } };
+      var p = a.play();
+      if (p && p.catch) p.catch(function () { finish(false, '被拦截'); });
+    }).catch(function (e) {
+      finish(false, (e && e.message) || '请求失败');
+    });
+  }
+
+  // iOS 持久探针: 点 🔊 时同步 fetch TTS, 结果写进一个固定小条(不消失)+ console,
+  // 用于定位「请求不通」还是「请求成功但渲染不出声」。
+  var _probeEl = null;
+  function probeEl() {
+    if (_probeEl) return _probeEl;
+    try {
+      _probeEl = document.createElement('div');
+      _probeEl.id = 'iosTtsProbe';
+      _probeEl.style.cssText = 'position:fixed;left:8px;bottom:60px;z-index:99999;background:rgba(0,0,0,.72);color:#ffd;font:11px/1.4 monospace;padding:6px 9px;border-radius:6px;max-width:90vw;white-space:pre-wrap;';
+      document.body.appendChild(_probeEl);
+    } catch (e) {}
+    return _probeEl;
+  }
+  function iOSProbeShow(url, t) {
+    var el = probeEl(); if (!el) return;
+    el.textContent = 'iOS TTS 探测中…\n' + String(t).slice(0, 24);
+    try { window.__ttsProbe = {}; } catch (e) {}
+    try {
+      var st = Date.now();
+      fetch(url).then(function (r) {
+        r.arrayBuffer().then(function (ab) {
+          var ver = mpegVerLabel(ab);
+          el.textContent = 'iOS TTS: HTTP ' + r.status + ' ' + ab.byteLength + 'B ' + (Date.now() - st) + 'ms ' + ver + ' sv=' + (r.headers.get('X-TTS-V') || '?') + (r.headers.get('Content-Length') != null ? ' cl=' + r.headers.get('Content-Length') : '');
+        }, function () {
+          el.textContent = 'iOS TTS: HTTP ' + r.status + ' 读取响应失败';
+        });
+      }).catch(function () {
+        el.textContent = 'iOS TTS: 网络不可达 (fetch failed)';
+      });
+    } catch (e) { el.textContent = 'iOS TTS: 探测异常 ' + e; }
+  }
+  function iOSProbeMark(m) {
+    var el = probeEl(); if (!el) return;
+    el.textContent = (el.textContent ? el.textContent + '\n' : '') + m;
+    try { window.__ttsProbe = window.__ttsProbe || {}; window.__ttsProbe.playState = m; } catch (e) {}
+  }
+
+  // 从 mp3 首帧解析流版本, 用于探针显示 iPad 实际收到的音频格式
+  function mpegVerLabel(ab) {
+    try {
+      var u8 = new Uint8Array(ab, 0, 4);
+      if (u8[0] === 0x49 && u8[1] === 0x44 && u8[2] === 0x33) return 'MPEG1(cv)';
+      if (u8[0] !== 0xFF || (u8[1] & 0xE0) !== 0xE0) return '?';
+      var v = (u8[1] >> 3) & 3;
+      var names = { 3: 'MPEG1', 2: 'MPEG2', 0: 'MPEG2.5' };
+      return names[v] || '?';
+    } catch (e) { return '?'; }
   }
 
   // 组装整题朗读文本: 题干(或听音词) + 每个选项的「序号、选项」(如 「。一、香蕉。二、苹果。」)

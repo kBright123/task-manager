@@ -9,9 +9,10 @@ ENV PYTHONUNBUFFERED=1 \
     HF_HOME=/app/hf_cache
 
 # ===== 1. Install system libraries needed by OpenCV/RapidOCR, then Python deps =====
+# ffmpeg: TTS 转码(edge-tts 输出 MPEG-2/24k, iPad 静默失败, 服务端统一转 MPEG-1 44.1k mono)
 COPY requirements.txt .
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      libxcb1 libxkbcommon0 libgl1 libglib2.0-0 \
+      libxcb1 libxkbcommon0 libgl1 libglib2.0-0 ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple

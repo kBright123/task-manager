@@ -303,7 +303,7 @@
         ? heroPlaqueHtml(g, false)
         : '<img class="gift-emoji" src="' + imgOf(g.id) + '" alt="' + esc(g.name) + '" draggable="false">') +
       '<div class="gift-info">' +
-      '<span class="gift-name">' + esc(g.name) + '</span>' +
+      (g.sec === 'hero' ? '' : '<span class="gift-name">' + esc(g.name) + '</span>') +
       '<span class="gift-price">' + price + ' ⭐</span>' +
       '</div>' +
       '<div class="gift-actions">' + actions + '</div>' +

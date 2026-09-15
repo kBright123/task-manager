@@ -48,9 +48,7 @@ if os.environ.get('TZ'):
 
 from app import app, db, get_job_setting, apply_sensitive_log_filter
 from routes.notes import Note, NoteJob, merge_duplicate_notes
-from kb.knowledge import (KbDocument, KbPage, KB_LLM_DISABLED, _session_create,
-                       _send,
-                       KB_OPENCODE_BASE_URL,
+from kb.knowledge import (KbDocument, KbPage, KB_LLM_DISABLED,
                        tag_points_untagged, merge_duplicate_points,
                        refine_points_unrefined, refine_points_all,
                        refine_docs_unrefined, refine_docs_all,
@@ -74,16 +72,8 @@ _ORG_PROMPT = (
 )
 
 def _llm(text):
-    import requests
-    sid = _session_create()
-    try:
-        return _send(sid, _ORG_PROMPT + text)
-    finally:
-        try:
-            requests.delete(f'{KB_OPENCODE_BASE_URL}/session/{sid}',
-                            timeout=30)
-        except Exception:
-            pass
+    from services import llm as llm_svc
+    return llm_svc.chat(_ORG_PROMPT, text)
 
 
 def _target_ids(target, prefix):
@@ -398,6 +388,10 @@ def _execute(job):
     job.cancel = 0
     job.started_at = cn_now()
     db.session.commit()
+    # 后台任务无请求上下文: 用作业创建者作为 LLM 归属用户(个人配置优先→管理员默认)
+    from services import llm as llm_svc
+    llm_svc.set_llm_context_user(
+        db.session.get(User, job.created_by) if job.created_by else None)
     try:
         if job.scope == 'backup':
             result, cancelled = run_backup(job)
@@ -424,6 +418,8 @@ def _execute(job):
         db.session.commit()
         logger.exception('job %s error', job.id)
         _notify_job_result(job, f'定时任务 #{job.id}({job.scope}) 执行失败: {e}')
+    finally:
+        llm_svc.clear_llm_context_user()
 
 
 def _claim():

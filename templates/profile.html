@@ -26,7 +26,12 @@
 <div class="row g-4">
   <div class="col-lg-6">
     <div class="card">
-      <div class="card-header py-2 px-3"><i class="bi bi-person-badge"></i> 账号信息</div>
+      <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-person-badge"></i> 账号信息</span>
+        <button type="button" class="btn btn-sm btn-outline-primary" style="font-size:.75rem;" id="editInfoBtn" onclick="toggleEditInfo()">
+          <i class="bi bi-pencil"></i> 编辑
+        </button>
+      </div>
       <div class="card-body pt-2 pb-3 px-3" style="font-size:.85rem;">
         <style>
           #acctTable td { padding: .18rem .3rem; border: none; white-space: nowrap; }
@@ -34,27 +39,50 @@
           #bindForm label { font-size: .75rem; margin-bottom: 2px; }
           #bindForm .form-control { padding: .26rem .6rem; }
           #bindForm .btn { padding: .26rem .7rem; }
+          #editInfoForm .form-control { padding: .26rem .6rem; font-size:.82rem; }
+          #editInfoForm label { font-size:.75rem; font-weight:600; color:var(--gray-600); }
         </style>
-        <table class="table table-sm mb-0" id="acctTable">
-          <tbody>
-            <tr>
-              <td>用户名</td>
-              <td style="font-weight:600;">{{ current_user.username }}</td>
-              <td>昵称</td>
-              <td>{{ current_user.name or '—' }}</td>
-            </tr>
-            <tr>
-              <td>角色</td>
-              <td>
-                <span class="badge" style="background:{{ 'var(--primary-light)' if current_user.role == 'admin' else 'var(--gray-100)' }};color:{{ 'var(--primary)' if current_user.role == 'admin' else 'var(--gray-500)' }};">
-                  {{ '管理员' if current_user.role == 'admin' else '普通用户' }}
-                </span>
-              </td>
-              <td>注册时间</td>
-              <td>{{ current_user.created_at.strftime('%Y-%m-%d') }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <div id="infoDisplay">
+          <table class="table table-sm mb-0" id="acctTable">
+            <tbody>
+              <tr>
+                <td>用户名</td>
+                <td style="font-weight:600;">{{ current_user.username }}</td>
+                <td>昵称</td>
+                <td>{{ current_user.name or '—' }}</td>
+              </tr>
+              <tr>
+                <td>角色</td>
+                <td>
+                  <span class="badge" style="background:{{ 'var(--primary-light)' if current_user.role == 'admin' else 'var(--gray-100)' }};color:{{ 'var(--primary)' if current_user.role == 'admin' else 'var(--gray-500)' }};">
+                    {{ '管理员' if current_user.role == 'admin' else '普通用户' }}
+                  </span>
+                </td>
+                <td>注册时间</td>
+                <td>{{ current_user.created_at.strftime('%Y-%m-%d') }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="editInfoForm" style="display:none;">
+          <div class="mb-2">
+            <label>用户名</label>
+            <input type="text" id="editUsername" class="form-control" value="{{ current_user.username }}" style="font-size:.82rem;">
+          </div>
+          <div class="mb-2">
+            <label>昵称</label>
+            <input type="text" id="editName" class="form-control" value="{{ current_user.name }}" placeholder="可选" style="font-size:.82rem;">
+          </div>
+          <div id="editInfoResult" class="mb-1" style="font-size:.75rem;"></div>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary btn-sm" style="font-size:.78rem;" onclick="saveInfo()">
+              <i class="bi bi-check-lg"></i> 保存
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" style="font-size:.78rem;" onclick="toggleEditInfo()">
+              <i class="bi bi-x-lg"></i> 取消
+            </button>
+          </div>
+        </div>
         <div class="d-flex align-items-center gap-2 mb-2"
              style="font-size:.82rem;font-weight:700;color:var(--gray-700);border-top:1px dashed var(--gray-300);margin-top:10px;padding-top:9px;">
           <i class="bi bi-envelope-check"></i> 邮箱绑定
@@ -122,6 +150,32 @@
         </div>
       </div>
     </div>
+
+    <div class="card mt-3">
+      <div class="card-header py-2 px-3"><i class="bi bi-shield-lock"></i> 修改密码</div>
+      <div class="card-body pt-2 pb-3 px-3" style="font-size:.85rem;">
+        <style>
+          #pwdForm label { font-size:.75rem; font-weight:600; color:var(--gray-600); }
+          #pwdForm .form-control { padding: .26rem .6rem; font-size:.82rem; }
+        </style>
+        <div class="mb-2">
+          <label>当前密码</label>
+          <input type="password" id="oldPassword" class="form-control" placeholder="请输入当前密码" autocomplete="current-password">
+        </div>
+        <div class="mb-2">
+          <label>新密码</label>
+          <input type="password" id="newPassword" class="form-control" placeholder="至少 6 位" autocomplete="new-password">
+        </div>
+        <div class="mb-2">
+          <label>确认新密码</label>
+          <input type="password" id="confirmPassword" class="form-control" placeholder="再次输入新密码" autocomplete="new-password">
+        </div>
+        <div id="pwdResult" class="mb-1" style="font-size:.75rem;"></div>
+        <button type="button" class="btn btn-primary" style="font-size:.8rem;" onclick="changePassword()">
+          <i class="bi bi-check-lg"></i> 确认修改
+        </button>
+      </div>
+    </div>
   </div>
 
   <div class="col-lg-6">
@@ -185,6 +239,61 @@
             </div>
           </div>
         </details>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header py-2 px-3"><i class="bi bi-cpu"></i> 大模型设置（个人）</div>
+      <div class="card-body pt-2 pb-3 px-3" style="font-size:.85rem;">
+        <style>
+          #llmForm label { font-size:.75rem; font-weight:600; color:var(--gray-600); }
+          #llmForm .form-control, #llmForm .form-select { padding: .26rem .6rem; font-size:.82rem; }
+        </style>
+        <form method="POST" action="{{ url_for('profile_llm_save') }}" id="llmForm">
+          <div class="mb-2">
+            <label class="d-block">使用方式</label>
+            <select class="form-select" name="mode">
+              <option value="" {{ 'selected' if not llm_cfg.mode }}>跟随管理员默认配置</option>
+              <option value="api" {{ 'selected' if llm_cfg.mode == 'api' }}>OpenAI 兼容 API（用自己的 Key）</option>
+              <option value="opencode" {{ 'selected' if llm_cfg.mode == 'opencode' }}>opencode（指定本地服务）</option>
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="d-block">接口地址</label>
+            <input type="text" class="form-control" name="base_url" value="{{ llm_cfg.base_url }}" placeholder="留空跟随管理员默认">
+          </div>
+          <div class="mb-2">
+            <label class="d-block">模型名称</label>
+            <input type="text" class="form-control" name="model" value="{{ llm_cfg.model }}" placeholder="留空跟随管理员默认">
+          </div>
+          <div class="mb-2">
+            <label class="d-block">供应商（opencode 模式）</label>
+            <input type="text" class="form-control" name="provider" value="{{ llm_cfg.provider }}" placeholder="opencode">
+          </div>
+          <div class="mb-2">
+            <label class="d-block">API Key（API 模式）</label>
+            <div class="input-group input-group-sm">
+              <input type="password" class="form-control" name="api_key" placeholder="sk-...">
+              <button type="button" class="btn btn-outline-secondary" onclick="var i=this.parentElement.querySelector('input');i.type=i.type==='password'?'text':'password';" style="font-size:.75rem;">查看</button>
+            </div>
+            {% if llm_masked %}
+            <small style="color:var(--gray-400);font-size:.68rem;">当前已配置: <code>{{ llm_masked }}</code>。留空表示保持不变；
+              <label style="font-weight:400;"><input type="checkbox" name="clear_key" value="1"> 清除个人 Key</label></small>
+            {% else %}
+            <small style="color:var(--gray-400);font-size:.68rem;">未配置个人 Key，将使用管理员默认。</small>
+            {% endif %}
+          </div>
+          <div class="d-flex gap-2 align-items-center flex-wrap">
+            <button type="submit" class="btn btn-primary btn-sm" style="font-size:.78rem;"><i class="bi bi-check-lg"></i> 保存</button>
+            {% if llm_has_user_cfg %}
+            <button type="submit" form="llmClearForm" class="btn btn-outline-secondary btn-sm" style="font-size:.78rem;"><i class="bi bi-x-lg"></i> 恢复默认</button>
+            {% endif %}
+            <span class="text-muted" style="font-size:.72rem;">当前生效: <code>{{ llm_effective.mode }}</code> · {{ llm_effective.base_url }}{% if llm_effective.model %} · {{ llm_effective.model }}{% endif %}</span>
+          </div>
+        </form>
+        {% if llm_has_user_cfg %}
+        <form method="POST" action="{{ url_for('profile_llm_clear') }}" id="llmClearForm"></form>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -320,6 +429,69 @@ function webcalAdd(link) {
     return false;
   }
   return true;
+}
+
+var editInfoVisible = false;
+function toggleEditInfo() {
+  editInfoVisible = !editInfoVisible;
+  document.getElementById('infoDisplay').style.display = editInfoVisible ? 'none' : '';
+  document.getElementById('editInfoForm').style.display = editInfoVisible ? '' : 'none';
+  document.getElementById('editInfoBtn').innerHTML = editInfoVisible
+    ? '<i class="bi bi-x-lg"></i> 取消'
+    : '<i class="bi bi-pencil"></i> 编辑';
+  document.getElementById('editInfoResult').innerHTML = '';
+  if (editInfoVisible) document.getElementById('editUsername').focus();
+}
+
+function saveInfo() {
+  var username = document.getElementById('editUsername').value.trim();
+  var name = document.getElementById('editName').value.trim();
+  var resultEl = document.getElementById('editInfoResult');
+  var btn = document.querySelector('#editInfoForm .btn-primary');
+  if (!username) { resultEl.innerHTML = '<span style="color:var(--danger);">用户名不能为空</span>'; return; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> 保存中...'; }
+  fetch('{{ url_for("profile_update_info") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: username, name: name })
+  }).then(function (r) { return r.json(); }).then(function (d) {
+    if (d.ok) {
+      resultEl.innerHTML = '<span style="color:var(--success);">保存成功</span>';
+      setTimeout(function () { location.reload(); }, 800);
+    } else {
+      resultEl.innerHTML = '<span style="color:var(--danger);">' + (window.esc ? window.esc(d.error) : d.error) + '</span>';
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg"></i> 保存'; }
+    }
+  }).catch(function () { resultEl.innerHTML = '<span style="color:var(--danger);">网络错误，请重试</span>'; if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg"></i> 保存'; } });
+}
+
+function changePassword() {
+  var oldPwd = document.getElementById('oldPassword').value;
+  var newPwd = document.getElementById('newPassword').value;
+  var confirmPwd = document.getElementById('confirmPassword').value;
+  var resultEl = document.getElementById('pwdResult');
+  var btn = document.querySelector('#pwdForm .btn-primary') || document.querySelector('button[onclick="changePassword()"]');
+  if (!oldPwd) { resultEl.innerHTML = '<span style="color:var(--danger);">请输入当前密码</span>'; return; }
+  if (!newPwd) { resultEl.innerHTML = '<span style="color:var(--danger);">请输入新密码</span>'; return; }
+  if (newPwd.length < 6) { resultEl.innerHTML = '<span style="color:var(--danger);">新密码长度至少 6 位</span>'; return; }
+  if (newPwd !== confirmPwd) { resultEl.innerHTML = '<span style="color:var(--danger);">两次输入的新密码不一致</span>'; return; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> 修改中...'; }
+  fetch('{{ url_for("profile_change_password") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ old_password: oldPwd, new_password: newPwd, confirm_password: confirmPwd })
+  }).then(function (r) { return r.json(); }).then(function (d) {
+    if (d.ok) {
+      resultEl.innerHTML = '<span style="color:var(--success);">密码修改成功</span>';
+      document.getElementById('oldPassword').value = '';
+      document.getElementById('newPassword').value = '';
+      document.getElementById('confirmPassword').value = '';
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg"></i> 确认修改'; }
+    } else {
+      resultEl.innerHTML = '<span style="color:var(--danger);">' + (window.esc ? window.esc(d.error) : d.error) + '</span>';
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg"></i> 确认修改'; }
+    }
+  }).catch(function () { resultEl.innerHTML = '<span style="color:var(--danger);">网络错误，请重试</span>'; if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg"></i> 确认修改'; } });
 }
 </script>
 {% endblock %}

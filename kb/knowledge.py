@@ -60,6 +60,8 @@ from sqlalchemy import event, func
 
 logger = logging.getLogger(__name__)
 
+from services import llm as kb_llm  # noqa: E402  大模型统一接入层(个人→管理员配置)
+
 # ---------------------------------------------------------------------------
 # 配置
 # ---------------------------------------------------------------------------
@@ -75,7 +77,7 @@ KB_EMBED_MODEL = os.environ.get('KB_EMBED_MODEL', 'BAAI/bge-small-zh-v1.5')
 
 KB_OPENCODE_BASE_URL = os.environ.get('KB_OPENCODE_BASE_URL', 'http://127.0.0.1:4096')
 KB_OPENCODE_PROVIDER = os.environ.get('KB_OPENCODE_PROVIDER', 'opencode')
-KB_OPENCODE_MODEL = os.environ.get('KB_OPENCODE_MODEL', 'laguna-s-2.1-free')
+KB_OPENCODE_MODEL = os.environ.get('KB_OPENCODE_MODEL', 'Nemotron 3 Ultra Free')
 KB_OPENCODE_TIMEOUT = int(os.environ.get('KB_OPENCODE_TIMEOUT', '180'))
 KB_LLM_DISABLED = os.environ.get('KB_LLM_DISABLED', '0') == '1'
 # 标签黑名单:识别/打标签时剔除这些词汇(机构名等),逗号/分号分隔
@@ -1537,16 +1539,8 @@ def extract_point_tags(point_ids, max_text=180):
         prompt_lines = [f'{n}. {t}' for n, (_pid, t) in enumerate(chunk, 1)]
         prompt = _KB_TAG_SYSTEM + '\n\n' + '\n'.join(prompt_lines) + '\n'
 
-        def _call():
-            sid = _session_create()
-            try:
-                return _send(sid, prompt)
-            finally:
-                requests.delete(f'{KB_OPENCODE_BASE_URL}/session/{sid}',
-                                timeout=30)
-
         try:
-            raw = _retry(_call)
+            raw = kb_llm.chat(_KB_TAG_SYSTEM, prompt)
         except Exception as e:
             logger.warning('extract_point_tags chunk failed: %s', e)
             continue
@@ -1824,17 +1818,8 @@ def _refine_points_llm(rows, max_text=220):
             lines.append(f'{n}. {"%s。%s" % (t, snippet) if snippet else t}')
         prompt = _KB_REFINE_SYSTEM + '\n' + '\n'.join(lines) + '\n'
 
-        def _call():
-            sid = _session_create()
-            try:
-                return _send(sid, prompt)
-            finally:
-                requests.delete(
-                    '%s/session/%s' % (KB_OPENCODE_BASE_URL, sid),
-                    timeout=30)
-
         try:
-            raw = _retry(_call)
+            raw = kb_llm.chat(_KB_REFINE_SYSTEM, prompt)
         except Exception as e:
             logger.warning('refine point chunk failed: %s', e)
             continue
@@ -1921,17 +1906,8 @@ def _refine_doc_titles_llm(rows, max_text=900):
                          % (n, title or '', snippet))
         prompt = _DOC_TITLE_SYSTEM + '\n' + '\n\n'.join(lines) + '\n'
 
-        def _call():
-            sid = _session_create()
-            try:
-                return _send(sid, prompt)
-            finally:
-                requests.delete(
-                    '%s/session/%s' % (KB_OPENCODE_BASE_URL, sid),
-                    timeout=30)
-
         try:
-            raw = _retry(_call)
+            raw = kb_llm.chat(_DOC_TITLE_SYSTEM, prompt)
         except Exception as e:
             logger.warning('refine doc titles chunk failed: %s', e)
             continue
@@ -3080,18 +3056,10 @@ def _generate_summary(text):
     if not text:
         return ''
 
-    def _call():
-        sid = _session_create()
-        try:
-            raw = _send(sid, _SUMMARY_SYSTEM + text)
-        finally:
-            requests.delete(f'{KB_OPENCODE_BASE_URL}/session/{sid}',
-                            timeout=30)
-        return raw.strip()
-
     try:
-        return _retry(_call)
-    except Exception:
+        return kb_llm.chat(_SUMMARY_SYSTEM, text)
+    except Exception as e:
+        logger.warning('summary generation failed: %s', e)
         return ''
 
 
@@ -3105,15 +3073,7 @@ def llm_ask(question, sources, system=None):
     prompt = (system or _ASK_SYSTEM) + '\n\n'.join(blocks) + \
         f'\n\n问题:{question}\n'
 
-    def _call():
-        sid = _session_create()
-        try:
-            return _send(sid, prompt)
-        finally:
-            requests.delete(f'{KB_OPENCODE_BASE_URL}/session/{sid}',
-                            timeout=30)
-
-    return _retry(_call)
+    return kb_llm.chat(system or _ASK_SYSTEM, prompt)
 
 
 # ---------------------------------------------------------------------------

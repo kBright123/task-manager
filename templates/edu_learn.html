@@ -411,6 +411,24 @@
   <!-- 导出报告 PDF(仅打印时显示) -->
   <div id="pdfReportWrap" style="display:none;"></div>
 
+  <!-- ============ 绘本阅读: 全屏阅读器 ============ -->
+  <div class="edu-reader" id="eduReader" style="display:none;" role="dialog" aria-modal="true" aria-label="绘本阅读器">
+    <div class="pb-topbar">
+      <button type="button" class="pb-bar-btn" id="pbBack" aria-label="返回">⬅</button>
+      <span class="pb-title" id="pbTitle"></span>
+      <div class="pb-top-actions">
+        <button type="button" class="pb-bar-btn" id="pbAuto" aria-label="自动朗读" title="自动朗读"><span>🔊</span></button>
+        <button type="button" class="pb-bar-btn" id="pbFull" aria-label="全屏阅读" title="全屏阅读"><span>⛶</span></button>
+      </div>
+    </div>
+    <div class="pb-stage" id="pbStage"></div>
+    <div class="pb-foot">
+      <button type="button" class="pb-foot-btn" id="pbPrev" aria-label="上一页">‹</button>
+      <span class="pb-dots" id="pbDots"></span>
+      <button type="button" class="pb-foot-btn" id="pbNext" aria-label="下一页">›</button>
+    </div>
+  </div>
+
 </div>
 {% endblock %}
 

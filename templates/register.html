@@ -53,11 +53,11 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 24px;
+    gap: 6px;
+    margin-bottom: 14px;
     text-align: center;
   }
-  .auth-brand h4 { font-weight: 700; color: var(--gray-900); margin: 0; font-size: 1.2rem; letter-spacing: .5px; }
+  .auth-brand h4 { font-weight: 700; color: var(--gray-900); margin: 0; font-size: 1rem; letter-spacing: 1px; }
   .auth-brand p { margin: 0; font-size: .78rem; color: var(--gray-500); }
   .auth-title {
     text-align: center;
@@ -123,8 +123,8 @@
 <div class="auth-page">
   <div class="auth-card">
     <div class="auth-brand">
-      <div class="auth-logo" style="width:80px;height:80px;border-radius:50%;box-shadow:var(--shadow-sm);color:var(--gray-900);display:inline-flex;align-items:center;justify-content:center;margin-bottom:14px;">
-        <svg width="44" height="44" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+      <div class="auth-logo" style="width:46px;height:46px;border-radius:50%;box-shadow:var(--shadow-sm);color:var(--gray-900);display:inline-flex;align-items:center;justify-content:center;">
+        <svg width="26" height="26" viewBox="0 0 32 32" fill="none" aria-hidden="true">
           <defs>
             <linearGradient id="registerGradLight" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stop-color="#1B2A4A"/>
@@ -141,12 +141,10 @@
         </svg>
       </div>
       <h4>知行合一</h4>
-      <p>待办发布 · 进度跟踪 · 知识沉淀 · 随手记</p>
     </div>
 
-    <div class="auth-title mb-4">
+    <div class="auth-title mb-3">
       <h1>创建账号</h1>
-      <p>完成邮箱验证后自动开通账号，无需管理员审批</p>
     </div>
 
     {% if email_sent %}
@@ -203,8 +201,6 @@
       <button type="submit" class="btn btn-primary w-100 auth-submit">发送验证码</button>
       {% endif %}
     </form>
-
-    <div class="auth-note"><i class="bi bi-shield-check" style="color:var(--primary);"></i> 注册需完成邮箱验证，验证通过后账号自动开通，无需管理员审批</div>
 
     <div class="auth-foot">
       已有账号？<a href="{{ url_for('login') }}">返回登录</a>

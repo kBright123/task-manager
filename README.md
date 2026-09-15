@@ -196,7 +196,7 @@ python tests/run_tests.py
 | :-- | :-- | :-- |
 | `born` | 空 | 授权校验：需等于 `base64("MAIL_PASSWORD="+MAIL_USERNAME)`，否则演示版拦截业务写入 |
 | `KB_OPENCODE_BASE_URL` | `http://127.0.0.1:4096` | 大模型网关地址（数字分身问答） |
-| `KB_OPENCODE_MODEL` | `deepseek-v4-flash-free` | 问答模型名 |
+| `KB_OPENCODE_MODEL` | `Nemotron 3 Ultra Free` | 问答模型名 |
 | `KB_EMBED_MODEL` | `BAAI/bge-small-zh-v1.5` | 向量嵌入模型 |
 | `KB_SOCHDB_PATH` | `instance/kb_data/kb.soch` | 向量库路径 |
 | `MAIL_SERVER` / `MAIL_USERNAME` / `MAIL_PASSWORD` | 空 | 邮件提醒 SMTP（未配置时校验码写入日志） |

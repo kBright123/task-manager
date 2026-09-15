@@ -1,0 +1,86 @@
+<!--
+  This file is part of 知行合一 · 任务与知识管理系统 (TaskManager).
+  Copyright (C) 2026 TaskManager contributors
+-->
+
+{% extends "base.html" %}
+{% block title %}模型设置 - 管理{% endblock %}
+{% block body_class %}admin-full{% endblock %}
+{% block content %}
+<ul class="nav nav-tabs mb-3 flex-nowrap admin-tabs" style="border-bottom:1px solid var(--gray-200);flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;">
+  <li class="nav-item">
+    <a class="nav-link nav-tab-link" href="{{ url_for('admin_users') }}" style="font-size:.85rem;color:var(--gray-500);"><i class="bi bi-people"></i> 用户管理</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link nav-tab-link" href="{{ url_for('admin_logs') }}" style="font-size:.85rem;color:var(--gray-500);"><i class="bi bi-journal-text"></i> 操作日志</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link nav-tab-link" href="{{ url_for('admin_emails') }}" style="font-size:.85rem;color:var(--gray-500);"><i class="bi bi-envelope"></i> 邮件记录</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link nav-tab-link" href="{{ url_for('admin_jobs') }}" style="font-size:.85rem;color:var(--gray-500);"><i class="bi bi-clock-history"></i> 定时任务</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link nav-tab-link active" href="{{ url_for('admin_settings') }}" style="font-size:.85rem;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);"><i class="bi bi-cpu"></i> 模型设置</a>
+  </li>
+</ul>
+
+<div class="card admin-card">
+  <div class="card-header py-2 px-3 d-flex align-items-center" style="border-bottom:1px solid var(--gray-100);">
+    <span style="font-weight:600;font-size:.9rem;"><i class="bi bi-cpu" style="color:var(--primary);"></i> 大模型配置(全站默认)</span>
+  </div>
+  <div class="card-body p-3" style="font-size:.85rem;">
+    <form method="POST" action="{{ url_for('admin_settings') }}">
+      <div class="alert alert-info py-2 px-3" style="font-size:.78rem;background:#f0f7ff;border:1px solid #dbeafe;color:#1e40af;">
+        此处配置作为全站默认模型: 知识整理、问答、摘要、定时任务(汇报/组织)等 LLM 场景均调用此配置。
+        各用户可到「个人信息 → 大模型设置」配置自己的模型(优先级更高), 留空即跟随本设置。
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-md-6">
+          <label class="form-label mb-1" for="mode">调用模式</label>
+          <select class="form-select form-select-sm" id="mode" name="mode">
+            <option value="" {{ 'selected' if not cfg.mode }}>自动(有 API Key 用 API, 否则用 opencode)</option>
+            <option value="api" {{ 'selected' if cfg.mode == 'api' }}>OpenAI 兼容 API</option>
+            <option value="opencode" {{ 'selected' if cfg.mode == 'opencode' }}>opencode(本地服务)</option>
+          </select>
+          <div class="form-text">留空自动判断: 配置了 API Key 则走 API, 否则走本地 opencode serve。</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label mb-1" for="base_url">接口地址(base URL)</label>
+          <input type="text" class="form-control form-control-sm" id="base_url" name="base_url" value="{{ cfg.base_url }}" placeholder="https://api.openai.com/v1  或  http://127.0.0.1:4096">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label mb-1" for="model">模型名称</label>
+          <input type="text" class="form-control form-control-sm" id="model" name="model" value="{{ cfg.model }}" placeholder="gpt-4o-mini / Nemotron 3 Ultra Free ...">
+          <div class="form-text">opencode 模式留空则使用服务默认模型:</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label mb-1" for="provider">供应商(仅 opencode 模式)</label>
+          <input type="text" class="form-control form-control-sm" id="provider" name="provider" value="{{ cfg.provider }}" placeholder="opencode">
+        </div>
+        <div class="col-12">
+          <label class="form-label mb-1" for="api_key">API Key(仅 API 模式)</label>
+          <div class="input-group input-group-sm">
+            <input type="password" class="form-control" id="api_key" name="api_key" placeholder="sk-...">
+            <button type="button" class="btn btn-outline-secondary" onclick="var i=document.getElementById('api_key');i.type=i.type==='password'?'text':'password';" style="font-size:.75rem;">查看</button>
+          </div>
+          {% if masked_key %}
+          <div class="form-text">
+            当前已配置: <code>{{ masked_key }}</code>。留空表示保持不变;
+            <label class="d-inline-flex align-items-center gap-1 ms-2" style="font-weight:400;"><input type="checkbox" name="clear_key" value="1"> 清除现有 Key</label>
+          </div>
+          {% else %}
+          <div class="form-text">当前未配置。API 模式下必填。</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="d-flex gap-2 align-items-center">
+        <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-check2"></i> 保存配置</button>
+        <span class="text-muted" style="font-size:.75rem;">当前生效: <code>{{ effective.mode }}</code> · {{ effective.base_url }}{% if effective.model %} · {{ effective.model }}{% endif %}{% if effective.masked_api_key %} · <code>{{ effective.masked_api_key }}</code>{% endif %}</span>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

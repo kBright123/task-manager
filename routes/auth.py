@@ -24,6 +24,7 @@ from app import (app, login_required, User, client_ip, cn_now,
 from flask import (flash, jsonify, redirect, render_template, request,
                    session, url_for)
 from flask_login import current_user, login_user, logout_user
+from services import llm as llm_svc
 import secrets
 from datetime import timedelta
 import re
@@ -410,8 +411,46 @@ def logout():
 @app.route('/profile', methods=['GET'])
 @login_required
 def profile():
-    """个人信息页:展示账号信息与邮箱绑定状态。"""
-    return render_template('profile.html')
+    """个人信息页:展示账号信息、邮箱绑定状态与大模型个人配置。"""
+    cfg = llm_svc.get_user_config(current_user)
+    return render_template(
+        'profile.html',
+        llm_cfg=cfg,
+        llm_masked=llm_svc.masked_key(cfg.get('api_key')),
+        llm_has_user_cfg=llm_svc.has_user_config(current_user),
+        llm_effective=llm_svc.health())
+
+
+@app.route('/profile/llm-config', methods=['POST'])
+@login_required
+def profile_llm_save():
+    """保存个人大模型配置; 留空项跟随管理员默认。"""
+    existing = llm_svc.get_user_config(current_user)
+    new_key = request.form.get('api_key', '').strip()
+    if not new_key and request.form.get('clear_key') != '1' \
+            and existing.get('api_key'):
+        new_key = existing['api_key']
+    llm_svc.save_user_config(current_user, {
+        'mode': request.form.get('mode', ''),
+        'api_key': new_key,
+        'base_url': request.form.get('base_url', ''),
+        'model': request.form.get('model', ''),
+        'provider': request.form.get('provider', ''),
+    })
+    flash('大模型个人设置已保存', 'success')
+    return redirect(url_for('profile'))
+
+
+@app.route('/profile/llm-config/clear', methods=['POST'])
+@login_required
+def profile_llm_clear():
+    """清除个人大模型配置, 恢复跟随管理员默认。"""
+    llm_svc.save_user_config(current_user, {
+        'mode': '', 'api_key': '', 'base_url': '',
+        'model': '', 'provider': '',
+    })
+    flash('已恢复跟随管理员默认配置', 'success')
+    return redirect(url_for('profile'))
 
 
 @app.route('/profile/send-verify-code', methods=['POST'])
@@ -539,6 +578,72 @@ def profile_unbind_email():
     user.email_code_expires_at = None
     db.session.commit()
     log_operation('email_unbind', email, f'用户 {user.name or user.username} 解除邮箱绑定')
+    return jsonify({'ok': True})
+
+
+@app.route('/profile/update-info', methods=['POST'])
+@login_required
+def profile_update_info():
+    """修改用户名与昵称。"""
+    if _ip_rate_limited('profile_edit:' + _client_key(), limit=10, window=60):
+        return jsonify({'ok': False, 'error': '操作过于频繁，请稍后再试'})
+    data = request.get_json(silent=True) or {}
+    username = (data.get('username') or '').strip()
+    name = (data.get('name') or '').strip()
+    if not username:
+        return jsonify({'ok': False, 'error': '用户名不能为空'})
+    if len(username) < 2 or len(username) > 80:
+        return jsonify({'ok': False, 'error': '用户名长度需在 2-80 个字符之间'})
+    if not re.match(r'^[A-Za-z0-9_.@-]+$', username):
+        return jsonify({'ok': False, 'error': '用户名仅支持字母、数字、下划线、点、@ 与中横线'})
+    if len(name) > 80:
+        return jsonify({'ok': False, 'error': '昵称不能超过 80 个字符'})
+    user = current_user._get_current_object()
+    if username != user.username:
+        if User.query.filter_by(username=username).first():
+            return jsonify({'ok': False, 'error': f'用户名 "{username}" 已被使用'})
+    changed = []
+    if user.username != username:
+        old = user.username
+        user.username = username
+        changed.append(f'用户名 {old} → {username}')
+    if user.name != name:
+        old_name = user.name or '(空)'
+        user.name = name
+        changed.append(f'昵称 {old_name} → {name or "(空)"}')
+    if not changed:
+        return jsonify({'ok': False, 'error': '未做任何修改'})
+    db.session.commit()
+    log_operation('profile_update_info', username,
+                  f'用户修改个人信息: {"; ".join(changed)}')
+    return jsonify({'ok': True})
+
+
+@app.route('/profile/change-password', methods=['POST'])
+@login_required
+def profile_change_password():
+    """修改密码(需验证当前密码)。"""
+    if _ip_rate_limited('profile_pwd:' + _client_key(), limit=5, window=300):
+        return jsonify({'ok': False, 'error': '操作过于频繁，请 5 分钟后再试'})
+    data = request.get_json(silent=True) or {}
+    old_password = data.get('old_password') or ''
+    new_password = data.get('new_password') or ''
+    confirm_password = data.get('confirm_password') or ''
+    if not old_password:
+        return jsonify({'ok': False, 'error': '请输入当前密码'})
+    if not new_password:
+        return jsonify({'ok': False, 'error': '请输入新密码'})
+    if len(new_password) < 6:
+        return jsonify({'ok': False, 'error': '新密码长度至少 6 位'})
+    if new_password != confirm_password:
+        return jsonify({'ok': False, 'error': '两次输入的新密码不一致'})
+    user = current_user._get_current_object()
+    if not user.check_password(old_password):
+        return jsonify({'ok': False, 'error': '当前密码不正确'})
+    user.set_password(new_password)
+    db.session.commit()
+    log_operation('profile_change_pwd', user.username,
+                  f'用户 {user.name or user.username} 修改了密码')
     return jsonify({'ok': True})
 
 

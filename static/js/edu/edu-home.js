@@ -342,11 +342,14 @@
         '</div>' +
         '</section>';
     }).join('');
+    var booksSection = (window.Edu.Books && window.Edu.Books.renderBooksSection)
+      ? window.Edu.Books.renderBooksSection()
+      : '';
     var list = '<section class="home-course-sec">' +
-      '<div class="home-sec-head"><span class="home-continue-head">🚀 继续闯关</span></div>' +
+      '<div class="home-sec-head"><span class="home-continue-head">闯一闯</span></div>' +
       '<div class="home-course-scroll">' + courseCards + '</div></section>';
 
-    body.innerHTML = top + '<div class="ht-kiddrop" id="homeKidDrop"></div>' + goal + list;
+    body.innerHTML = top + '<div class="ht-kiddrop" id="homeKidDrop"></div>' + goal + booksSection + list;
     body.classList.add('home-compact');
     anim(body);
   }

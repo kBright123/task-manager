@@ -422,14 +422,37 @@
             <button type="button" class="fab-qd-btn" onclick="fabDialogAction(function(){ fabMode(); })" title="教育娱乐"><i class="bi bi-mortarboard" style="color:#f59e0b;"></i>教育</button>
           </div>
         </div>
-        <div class="fab-chat-box" id="fabChatBox">
-          <div class="fab-chat-empty" id="fabChatEmpty"><i class="bi bi-search"></i>&nbsp;输入问题，检索知识库 · 待办 · 随手记；以 @LLM 开头直接问大模型</div>
-        </div>
-      </div>
-      <div class="fab-sheet-foot">
-        <div class="d-flex gap-2">
-          <input type="text" id="fabChatInput" class="form-control" placeholder="" autocomplete="off" onkeydown="if(event.key==='Enter')fabAsk()">
-          <button type="button" class="btn btn-primary" onclick="fabAsk()" aria-label="发送"><i class="bi bi-send"></i></button>
+        <div class="fab-main">
+          <div class="fab-chat-box" id="fabChatBox">
+            <div class="fab-chat-empty" id="fabChatEmpty"><i class="bi bi-search"></i>&nbsp;输入问题，检索知识库 · 待办 · 随手记；以 @LLM 开头直接问大模型</div>
+          </div>
+          <div class="fab-peer" id="fabPeer" hidden>
+            <div class="fab-peer-head" id="fabPeerHead">
+              <div class="fab-peer-c">
+                <div class="fab-peer-name" id="fabPeerName"></div>
+                <div class="fab-peer-status-wrap" id="fabPeerStatusWrap"><span id="fabPeerStatus"></span></div>
+              </div>
+              <button type="button" class="fab-peer-btn" onclick="fabPeerDelete()" aria-label="删除会话"><i class="bi bi-trash"></i></button>
+            </div>
+            <div class="fab-peer-msgs" id="fabPeerMsgs"></div>
+          </div>
+          <div class="fab-compose" id="fabCompose">
+            <div id="fabQuoteBar" class="fab-quote-bar d-none">
+              <span class="fab-quote-txt" id="fabQuoteTxt"></span>
+              <button type="button" class="fab-quote-clear" onclick="fabPeerQuoteClear()" aria-label="取消引用"><i class="bi bi-x"></i></button>
+            </div>
+            <div id="fabChatFoot" class="d-flex gap-2" style="position:relative;">
+              <input type="text" id="fabChatInput" class="form-control" placeholder="输入问题" autocomplete="off" onkeydown="if(event.key==='Enter')fabAsk()">
+              <button type="button" class="btn btn-primary" onclick="fabAsk()" aria-label="发送"><i class="bi bi-send"></i></button>
+              <div id="fabMention" class="fab-mention" style="display:none"></div>
+            </div>
+            <div id="fabPeerFoot" class="d-flex gap-2 d-none" style="position:relative;">
+              <input type="text" id="fabPeerInput" class="form-control" placeholder="输入消息" autocomplete="off" onkeydown="if(event.key==='Enter')fabPeerSend()">
+              <button type="button" class="btn btn-outline-primary" onclick="fabPeerAskCurrent()" aria-label="@代答"><i class="bi bi-stars"></i></button>
+              <button type="button" class="btn btn-primary" onclick="fabPeerSend()" aria-label="发送"><i class="bi bi-send"></i></button>
+              <div id="fabPeerMention" class="fab-mention" style="display:none"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

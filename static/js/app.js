@@ -559,6 +559,13 @@
         }
       } else {
         contacts = _fabContacts.filter(function (c) { return !!c.last_ts; });
+        if (activeUid) {
+          var existsAct = contacts.some(function (c) { return c.id === activeUid; });
+          if (!existsAct) {
+            var act = _fabContacts.filter(function (c) { return c.id === activeUid; })[0];
+            if (act) contacts.unshift(act);
+          }
+        }
       }
       rows += (contacts || []).map(function (c) {
         var row = '<div class="fab-side-item' + (activeUid === c.id ? ' active' : '') + '" data-sid="' + c.id + '" onclick="fabSelect(' + c.id + ')">';
@@ -601,7 +608,6 @@
     }
     function _fabPeerDelDo(peerId) {
       if (!peerId) return;
-      var prevFancy = fabMentionIsOpen();
       fetch('/api/chat/conversation/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ peer_id: peerId }) })
         .then(function (r) { return r.json(); }).then(function (d) {
           if (!(d && d.ok)) { _fabAppendMsg({ kind: 'bot', is_mine: false, content: '⚠ 删除失败：' + ((d && d.error) || '未知错误'), bad: true, time_hm: _fabNowHm() }); return; }
@@ -610,16 +616,26 @@
             _fabPeerUid = 0;
             _fabPeerUser = null;
             fabPeerQuoteClear();
+            var peer = document.getElementById('fabPeer');
+            var chat = document.getElementById('fabChatBox');
+            if (peer) { peer.style.display = ''; peer.setAttribute('hidden', ''); }
+            if (chat) chat.style.display = '';
+            _fabSetFoot(false);
           }
-          if (_fabSideSearch) factorySetId('fabSearch', null);
+          _fabSideReset();
           fabSideBuild();
-          fabSideReset();
-          fabPeerMsgEmpty();
           _fabRefreshPeerStatus();
+          _fabUpdatePeerName();
           fabChatUnreadRefresh();
         }).catch(function () {
           _fabAppendMsg({ kind: 'bot', is_mine: false, content: '⚠ 网络异常，删除失败。', bad: true, time_hm: _fabNowHm() });
         });
+    }
+    function _fabSetFoot(peer) {
+      var chatFoot = document.getElementById('fabChatFoot');
+      var peerFoot = document.getElementById('fabPeerFoot');
+      if (chatFoot) chatFoot.classList.toggle('d-none', !!peer);
+      if (peerFoot) peerFoot.classList.toggle('d-none', !peer);
     }
     function fabSelectAssist() {
       _fabPeerUid = 0;
@@ -627,11 +643,9 @@
       fabPeerQuoteClear();
       var peer = document.getElementById('fabPeer');
       var chat = document.getElementById('fabChatBox');
-      var cc = document.getElementById('fabChatCompose');
-      if (peer) peer.style.display = 'none';
+      if (peer) { peer.style.display = ''; peer.setAttribute('hidden', ''); }
       if (chat) chat.style.display = '';
-      if (cc) cc.style.display = '';
-      if (qr) qr.style.display = '';
+      _fabSetFoot(false);
       _fabRefreshInput();
       fabMentionHide();
       _fabSideReset();
@@ -648,29 +662,30 @@
       if (c) _fabPeerUser = { id: c.id, name: c.name, username: c.username };
       var peer = document.getElementById('fabPeer');
       var chat = document.getElementById('fabChatBox');
-      var cc = document.getElementById('fabChatCompose');
       var msgs = document.getElementById('fabPeerMsgs');
       if (chat) chat.style.display = 'none';
-      if (cc) cc.style.display = 'none';
-      if (peer) peer.style.display = '';
-      if (msgs) msgs.innerHTML = '<div class="fab-chat-empty">加载中…</div>';
+      _fabSetFoot(true);
+      if (peer) { peer.style.display = 'flex'; peer.removeAttribute('hidden'); }
+      if (msgs) { msgs.innerHTML = '<div class="fab-chat-empty">加载中…</div>'; msgs.dataset.uid = uid; }
       _fabRefreshPeerStatus();
-      var askBtn = document.getElementById('fabPeerAskBtn');
-      if (askBtn) askBtn.style.display = '';
-      var delBtn = document.getElementById('fabPeerDelBtn');
-      if (delBtn) delBtn.style.display = '';
-      var headDel = document.getElementById('fabPeerHeadDel') || document.getElementById('fabPeerStatusWrap');
-      if (headDel) headDel.style.display = '';
+      _fabUpdatePeerName();
       _fabRefreshInput();
       fabMentionHide();
+      fabPeerQuoteClear();
       _fabSideReset();
       positionFabSheet();
       fetch('/api/chat/with/' + uid).then(function (r) { return r.json(); }).then(function (d) {
         if (!(d && d.ok)) { if (msgs) msgs.innerHTML = '<div class="fab-chat-empty">' + _fabEsc((d && d.error) || '加载失败') + '</div>'; return; }
         if (d.peer) {
           _fabPeerUser = { id: d.peer.id, name: d.peer.name, username: d.peer.username };
+          var known = _fabContacts.some(function (x) { return x.id === d.peer.id; });
+          if (!known) {
+            _fabContacts.unshift({ id: d.peer.id, name: d.peer.name, username: d.peer.username, online: !!d.peer.online, last_ts: '' });
+          }
           _fabRefreshPeerStatus();
+          _fabUpdatePeerName();
           _fabRefreshInput();
+          fabSideBuild();
         }
         _fabRenderMsgs(d.messages || []);
         fabChatUnreadRefresh();
@@ -683,9 +698,14 @@
       if (!el || !_fabPeerUid) return;
       var c = _fabContacts.filter(function (x) { return x.id === _fabPeerUid; })[0];
       var online = c ? !!c.online : null;
-      if (online === null) return;
+      if (online === null && !_fabPeerUser) return;
       el.className = 'fab-peer-status' + (online ? ' on' : '');
       el.innerHTML = '<span class="fab-status-dot"></span>' + (online ? '在线' : '离线');
+    }
+    function _fabUpdatePeerName() {
+      var el = document.getElementById('fabPeerName');
+      if (!el) return;
+      el.textContent = _fabPeerUser ? (_fabPeerUser.name || _fabPeerUser.username || '') : '';
     }
     function _fabStoreMsg(m) {
       if (m && m.id) _fabMsgsById[m.id] = m;
@@ -983,9 +1003,69 @@
       if (!box || !input) return;
       var raw = input.value.trim();
       if (!raw) return;
-      var forceLlm = /^@llm/i.test(raw);
-      var q = raw.replace(/^@llm/i, '').trim();
+      var forceLlm = /^@llm/i.test(raw) || /^@小知/i.test(raw);
+      var q = raw.replace(/^@(?:llm|小知)/i, '').trim();
       if (!q) return;
+      var intentM = q.match(/^(待办|随记|上传|教育|问答)[\s:：]*(.*)$/);
+      if (intentM) {
+        var intent = intentM[1], rest5 = (intentM[2] || '').trim();
+        var timeM = rest5.match(/(今|明|后)天\s*(?:([上中下]午)?\s*(\d{1,2})[点:：](?:(\d{1,2})分?)?)?/);
+        if (intent === '待办') { input.value = ''; showQuickTaskModal(); if (timeM) { var _d = new Date(); _d.setDate(_d.getDate() + (timeM[1] === '明' ? 1 : timeM[1] === '后' ? 2 : 0)); if (timeM[3]) { _d.setHours(timeM[3] % 24, timeM[4] ? Number(timeM[4]) : 0, 0, 0); } gvar._fabTaskDeadline = _d; } return; }
+        if (intent === '随记') { input.value = ''; showQuickNoteModal(); if (rest5) { var _ne = document.getElementById('fabNoteContent'); if (_ne) _ne.value = rest5; } return; }
+        if (intent === '上传') { input.value = ''; fabKb(); return; }
+        if (intent === '教育') { input.value = ''; fabMode(); return; }
+      }
+      var forceLlmAny = forceLlm;
+      if (forceLlmAny) {
+        var _body2 = { question: q, force_llm: true };
+        var _turn2 = fabChatBubble(turn, 'avatar', '<i class="bi bi-stars"></i> 小知整理中…');
+        fetch(cfg.avatarAsk || '/kb/api/avatar/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(_body2) }).then(function (r) { return r.json(); }).then(function (d) {
+          _turn2.remove();
+          var hrefs2 = (d && d.sources || []).slice(0, 3).map(function (s) { return s.href || '#'; });
+          var _wrap = fabChatRefLinks((d && d.ok && d.answer) ? d.answer : (d && d.error || '调用失败'), hrefs2);
+          var _plus = '<div class="fab-tidy-hint"><button type="button" class="fab-tidy-btn" onclick="fabAskTidy(this)" data-a="' + escFn((d && d.answer || '')) + '" aria-label="✨ LLM 整理"><i class="bi bi-stars"></i> ✨ 整理</button></div>';
+          fabChatBubble(turn, 'avatar', _wrap + _plus);
+          renderSources(d && d.sources || []);
+          fabChatCommit();
+        }).catch(function () { _turn2.remove(); fabChatBubble(turn, 'avatar', '大模型整理失败，已转为全站检索。'); fabChatCommit(); });
+        return;
+      }
+      var _parseTime = function (s) {
+        var m = null, out = null;
+        if ((m = s.match(/(今|明|后)天(?:[早上下晚]+)?\s*(\d{1,2})[点:：](\d{1,2})?/))) {
+          var d = new Date(); d.setDate(d.getDate() + (m[1] === '明' ? 1 : m[1] === '后' ? 2 : 0));
+          d.setHours(m[2] % 24, m[3] ? (m[3] | 0) : 0, 0, 0);
+          out = { text: m[0], date: d };
+        } else if ((m = s.match(/(今|明|后)天/))) {
+          var d2 = new Date(); d2.setDate(d2.getDate() + (m[1] === '明' ? 1 : m[1] === '后' ? 2 : 0));
+          d2.setHours(9, 0, 0, 0);
+          out = { text: m[0], date: d2 };
+        }
+        return out;
+      };
+      var _fabMkHint = function (label, rest, parsed) {
+        var h = label + (rest ? '：' + rest : '');
+        if (parsed) h += '（' + parsed.text + ' → ' + parsed.date.getMonth() + 1 + '月' + parsed.date.getDate() + '日 ' + parsed.date.getHours() + ':' + String(parsed.date.getMinutes() || 0) + '）';
+        return h;
+      };
+      var mInt = q.match(/^([^@\w][\u4e00-\u9fa5]{0,6}|待办|随记|随手记|上传|教育|智知|小知)(?:[:：\s])?(.*)$/);
+      var lead = (q.match(/^(待办|随记|随手记|上传|教育|智知|小知|做|记|传|学)[:：\s]?(.*)$/) || [])[1];
+      if (lead) {
+        var rest0 = q.replace(/^(待办|随记|随手记|上传|教育|智知|小知|做|记|传|学)[:：\s]?/, '').trim();
+        var pd = _parseTime(rest0);
+        var rest1 = pd ? rest0.replace(pd.text, '').trim() : rest0;
+        if (/^(待办|做)/.test(lead)) {
+          input.value = ''; fabDialogAction(function () { showQuickTaskModal(); });
+        } else if (/^(随记|随手记|记)/.test(lead)) {
+          input.value = ''; fabDialogAction(function () { showQuickNoteModal(); });
+        } else if (/^上传|传/.test(lead)) {
+          input.value = ''; fabDialogAction(function () { fabKb(); });
+        } else if (/^教育|学/.test(lead)) {
+          input.value = ''; fabDialogAction(function () { fabMode(); });
+        }
+        fabAskHint(_fabMkHint(lead.charAt(0).toUpperCase() + lead.slice(1), rest1, pd));
+        return;
+      }
       var mAt = q.match(/^@([\u4e00-\u9fa5A-Za-z0-9_]+)(?:\s+(.*))?$/);
       if (mAt) {
         fabMentionHide();

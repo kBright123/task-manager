@@ -212,22 +212,12 @@ def admin_logs():
     total_users = db.session.query(
         func.count(func.distinct(OperationLog.user_id))).scalar() or 0
 
-    astro_visits = (OperationLog.query
-                    .filter(OperationLog.action == 'astro_visit').count())
-    astro_visits_today = (OperationLog.query
-                          .filter(OperationLog.action == 'astro_visit',
-                                  OperationLog.created_at >= cn_now().replace(
-                                      hour=0, minute=0, second=0, microsecond=0))
-                          .count())
-
     return render_template('admin/logs.html', logs=logs,
                            pagination=pagination, username=username,
                            action=action, days=days,
                            total_users=total_users,
                            total_logs=(db.session.query(OperationLog.id)
-                                       .count()),
-                           astro_visits=astro_visits,
-                           astro_visits_today=astro_visits_today)
+                                       .count()))
 
 
 @app.route('/admin/logs/cleanup', methods=['POST'])
@@ -322,31 +312,69 @@ def admin_users():
 
 @app.route('/admin/settings', methods=['GET', 'POST'])
 @login_required
-@admin_required
 def admin_settings():
-    """管理员大模型设置(全站默认), 个人可在个人信息页覆盖。"""
+    """模型设置: 管理员为全站默认配置, 普通用户为个人配置。"""
+    is_admin = current_user.role == 'admin'
     if request.method == 'POST':
-        existing = llm_svc.get_global_config()
-        new_key = request.form.get('api_key', '').strip()
-        if not new_key and request.form.get('clear_key') != '1' \
-                and existing.get('api_key'):
-            new_key = existing['api_key']
-        llm_svc.save_global_config({
-            'mode': request.form.get('mode', ''),
-            'api_key': new_key,
-            'base_url': request.form.get('base_url', ''),
-            'model': request.form.get('model', ''),
-            'provider': request.form.get('provider', ''),
-        })
-        flash('大模型设置已保存', 'success')
+        if is_admin:
+            existing = llm_svc.get_global_config()
+            new_key = request.form.get('api_key', '').strip()
+            if not new_key and request.form.get('clear_key') != '1' \
+                    and existing.get('api_key'):
+                new_key = existing['api_key']
+            llm_svc.save_global_config({
+                'mode': request.form.get('mode', ''),
+                'api_key': new_key,
+                'base_url': request.form.get('base_url', ''),
+                'model': request.form.get('model', ''),
+                'provider': request.form.get('provider', ''),
+            })
+            flash('大模型设置已保存', 'success')
+        elif request.form.get('clear') == '1':
+            llm_svc.save_user_config(current_user, {
+                'mode': '', 'api_key': '', 'base_url': '',
+                'model': '', 'provider': '',
+            })
+            flash('已恢复跟随系统默认配置', 'success')
+        else:
+            existing = llm_svc.get_user_config(current_user)
+            new_key = request.form.get('api_key', '').strip()
+            if not new_key and request.form.get('clear_key') != '1' \
+                    and existing.get('api_key'):
+                new_key = existing['api_key']
+            llm_svc.save_user_config(current_user, {
+                'mode': request.form.get('mode', ''),
+                'api_key': new_key,
+                'base_url': request.form.get('base_url', ''),
+                'model': request.form.get('model', ''),
+                'provider': request.form.get('provider', ''),
+            })
+            flash('个人大模型设置已保存', 'success')
         return redirect(url_for('admin_settings'))
 
-    cfg = llm_svc.get_global_config()
-    effective = llm_svc.health()
+    if is_admin:
+        cfg = llm_svc.get_global_config()
+    else:
+        cfg = llm_svc.get_user_config(current_user)
     return render_template(
-        'admin/settings.html', cfg=cfg,
+        'admin/settings.html', cfg=cfg, is_admin=is_admin,
         masked_key=llm_svc.masked_key(cfg.get('api_key')),
-        effective=effective, is_admin=True)
+        llm_has_user_cfg=llm_svc.has_user_config(current_user),
+        effective=llm_svc.health())
+
+
+@app.route('/admin/profile', methods=['GET'])
+@login_required
+def admin_profile():
+    """个人信息(管理导航内可见, 与 /profile 同源)。"""
+    return render_template('admin/profile.html')
+
+
+@app.route('/admin/calendar', methods=['GET'])
+@login_required
+def admin_calendar():
+    """日历订阅(管理导航内独立 tab, 对所有用户开放)。"""
+    return render_template('admin/calendar.html')
 
 
 @app.route('/admin/users/<int:user_id>/approve', methods=['POST'])

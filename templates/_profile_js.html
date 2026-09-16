@@ -1,0 +1,141 @@
+<script>
+var bindEmailEl = document.getElementById('bindEmail');
+var bindCodeEl = document.getElementById('bindCode');
+var codeResultEl = document.getElementById('codeResult');
+
+function showResult(msg, isError) {
+  codeResultEl.innerHTML = '<span style="color:' + (isError ? 'var(--danger)' : 'var(--success)') + ';">' + (window.esc ? window.esc(msg) : msg) + '</span>';
+}
+
+function sendCode() {
+  var email = bindEmailEl.value.trim();
+  if (!email) { showResult('请先输入邮箱地址', true); return; }
+  var btn = document.getElementById('sendCodeBtn');
+  btn.disabled = true;
+  var text = btn.innerHTML;
+  fetch('{{ url_for("profile_send_verify_code") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email })
+  }).then(function (r) { return r.json(); }).then(function (d) {
+    if (d.ok) {
+      showResult('校验码已发送，10 分钟内有效' + (d.dev_code ? '（开发模式，请从服务器日志获取）' : ''), false);
+      bindCodeEl.focus();
+      startCountdown(btn, 60);
+    } else {
+      showResult(d.error || '发送失败', true);
+      btn.disabled = false;
+    }
+  }).catch(function () { showResult('网络错误，请重试', true); btn.disabled = false; });
+}
+
+function startCountdown(btn, sec) {
+  var text = btn.innerHTML;
+  btn.innerHTML = sec + 's';
+  var timer = setInterval(function () {
+    sec--;
+    if (sec <= 0) {
+      clearInterval(timer);
+      btn.innerHTML = text;
+      btn.disabled = false;
+    } else {
+      btn.innerHTML = sec + 's';
+    }
+  }, 1000);
+}
+
+function verifyEmail() {
+  var email = bindEmailEl.value.trim();
+  var code = bindCodeEl.value.trim();
+  if (!email) { showResult('请先输入邮箱地址', true); return; }
+  if (!code) { showResult('请输入校验码', true); return; }
+  var btn = document.querySelector('button[onclick="verifyEmail()"]');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> 绑定中...'; }
+  fetch('{{ url_for("profile_verify_email") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email, code: code })
+  }).then(function (r) { return r.json(); }).then(function (d) {
+    if (d.ok) {
+      showResult('邮箱绑定成功', false);
+      setTimeout(function () { location.reload(); }, 800);
+    } else {
+      showResult(d.error || '绑定失败', true);
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg"></i> 确认绑定'; }
+    }
+  }).catch(function () { showResult('网络错误，请重试', true); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg"></i> 确认绑定'; } });
+}
+
+async function unbindEmail() {
+  if (!(await uiConfirm('确定要解除邮箱绑定吗？'))) return;
+  fetch('{{ url_for("profile_unbind_email") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }).then(function (r) { return r.json(); }).then(function (d) {
+    if (d.ok) { location.reload(); } else { showResult(d.error || '解除绑定失败', true); }
+  }).catch(function () { showResult('网络错误，请重试', true); });
+}
+
+var editInfoVisible = false;
+function toggleEditInfo() {
+  editInfoVisible = !editInfoVisible;
+  document.getElementById('infoDisplay').style.display = editInfoVisible ? 'none' : '';
+  document.getElementById('editInfoForm').style.display = editInfoVisible ? '' : 'none';
+  document.getElementById('editInfoBtn').innerHTML = editInfoVisible
+    ? '<i class="bi bi-x-lg"></i> 取消'
+    : '<i class="bi bi-pencil"></i> 编辑';
+  document.getElementById('editInfoResult').innerHTML = '';
+  if (editInfoVisible) document.getElementById('editUsername').focus();
+}
+
+function saveInfo() {
+  var username = document.getElementById('editUsername').value.trim();
+  var name = document.getElementById('editName').value.trim();
+  var resultEl = document.getElementById('editInfoResult');
+  var btn = document.querySelector('#editInfoForm .btn-primary');
+  if (!username) { resultEl.innerHTML = '<span style="color:var(--danger);">用户名不能为空</span>'; return; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> 保存中...'; }
+  fetch('{{ url_for("profile_update_info") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: username, name: name })
+  }).then(function (r) { return r.json(); }).then(function (d) {
+    if (d.ok) {
+      resultEl.innerHTML = '<span style="color:var(--success);">保存成功</span>';
+      setTimeout(function () { location.reload(); }, 800);
+    } else {
+      resultEl.innerHTML = '<span style="color:var(--danger);">' + (window.esc ? window.esc(d.error) : d.error) + '</span>';
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg"></i> 保存'; }
+    }
+  }).catch(function () { resultEl.innerHTML = '<span style="color:var(--danger);">网络错误，请重试</span>'; if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg"></i> 保存'; } });
+}
+
+function changePassword() {
+  var oldPwd = document.getElementById('oldPassword').value;
+  var newPwd = document.getElementById('newPassword').value;
+  var confirmPwd = document.getElementById('confirmPassword').value;
+  var resultEl = document.getElementById('pwdResult');
+  var btn = document.querySelector('#pwdForm .btn-primary') || document.querySelector('button[onclick="changePassword()"]');
+  if (!oldPwd) { resultEl.innerHTML = '<span style="color:var(--danger);">请输入当前密码</span>'; return; }
+  if (!newPwd) { resultEl.innerHTML = '<span style="color:var(--danger);">请输入新密码</span>'; return; }
+  if (newPwd.length < 6) { resultEl.innerHTML = '<span style="color:var(--danger);">新密码长度至少 6 位</span>'; return; }
+  if (newPwd !== confirmPwd) { resultEl.innerHTML = '<span style="color:var(--danger);">两次输入的新密码不一致</span>'; return; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> 修改中...'; }
+  fetch('{{ url_for("profile_change_password") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ old_password: oldPwd, new_password: newPwd, confirm_password: confirmPwd })
+  }).then(function (r) { return r.json(); }).then(function (d) {
+    if (d.ok) {
+      resultEl.innerHTML = '<span style="color:var(--success);">密码修改成功</span>';
+      document.getElementById('oldPassword').value = '';
+      document.getElementById('newPassword').value = '';
+      document.getElementById('confirmPassword').value = '';
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg"></i> 确认修改'; }
+    } else {
+      resultEl.innerHTML = '<span style="color:var(--danger);">' + (window.esc ? window.esc(d.error) : d.error) + '</span>';
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg"></i> 确认修改'; }
+    }
+  }).catch(function () { resultEl.innerHTML = '<span style="color:var(--danger);">网络错误，请重试</span>'; if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg"></i> 确认修改'; } });
+}
+</script>

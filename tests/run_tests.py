@@ -13,7 +13,6 @@ import conftest  # noqa: E402  提供 client 夹具(手动注入)
 def main():
     import test_pages
     import test_parse
-    import test_astro
     import test_calendar_feed
     import test_quick_task
     import test_education
@@ -21,7 +20,7 @@ def main():
     ok = True
     client = conftest.make_client()
 
-    for mod in (test_parse, test_pages, test_astro, test_calendar_feed,
+    for mod in (test_parse, test_pages, test_calendar_feed,
                 test_quick_task, test_education):
         for name in sorted(dir(mod)):
             if not name.startswith('test_'):

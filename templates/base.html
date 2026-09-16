@@ -170,7 +170,7 @@
   /* 全局 Esc: 关闭当前页面已打开的抽屉/弹层(各页面自行暴露关闭函数) */
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
-    ['closeTaskDrawer', 'closeTaskDetail', 'modalHide'].forEach(function (name) {
+    ['closeTaskDrawer', 'closeTaskDetail', 'modalHide', 'closeFab'].forEach(function (name) {
       if (typeof window[name] === 'function') {
         try { window[name](); } catch (err) { /* 函数签名不符时忽略 */ }
       }
@@ -303,15 +303,9 @@
 <a href="{{ url_for('kb.workbench') }}" class="{% if request.endpoint in ('kb.workbench', 'kb.doc_detail') %}active{% endif %}">
             <i class="bi bi-collection"></i> 知识库
           </a>
-        {% if current_user.role == 'admin' %}
-        <a href="{{ url_for('admin_users') }}" class="{% if request.endpoint in ('admin_users', 'admin_logs', 'admin_emails', 'admin_jobs') %}active{% endif %}">
-          <i class="bi bi-gear"></i> 管理
+        <a href="{{ url_for('admin_profile') }}" class="{% if request.endpoint in ('admin_users', 'admin_logs', 'admin_emails', 'admin_jobs', 'admin_settings', 'admin_calendar', 'admin_profile') %}active{% endif %}">
+          <i class="bi bi-gear"></i> 设置
         </a>
-        {% else %}
-        <span class="nav-item nav-item-disabled" title="仅管理员可见" style="pointer-events:none;opacity:.4;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:.9rem;color:var(--gray-500);cursor:not-allowed;">
-          <i class="bi bi-gear"></i> 管理
-        </span>
-        {% endif %}
       </div>
       <div class="top-nav-right">
         <button type="button" class="nav-search-btn" id="navSearchBtn" title="搜索" aria-label="搜索"><i class="bi bi-search"></i></button>
@@ -372,9 +366,6 @@
             <div style="padding:8px 12px;font-size:.8rem;color:var(--gray-400);border-bottom:1px solid var(--gray-100);">
               {{ current_user.name or current_user.username }}<br><small style="font-size:.7rem;">{{ current_user.role }}</small>
             </div>
-            <a href="{{ url_for('profile') }}" style="display:block;padding:8px 12px;font-size:.8rem;color:var(--gray-600);text-decoration:none;border-radius:4px;" onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background='transparent'">
-              <i class="bi bi-person-gear"></i> 个人信息
-            </a>
             <a href="{{ url_for('logout') }}" style="display:block;padding:8px 12px;font-size:.8rem;color:var(--gray-600);text-decoration:none;border-radius:4px;" onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background='transparent'">
               <i class="bi bi-box-arrow-right"></i> 退出登录
             </a>
@@ -401,11 +392,9 @@
 <a href="{{ url_for('kb.workbench') }}" class="{% if request.endpoint in ('kb.workbench', 'kb.doc_detail') %}active{% endif %}">
             <i class="bi bi-collection"></i><span>知识库</span>
           </a>
-    {% if current_user.role == 'admin' %}
-    <a href="{{ url_for('admin_users') }}" class="{% if request.endpoint in ('admin_users', 'admin_logs', 'admin_jobs') %}active{% endif %}">
-      <i class="bi bi-gear"></i><span>管理</span>
+    <a href="{{ url_for('admin_profile') }}" class="{% if request.endpoint in ('admin_users', 'admin_logs', 'admin_emails', 'admin_jobs', 'admin_settings', 'admin_calendar', 'admin_profile') %}active{% endif %}">
+      <i class="bi bi-gear"></i><span>设置</span>
     </a>
-    {% endif %}
   </nav>
   {% endif %}
 
@@ -413,24 +402,39 @@
   {% include '_quick_task_modal.html' %}
   {% if current_user.is_authenticated %}
   <div id="quickFab" class="quick-fab">
-    <div class="quick-fab-menu">
-      <button type="button" class="quick-fab-item fab-work" data-modal="quickTaskModal" data-url="{{ url_for('user_tasks') }}" onclick="fabOpen(this)">
-        <span class="quick-fab-label">创建待办</span><span class="quick-fab-circle" style="background:var(--primary);"><i class="bi bi-plus-circle"></i></span>
-      </button>
-      <button type="button" class="quick-fab-item fab-work" data-modal="quickNoteModal" data-url="{{ url_for('notes.index') }}" onclick="fabOpen(this)">
-        <span class="quick-fab-label">随手记</span><span class="quick-fab-circle" style="background:var(--success);"><i class="bi bi-pencil-square"></i></span>
-      </button>
-      <button type="button" class="quick-fab-item fab-work" data-url="{{ url_for('kb.workbench') }}" onclick="fabKb(this)">
-        <span class="quick-fab-label">上传知识</span><span class="quick-fab-circle" style="background:var(--warning);"><i class="bi bi-cloud-arrow-up"></i></span>
-      </button>
-      <button type="button" class="quick-fab-item fab-work" data-url="/astro/" onclick="location.href=this.dataset.url">
-        <span class="quick-fab-label">星运排盘</span><span class="quick-fab-circle" style="background:linear-gradient(135deg,#e8c476,#b18cff);color:#1a2244;"><i class="bi bi-stars"></i></span>
-      </button>
-      <button type="button" class="quick-fab-item" id="fabEduMode" onclick="fabMode(this)">
-        <span class="quick-fab-label" id="fabEduModeTxt">教育娱乐</span><span class="quick-fab-circle" style="background:linear-gradient(135deg,#ff8a4a,#ff5c8a);"><i id="fabEduModeIcon" class="bi bi-mortarboard"></i></span>
-      </button>
+    <!-- 小熊助手面板(贴球展开, Chatwoot/Crisp 风格; 快捷操作+对话检索, 数字分身优先全局检索兜底) -->
+    <div id="fabSheet" class="fab-sheet" role="dialog" aria-label="小熊助手">
+      <div class="fab-sheet-head">
+        <button type="button" class="fab-sheet-max" onclick="fabToggleMax()" aria-label="最大化"><i class="bi bi-arrows-angle-expand"></i></button>
+        <button type="button" class="fab-sheet-close" onclick="closeFab()" aria-label="关闭"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div class="fab-sheet-body">
+        <div class="row g-1 flex-shrink-0 fab-quick-row">
+          <div class="col-3">
+            <button type="button" class="fab-dialog-btn" onclick="fabDialogAction(function(){ showQuickTaskModal(); })" title="创建待办"><i class="bi bi-plus-circle" style="color:var(--primary);"></i>待办</button>
+          </div>
+          <div class="col-3">
+            <button type="button" class="fab-dialog-btn" onclick="fabDialogAction(function(){ showQuickNoteModal(); })" title="随手记"><i class="bi bi-pencil-square" style="color:var(--success);"></i>随记</button>
+          </div>
+          <div class="col-3">
+            <button type="button" class="fab-dialog-btn" onclick="fabDialogAction(function(){ fabKb(); })" title="上传知识"><i class="bi bi-cloud-arrow-up" style="color:var(--warning);"></i>上传</button>
+          </div>
+          <div class="col-3">
+            <button type="button" class="fab-dialog-btn" onclick="fabDialogAction(function(){ fabMode(); })" title="教育娱乐"><i class="bi bi-mortarboard" style="color:#f59e0b;"></i>教育</button>
+          </div>
+        </div>
+        <div class="fab-chat-box" id="fabChatBox">
+          <div class="fab-chat-empty" id="fabChatEmpty"><i class="bi bi-search"></i>&nbsp;输入问题，检索知识库 · 待办 · 随手记；以 @LLM 开头直接问大模型</div>
+        </div>
+      </div>
+      <div class="fab-sheet-foot">
+        <div class="d-flex gap-2">
+          <input type="text" id="fabChatInput" class="form-control" placeholder="" autocomplete="off" onkeydown="if(event.key==='Enter')fabAsk()">
+          <button type="button" class="btn btn-primary" onclick="fabAsk()" aria-label="发送"><i class="bi bi-send"></i></button>
+        </div>
+      </div>
     </div>
-    <button type="button" id="quickFabToggle" class="quick-fab-toggle" aria-label="快速创建" aria-expanded="false">
+    <button type="button" id="quickFabToggle" class="quick-fab-toggle" aria-label="小熊助手" aria-haspopup="dialog" aria-expanded="false">
       <svg class="qf-pooh" viewBox="0 0 80 80" width="100%" height="100%" aria-hidden="true">
         <ellipse cx="21" cy="21" rx="9" ry="9" fill="#f2b23b"/><ellipse cx="21" cy="21" rx="5" ry="5" fill="#fbd7a4"/>
         <ellipse cx="59" cy="21" rx="9" ry="9" fill="#f2b23b"/><ellipse cx="59" cy="21" rx="5" ry="5" fill="#fbd7a4"/>
@@ -466,7 +470,7 @@
       </svg>
     </button>
   </div>
-  <div class="quick-fab-scrim" onclick="closeFab()"></div>
+
   {% endif %}
 
   <!-- 桌面端检索结果弹框(三列,不遮挡导航栏) -->
@@ -505,7 +509,7 @@
   {% endif %}
   {% endif %}
 
-  <!-- 内容区: 独立于登录态(星运等公开页游客可见); 导航/悬浮球仍仅登录用户渲染 -->
+  <!-- 内容区: 独立于登录态(公开页游客可见); 导航/悬浮球仍仅登录用户渲染 -->
   <div class="app-container">
     {% if current_user.is_authenticated and current_user.email_verified == false %}
     <div class="email-reminder" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1px solid #c7d2fe;border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:16px;font-size:.85rem;">
@@ -537,6 +541,11 @@
     api: '{{ url_for("api_unified_search") }}',
     historyApi: '{{ url_for("api_unified_search_history") }}',
     resultsPage: '{{ url_for("unified_search_page") }}'
+  };
+  window.FAB_CONFIG = {
+    avatarAsk: '{{ url_for("kb.api_avatar_ask") }}',
+    unifiedSearch: '{{ url_for("api_unified_search") }}',
+    docDetail: '{{ url_for("kb.doc_detail", doc_id=0) }}'
   };
   {% if current_user.is_authenticated %}
   window.CURRENT_USER = {

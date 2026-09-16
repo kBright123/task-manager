@@ -1,0 +1,62 @@
+<div class="card">
+  <div class="card-header py-2 px-3"><i class="bi bi-calendar-week"></i> 日历订阅（同步到手机日历）</div>
+  <div class="card-body py-3 px-3">
+    {% if current_user.api_token and session.get('api_token_raw') %}
+    {% set feed_token = session.get('api_token_raw') %}
+    {% set feed_url = request.url_root.rstrip('/') ~ url_for('user_todo_ics', token=feed_token) %}
+    <div class="input-group mb-1">
+      <input type="text" id="calFeedUrl" class="form-control"
+             value="{{ feed_url }}"
+             style="font-size:.78rem;" onclick="this.select()">
+      <button type="button" class="btn btn-outline-primary" style="white-space:nowrap;font-size:.8rem;" onclick="copyFeedUrl(this)">
+        <i class="bi bi-clipboard"></i> 复制
+      </button>
+    </div>
+    <div class="d-flex gap-2 align-items-center mb-2 flex-wrap">
+      <a id="calWebcalLink" class="btn btn-outline-success" style="font-size:.8rem;"
+         href="webcal://{{ feed_url.split('://', 1)[1] }}"
+         onclick="return webcalAdd(this)">
+        <i class="bi bi-calendar-plus"></i> 手机一键添加
+      </a>
+      <button type="button" class="btn btn-outline-danger" style="white-space:nowrap;font-size:.8rem;" onclick="rotateCalToken(this)">
+        <i class="bi bi-arrow-repeat"></i> 重新生成
+      </button>
+    </div>
+    <div style="font-size:.72rem;color:var(--gray-400);margin-bottom:4px;">
+      默认同步<b>未来 3 天</b>未完成的待办（已完成的自动消失）；提醒规则：开始时间在今天的提前 <b>30 分钟</b>，其余在截止前 <b>1 小时</b>。
+      地址可编辑：想看更多天追加 <code>?days=N</code>、换成局域网 IP。
+    </div>
+    {% elif current_user.api_token %}
+    <div class="mb-2" style="font-size:.82rem;color:var(--gray-600);">
+      当前登录环境未持有订阅令牌明文（已哈希加密存储），如需复制/更新订阅链接请重新生成。
+    </div>
+    <button type="button" class="btn btn-outline-primary" style="font-size:.84rem;" onclick="rotateCalToken(this)">
+      <i class="bi bi-arrow-repeat"></i> 重新生成订阅链接
+    </button>
+    {% else %}
+    <div class="mb-2" style="font-size:.82rem;color:var(--gray-600);">
+      还未生成订阅链接。生成后把它添加到手机日历，新建/修改的待办会自动同步过去。
+    </div>
+    <button type="button" class="btn btn-primary" style="font-size:.84rem;" onclick="rotateCalToken(this)">
+      <i class="bi bi-link-45deg"></i> 生成订阅链接
+    </button>
+    {% endif %}
+    <details style="font-size:.78rem;color:var(--gray-500);margin-top:8px;">
+      <summary style="cursor:pointer;">如何添加到手机日历？订阅失败怎么办？</summary>
+      <div style="margin-top:6px;line-height:1.9;">
+        · iPhone：设置 → 日历 → 账户 → 添加账户 → 其他 → 添加已订阅的日历，粘贴链接。<br>
+        · 小米/红米：日历 App → 设置 → 日历账号管理（或右上角菜单）→ 从 URL 导入 / 订阅日历，粘贴链接。<br>
+        · 华为等安卓：日历 App → 设置（或「更多日历」）→ 添加订阅日历 / URL 订阅。<br>
+        · 订阅约每 1~2 小时自动刷新；链接含个人令牌请勿外传，「重新生成」后旧链接立即失效。
+        <div class="mt-2 p-2" style="background:var(--gray-100);border-radius:6px;">
+          <b>订阅失败排查：</b><br>
+          ① 先用<b>手机浏览器</b>直接打开这个链接——能看到一堆 BEGIN:VCALENDAR 文本说明网络通，再去日历里订阅；打不开就是地址/网络问题（换局域网 IP、确认同一 Wi-Fi）。<br>
+          ② 复制的地址若是 localhost 或 127.0.0.1，手机上必然失败，必须改成服务器实际 IP。<br>
+          ③ 小米日历对格式严格且失败时不报原因：更新系统后重试；仍不行可用开源 App <b>DAVx⁵</b>（添加「Webcal 订阅」）中转。<br>
+          ④ 部分机型仅支持 https 订阅，内网 http 部署时建议用上面的一键添加或 DAVx⁵ 方案。<br>
+          ⑤ iPhone 点「手机一键添加」没反应：多半是从主屏幕图标(App)里打开的——App 内会拦截 webcal 协议，此时链接已自动复制，去 Safari 粘贴打开即可弹出订阅确认。
+        </div>
+      </div>
+    </details>
+  </div>
+</div>

@@ -1,0 +1,133 @@
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-person-badge"></i> 账号信息</span>
+        <button type="button" class="btn btn-sm btn-outline-primary" style="font-size:.75rem;" id="editInfoBtn" onclick="toggleEditInfo()">
+          <i class="bi bi-pencil"></i> 编辑
+        </button>
+      </div>
+      <div class="card-body pt-2 pb-3 px-3" style="font-size:.85rem;">
+        <style>
+          #acctTable td { padding: .18rem .3rem; border: none; white-space: nowrap; }
+          #acctTable td:nth-child(2n+1) { width: 62px; color: var(--gray-500); }
+          #bindForm label { font-size: .75rem; margin-bottom: 2px; }
+          #bindForm .form-control { padding: .26rem .6rem; }
+          #bindForm .btn { padding: .26rem .7rem; }
+          #editInfoForm .form-control { padding: .26rem .6rem; font-size:.82rem; }
+          #editInfoForm label { font-size:.75rem; font-weight:600; color:var(--gray-600); }
+        </style>
+        <div id="infoDisplay">
+        <table class="table table-sm mb-0" id="acctTable">
+          <tbody>
+            <tr>
+              <td>用户名</td>
+              <td style="font-weight:600;">{{ current_user.username }}</td>
+              <td>昵称</td>
+              <td>{{ current_user.name or '—' }}</td>
+            </tr>
+            <tr>
+              <td>角色</td>
+              <td><span class="badge" style="background:{{ 'var(--primary-light)' if current_user.role == 'admin' else 'var(--gray-100)' }};color:{{ 'var(--primary)' if current_user.role == 'admin' else 'var(--gray-500)' }};">{{ '管理员' if current_user.role == 'admin' else '普通用户' }}</span></td>
+              <td>注册时间</td>
+              <td>{{ current_user.created_at.strftime('%Y-%m-%d') }}</td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+        <div id="editInfoForm" style="display:none;">
+          <div class="mb-2">
+            <label>用户名</label>
+            <input type="text" id="editUsername" class="form-control" value="{{ current_user.username }}" style="font-size:.82rem;">
+          </div>
+          <div class="mb-2">
+            <label>昵称</label>
+            <input type="text" id="editName" class="form-control" value="{{ current_user.name }}" placeholder="可选" style="font-size:.82rem;">
+          </div>
+          <div id="editInfoResult" class="mb-1" style="font-size:.75rem;"></div>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary btn-sm" style="font-size:.78rem;" onclick="saveInfo()">
+              <i class="bi bi-check-lg"></i> 保存
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" style="font-size:.78rem;" onclick="toggleEditInfo()">
+              <i class="bi bi-x-lg"></i> 取消
+            </button>
+          </div>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 mb-2"
+             style="font-size:.82rem;font-weight:700;color:var(--gray-700);border-top:1px dashed var(--gray-300);margin-top:10px;padding-top:9px;">
+          <i class="bi bi-envelope-check"></i> 邮箱绑定
+        </div>
+        <div id="bindForm">
+          <div class="mb-1">
+            <label style="font-weight:600;color:var(--gray-600);display:block;">
+              {% if current_user.email_verified %}更换邮箱（当前邮箱：{{ current_user.email }}）{% else %}绑定邮箱{% endif %}
+            </label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+              <input type="email" id="bindEmail" class="form-control" list="commonEmails"
+                     placeholder="请输入邮箱地址" value="{{ current_user.pending_email or current_user.email or '' }}"
+                     style="font-size:.82rem;" autocomplete="email">
+              <datalist id="commonEmails">
+                {% for s in ['qq.com','163.com','126.com','gmail.com','outlook.com','hotmail.com','foxmail.com','sina.com','sohu.com','139.com','189.cn','aliyun.com','icloud.com','yahoo.com'] %}
+                <option value="you@{{ s }}"></option>
+                {% endfor %}
+              </datalist>
+            </div>
+            <small style="color:var(--gray-400);font-size:.68rem;">支持常见邮箱（QQ、163、126、Gmail、Outlook 等）</small>
+          </div>
+          <div class="mb-1">
+            <label style="font-weight:600;color:var(--gray-600);display:block;">校验码</label>
+            <div class="d-flex gap-2">
+              <input type="text" id="bindCode" class="form-control" inputmode="numeric" maxlength="6"
+                     placeholder="6 位校验码" style="font-size:.82rem;letter-spacing:4px;">
+              <button type="button" id="sendCodeBtn" class="btn btn-outline-primary" style="white-space:nowrap;font-size:.8rem;" onclick="sendCode()">
+                <i class="bi bi-send"></i> 发送校验码
+              </button>
+            </div>
+          </div>
+          <div id="codeResult" class="mb-1" style="font-size:.75rem;"></div>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary" style="font-size:.8rem;" onclick="verifyEmail()">
+              <i class="bi bi-check-lg"></i> 确认绑定
+            </button>
+            {% if current_user.email_verified %}
+            <button type="button" class="btn btn-outline-danger" style="font-size:.8rem;" onclick="unbindEmail()">
+              <i class="bi bi-unlink"></i> 解除绑定
+            </button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header py-2 px-3"><i class="bi bi-shield-lock"></i> 修改密码</div>
+      <div class="card-body pt-2 pb-3 px-3" style="font-size:.85rem;">
+        <style>
+          #pwdForm label { font-size:.75rem; font-weight:600; color:var(--gray-600); }
+          #pwdForm .form-control { padding: .26rem .6rem; font-size:.82rem; }
+        </style>
+        <div class="mb-2">
+          <label>当前密码</label>
+          <input type="password" id="oldPassword" class="form-control" placeholder="请输入当前密码" autocomplete="current-password">
+        </div>
+        <div class="mb-2">
+          <label>新密码</label>
+          <input type="password" id="newPassword" class="form-control" placeholder="至少 6 位" autocomplete="new-password">
+        </div>
+        <div class="mb-2">
+          <label>确认新密码</label>
+          <input type="password" id="confirmPassword" class="form-control" placeholder="再次输入新密码" autocomplete="new-password">
+        </div>
+        <div id="pwdResult" class="mb-1" style="font-size:.75rem;"></div>
+        <button type="button" class="btn btn-primary" style="font-size:.8rem;" onclick="changePassword()">
+          <i class="bi bi-check-lg"></i> 确认修改
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

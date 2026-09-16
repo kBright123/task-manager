@@ -1,0 +1,27 @@
+{# 管理导航 tab: 个人信息/模型设置 对所有用户开放, 其余 4 项仅管理员可见 #}
+{% set _ep = request.endpoint %}
+<ul class="nav nav-tabs mb-3 admin-tabs">
+  <li class="nav-item">
+    <a class="nav-link nav-tab-link" href="{{ url_for('admin_profile') }}" style="font-size:.85rem;{% if _ep == 'admin_profile' %}font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);{% else %}color:var(--gray-500);{% endif %}"><i class="bi bi-person-circle"></i> 个人信息</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link nav-tab-link" href="{{ url_for('admin_calendar') }}" style="font-size:.85rem;{% if _ep == 'admin_calendar' %}font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);{% else %}color:var(--gray-500);{% endif %}"><i class="bi bi-calendar-week"></i> 日历订阅</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link nav-tab-link" href="{{ url_for('admin_settings') }}" style="font-size:.85rem;{% if _ep == 'admin_settings' %}font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);{% else %}color:var(--gray-500);{% endif %}"><i class="bi bi-cpu"></i> 模型设置</a>
+  </li>
+  {% if current_user.role == 'admin' %}
+  <li class="nav-item">
+    <a class="nav-link nav-tab-link" href="{{ url_for('admin_users') }}" style="font-size:.85rem;{% if _ep == 'admin_users' %}font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);{% else %}color:var(--gray-500);{% endif %}"><i class="bi bi-people"></i> 用户管理</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link nav-tab-link" href="{{ url_for('admin_jobs') }}" style="font-size:.85rem;{% if _ep == 'admin_jobs' %}font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);{% else %}color:var(--gray-500);{% endif %}"><i class="bi bi-clock-history"></i> 定时任务</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link nav-tab-link" href="{{ url_for('admin_logs') }}" style="font-size:.85rem;{% if _ep == 'admin_logs' %}font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);{% else %}color:var(--gray-500);{% endif %}"><i class="bi bi-journal-text"></i> 操作日志</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link nav-tab-link" href="{{ url_for('admin_emails') }}" style="font-size:.85rem;{% if _ep == 'admin_emails' %}font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);{% else %}color:var(--gray-500);{% endif %}"><i class="bi bi-envelope"></i> 邮件记录</a>
+  </li>
+  {% endif %}
+</ul>

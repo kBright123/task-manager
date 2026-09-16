@@ -110,7 +110,81 @@
     // 快捷悬浮球: 展开/收起 + 动作分发(有弹窗则内联打开, 否则跳转)
     var _fab = document.getElementById('quickFab');
     var _fabBtn = document.getElementById('quickFabToggle');
-    function closeFab() { if (_fab) _fab.classList.remove('open'); if (_fabBtn) _fabBtn.setAttribute('aria-expanded', 'false'); }
+    function closeFab() {
+      if (_fab) {
+        var s = document.getElementById('fabSheet');
+        if (s) {
+          s.classList.remove('max');
+          var b = s.querySelector('.fab-sheet-max');
+          if (b) {
+            var ic = b.querySelector('i');
+            if (ic) ic.className = 'bi bi-arrows-angle-expand';
+            b.setAttribute('aria-label', '最大化');
+          }
+        }
+        _fab.classList.remove('open');
+        if (_fabBtn) _fabBtn.setAttribute('aria-expanded', 'false');
+      }
+    }
+    function fabToggleMax() {
+      var s = document.getElementById('fabSheet');
+      if (!s) return;
+      var on = s.classList.toggle('max');
+      var b = s.querySelector('.fab-sheet-max');
+      if (b) {
+        var ic = b.querySelector('i');
+        if (ic) ic.className = on ? 'bi bi-arrows-angle-contract' : 'bi bi-arrows-angle-expand';
+        b.setAttribute('aria-label', on ? '还原' : '最大化');
+      }
+      if (!on) positionFabSheet();
+    }
+    function positionFabSheet() {
+      var s = document.getElementById('fabSheet');
+      if (!s || !_fabBtn) return;
+      var r = _fabBtn.getBoundingClientRect();
+      var vw = window.innerWidth, vh = window.innerHeight;
+      var gap = 10;
+      var w = Math.max(280, Math.min(372, vw - 28));
+      var maxH = Math.min(640, vh - 120);
+      var above = r.top - gap - 4;
+      var below = vh - r.bottom - gap - 4;
+      var height = Math.max(160, Math.min(maxH, Math.max(above, below)));
+      var top;
+      if (above >= below) top = Math.max(4, r.top - height - gap);
+      else top = Math.min(r.bottom + gap, Math.max(4, vh - height - 4));
+      var left = Math.max(4, Math.min(r.right - w, vw - w - 4));
+      s.style.setProperty('--fab-w', w + 'px');
+      s.style.setProperty('--fab-h', height + 'px');
+      s.style.setProperty('--fab-top', top + 'px');
+      s.style.setProperty('--fab-left', left + 'px');
+    }
+    var _FAB_CHAT_MAX_TURNS = 5;
+    function _fabChatKey() { var uid = (window.CURRENT_USER && window.CURRENT_USER.id) || 'anon'; return 'fabChatHistory:' + uid; }
+    function fabChatTrim() { var box = document.getElementById('fabChatBox'); if (!box) return; var turns = box.querySelectorAll('.fab-turn'); for (var i = 0; i < turns.length - _FAB_CHAT_MAX_TURNS; i++) turns[i].remove(); }
+    function fabChatPersist() { var box = document.getElementById('fabChatBox'); if (!box) return; try { var turns = box.querySelectorAll('.fab-turn'); var arr = []; for (var i = Math.max(0, turns.length - _FAB_CHAT_MAX_TURNS); i < turns.length; i++) arr.push(turns[i].innerHTML); localStorage.setItem(_fabChatKey(), JSON.stringify(arr)); } catch (e) { /* ignore storage errors */ } }
+    function fabChatCommit() { fabChatTrim(); fabChatPersist(); }
+    function fabChatRestore() {
+      var box = document.getElementById('fabChatBox');
+      if (!box) return;
+      var arr = [];
+      try { arr = JSON.parse(localStorage.getItem(_fabChatKey()) || '[]'); } catch (e) { arr = []; }
+      if (!Array.isArray(arr) || !arr.length) return;
+      arr.slice(-_FAB_CHAT_MAX_TURNS).forEach(function (html) { var t = document.createElement('div'); t.className = 'fab-turn'; t.innerHTML = html; box.appendChild(t); });
+      var empty = document.getElementById('fabChatEmpty');
+      if (empty) empty.style.display = 'none';
+      setTimeout(function () { box.scrollTop = box.scrollHeight; }, 0);
+    }
+    fabChatRestoreDeferred();
+    window.addEventListener('pagehide', fabChatPersist);
+    function fabChatRestoreDeferred() {
+      // app.js 在 base.html 中先于 window.CURRENT_USER 定义(551行)执行;
+      // 必须等解析完成、CURRENT_USER 就绪后再按用户键恢复历史
+      if (document.readyState === 'loading') {
+        window.addEventListener('DOMContentLoaded', fabChatRestore);
+      } else {
+        fabChatRestore();
+      }
+    }
     function showQuickTaskModal() {
       var m = document.getElementById('quickTaskModal');
       if (m) { bootstrap.Modal.getOrCreateInstance(m).show(); return; }
@@ -331,6 +405,184 @@
       closeFab();
       if (typeof toggleEduMode === 'function') toggleEduMode();
     }
+    function fabDialogHide() {
+      closeFab();
+    }
+    function fabDialogAction(fn) {
+      closeFab();
+      setTimeout(function () { if (typeof fn === 'function') fn(); }, 160);
+    }
+    function fabChatBubble(container, who, html) {
+      var d = document.createElement('div');
+      d.className = 'fab-chat-' + who;
+      d.innerHTML = html;
+      container.appendChild(d);
+      var box = (container.closest && container.closest('.fab-chat-box')) || container;
+      box.scrollTop = box.scrollHeight;
+      return d;
+    }
+    function fabChatRefLinks(answer, hrefs) {
+      var esc = window.esc || function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); };
+      var safe = esc(answer);
+      var out = safe.replace(/\[资料\s*(\d+)\]/g, function (m, n) {
+        var h = hrefs[parseInt(n, 10) - 1];
+        return h ? '<a class="fab-chat-ref" target="_blank" rel="noopener" href="' + esc(h) + '">' + m + '</a>' : m;
+      });
+      return '<div style="white-space:pre-wrap;">' + out + '</div>';
+    }
+    function fabAsk() {
+      var box = document.getElementById('fabChatBox');
+      var input = document.getElementById('fabChatInput');
+      if (!box || !input) return;
+      var raw = input.value.trim();
+      if (!raw) return;
+      var forceLlm = /^@llm/i.test(raw);
+      var q = raw.replace(/^@llm/i, '').trim();
+      if (!q) return;
+      input.value = '';
+      var empty = document.getElementById('fabChatEmpty');
+      if (empty) empty.style.display = 'none';
+      var escFn = window.esc || function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); };
+      var cfg = window.FAB_CONFIG || {};
+      var turn = document.createElement('div');
+      turn.className = 'fab-turn';
+      box.appendChild(turn);
+      fabChatBubble(turn, 'user', '<div style="white-space:pre-wrap;">' + escFn(raw) + '</div>');
+      var loading = fabChatBubble(turn, 'avatar fab-chat-loading', forceLlm ? '正在调用大模型…' : '小熊检索中…');
+      function renderSources(sources) {
+        (sources || []).slice(0, 3).forEach(function (s) {
+          var d = document.createElement('a');
+          d.className = 'fab-chat-src';
+          d.target = '_blank'; d.rel = 'noopener';
+          d.href = cfg.docDetail ? cfg.docDetail.replace('0', s.doc_id) : '#';
+          d.textContent = '📄 ' + (s.title || '知识文件') + (s.page ? ' · 第' + s.page + '页' : '');
+          turn.appendChild(d);
+          box.scrollTop = box.scrollHeight;
+        });
+      }
+      function searchAll(label) {
+        fetch((cfg.unifiedSearch || '/api/search') + '?q=' + encodeURIComponent(q))
+          .then(function (r) { return r.json(); }).then(function (d) {
+            loading.remove();
+            var kb = (d && d.kb) || [], tasks = (d && d.tasks) || [], notes = (d && d.notes) || [];
+            if (!kb.length && !tasks.length && !notes.length) {
+              fabChatBubble(turn, 'avatar', '全站检索（知识库 · 待办 · 随手记）没有找到相关结果，换个问法试试？');
+              fabChatCommit();
+              return;
+            }
+            var rows = '<div style="font-size:.76rem;color:var(--gray-500);margin-bottom:4px;">' + (label || '全站检索结果：') + '</div>';
+            if (kb.length) {
+              rows += '<div class="fab-chat-cat">📄 知识库</div>';
+              kb.slice(0, 3).forEach(function (x) {
+                rows += '<a class="fab-chat-src" href="' + escFn(x.detail_url || '#') + '" target="_blank" rel="noopener">' + escFn(x.title || '') + '</a>';
+              });
+            }
+            if (tasks.length) {
+              rows += '<div class="fab-chat-cat">✅ 待办</div>';
+              tasks.slice(0, 3).forEach(function (t) {
+                rows += '<a class="fab-chat-src" href="' + escFn(t.detail_url || '#') + '">' + escFn(t.title || '') + (t.end_date ? ' · ' + escFn(t.end_date) : '') + '</a>';
+              });
+            }
+            if (notes.length) {
+              rows += '<div class="fab-chat-cat">📝 随手记</div>';
+              notes.slice(0, 3).forEach(function (n) {
+                rows += '<a class="fab-chat-src" href="' + escFn(n.detail_url || '#') + '" target="_blank" rel="noopener">' + escFn(String(n.content || n.title || '').slice(0, 40)) + '</a>';
+              });
+            }
+            fabChatBubble(turn, 'avatar', rows);
+            fabChatCommit();
+          }).catch(function () {
+            loading.remove();
+            fabChatBubble(turn, 'avatar', '回答生成失败，请稍后再试。');
+            fabChatCommit();
+          });
+      }
+      if (forceLlm) {
+        fetch(cfg.avatarAsk || '/kb/api/avatar/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: q, force_llm: true })
+        }).then(function (r) { return r.json(); }).then(function (d) {
+          if (d && d.ok && !d.empty && d.answer) {
+            loading.remove();
+            var hrefs = (d.sources || []).map(function (s) {
+              return cfg.docDetail && s.doc_id ? cfg.docDetail.replace('0', s.doc_id) : '#';
+            });
+            fabChatBubble(turn, 'avatar', fabChatRefLinks(d.answer, hrefs));
+            renderSources(d.sources);
+            fabChatCommit();
+          } else {
+            var why = (d && d.error ? String(d.error) : '');
+            searchAll('大模型调用失败' + (why ? '：' + escFn(why) : '（未配置或服务不可用）') + '，已转为全站检索：');
+          }
+        }).catch(function () { searchAll('大模型调用失败（网络异常），已转为全站检索：'); });
+      } else {
+      // 两段式联动: 先展示分类检索结果(立即落库) → 再等大模型整理答案追加
+      function askLlmForResults(hits) {
+        var llmLoading = fabChatBubble(turn, 'avatar fab-chat-loading', '大模型整理中…');
+        var body = { question: q, unified: true };
+        if (hits) body.hits = hits;
+        fetch((cfg.avatarAsk || '/kb/api/avatar/ask'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        }).then(function (r) { return r.json(); }).then(function (d) {
+          llmLoading.remove();
+          if (d && d.ok && d.answer) {
+            var hrefs = (d.links || []).map(function (l) { return l.href || '#'; });
+            fabChatBubble(turn, 'avatar', fabChatRefLinks(d.answer, hrefs));
+            box.scrollTop = box.scrollHeight;
+          } else {
+            var why = (d && d.error ? '：' + escFn(d.error) : '');
+            fabChatBubble(turn, 'avatar', '大模型整理失败' + why + '，已保留上方检索结果。');
+          }
+          fabChatCommit();
+        }).catch(function () {
+          llmLoading.remove();
+          fabChatBubble(turn, 'avatar', '大模型整理失败（网络异常），已保留上方检索结果。');
+          fabChatCommit();
+        });
+      }
+      function renderSearchResults(d) {
+        loading.remove();
+        var kb = (d && d.kb) || [], tasks = (d && d.tasks) || [], notes = (d && d.notes) || [];
+        if (!kb.length && !tasks.length && !notes.length) {
+          fabChatBubble(turn, 'avatar', '未在知识库 · 待办 · 随手记中检索到相关内容，换个问法试试？');
+          fabChatCommit();
+          return;
+        }
+        var rows = '<div style="font-size:.76rem;color:var(--gray-500);margin-bottom:4px;">全站检索结果：</div>';
+        if (kb.length) {
+          rows += '<div class="fab-chat-cat">📄 知识库</div>';
+          kb.slice(0, 3).forEach(function (x) {
+            rows += '<a class="fab-chat-src" href="' + escFn(x.detail_url || '#') + '" target="_blank" rel="noopener">' + escFn(x.title || '') + '</a>';
+          });
+        }
+        if (tasks.length) {
+          rows += '<div class="fab-chat-cat">✅ 待办</div>';
+          tasks.slice(0, 3).forEach(function (t) {
+            rows += '<a class="fab-chat-src" href="' + escFn(t.detail_url || '#') + '">' + escFn(t.title || '') + '</a>';
+          });
+        }
+        if (notes.length) {
+          rows += '<div class="fab-chat-cat">📝 随手记</div>';
+          notes.slice(0, 3).forEach(function (n) {
+            rows += '<a class="fab-chat-src" href="' + escFn(n.detail_url || '#') + '" target="_blank" rel="noopener">' + escFn(String(n.content || n.title || '').slice(0, 40)) + '</a>';
+          });
+        }
+        fabChatBubble(turn, 'avatar', rows);
+        fabChatCommit();
+        askLlmForResults(d);
+      }
+      fetch((cfg.unifiedSearch || '/api/search') + '?q=' + encodeURIComponent(q))
+        .then(function (r) { return r.json(); }).then(renderSearchResults)
+        .catch(function () {
+          loading.remove();
+          fabChatBubble(turn, 'avatar', '检索失败，请稍后再试。');
+          fabChatCommit();
+        });
+    }
+    }
     function showQuickNoteModal() {
       var m = document.getElementById('quickNoteModal');
       if (m) { bootstrap.Modal.getOrCreateInstance(m).show(); return; }
@@ -359,13 +611,30 @@
     if (_fab && _fabBtn) {
       (function () {
         var fab = _fab, btn = _fabBtn;
-        function openFab() { fab.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); }
-        btn.addEventListener('click', function (e) { if (window._fabDragged) { window._fabDragged = false; e.stopPropagation(); return; } e.stopPropagation(); if (fab.classList.contains('open')) closeFab(); else openFab(); });
-        btn.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); if (fab.classList.contains('open')) closeFab(); else openFab(); } });
-        fab.addEventListener('focusout', function (e) { if (!fab.contains(e.relatedTarget)) closeFab(); });
-        document.addEventListener('click', function (e) { if (!fab.contains(e.target)) closeFab(); });
+        function openFabDialog() {
+          fab.classList.add('open');
+          btn.setAttribute('aria-expanded', 'true');
+          positionFabSheet();
+        }
+        function handleToggle() {
+          if (fab.classList.contains('d-none')) return;
+          if (fab.classList.contains('open')) { closeFab(); } else { openFabDialog(); }
+        }
+        document.addEventListener('click', function (e) {
+          if (fab.classList.contains('open') && !fab.contains(e.target)) closeFab();
+        });
+        window.addEventListener('resize', function () { if (fab.classList.contains('open')) positionFabSheet(); });
+        window.addEventListener('orientationchange', function () { if (fab.classList.contains('open')) positionFabSheet(); });
+        btn.addEventListener('click', function (e) {
+          if (window._fabDragged) { window._fabDragged = false; e.stopPropagation(); return; }
+          e.stopPropagation();
+          handleToggle();
+        });
+        btn.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); handleToggle(); }
+        });
         document.addEventListener('shown.bs.modal', function () { fab.classList.add('d-none'); });
-        document.addEventListener('hidden.bs.modal', function () { fab.classList.remove('d-none'); });
+        document.addEventListener('hidden.bs.modal', function () { fab.classList.remove('d-none'); fab.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); });
       })();
       // 悬浮球可拖动 (仅拖动按钮本身, 避免误拖菜单项导致点击失效)
       (function () {

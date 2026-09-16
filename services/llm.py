@@ -29,8 +29,9 @@ _MODE_API = 'api'
 _MODE_OPENCODE = 'opencode'
 
 DEFAULT_BASE_URL_API = 'https://api.openai.com/v1'
-DEFAULT_BASE_URL_OPENCODE = 'http://127.0.0.1:4096'
-DEFAULT_PROVIDER = 'opencode'
+DEFAULT_BASE_URL_OPENCODE = os.environ.get(
+    'KB_OPENCODE_BASE_URL', 'http://127.0.0.1:4096')
+DEFAULT_PROVIDER = os.environ.get('KB_OPENCODE_PROVIDER', 'opencode')
 DEFAULT_TIMEOUT = 180
 
 _GLOBAL_KEYS = ('llm_mode', 'llm_api_key', 'llm_base_url', 'llm_model',
@@ -258,6 +259,7 @@ def _opencode_chat(system, prompt, cfg, timeout=None):
             body = {
                 'parts': [{'type': 'text', 'text': text}],
                 'model': {'providerID': provider, 'modelID': model},
+                'noTools': True,
             }
             r2 = requests.post(f'{base}/session/{sid}/message', json=body,
                                timeout=timeout)

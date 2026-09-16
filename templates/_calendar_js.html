@@ -1,0 +1,55 @@
+<script>
+// 日历订阅页脚本: 复制链接 / webcal 一键添加(拦截场景引导) / 重新生成令牌
+async function rotateCalToken(btn) {
+  if (document.getElementById('calFeedUrl') &&
+      !(await uiConfirm('重新生成后旧订阅链接立即失效，手机日历需要重新添加，确定吗？'))) return;
+  btn.disabled = true;
+  var orig = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span>';
+  fetch('{{ url_for("profile_rotate_api_token") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }).then(function (r) { return r.json(); }).then(function (d) {
+    if (d.ok) { location.reload(); }
+    else { btn.disabled = false; btn.innerHTML = orig; toast(d.error || '操作失败', 'danger'); }
+  }).catch(function () { btn.disabled = false; btn.innerHTML = orig; toast('网络错误，请重试', 'danger'); });
+}
+
+function copyFeedUrl(btn) {
+  var input = document.getElementById('calFeedUrl');
+  if (!input) return;
+  input.select();
+  var done = function () {
+    var html = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-check-lg"></i> 已复制';
+    setTimeout(function () { btn.innerHTML = html; }, 1500);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(input.value).then(done);
+  } else {
+    document.execCommand('copy'); done();
+  }
+}
+
+function webcalAdd(link) {
+  // iOS「添加到主屏幕」的独立窗口(PWA)与微信内置浏览器会静默拦截
+  // webcal:// 自定义协议 → 自动复制链接并引导用 Safari 打开;
+  // 正常浏览器放行真实 webcal 链接, 由系统弹出日历订阅确认
+  var standalone = (window.navigator.standalone === true) ||
+                   (window.matchMedia &&
+                    window.matchMedia('(display-mode: standalone)').matches);
+  var inWeChat = /MicroMessenger/i.test(navigator.userAgent || '');
+  if (standalone || inWeChat) {
+    var input = document.getElementById('calFeedUrl');
+    var url = input ? input.value.trim() : '';
+    if (url && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).catch(function () {});
+    }
+    toast((standalone ? 'App 内无法直接唤起日历' : '微信内无法直接唤起日历') +
+          '，订阅链接已复制：请在 Safari 中粘贴打开，或到 设置→日历→账户→添加已订阅的日历 手动添加',
+          'warning');
+    return false;
+  }
+  return true;
+}
+</script>

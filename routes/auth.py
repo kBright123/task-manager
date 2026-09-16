@@ -411,14 +411,8 @@ def logout():
 @app.route('/profile', methods=['GET'])
 @login_required
 def profile():
-    """个人信息页:展示账号信息、邮箱绑定状态与大模型个人配置。"""
-    cfg = llm_svc.get_user_config(current_user)
-    return render_template(
-        'profile.html',
-        llm_cfg=cfg,
-        llm_masked=llm_svc.masked_key(cfg.get('api_key')),
-        llm_has_user_cfg=llm_svc.has_user_config(current_user),
-        llm_effective=llm_svc.health())
+    """个人信息页:展示账号信息、邮箱绑定、密码修改与日历订阅。"""
+    return render_template('profile.html')
 
 
 @app.route('/profile/llm-config', methods=['POST'])

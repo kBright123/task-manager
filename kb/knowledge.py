@@ -77,7 +77,7 @@ KB_EMBED_MODEL = os.environ.get('KB_EMBED_MODEL', 'BAAI/bge-small-zh-v1.5')
 
 KB_OPENCODE_BASE_URL = os.environ.get('KB_OPENCODE_BASE_URL', 'http://127.0.0.1:4096')
 KB_OPENCODE_PROVIDER = os.environ.get('KB_OPENCODE_PROVIDER', 'opencode')
-KB_OPENCODE_MODEL = os.environ.get('KB_OPENCODE_MODEL', 'Nemotron 3 Ultra Free')
+KB_OPENCODE_MODEL = os.environ.get('KB_OPENCODE_MODEL', 'ling-3.0-flash-fin-free')
 KB_OPENCODE_TIMEOUT = int(os.environ.get('KB_OPENCODE_TIMEOUT', '180'))
 KB_LLM_DISABLED = os.environ.get('KB_LLM_DISABLED', '0') == '1'
 # 标签黑名单:识别/打标签时剔除这些词汇(机构名等),逗号/分号分隔
@@ -3063,8 +3063,8 @@ def _generate_summary(text):
         return ''
 
 
-def llm_ask(question, sources, system=None):
-    if KB_LLM_DISABLED:
+def llm_ask(question, sources, system=None, force=False):
+    if KB_LLM_DISABLED and not force:
         return 'LLM 服务已禁用(环境变量 KB_LLM_DISABLED=1)。'
     blocks = []
     for i, src in enumerate(sources, 1):
@@ -4026,8 +4026,14 @@ def api_avatar_ask():
     返回中附带 avatar_name 供前端展示"姓名·分身"。"""
     data = request.get_json(silent=True) or {}
     question = (data.get('question') or '').strip()
+    force_llm = bool(data.get('force_llm'))
+    if question.upper().startswith('@LLM'):
+        force_llm = True
+        question = question[4:].strip()
     if not question:
         return jsonify({'ok': False, 'error': '请输入问题'}), 400
+    if bool(data.get('unified')):
+        return _avatar_ask_unified(question, data.get('hits'))
     target_user, avatar_name = _resolve_avatar_user(
         data.get('target_user_id'))
     if data.get('target_user_id') and target_user is None:
@@ -4039,14 +4045,14 @@ def api_avatar_ask():
     # 必须包含 uploaded_by 项,否则未分类/被分类器归到他人集合的文档会不可见,
     # 导致"明明有文档却提示知识库为空"。
     doc_ids = _doc_ids_for_user(scope_user_id)
-    if not doc_ids:
+    if doc_ids is not None and not doc_ids and not force_llm:
         who = avatar_name or '你的'
         return jsonify({'ok': True, 'empty': True,
                         'answer': f'{who}的知识库暂时为空，'
                         '请先上传文档到知识库。', 'sources': [],
                         'avatar_name': avatar_name})
     key = cache_key('avatar',
-                    f'{current_user.id}:{scope_user_id}:{question}')
+                    f'{current_user.id}:{scope_user_id}:{1 if force_llm else 0}:{question}')
     cached = cache_get(key, KB_ASK_CACHE_TTL)
     if cached is not None:
         return jsonify({'ok': True, 'cached': True,
@@ -4057,7 +4063,7 @@ def api_avatar_ask():
                             doc_ids=doc_ids)
         sources = [{'title': h['title'], 'page': h['page_no'],
                     'doc_id': h['doc_id'], 'text': h['text']} for h in hits]
-        answer = llm_ask(question, sources)
+        answer = llm_ask(question, sources, force=force_llm)
         payload = {'answer': answer, 'sources': sources[:5],
                    'avatar_name': avatar_name}
         cache_set(key, json.dumps(payload, ensure_ascii=False))
@@ -4065,6 +4071,96 @@ def api_avatar_ask():
     except Exception as e:
         logger.exception('api_avatar_ask failed')
         return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+def _avatar_ask_unified(question, hits=None):
+    """联动问答:先在待办/知识库/随手记中统一检索,再让大模型整理成回答。
+
+    前端先调统一检索接口展示分类结果,再带 hits 来此组装资料给大模型,
+    避免重复检索;未传 hits 时后端自行检索(兼容旧调用)。
+
+    返回结构(前端按标志位分发):
+    - 无任何命中: {ok, empty: True, answer: None, links: []}
+    - 命中但 LLM 不可用/失败: {ok, fallback: True, answer: None, links,
+      data(检索数据)} — 前端回退展示分类检索结果
+    - 成功: {ok, answer, sources(资料), links(来源跳转), data}
+    """
+    if not isinstance(hits, dict) or not (hits.get('kb') or hits.get('tasks')
+                                          or hits.get('notes')):
+        from routes.search import _unified_search_data
+        hits = _unified_search_data(question)
+    data = hits
+    kb = data.get('kb') or []
+    tasks = data.get('tasks') or []
+    notes = data.get('notes') or []
+    sources = []
+    links = []
+
+    def _add(title, text, href, tag, page=''):
+        text = (text or '').strip()
+        if not text:
+            text = (title or '').strip()
+        sources.append({'title': title or '', 'page': page, 'text': text[:500]})
+        links.append({'title': title or '', 'href': href or '#', 'tag': tag})
+
+    for it in kb[:3]:
+        p = (it.get('pages') or [{}])[0]
+        _add(f"[知识库] {it.get('title') or it.get('filename') or ''}",
+             p.get('snippet') or '',
+             it.get('detail_url') or it.get('preview_url') or '', '知识库',
+             str(p.get('page_no') or ''))
+    for t in tasks[:3]:
+        note = '；'.join(x for x in [
+            ('状态 ' + str(t.get('status') or '')),
+            ('截止 ' + str(t.get('end_time') or ''))] if x)
+        _add(f"[待办] {t.get('title') or ''}",
+             (t.get('description') or '') + (('（' + note + '）') if note else ''),
+             t.get('detail_url') or '', '待办')
+    for n in notes[:3]:
+        _add(f"[随记] {n.get('title') or ''}", n.get('content') or '',
+             n.get('detail_url') or '', '随记')
+
+    if not sources:
+        return jsonify({'ok': True, 'empty': True, 'answer': None,
+                        'sources': [], 'links': [],
+                        'data': {'q': question, 'total': 0}})
+
+    if KB_LLM_DISABLED:
+        return jsonify({'ok': True, 'fallback': True, 'answer': None,
+                        'error': 'LLM 服务未启用', 'sources': [], 'links': links,
+                        'data': data})
+
+    system = _ASK_SYSTEM + (
+        '\n资料可能来自待办、知识库、随手记。检索结果的详细列表已在界面上展示,'
+        '请直接精炼作答,不要逐条复述或逐条归纳每条资料;'
+        '仅在引用具体事实时用 [资料 N] 简单标注。'
+        '回答控制在几句话或少量要点,不要客套结尾。\n')
+    key = cache_key('avatar-unified', f'{current_user.id}:{question}')
+    cached = cache_get(key, KB_ASK_CACHE_TTL)
+    if cached is not None:
+        try:
+            return jsonify({'ok': True, 'cached': True,
+                            'answer': json.loads(cached).get('answer', ''),
+                            'sources': sources[:6], 'links': links,
+                            'data': data})
+        except Exception as _e:
+            logger.warning('avatar-unified cache corrupted: %s', _e)
+    try:
+        answer = (llm_ask(question, sources, system=system, force=True) or '')
+        answer = answer.strip()
+        if answer and 'LLM 服务已禁用' not in answer:
+            cache_set(key, json.dumps({'answer': answer}, ensure_ascii=False))
+            return jsonify({'ok': True, 'answer': answer,
+                            'sources': sources[:6], 'links': links,
+                            'data': data})
+        return jsonify({'ok': True, 'fallback': True, 'answer': None,
+                        'error': 'LLM 未返回内容', 'sources': [], 'links': links,
+                        'data': data})
+    except Exception as e:
+        logger.warning('avatar unified ask failed: %s', e)
+        return jsonify({'ok': True, 'fallback': True, 'answer': None,
+                        'error': str(e), 'sources': [], 'links': links,
+                        'data': data})
 
 
 # ---------------------------------------------------------------------------

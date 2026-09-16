@@ -725,13 +725,16 @@
       if (m.loading) html += '<div class="fab-chat-loading">梳理资料中…</div>';
       else {
         if (m.reply_content) html += '<div class="fab-msg-quote">' + _fabEsc(m.reply_content) + '</div>';
+        html += '<div class="fab-msg-content">';
         if (!mine && isBot && (m.links && m.links.length)) html += _fabBotAnswer(m);
         else html += '<div style="white-space:pre-wrap;">' + _fabEsc(m.content || '') + '</div>';
+        html += '</div>';
       }
       html += '</div></div></div>';
       html += '<div class="fab-msg-actions">';
       if (!m.loading && !m.bad) html += '<button class="fab-msg-act" onclick="fabPeerQuote(' + m.id + ')">引用</button>';
       if (!m.loading && !m.bad && (m.source === 'ask' || m.kind === 'bot')) html += '<button class="fab-msg-act" onclick="fabPeerReanswer(' + m.id + ')">🤖 重新回答</button>';
+      if (!m.loading && !m.bad && isBot && (m.content || '')) html += '<button class="fab-msg-act fab-tidy-chip" onclick="fabAskTidy(this)" data-id="' + m.id + '">✨ LLM 整理</button>';
       html += '</div>';
       html += '<div class="fab-msg-time">' + _fabEsc(m.time_hm || _fabNowHm()) + '</div>';
       html += '</div>';
@@ -1003,68 +1006,16 @@
       if (!box || !input) return;
       var raw = input.value.trim();
       if (!raw) return;
-      var forceLlm = /^@llm/i.test(raw) || /^@小知/i.test(raw);
-      var q = raw.replace(/^@(?:llm|小知)/i, '').trim();
+      var q = raw;  
       if (!q) return;
-      var intentM = q.match(/^(待办|随记|上传|教育|问答)[\s:：]*(.*)$/);
+      var intentM = q.match(/^(待办|随记|随手记|上传|教育|问答)[\s:：]*(.*)$/);
       if (intentM) {
         var intent = intentM[1], rest5 = (intentM[2] || '').trim();
-        var timeM = rest5.match(/(今|明|后)天\s*(?:([上中下]午)?\s*(\d{1,2})[点:：](?:(\d{1,2})分?)?)?/);
-        if (intent === '待办') { input.value = ''; showQuickTaskModal(); if (timeM) { var _d = new Date(); _d.setDate(_d.getDate() + (timeM[1] === '明' ? 1 : timeM[1] === '后' ? 2 : 0)); if (timeM[3]) { _d.setHours(timeM[3] % 24, timeM[4] ? Number(timeM[4]) : 0, 0, 0); } gvar._fabTaskDeadline = _d; } return; }
-        if (intent === '随记') { input.value = ''; showQuickNoteModal(); if (rest5) { var _ne = document.getElementById('fabNoteContent'); if (_ne) _ne.value = rest5; } return; }
-        if (intent === '上传') { input.value = ''; fabKb(); return; }
-        if (intent === '教育') { input.value = ''; fabMode(); return; }
-      }
-      var forceLlmAny = forceLlm;
-      if (forceLlmAny) {
-        var _body2 = { question: q, force_llm: true };
-        var _turn2 = fabChatBubble(turn, 'avatar', '<i class="bi bi-stars"></i> 小知整理中…');
-        fetch(cfg.avatarAsk || '/kb/api/avatar/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(_body2) }).then(function (r) { return r.json(); }).then(function (d) {
-          _turn2.remove();
-          var hrefs2 = (d && d.sources || []).slice(0, 3).map(function (s) { return s.href || '#'; });
-          var _wrap = fabChatRefLinks((d && d.ok && d.answer) ? d.answer : (d && d.error || '调用失败'), hrefs2);
-          var _plus = '<div class="fab-tidy-hint"><button type="button" class="fab-tidy-btn" onclick="fabAskTidy(this)" data-a="' + escFn((d && d.answer || '')) + '" aria-label="✨ LLM 整理"><i class="bi bi-stars"></i> ✨ 整理</button></div>';
-          fabChatBubble(turn, 'avatar', _wrap + _plus);
-          renderSources(d && d.sources || []);
-          fabChatCommit();
-        }).catch(function () { _turn2.remove(); fabChatBubble(turn, 'avatar', '大模型整理失败，已转为全站检索。'); fabChatCommit(); });
-        return;
-      }
-      var _parseTime = function (s) {
-        var m = null, out = null;
-        if ((m = s.match(/(今|明|后)天(?:[早上下晚]+)?\s*(\d{1,2})[点:：](\d{1,2})?/))) {
-          var d = new Date(); d.setDate(d.getDate() + (m[1] === '明' ? 1 : m[1] === '后' ? 2 : 0));
-          d.setHours(m[2] % 24, m[3] ? (m[3] | 0) : 0, 0, 0);
-          out = { text: m[0], date: d };
-        } else if ((m = s.match(/(今|明|后)天/))) {
-          var d2 = new Date(); d2.setDate(d2.getDate() + (m[1] === '明' ? 1 : m[1] === '后' ? 2 : 0));
-          d2.setHours(9, 0, 0, 0);
-          out = { text: m[0], date: d2 };
-        }
-        return out;
-      };
-      var _fabMkHint = function (label, rest, parsed) {
-        var h = label + (rest ? '：' + rest : '');
-        if (parsed) h += '（' + parsed.text + ' → ' + parsed.date.getMonth() + 1 + '月' + parsed.date.getDate() + '日 ' + parsed.date.getHours() + ':' + String(parsed.date.getMinutes() || 0) + '）';
-        return h;
-      };
-      var mInt = q.match(/^([^@\w][\u4e00-\u9fa5]{0,6}|待办|随记|随手记|上传|教育|智知|小知)(?:[:：\s])?(.*)$/);
-      var lead = (q.match(/^(待办|随记|随手记|上传|教育|智知|小知|做|记|传|学)[:：\s]?(.*)$/) || [])[1];
-      if (lead) {
-        var rest0 = q.replace(/^(待办|随记|随手记|上传|教育|智知|小知|做|记|传|学)[:：\s]?/, '').trim();
-        var pd = _parseTime(rest0);
-        var rest1 = pd ? rest0.replace(pd.text, '').trim() : rest0;
-        if (/^(待办|做)/.test(lead)) {
-          input.value = ''; fabDialogAction(function () { showQuickTaskModal(); });
-        } else if (/^(随记|随手记|记)/.test(lead)) {
-          input.value = ''; fabDialogAction(function () { showQuickNoteModal(); });
-        } else if (/^上传|传/.test(lead)) {
-          input.value = ''; fabDialogAction(function () { fabKb(); });
-        } else if (/^教育|学/.test(lead)) {
-          input.value = ''; fabDialogAction(function () { fabMode(); });
-        }
-        fabAskHint(_fabMkHint(lead.charAt(0).toUpperCase() + lead.slice(1), rest1, pd));
-        return;
+        if (intent === '待办') { input.value = ''; fabDialogAction(function(){ showQuickTaskModal(); }); return; }
+        if (intent === '随记' || intent === '随手记') { input.value = ''; fabDialogAction(function(){ showQuickNoteModal(); if (rest5) { var _ne = document.getElementById('fabNoteContent') || document.getElementById('qnContent'); if (_ne) _ne.value = rest5; } }); return; }
+        if (intent === '上传') { input.value = ''; fabDialogAction(function(){ fabKb(); }); return; }
+        if (intent === '教育') { input.value = ''; fabDialogAction(function(){ fabMode(); }); return; }
+        if (intent === '问答') { input.value = ''; fabNlAsk(q, raw); return; }
       }
       var mAt = q.match(/^@([\u4e00-\u9fa5A-Za-z0-9_]+)(?:\s+(.*))?$/);
       if (mAt) {
@@ -1080,146 +1031,121 @@
       input.value = '';
       var empty = document.getElementById('fabChatEmpty');
       if (empty) empty.style.display = 'none';
-      var escFn = window.esc || function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); };
+      fabNlAsk(q, raw);
+    }
+    function fabChatAddTurn() {
+      var box = document.getElementById('fabChatBox');
+      var t = document.createElement('div');
+      t.className = 'fab-turn';
+      box.appendChild(t);
+      return t;
+    }
+    function fabAskHint(text) {
+      var turns = document.querySelectorAll('#fabChatBox .fab-turn');
+      var turn = turns[turns.length - 1];
+      if (!turn) {
+        var box = document.getElementById('fabChatBox');
+        if (!box) return;
+        turn = fabChatAddTurn();
+      }
+      fabChatBubble(turn, 'avatar', '<div class="fab-hint" style="white-space:pre-wrap;">' + _fabEsc(text) + '</div>');
+      fabChatCommit();
+    }
+    function fabNlAction(btn) {
+      var act = btn.getAttribute('data-act');
+      if (act === 'task_create') fabDialogAction(function () { showQuickTaskModal(); });
+      else if (act === 'note_create') fabDialogAction(function () { showQuickNoteModal(); });
+      else if (act === 'education') fabDialogAction(function () { fabMode(); });
+      else if (act === 'upload') fabDialogAction(function () { fabKb(); });
+    }
+    function fabAskTidy(btn) {
+      function close() { var s = btn.querySelector ? btn.querySelector('.fab-tidy-spin') : null; if (s) s.remove(); }
+      function escF(s) { return window.esc ? window.esc(s) : _fabEsc(s); }
+      var spin = document.createElement('span');
+      spin.className = 'fab-tidy-spin';
+      spin.textContent = ' ✨整理中…';
+      btn.appendChild(spin);
+      var txt = btn.getAttribute('data-txt') || '';
+      if (!txt && btn.getAttribute('data-id')) {
+        var m = _fabMsgsById[String(btn.getAttribute('data-id'))];
+        if (m) txt = m.content || '';
+      }
+      var text = (txt || '').trim();
+      if (!text) { close(); return; }
+      fetch('/api/chat/tidy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.slice(0, 6000) })
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        close();
+        if (d && d.ok && d.answer) {
+          var bubble = btn.closest ? btn.closest('.fab-msg-bubble') : null;
+          var holder = bubble ? bubble.querySelector('.fab-msg-content') : null;
+          if (holder) holder.innerHTML = '<div class="fab-tidy-box" style="white-space:pre-wrap;">' + escF(d.answer) + '</div>';
+          else fabAskHint('✨ LLM 整理：\n' + d.answer);
+        } else {
+          fabAskHint('⚠ ' + ((d && d.error) || '整理失败，请稍后再试。'));
+        }
+      }).catch(function () {
+        close();
+        fabAskHint('⚠ 网络异常，整理失败。');
+      });
+    }
+    function fabNlAsk(q, raw) {
+      var box = document.getElementById('fabChatBox');
+      if (!box) return;
+      var esc = window.esc || function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); };
+      var empty = document.getElementById('fabChatEmpty');
+      if (empty) empty.style.display = 'none';
+      var turn = fabChatAddTurn();
+      fabChatBubble(turn, 'user', '<div style="white-space:pre-wrap;">' + esc(raw || q) + '</div>');
+      var loading = fabChatBubble(turn, 'avatar fab-chat-loading', '小知检索中…');
       var cfg = window.FAB_CONFIG || {};
-      var turn = document.createElement('div');
-      turn.className = 'fab-turn';
-      box.appendChild(turn);
-      fabChatBubble(turn, 'user', '<div style="white-space:pre-wrap;">' + escFn(raw) + '</div>');
-      var loading = fabChatBubble(turn, 'avatar fab-chat-loading', forceLlm ? '正在调用大模型…' : '小知检索中…');
-      function renderSources(sources) {
-        (sources || []).slice(0, 3).forEach(function (s) {
-          var d = document.createElement('a');
-          d.className = 'fab-chat-src';
-          d.target = '_blank'; d.rel = 'noopener';
-          d.href = cfg.docDetail ? cfg.docDetail.replace('0', s.doc_id) : '#';
-          d.textContent = '📄 ' + (s.title || '知识文件') + (s.page ? ' · 第' + s.page + '页' : '');
-          turn.appendChild(d);
-          box.scrollTop = box.scrollHeight;
-        });
-      }
-      function searchAll(label) {
-        fetch((cfg.unifiedSearch || '/api/search') + '?q=' + encodeURIComponent(q))
-          .then(function (r) { return r.json(); }).then(function (d) {
-            loading.remove();
-            var kb = (d && d.kb) || [], tasks = (d && d.tasks) || [], notes = (d && d.notes) || [];
-            if (!kb.length && !tasks.length && !notes.length) {
-              fabChatBubble(turn, 'avatar', '没有找到相关结果，换个问法试试？');
-              fabChatCommit();
-              return;
-            }
-            var rows = '<div style="font-size:.76rem;color:var(--gray-500);margin-bottom:4px;">' + (label || '全站检索结果：') + '</div>';
-            if (kb.length) {
-              rows += '<div class="fab-chat-cat">📄 知识库</div>';
-              kb.slice(0, 3).forEach(function (x) {
-                rows += '<a class="fab-chat-src" href="' + escFn(x.detail_url || '#') + '" target="_blank" rel="noopener">' + escFn(x.title || '') + '</a>';
-              });
-            }
-            if (tasks.length) {
-              rows += '<div class="fab-chat-cat">✅ 待办</div>';
-              tasks.slice(0, 3).forEach(function (t) {
-                rows += '<a class="fab-chat-src" href="' + escFn(t.detail_url || '#') + '">' + escFn(t.title || '') + (t.end_date ? ' · ' + escFn(t.end_date) : '') + '</a>';
-              });
-            }
-            if (notes.length) {
-              rows += '<div class="fab-chat-cat">📝 随手记</div>';
-              notes.slice(0, 3).forEach(function (n) {
-                rows += '<a class="fab-chat-src" href="' + escFn(n.detail_url || '#') + '" target="_blank" rel="noopener">' + escFn(String(n.content || n.title || '').slice(0, 40)) + '</a>';
-              });
-            }
-            fabChatBubble(turn, 'avatar', rows);
-            fabChatCommit();
-          }).catch(function () {
-            loading.remove();
-            fabChatBubble(turn, 'avatar', '回答生成失败，请稍后再试。');
-            fabChatCommit();
-          });
-      }
-      if (forceLlm) {
-        fetch(cfg.avatarAsk || '/kb/api/avatar/ask', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: q, force_llm: true })
-        }).then(function (r) { return r.json(); }).then(function (d) {
-          if (d && d.ok && !d.empty && d.answer) {
-            loading.remove();
-            var hrefs = (d.sources || []).map(function (s) {
-              return cfg.docDetail && s.doc_id ? cfg.docDetail.replace('0', s.doc_id) : '#';
-            });
-            fabChatBubble(turn, 'avatar', fabChatRefLinks(d.answer, hrefs));
-            renderSources(d.sources);
-            fabChatCommit();
-          } else {
-            var why = (d && d.error ? String(d.error) : '');
-            searchAll('大模型调用失败' + (why ? '：' + escFn(why) : '（未配置或服务不可用）') + '，已转为全站检索：');
-          }
-        }).catch(function () { searchAll('大模型调用失败（网络异常），已转为全站检索：'); });
-      } else {
-      // 两段式联动: 先展示分类检索结果(立即落库) → 再等大模型整理答案追加
-      function askLlmForResults(hits) {
-        var llmLoading = fabChatBubble(turn, 'avatar fab-chat-loading', '大模型整理中…');
-        var body = { question: q, unified: true };
-        if (hits) body.hits = hits;
-        fetch((cfg.avatarAsk || '/kb/api/avatar/ask'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        }).then(function (r) { return r.json(); }).then(function (d) {
-          llmLoading.remove();
-          if (d && d.ok && d.answer) {
-            var hrefs = (d.links || []).map(function (l) { return l.href || '#'; });
-            fabChatBubble(turn, 'avatar', fabChatRefLinks(d.answer, hrefs));
-            box.scrollTop = box.scrollHeight;
-          } else {
-            var why = (d && d.error ? '：' + escFn(d.error) : '');
-            fabChatBubble(turn, 'avatar', '大模型整理失败' + why + '，已保留上方检索结果。');
-          }
-          fabChatCommit();
-        }).catch(function () {
-          llmLoading.remove();
-          fabChatBubble(turn, 'avatar', '大模型整理失败（网络异常），已保留上方检索结果。');
-          fabChatCommit();
-        });
-      }
-      function renderSearchResults(d) {
+      fetch(cfg.nlAsk || '/api/chat/nl', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: q })
+      }).then(function (r) { return r.json(); }).then(function (d) {
         loading.remove();
-        var kb = (d && d.kb) || [], tasks = (d && d.tasks) || [], notes = (d && d.notes) || [];
-        if (!kb.length && !tasks.length && !notes.length) {
-          fabChatBubble(turn, 'avatar', '未在知识库 · 待办 · 随手记中检索到相关内容，换个问法试试？');
+        if (!(d && d.ok)) {
+          fabChatBubble(turn, 'avatar', '⚠ ' + esc((d && d.error) || '理解失败，换个说法试试？'));
           fabChatCommit();
           return;
         }
-        var rows = '<div style="font-size:.76rem;color:var(--gray-500);margin-bottom:4px;">全站检索结果：</div>';
-        if (kb.length) {
-          rows += '<div class="fab-chat-cat">📄 知识库</div>';
-          kb.slice(0, 3).forEach(function (x) {
-            rows += '<a class="fab-chat-src" href="' + escFn(x.detail_url || '#') + '" target="_blank" rel="noopener">' + escFn(x.title || '') + '</a>';
-          });
-        }
-        if (tasks.length) {
-          rows += '<div class="fab-chat-cat">✅ 待办</div>';
-          tasks.slice(0, 3).forEach(function (t) {
-            rows += '<a class="fab-chat-src" href="' + escFn(t.detail_url || '#') + '">' + escFn(t.title || '') + '</a>';
-          });
-        }
-        if (notes.length) {
-          rows += '<div class="fab-chat-cat">📝 随手记</div>';
-          notes.slice(0, 3).forEach(function (n) {
-            rows += '<a class="fab-chat-src" href="' + escFn(n.detail_url || '#') + '" target="_blank" rel="noopener">' + escFn(String(n.content || n.title || '').slice(0, 40)) + '</a>';
-          });
-        }
-        fabChatBubble(turn, 'avatar', rows);
-        fabChatCommit();
-        askLlmForResults(d);
-      }
-      fetch((cfg.unifiedSearch || '/api/search') + '?q=' + encodeURIComponent(q))
-        .then(function (r) { return r.json(); }).then(renderSearchResults)
-        .catch(function () {
-          loading.remove();
-          fabChatBubble(turn, 'avatar', '检索失败，请稍后再试。');
+        var actionActs = { task_create: 1, note_create: 1, education: 1, upload: 1 };
+        if (d.intent === 'task_create' || d.intent === 'note_create' || d.intent === 'education' || d.intent === 'upload') {
+          var actions = {
+            task_create: ['打开「快速创建待办」', 'task_create'],
+            note_create: ['打开「随手记」', 'note_create'],
+            education: ['进入教育娱乐', 'education'],
+            upload: ['打开「上传知识」', 'upload']
+          };
+          var hintHtml = '<div class="fab-action-hint"><div style="white-space:pre-wrap;">' + esc(d.content || '') + '</div>';
+          var a = actions[d.intent];
+          if (a) hintHtml += '<button type="button" class="fab-tidy-btn" data-act="' + a[1] + '" onclick="fabNlAction(this)">' + a[0] + '</button>';
+          hintHtml += '</div>';
+          fabChatBubble(turn, 'avatar', hintHtml);
           fabChatCommit();
-        });
-    }
+          return;
+        }
+        var hrefs = (d.links || []).map(function (l) { return l.href || '#'; });
+        fabChatBubble(turn, 'avatar', fabChatRefLinks(d.content || '', hrefs));
+        var rows = d.rows || [];
+        if (rows.length) {
+          var rowsHtml = '';
+          rows.slice(0, 5).forEach(function (r) {
+            rowsHtml += '<a class="fab-chat-src" href="' + esc(r.href || '#') + '" target="_blank" rel="noopener">' + esc(r.tag ? '[' + r.tag + '] ' : '') + esc(r.title || '') + '</a>';
+          });
+          fabChatBubble(turn, 'avatar', rowsHtml);
+        }
+        var tidyStrip = '<div class="fab-tidy-strip"><i class="bi bi-stars"></i> 想让回答更有条理、更精炼？' +
+          '<button type="button" class="fab-tidy-btn fab-tidy-prio" onclick="fabAskTidy(this)" data-txt="' + esc((d.content || '').slice(0, 4000)) + '">✨ 用大模型整理</button></div>';
+        fabChatBubble(turn, 'avatar', tidyStrip);
+        fabChatCommit();
+      }).catch(function () {
+        loading.remove();
+        fabAskHint('⚠ 网络异常，暂时无法回答。');
+      });
     }
     function showQuickNoteModal() {
       var m = document.getElementById('quickNoteModal');

@@ -20,12 +20,16 @@ from flask_login import current_user, login_required
 
 from app import app, db
 from core.app_services import create_notification
-from core.models import ChatMessage, User
+from core.models import ChatMessage, Task, TaskAssignment, User
 from core.timeutil import cn_now
+from kb.chat_intent import ACTION_INTENTS, QUERY_INTENTS, classify_question, parse_question_time
 
 _CHAT_DISABLED_HINT = '大模型服务未启用，未能自动起草回答；可人工回复。'
 _CHAT_NO_SOURCE_HINT = ('TA 当前没有可用的非个人待办/笔记/公开知识库资料，'
                         '暂时无法基于TA的内容回答。')
+_ASK_SYSTEM_NL = ('你是「小知」助手，基于资料回答用户问题。检索结果已在界面展示，'
+                  '请精炼作答，不要逐条复述；引用具体事实时用 [资料 N] 标注。'
+                  '回答控制在几句话或少量要点。\n\n')
 
 
 def _chat_system(target, asker):
@@ -236,7 +240,17 @@ def api_chat_send():
                       'reply' if reply_to_id else 'chat', reply_to_id)
     db.session.flush()
     bot, links = None, []
-    if not peer.is_online:
+    cls = classify_question(content)
+    if cls['intent'] in QUERY_INTENTS:
+        # 自然语言提问(日程/检索/知识问答/问候等): 即使对方在线也由小知作答
+        res = _answer_natural(content, peer)
+        bot = _make_message(peer, res.get('content') or '', 'bot',
+                            'intent', m.id)
+        bot.extra = json.dumps({'links': res.get('links') or []},
+                               ensure_ascii=False)
+        db.session.add(bot)
+        links = res.get('links') or []
+    elif not peer.is_online:
         # 对端离线: LLM 基于 TA 的非个人资料自动回复
         bot, links = _draft_bot_answer(peer, content, m.id, 'chat')
     db.session.commit()
@@ -344,6 +358,262 @@ def _draft_bot_answer(peer, question, ask_msg_id, source='ask'):
         m = _make_message(peer, f'大模型代答失败：{e}', 'bot', source, ask_msg_id)
         db.session.add(m)
         return m, links
+
+
+def _rows_from_links(links):
+    """把 source links 转成前端可渲染的答案行列表。"""
+    return [{'type': l.get('tag') or '', 'tag': l.get('tag') or '',
+             'title': l.get('title') or '', 'desc': '',
+             'href': l.get('href') or '#'} for l in (links or [])]
+
+
+def _first_pending_task(uid, keyword):
+    """按标题/描述模糊匹配第一条未完成任务(用于「完成X」提问)。"""
+    pat = f'%{(keyword or "").strip()}%'
+    if not keyword or not pat.strip('%'):
+        return None
+    return TaskAssignment.query.join(Task).filter(
+        TaskAssignment.user_id == uid,
+        TaskAssignment.status.notin_(['done', 'abandoned']),
+        db.or_(Task.title.like(pat), Task.description.like(pat)),
+    ).order_by(Task.end_time.asc()).first()
+
+
+def _answer_natural(question, target=None):
+    """规则意图分类 + 时间解析 → 结构化回答(不写库)。
+
+    target=None 表示小知助手(查询本人数据); target 为私聊对象时,
+    检索/问答基于对方资料。返回 dict: intent/content/rows/links/meta。
+    """
+    from kb.knowledge import KB_LLM_DISABLED, llm_ask
+    from routes.search import _unified_search_data
+
+    cls = classify_question(question)
+    intent = cls['intent']
+    content = cls['content']
+    ts = cls['time']
+    rows, links, meta = [], [], {'time': ts}
+    me_name = _display(current_user)
+    peer_name = _display(target) if target else ''
+    scope_name = peer_name or me_name
+    scope_id = target.id if target else current_user.id
+
+    def _row(tag, title, desc, href):
+        rows.append({'type': tag or '', 'tag': tag or '', 'title': title or '',
+                     'desc': (desc or '')[:160], 'href': href or '#'})
+        return rows[-1]
+
+    if intent == 'greeting':
+        return {'intent': intent,
+                'content': '你好！我是小知。可以问我「今天有什么任务」「搜一下报销流程」'
+                           '「XX 是什么意思」，也可以直接说「添加待办 / 随手记 / 上传」创建内容。',
+                'rows': [], 'links': [], 'meta': meta}
+    if intent == 'help':
+        return {'intent': intent,
+                'content': '你可以在任意对话里直接提问，我会自动理解意图：\n'
+                           '· 日程查询：今天 / 明天 / 本周有什么任务？几点开会？\n'
+                           '· 全站检索：搜一下「报销流程」\n'
+                           '· 知识问答：XX 是什么意思？怎么做？\n'
+                           '· 快速创建：添加待办「明天 9:00 交周报」/ 随手记「…」\n'
+                           '· 教育娱乐 / 上传知识',
+                'rows': [], 'links': [], 'meta': meta}
+    if intent in ACTION_INTENTS:
+        hint = {
+            'task_create': f'好的 {me_name}，正在为你打开「快速创建待办」，说出内容即可自动解析时间与分配。',
+            'note_create': '已在为你打开「随手记」，内容会自动带过去。',
+            'education': '已为你切换到教育娱乐。',
+            'upload': '已为你打开「上传知识」。',
+        }[intent]
+        return {'intent': intent, 'content': hint,
+                'rows': [], 'links': [], 'meta': {'action': intent}}
+
+    if intent == 'task_done':
+        import re as _re
+        dm = _re.match(r'^(?:完成|搞定|做完了|标记完成)[\s:：]?(?:「|《|")?'
+                       r'(?P<what>[^，。！？!?、\n]{1,30})', content)
+        what = dm.group('what') if dm else content
+        a = _first_pending_task(scope_id, what)
+        if a is None:
+            return {'intent': intent,
+                    'content': f'没有找到标题或描述含「{what}」的未完成任务。',
+                    'rows': [], 'links': [], 'meta': meta}
+        t = a.task
+        when = t.end_time.strftime('%Y-%m-%d %H:%M') if t.end_time else '未定'
+        _row('待办', t.title,
+             f'截止 {when} · {t.category} · 状态 {a.status or "pending"}',
+             url_for('user_tasks') + '?highlight=' + str(t.id))
+        return {'intent': intent,
+                'content': f'找到待办「{t.title or ""}」（截止 {when}）。'
+                           f'需要我帮你在待办页完成它吗？',
+                'rows': rows, 'links': [], 'meta': meta}
+
+    if intent == 'schedule':
+        span = ts or parse_question_time('今天')
+        label = (span.get('label') or span.get('range_label')) or '今天'
+        assigns = TaskAssignment.query.join(Task).filter(
+            TaskAssignment.user_id == scope_id,
+            TaskAssignment.status.notin_(['done', 'abandoned']),
+            Task.end_time >= span['start'],
+            Task.end_time < span['end'],
+        ).order_by(Task.end_time.asc()).limit(8).all()
+        if not assigns:
+            return {'intent': intent,
+                    'content': f'{scope_name} 在{label}暂时没有待办 / 日程安排。',
+                    'rows': [], 'links': [], 'meta': {'time': span}}
+        lines = []
+        for a in assigns[:8]:
+            t = a.task
+            when = t.end_time.strftime('%m-%d %H:%M') if t.end_time else '未定'
+            status = '' if a.status == 'pending' else f'（{a.status}）'
+            lines.append(f'· {t.title or "未命名任务"} — 截止 {when}{status}')
+            _row('待办', t.title, f'截止 {when} · {t.category}',
+                 url_for('user_tasks') + '?highlight=' + str(t.id))
+        return {'intent': intent,
+                'content': f'📅 {scope_name} 在{label}的日程安排：\n' + '\n'.join(lines),
+                'rows': rows, 'links': [], 'meta': {'time': span}}
+
+    # 其余意图(search / knowledge / chat): 资料检索 + 大模型整理
+    if target is not None:
+        sources, links = _build_target_sources(question, target)
+        if not sources:
+            return {'intent': intent,
+                    'content': f'{peer_name} 目前没有可用的非个人待办 / 笔记 / 公开知识资料来回答这个问题。',
+                    'rows': [], 'links': [], 'meta': meta}
+        if KB_LLM_DISABLED:
+            bullet = '\n'.join(f'· [{s.get("title") or ""}]' for s in sources[:8])
+            return {'intent': intent,
+                    'content': f'已找到 {len(sources)} 条相关线索：\n{bullet}\n'
+                               '（大模型服务未启用，以上为资料列表，可点开下方链接查看）',
+                    'rows': _rows_from_links(links), 'links': links, 'meta': meta}
+        answer = ''
+        try:
+            answer = (llm_ask(question, sources,
+                              system=_chat_system(peer_name, me_name),
+                              force=True) or '').strip()
+        except Exception as e:
+            app.logger.warning('chat nl peer llm failed: %s', e)
+        if not answer or 'LLM 服务已禁用' in answer:
+            answer = '检索到一些资料，但大模型整理失败，请查看下方链接。'
+        return {'intent': intent, 'content': answer,
+                'rows': _rows_from_links(links), 'links': links, 'meta': meta}
+
+    # 小知: 本人统一检索(待办+随手记+知识库) → 大模型精炼
+    hits = _unified_search_data(question)
+    kb, tasks, notes = (hits.get('kb') or []), (hits.get('tasks') or []), (hits.get('notes') or [])
+    sources, links = [], []
+
+    def _add_src(title, text, href, tag):
+        text = (text or '').strip() or (title or '').strip()
+        if not text:
+            return
+        sources.append({'title': title or '', 'page': '', 'text': text[:500]})
+        links.append({'title': title or '', 'href': href or '#', 'tag': tag})
+        _row(tag, title, text[:140], href)
+
+    for it in kb[:3]:
+        p = (it.get('pages') or [{}])[0]
+        _add_src(f"[知识库] {it.get('title') or it.get('filename') or ''}",
+                 p.get('snippet') or '',
+                 it.get('detail_url') or it.get('preview_url') or '#', '知识库')
+    for t in tasks[:3]:
+        note = '；'.join(x for x in [
+            ('状态 ' + str(t.get('status') or '')),
+            ('截止 ' + str(t.get('end_time') or ''))] if x)
+        _add_src(f"[待办] {t.get('title') or ''}",
+                 (t.get('description') or '') + (('（' + note + '）') if note else ''),
+                 t.get('detail_url') or '#', '待办')
+    for n in notes[:3]:
+        _add_src(f"[随记] {n.get('title') or ''}", n.get('content') or '',
+                 n.get('detail_url') or '#', '随记')
+    if not sources:
+        return {'intent': intent,
+                'content': '没有在知识库 · 待办 · 随手记中检索到相关内容，换个问法试试？',
+                'rows': [], 'links': [], 'meta': meta}
+    if KB_LLM_DISABLED:
+        bullet = '\n'.join(f'· {s.get("title") or ""}' for s in sources[:8])
+        return {'intent': intent,
+                'content': f'共找到 {len(sources)} 条相关内容：\n{bullet}',
+                'rows': rows, 'links': links, 'meta': meta}
+    answer = ''
+    try:
+        answer = (llm_ask(question, sources, system=_ASK_SYSTEM_NL,
+                          force=True) or '').strip()
+    except Exception as e:
+        app.logger.warning('chat nl llm failed: %s', e)
+    if not answer or 'LLM 服务已禁用' in answer:
+        bullet = '\n'.join(f'· {s.get("title") or ""}' for s in sources[:8])
+        answer = f'已找到 {len(sources)} 条相关内容：\n{bullet}'
+    return {'intent': intent, 'content': answer,
+            'rows': rows, 'links': links, 'meta': meta}
+
+
+@app.route('/api/chat/nl', methods=['POST'])
+@login_required
+def api_chat_nl():
+    """自然语言提问(所有会话通用): 规则意图分类 + 时间解析 → 结构化回答。
+
+    to_user_id 存在时, 同时把提问与回答落库为该会话的 ask/intent 消息。"""
+    data = request.get_json(silent=True) or {}
+    question = (data.get('question') or '').strip()
+    if not question:
+        return jsonify({'ok': False, 'error': '问题不能为空'}), 400
+    if len(question) > 2000:
+        return jsonify({'ok': False, 'error': '问题过长'}), 400
+    tid = int(data.get('to_user_id') or 0)
+    peer = _target_user(tid) if tid else None
+    res = _answer_natural(question, peer)
+    ask_payload = bot_payload = None
+    if peer is not None:
+        reply_to_id = data.get('reply_to_id') or None
+        if reply_to_id:
+            cid = _conv_key(current_user.id, peer.id)
+            prev = db.session.get(ChatMessage, int(reply_to_id))
+            if prev is None or prev.conversation_id != cid:
+                reply_to_id = None
+        ask = _make_message(peer, question, 'user', 'ask', reply_to_id)
+        db.session.flush()
+        bot = _make_message(peer, res.get('content') or '', 'bot',
+                            'intent', ask.id)
+        bot.extra = json.dumps({'links': res.get('links') or []},
+                               ensure_ascii=False)
+        db.session.commit()
+        _notify_new(peer, f'{_display(current_user)} 向你提问：「{(question or "")[:60]}」')
+        ask_payload = _msg_payload(ask)
+        bot_payload = _msg_payload(bot)
+    return jsonify({'ok': True, 'intent': res.get('intent'),
+                    'content': res.get('content') or '',
+                    'rows': res.get('rows') or [], 'links': res.get('links') or [],
+                    'meta': res.get('meta') or {}, 'time': res.get('meta', {}).get('time'),
+                    'ask': ask_payload, 'bot': bot_payload})
+
+
+@app.route('/api/chat/tidy', methods=['POST'])
+@login_required
+def api_chat_tidy():
+    """用大模型把一段回答整理得更有条理(悬浮「✨ LLM 整理」标签触发)。"""
+    data = request.get_json(silent=True) or {}
+    txt = (data.get('text') or '').strip()
+    if not txt:
+        return jsonify({'ok': False, 'error': '内容为空'}), 400
+    if len(txt) > 6000:
+        txt = txt[:6000]
+    from kb.knowledge import KB_LLM_DISABLED, llm_ask
+    if KB_LLM_DISABLED:
+        return jsonify({'ok': False, 'error': 'LLM 服务未启用'})
+    import re as _re
+    cleaned = _re.sub(r'\s*\[资料\s*\d+\]\s*', ' ', txt).strip()
+    try:
+        answer = (llm_ask(
+            '把以下回答整理得更清晰、更有条理，保留要点与数据，去掉 [资料 N] 标注，'
+            '直接输出整理后的正文：\n\n' + cleaned,
+            [], system='你是内容整理助手，只输出整理后的正文，不要解释、不要客套、不要开头语。',
+            force=True) or '').strip()
+    except Exception as e:
+        app.logger.warning('chat tidy failed: %s', e)
+        return jsonify({'ok': False, 'error': str(e)})
+    if not answer or 'LLM 服务已禁用' in answer:
+        return jsonify({'ok': False, 'error': 'LLM 整理失败'})
+    return jsonify({'ok': True, 'answer': answer})
 
 
 @app.route('/api/chat/ask', methods=['POST'])

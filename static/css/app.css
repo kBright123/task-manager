@@ -316,9 +316,12 @@
     .fab-peer-head { display: flex; align-items: center; gap: 6px; padding: 3px 0 7px; flex-shrink: 0; }
     .fab-peer-btn { border: 1px solid var(--gray-200); background: var(--gray-50); color: var(--gray-600); border-radius: 50%; width: 26px; height: 26px; line-height: 1; display: flex; align-items: center; justify-content: center; font-size: .8rem; cursor: pointer; flex-shrink: 0; }
     .fab-peer-btn:hover { border-color: var(--primary); color: var(--primary); }
-    .fab-peer-c { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .fab-peer-ask { color: #a16207; border-color: #fde68a; background: #fef9c3; }
+    .fab-peer-ask:hover { color: #854d0e; border-color: #f59e0b; background: #fef3c7; }
+    .fab-peer-c { flex: 1; min-width: 0; display: flex; flex-direction: row; align-items: center; gap: 7px; }
     .fab-peer-name { font-size: .82rem; font-weight: 700; color: var(--gray-800); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .fab-peer-status { display: inline-flex; align-items: center; gap: 4px; font-size: .72rem; color: var(--gray-400); padding: 2px 8px; border: 1px solid var(--gray-200); border-radius: 12px; background: var(--gray-100); white-space: nowrap; }
+    .fab-peer-status-wrap { flex-shrink: 0; display: inline-flex; align-items: center; }
+    .fab-peer-status { display: inline-flex; align-items: center; gap: 4px; font-size: .68rem; color: var(--gray-400); padding: 2px 8px; border: 1px solid var(--gray-200); border-radius: 12px; background: var(--gray-100); white-space: nowrap; }
     .fab-status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gray-400); }
     .fab-peer-status.on { color: #16a34a; border-color: #bbf7d0; background: #f0fdf4; }
     .fab-peer-status.on .fab-status-dot { background: #22c55e; }
@@ -352,16 +355,32 @@
     .fab-msg-mine .fab-msg-actions { right: 0; }
     .fab-msg-theirs .fab-msg-actions, .fab-msg-bot .fab-msg-actions { left: 0; }
     .fab-msg:hover .fab-msg-actions { display: flex; }
-    .fab-msg-act { border: 1px solid var(--gray-200); background: var(--gray-50); color: var(--gray-600); border-radius: 6px; font-size: .66rem; padding: 1px 6px; cursor: pointer; }
+    .fab-msg-act { border: 1px solid var(--gray-200); background: var(--gray-50); color: var(--gray-600); border-radius: 6px; font-size: .66rem; padding: 1px 6px; cursor: pointer; white-space: nowrap; }
     .fab-msg-act:hover { border-color: var(--primary); color: var(--primary); }
     .fab-msg-ai-tag { font-size: .6rem; color: #a16207; }
+    .fab-tidy-hint { align-self: flex-start; margin-top: 3px; }
+    .fab-tidy-btn { border: 1px dashed #f59e0b; background: #fffbeb; color: #b45309; border-radius: 10px; font-size: .68rem; padding: 1px 8px; cursor: pointer; white-space: nowrap; }
+    .fab-tidy-btn:hover { border-color: #f59e0b; background: #fef3c7; }
+    .fab-tidy-btn:disabled { opacity: .6; cursor: wait; }
+    [data-theme="dark"] .fab-tidy-btn { background: #3b2f0f; color: #fcd34d; border-color: #854d0e; }
+    .fab-action-hint { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+    .fab-hint { font-size: .78rem; color: var(--gray-600); }
+    .fab-tidy-strip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px; font-size: .72rem; color: var(--gray-500); }
+    .fab-tidy-prio { padding: 3px 10px; font-size: .74rem; font-weight: 600; box-shadow: 0 1px 3px rgba(245, 158, 11, .35); }
+    .fab-tidy-prio:hover { box-shadow: 0 2px 6px rgba(245, 158, 11, .5); }
+    .fab-tidy-box { border-left: 3px solid #f59e0b; background: #fffbeb; border-radius: 6px; padding: 6px 8px; font-size: .78rem; }
+    .fab-tidy-spin { font-size: .66rem; color: #b45309; }
+    .fab-msg-bubble .fab-tidy-box { margin-top: 2px; }
+    [data-theme="dark"] .fab-tidy-box { background: #3b2f0f; color: #fde68a; }
 
     /* ---- 引用回复条 ---- */
     .fab-quote-bar { display: flex; align-items: center; gap: 6px; background: var(--gray-100); border: 1px solid var(--gray-200); border-radius: 8px; padding: 3px 6px; margin-bottom: 4px; }
     .fab-quote-txt { flex: 1; font-size: .7rem; color: var(--gray-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .fab-quote-clear { border: none; background: none; color: var(--gray-400); font-size: .8rem; cursor: pointer; }
     .fab-quote-clear:hover { color: var(--gray-700); }
-    .fab-input-row { display: flex; gap: 6px; }
+    .fab-input-row { display: flex; flex-wrap: nowrap; align-items: center; }
+    .fab-input-row .form-control { min-width: 0; flex: 1 1 auto; }
+    .fab-input-send { flex-shrink: 0; white-space: nowrap; }
 
     /* ---- @联想下拉 ---- */
     .fab-mention { position: absolute; left: 12px; right: 12px; bottom: calc(100% - 4px); z-index: 20; background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 10px; box-shadow: 0 8px 20px rgba(15,23,42,.15); max-height: 200px; overflow-y: auto; }

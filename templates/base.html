@@ -429,9 +429,10 @@
           <div class="fab-peer" id="fabPeer" hidden>
             <div class="fab-peer-head" id="fabPeerHead">
               <div class="fab-peer-c">
-                <div class="fab-peer-name" id="fabPeerName"></div>
-                <div class="fab-peer-status-wrap" id="fabPeerStatusWrap"><span id="fabPeerStatus"></span></div>
+                <span class="fab-peer-name" id="fabPeerName"></span>
+                <span class="fab-peer-status-wrap" id="fabPeerStatusWrap"><span id="fabPeerStatus"></span></span>
               </div>
+              <button type="button" class="fab-peer-btn fab-peer-ask" onclick="fabPeerAskCurrent()" aria-label="AI 代答" title="AI 代答"><i class="bi bi-stars"></i></button>
               <button type="button" class="fab-peer-btn" onclick="fabPeerDelete()" aria-label="删除会话"><i class="bi bi-trash"></i></button>
             </div>
             <div class="fab-peer-msgs" id="fabPeerMsgs"></div>
@@ -441,15 +442,14 @@
               <span class="fab-quote-txt" id="fabQuoteTxt"></span>
               <button type="button" class="fab-quote-clear" onclick="fabPeerQuoteClear()" aria-label="取消引用"><i class="bi bi-x"></i></button>
             </div>
-            <div id="fabChatFoot" class="d-flex gap-2" style="position:relative;">
+            <div id="fabChatFoot" class="d-flex gap-2 fab-input-row" style="position:relative;">
               <input type="text" id="fabChatInput" class="form-control" placeholder="输入问题" autocomplete="off" onkeydown="if(event.key==='Enter')fabAsk()">
-              <button type="button" class="btn btn-primary" onclick="fabAsk()" aria-label="发送"><i class="bi bi-send"></i></button>
+              <button type="button" class="btn btn-primary fab-input-send" onclick="fabAsk()" aria-label="发送"><i class="bi bi-send"></i></button>
               <div id="fabMention" class="fab-mention" style="display:none"></div>
             </div>
-            <div id="fabPeerFoot" class="d-flex gap-2 d-none" style="position:relative;">
+            <div id="fabPeerFoot" class="d-flex gap-2 fab-input-row d-none" style="position:relative;">
               <input type="text" id="fabPeerInput" class="form-control" placeholder="输入消息" autocomplete="off" onkeydown="if(event.key==='Enter')fabPeerSend()">
-              <button type="button" class="btn btn-outline-primary" onclick="fabPeerAskCurrent()" aria-label="@代答"><i class="bi bi-stars"></i></button>
-              <button type="button" class="btn btn-primary" onclick="fabPeerSend()" aria-label="发送"><i class="bi bi-send"></i></button>
+              <button type="button" class="btn btn-primary fab-input-send" onclick="fabPeerSend()" aria-label="发送"><i class="bi bi-send"></i></button>
               <div id="fabPeerMention" class="fab-mention" style="display:none"></div>
             </div>
           </div>
@@ -567,7 +567,8 @@
   window.FAB_CONFIG = {
     avatarAsk: '{{ url_for("kb.api_avatar_ask") }}',
     unifiedSearch: '{{ url_for("api_unified_search") }}',
-    docDetail: '{{ url_for("kb.doc_detail", doc_id=0) }}'
+    docDetail: '{{ url_for("kb.doc_detail", doc_id=0) }}',
+    nlAsk: '{{ url_for("api_chat_nl") }}'
   };
   {% if current_user.is_authenticated %}
   window.CURRENT_USER = {

@@ -151,6 +151,40 @@ class Notification(db.Model):
     user = db.relationship('User', backref='notifications')
 
 
+class ChatMessage(db.Model):
+    """同群组一对一聊天消息(WeChat 风格群聊)。
+
+    conversation_id 为会话键 '<小id>-<大id>'(会话双方线性哈希,查询无需 join)。
+    kind 区分「人说话」与「大模型回答」:
+      - user: 人发的消息/提问(from_user_id -> to_user_id)
+      - bot : 大模型基于被@人资料自动起草的回答(from=被@人 to=提问者)
+    source 细分来源:
+      - chat : 普通聊天
+      - ask  : @提问(触发大模型代答,reply_to_id 指向其 ask 消息以便重新回答)
+      - reply: 引用回复(quote,reply_to_id 指向被引用消息)
+    """
+    __tablename__ = 'chat_message'
+    __table_args__ = (
+        db.Index('ix_chat_conv_time', 'conversation_id', 'created_at'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(db.String(40), nullable=False, index=True)
+    from_user_id = db.Column(db.Integer, db.ForeignKey('user.id'),
+                             nullable=False, index=True)
+    to_user_id = db.Column(db.Integer, db.ForeignKey('user.id'),
+                           nullable=False, index=True)
+    kind = db.Column(db.String(12), nullable=False, default='user')
+    source = db.Column(db.String(12), nullable=False, default='chat')
+    content = db.Column(db.Text, nullable=False)
+    reply_to_id = db.Column(db.Integer, nullable=True, index=True)
+    extra = db.Column(db.Text, nullable=True)
+    is_read = db.Column(db.Boolean, default=False, index=True)
+    created_at = db.Column(db.DateTime, default=cn_now, index=True)
+
+    sender = db.relationship('User', foreign_keys=[from_user_id])
+    receiver = db.relationship('User', foreign_keys=[to_user_id])
+
+
 class OperationLog(db.Model):
     """用户关键操作日志(登录、知识库管理操作等)。"""
     __tablename__ = 'operation_log'

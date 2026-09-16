@@ -99,6 +99,7 @@
     /* 任务卡片 */
     .tl-items{margin-left:16px;padding-left:10px;}
     .tl-card{position:relative;margin-bottom:4px;padding:5px 8px;background:#fff;border:1px solid var(--gray-200);border-radius:8px;cursor:pointer;transition:all .15s;font-size:.82rem;}
+    .tl-card.tl-sel{background:var(--primary-light);border-color:var(--primary);box-shadow:inset 3px 0 0 var(--primary);}
     .tl-card.tl-flash{animation:tlFlash 2.4s ease 1;}
     @keyframes tlFlash{0%,55%{background:rgba(255,183,77,.28);border-color:var(--warning);}100%{background:transparent;border-color:var(--gray-200);}}
     .tl-card:hover{border-color:var(--primary);box-shadow:var(--shadow-sm);}
@@ -1492,8 +1493,9 @@ document.addEventListener('DOMContentLoaded', function () {
       var sec = el.closest('.tl-section');
       if (sec && !sec.classList.contains('open')) { sec.classList.add('open'); if (window._dtlCurEl !== undefined && window._tlfAccordionCur) { /* noop */ } }
       setTimeout(function () {
-        try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { el.scrollIntoView(); }
+        try { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { el.scrollIntoView(); }
         el.classList.add('tl-flash');
+        el.classList.add('tl-sel');
         setTimeout(function () { el.classList.remove('tl-flash'); }, 2600);
       }, 120);
     })();

@@ -711,6 +711,21 @@ def _run_sqlite_migrations():
             c.execute('ALTER TABLE user ADD COLUMN last_login DATETIME')
         if 'last_seen' not in cols:
             c.execute('ALTER TABLE user ADD COLUMN last_seen DATETIME')
+        # 聊天表: 旧部署表可能缺新列, 补列避免 /api/chat/* 500
+        c.execute('PRAGMA table_info(chat_message)')
+        cols = [r[1] for r in c.fetchall()]
+        if cols:
+            for col, ddl in [('source', "VARCHAR(12) NOT NULL DEFAULT 'chat'"),
+                             ('reply_to_id', 'INTEGER'),
+                             ('extra', 'TEXT')]:
+                if col not in cols:
+                    c.execute(f'ALTER TABLE chat_message ADD COLUMN {col} {ddl}')
+            if 'conversation_id' not in cols:
+                c.execute('ALTER TABLE chat_message ADD COLUMN conversation_id VARCHAR(40)')
+            if 'is_read' not in cols:
+                c.execute('ALTER TABLE chat_message ADD COLUMN is_read BOOLEAN DEFAULT 0')
+            c.execute('CREATE INDEX IF NOT EXISTS ix_chat_conv_time '
+                      'ON chat_message(conversation_id, created_at)')
         conn.commit()
         conn.close()
     except Exception as e:
@@ -925,6 +940,7 @@ import routes.tasks_api
 import routes.tasks_pages
 import routes.search
 import routes.notify
+import routes.chat
 
 def _ensure_soft_delete_column():
     """幂等: 为 task 表补 deleted_at 列(SQLite ADD COLUMN 安全)."""

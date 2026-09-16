@@ -144,7 +144,7 @@
       var r = _fabBtn.getBoundingClientRect();
       var vw = window.innerWidth, vh = window.innerHeight;
       var gap = 10;
-      var w = Math.max(280, Math.min(372, vw - 28));
+      var w = Math.min(560, Math.max(280, vw - 28));
       var maxH = Math.min(640, vh - 120);
       var above = r.top - gap - 4;
       var below = vh - r.bottom - gap - 4;
@@ -430,6 +430,553 @@
       });
       return '<div style="white-space:pre-wrap;">' + out + '</div>';
     }
+    /* ---- 微信式会话: 左侧会话列表(小知置顶 + 同组联系人) + 右侧对话窗 + @联想 ---- */
+    var _fabPeerUid = 0;
+    var _fabPeerUser = null;
+    var _fabContacts = [];
+    var _fabQuoteMsg = null;
+    var _fabBotPending = false;
+    var _fabMsgsById = {};
+    function _fabEsc(s) {
+      return window.esc ? window.esc(s) : String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function _fabAva(name) { return (name || '?').trim().charAt(0).toUpperCase(); }
+    function _fabNowHm() { var d = new Date(); function p(n) { return (n < 10 ? '0' : '') + n; } return p(d.getHours()) + ':' + p(d.getMinutes()); }
+    function _fabScroll() { var b = document.getElementById('fabPeerMsgs'); if (b) b.scrollTop = b.scrollHeight; }
+    function _fabInput() {
+      return document.getElementById(_fabPeerUid ? 'fabPeerInput' : 'fabChatInput');
+    }
+    function _fabMentionBox() {
+      return document.getElementById(_fabPeerUid ? 'fabPeerMention' : 'fabMention');
+    }
+    function fabContactsLoad(cb) {
+      fetch('/api/chat/contacts').then(function (r) { return r.json(); }).then(function (d) {
+        _fabContacts = (d && d.contacts) || [];
+        fabSideBuild();
+        _fabRefreshPeerStatus();
+        fabChatUnreadRefresh();
+        if (cb) cb(_fabContacts);
+      }).catch(function () {
+        if (!_fabContacts.length) {
+          var list = document.getElementById('fabSideList');
+          if (list && !list.querySelector('.fab-side-err')) {
+            list.insertAdjacentHTML('afterbegin',
+              '<div class="fab-side-err" style="font-size:.66rem;color:var(--gray-400);padding:10px 8px;">会话加载失败 <a href="javascript:fabContactsLoad(null)" style="color:var(--primary)">重试</a></div>');
+          }
+        }
+        if (cb) cb(_fabContacts);
+      });
+    }
+    function _fabFindContact(fragment) {
+      var fx = String(fragment || '').trim().toLowerCase();
+      if (!fx) return null;
+      var hits = _fabContacts.filter(function (c) { return (c.name || '').toLowerCase().indexOf(fx) === 0 || (c.username || '').toLowerCase().indexOf(fx) === 0; });
+      if (hits.length) return hits[0];
+      return _fabContacts.filter(function (c) { return (c.name || '').indexOf(fragment) >= 0 || (c.username || '').toLowerCase().indexOf(fx) >= 0; })[0] || null;
+    }
+    function _fabRefreshInput() {
+      var bi = document.getElementById('fabChatInput');
+      if (bi) bi.placeholder = '输入消息';
+      var pi = document.getElementById('fabPeerInput');
+      if (pi) pi.placeholder = _fabPeerUser ? ('回复 ' + _fabPeerUser.name) : '输入消息';
+    }
+    /* 左侧会话列表: 搜索框(姓名/用户名搜本系统用户) + 小知置顶 + 联系人 */
+    var _fabSideQuery = '';
+    var _fabSearchTimer = null;
+    var _fabSearchSeq = 0;
+    var _fabSearching = false;
+    var _fabSearchResults = null;
+    function fabSideSearch(ev) {
+      _fabSideQuery = (ev.target.value || '').trim().toLowerCase();
+      clearTimeout(_fabSearchTimer);
+      if (_fabSideQuery) {
+        _fabSearchResults = null;
+        _fabSearching = true;
+        fabSideBuild();
+        _fabSearchTimer = setTimeout(function () { fabSearchFetch(_fabSideQuery); }, 250);
+      } else {
+        _fabSearchResults = null;
+        _fabSearching = false;
+        _fabSearchSeq++;
+        fabSideBuild();
+      }
+    }
+    function _fabSideReset() {
+      _fabSideQuery = '';
+      _fabSearchResults = null;
+      _fabSearching = false;
+      clearTimeout(_fabSearchTimer);
+      var si = document.getElementById('fabSideSearch');
+      if (si) si.value = '';
+      fabSideBuild();
+    }
+    function fabSearchFetch(q) {
+      var seq = ++_fabSearchSeq;
+      fetch('/api/chat/search?q=' + encodeURIComponent(q))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (seq !== _fabSearchSeq || q !== _fabSideQuery) return;
+          _fabSearchResults = (d && d.users) || [];
+          _fabSearching = false;
+          fabSideBuild();
+        }).catch(function () {
+          if (seq !== _fabSearchSeq) return;
+          _fabSearchResults = _fabContacts.filter(function (c) {
+            return (c.name || '').toLowerCase().indexOf(q) >= 0 || (c.username || '').toLowerCase().indexOf(q) >= 0;
+          });
+          _fabSearching = false;
+          fabSideBuild();
+        });
+    }
+    function fabSideBuild() {
+      var list = document.getElementById('fabSideList');
+      if (!list) return;
+      var activeUid = _fabPeerUid || 0;
+      var q = _fabSideQuery;
+      var rows = '';
+      if (!q) {
+        rows += '<div class="fab-side-item' + (activeUid === 0 ? ' active' : '') + '" data-sid="0" onclick="fabSelectAssist()">' +
+          '<div class="fab-pc-avatar fab-side-bear">🐻</div>' +
+          '<div class="fab-pc-main"><div class="fab-pc-name">小知</div></div>' +
+          (activeUid === 0 ? '<span class="fab-side-dot"></span>' : '') +
+          '</div>';
+      }
+      var contacts = [];
+      var searching = false;
+      if (q) {
+        if (_fabSearching) {
+          searching = true;
+          rows += '<div style="font-size:.66rem;color:var(--gray-400);padding:10px 8px;">搜索中…</div>';
+        } else if (_fabSearchResults) {
+          contacts = _fabSearchResults.map(function (u) {
+            var cx = _fabContacts.filter(function (c) { return c.id === u.id; })[0];
+            return cx || u;
+          });
+        } else {
+          contacts = _fabContacts.filter(function (c) {
+            return (c.name || '').toLowerCase().indexOf(q) >= 0 || (c.username || '').toLowerCase().indexOf(q) >= 0;
+          });
+        }
+      } else {
+        contacts = _fabContacts.filter(function (c) { return !!c.last_ts; });
+      }
+      rows += (contacts || []).map(function (c) {
+        var row = '<div class="fab-side-item' + (activeUid === c.id ? ' active' : '') + '" data-sid="' + c.id + '" onclick="fabSelect(' + c.id + ')">';
+        row += '<div class="fab-pc-avatar">' + _fabEsc(_fabAva(c.name)) + '</div>';
+      row += '<div class="fab-pc-main">';
+      row += '<div class="fab-pc-name"><span class="fab-pc-name-txt">' + _fabEsc(c.name) + '</span>' + (c.hint ? ' <span class="fab-chip-hot">' + _fabEsc(c.hint) + '</span>' : '') + (c.hot ? ' <span class="fab-chip-hot">常问</span>' : '') + '</div>';
+      if (c.last_preview) row += '<div class="fab-pc-preview">' + _fabEsc(c.last_preview) + '</div>';
+      row += '</div>';
+      row += '<div class="fab-pc-side">';
+      if (c.last_ts) row += '<div class="fab-pc-time">' + _fabEsc(String(c.last_ts).slice(5, 16)) + '</div>';
+      if (c.unread) row += '<span class="fab-pc-unread">' + c.unread + '</span>';
+      row += '</div></div>';
+      return row;
+      }).join('');
+      if (q && !searching && !(contacts && contacts.length)) {
+        rows += '<div style="font-size:.66rem;color:var(--gray-400);padding:10px 8px;">未找到联系人</div>';
+      }
+      list.innerHTML = rows;
+    }
+    function _fabSideActive(uid) {
+      var list = document.getElementById('fabSideList');
+      if (!list) return;
+      Array.prototype.forEach.call(list.querySelectorAll('.fab-side-item'), function (n) {
+        n.classList.toggle('active', String(n.getAttribute('data-sid')) === String(uid || 0));
+      });
+    }
+    /* 左侧选会话 */
+    function fabPeerDelById(peerId) {
+      if (!peerId) return;
+      var c = _fabContacts.filter(function (x) { return x.id === peerId; })[0] || null;
+      if (!(c && c.last_ts)) return;
+      if (!confirm('删除与「' + (c.name || c.username || '') + '」的会话？会话记录将被清空。')) return;
+      _fabPeerDelDo(peerId);
+    }
+    function fabPeerDelete() {
+      if (!_fabPeerUid) return;
+      var p = _fabPeerUser || {};
+      if (!confirm('删除与「' + (p.name || p.username || '') + '」的会话？会话记录将被清空。')) return;
+      _fabPeerDelDo(_fabPeerUid);
+    }
+    function _fabPeerDelDo(peerId) {
+      if (!peerId) return;
+      var prevFancy = fabMentionIsOpen();
+      fetch('/api/chat/conversation/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ peer_id: peerId }) })
+        .then(function (r) { return r.json(); }).then(function (d) {
+          if (!(d && d.ok)) { _fabAppendMsg({ kind: 'bot', is_mine: false, content: '⚠ 删除失败：' + ((d && d.error) || '未知错误'), bad: true, time_hm: _fabNowHm() }); return; }
+
+          if (_fabPeerUid === peerId) {
+            _fabPeerUid = 0;
+            _fabPeerUser = null;
+            fabPeerQuoteClear();
+          }
+          if (_fabSideSearch) factorySetId('fabSearch', null);
+          fabSideBuild();
+          fabSideReset();
+          fabPeerMsgEmpty();
+          _fabRefreshPeerStatus();
+          fabChatUnreadRefresh();
+        }).catch(function () {
+          _fabAppendMsg({ kind: 'bot', is_mine: false, content: '⚠ 网络异常，删除失败。', bad: true, time_hm: _fabNowHm() });
+        });
+    }
+    function fabSelectAssist() {
+      _fabPeerUid = 0;
+      _fabPeerUser = null;
+      fabPeerQuoteClear();
+      var peer = document.getElementById('fabPeer');
+      var chat = document.getElementById('fabChatBox');
+      var cc = document.getElementById('fabChatCompose');
+      if (peer) peer.style.display = 'none';
+      if (chat) chat.style.display = '';
+      if (cc) cc.style.display = '';
+      if (qr) qr.style.display = '';
+      _fabRefreshInput();
+      fabMentionHide();
+      _fabSideReset();
+      positionFabSheet();
+      var inp = document.getElementById('fabChatInput');
+      if (inp) inp.focus();
+    }
+    function fabSelect(uid) {
+      if (_fabBotPending || !uid) return;
+      var _ff = document.getElementById('quickFab');
+      if (_ff && !_ff.classList.contains('open')) _ff.classList.add('open');
+      _fabPeerUid = uid;
+      var c = _fabContacts.filter(function (x) { return x.id === uid; })[0] || null;
+      if (c) _fabPeerUser = { id: c.id, name: c.name, username: c.username };
+      var peer = document.getElementById('fabPeer');
+      var chat = document.getElementById('fabChatBox');
+      var cc = document.getElementById('fabChatCompose');
+      var msgs = document.getElementById('fabPeerMsgs');
+      if (chat) chat.style.display = 'none';
+      if (cc) cc.style.display = 'none';
+      if (peer) peer.style.display = '';
+      if (msgs) msgs.innerHTML = '<div class="fab-chat-empty">加载中…</div>';
+      _fabRefreshPeerStatus();
+      var askBtn = document.getElementById('fabPeerAskBtn');
+      if (askBtn) askBtn.style.display = '';
+      var delBtn = document.getElementById('fabPeerDelBtn');
+      if (delBtn) delBtn.style.display = '';
+      var headDel = document.getElementById('fabPeerHeadDel') || document.getElementById('fabPeerStatusWrap');
+      if (headDel) headDel.style.display = '';
+      _fabRefreshInput();
+      fabMentionHide();
+      _fabSideReset();
+      positionFabSheet();
+      fetch('/api/chat/with/' + uid).then(function (r) { return r.json(); }).then(function (d) {
+        if (!(d && d.ok)) { if (msgs) msgs.innerHTML = '<div class="fab-chat-empty">' + _fabEsc((d && d.error) || '加载失败') + '</div>'; return; }
+        if (d.peer) {
+          _fabPeerUser = { id: d.peer.id, name: d.peer.name, username: d.peer.username };
+          _fabRefreshPeerStatus();
+          _fabRefreshInput();
+        }
+        _fabRenderMsgs(d.messages || []);
+        fabChatUnreadRefresh();
+        var pinput = document.getElementById('fabPeerInput');
+        if (pinput) pinput.focus();
+      }).catch(function () { if (msgs) msgs.innerHTML = '<div class="fab-chat-empty">加载失败，请重试</div>'; });
+    }
+    function _fabRefreshPeerStatus() {
+      var el = document.getElementById('fabPeerStatus');
+      if (!el || !_fabPeerUid) return;
+      var c = _fabContacts.filter(function (x) { return x.id === _fabPeerUid; })[0];
+      var online = c ? !!c.online : null;
+      if (online === null) return;
+      el.className = 'fab-peer-status' + (online ? ' on' : '');
+      el.innerHTML = '<span class="fab-status-dot"></span>' + (online ? '在线' : '离线');
+    }
+    function _fabStoreMsg(m) {
+      if (m && m.id) _fabMsgsById[m.id] = m;
+      else if (m) { _fabMsgsById._tmp = m; }
+    }
+    function _fabMsgHtml(m) {
+      var mine = !!m.is_mine;
+      var isBot = m.kind === 'bot';
+      var cls = isBot ? 'fab-msg-bot' : (mine ? 'fab-msg-mine' : 'fab-msg-theirs');
+      var tid = String(m.threadId || m.reply_to_id || m.id || 0);
+      var html = '<div class="fab-msg ' + cls + (m.bad ? ' fab-msg-bot' : '') + (m.pending ? ' fab-msg-ask-pending' : '') + '" data-id="' + m.id + '" data-bot="' + (isBot ? '1' : '0') + '" data-loading="' + (m.loading ? '1' : '') + '" data-thread="' + tid + '">';
+      html += '<div class="fab-msg-row">';
+      if (!mine && !isBot) html += '<div class="fab-msg-ava">' + _fabEsc(_fabAva(_fabPeerUser ? _fabPeerUser.name : '?')) + '</div>';
+      html += '<div style="flex:1;min-width:0;display:flex;flex-direction:column;' + (mine ? 'align-items:flex-end' : 'align-items:flex-start') + '">';
+      if (isBot) html += '<span class="fab-msg-ai-tag">🤖 AI 代答</span>';
+      html += '<div class="fab-msg-bubble">';
+      if (m.loading) html += '<div class="fab-chat-loading">梳理资料中…</div>';
+      else {
+        if (m.reply_content) html += '<div class="fab-msg-quote">' + _fabEsc(m.reply_content) + '</div>';
+        if (!mine && isBot && (m.links && m.links.length)) html += _fabBotAnswer(m);
+        else html += '<div style="white-space:pre-wrap;">' + _fabEsc(m.content || '') + '</div>';
+      }
+      html += '</div></div></div>';
+      html += '<div class="fab-msg-actions">';
+      if (!m.loading && !m.bad) html += '<button class="fab-msg-act" onclick="fabPeerQuote(' + m.id + ')">引用</button>';
+      if (!m.loading && !m.bad && (m.source === 'ask' || m.kind === 'bot')) html += '<button class="fab-msg-act" onclick="fabPeerReanswer(' + m.id + ')">🤖 重新回答</button>';
+      html += '</div>';
+      html += '<div class="fab-msg-time">' + _fabEsc(m.time_hm || _fabNowHm()) + '</div>';
+      html += '</div>';
+      return html;
+    }
+    function _fabBotAnswer(m) {
+      var hrefs = (m.links || []).map(function (l) { return l.href || '#'; });
+      var safe = _fabEsc(m.content || '');
+      var out = safe.replace(/\[资料\s*(\d+)\]/g, function (mm, n) {
+        var h = hrefs[parseInt(n, 10) - 1];
+        return h ? '<a class="fab-chat-ref" target="_blank" rel="noopener" href="' + _fabEsc(h) + '">' + mm + '</a>' : mm;
+      });
+      return '<div style="white-space:pre-wrap;">' + out + '</div>';
+    }
+    function _fabRenderMsgs(msgs) {
+      var boxm = document.getElementById('fabPeerMsgs');
+      if (!boxm) return;
+      if (!msgs.length) { boxm.innerHTML = '<div class="fab-chat-empty">开始新的对话</div>'; return; }
+      _fabMsgsById = {};
+      msgs.forEach(_fabStoreMsg);
+      boxm.innerHTML = msgs.map(_fabMsgHtml).join('');
+      _fabScroll();
+    }
+    function _fabAppendMsg(m) {
+      var boxm = document.getElementById('fabPeerMsgs');
+      if (!boxm) return;
+      if (m.id) _fabStoreMsg(m);
+      boxm.insertAdjacentHTML('beforeend', _fabMsgHtml(m));
+      _fabScroll();
+    }
+    function _fabRemoveLoading() {
+      var boxm = document.getElementById('fabPeerMsgs');
+      if (!boxm) return;
+      var n = boxm.querySelector('[data-loading="1"]');
+      if (n) n.remove();
+    }
+    function _fabPeerDoAsk(question, replyTo) {
+      if (_fabBotPending || !_fabPeerUid) return;
+      var boxm = document.getElementById('fabPeerMsgs');
+      _fabAppendMsg({ kind: 'user', is_mine: true, pending: true, source: 'ask', content: question, reply_content: replyTo ? replyTo.content : '', time_hm: _fabNowHm(), reply_to_id: replyTo ? replyTo.id : null });
+      _fabAppendMsg({ kind: 'bot', is_mine: false, loading: true, time_hm: _fabNowHm() });
+      _fabBotPending = true;
+      var body = { to_user_id: _fabPeerUid, question: question };
+      if (replyTo) body.reply_to_id = replyTo.id;
+      fetch('/api/chat/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        .then(function (r) { return r.json(); }).then(function (d) {
+          _fabRemoveLoading();
+          if (d && d.ok) {
+            var pendEl = boxm.querySelector('.fab-msg-ask-pending');
+            if (pendEl && d.ask && d.ask.id) {
+              pendEl.setAttribute('data-id', d.ask.id);
+              pendEl.classList.remove('fab-msg-ask-pending');
+              _fabMsgsById[d.ask.id] = d.ask;
+            }
+            var nb = d.bot || {};
+            nb.links = (d.links || nb.links || []).map(function (l) { return { href: l.href || l }; });
+            nb.threadId = d.ask && d.ask.id;
+            nb.reply_content = (nb.reply_content || '') || question;
+            _fabAppendMsg(nb);
+          } else {
+            var hint = (d && d.error) || '代答失败';
+            _fabAppendMsg({ kind: 'bot', is_mine: false, content: '⚠ ' + hint, bad: true, time_hm: _fabNowHm() });
+          }
+          _fabBotPending = false;
+          fabContactsLoad(null);
+        }).catch(function () {
+          _fabRemoveLoading();
+          _fabAppendMsg({ kind: 'bot', is_mine: false, content: '⚠ 网络异常，代答失败。', bad: true, time_hm: _fabNowHm() });
+          _fabBotPending = false;
+          fabContactsLoad(null);
+        });
+    }
+    function fabPeerDoAsk(question, replyTo) { _fabPeerDoAsk(question, replyTo); }
+    function _fabSendMsg(text, quote) {
+      if (_fabBotPending || !_fabPeerUid) return;
+      var boxm = document.getElementById('fabPeerMsgs');
+      _fabAppendMsg({ kind: 'user', is_mine: true, pending: true, source: quote ? 'reply' : 'chat', content: text, reply_content: quote ? quote.content : '', reply_to_id: quote ? quote.id : null, time_hm: _fabNowHm() });
+      _fabBotPending = true;
+      var body = { to_user_id: _fabPeerUid, content: text };
+      if (quote) body.reply_to_id = quote.id;
+      fetch('/api/chat/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        .then(function (r) { return r.json(); }).then(function (d) {
+          _fabBotPending = false;
+          if (!(d && d.ok)) {
+            _fabAppendMsg({ kind: 'bot', is_mine: false, content: '⚠ ' + ((d && d.error) || '发送失败'), bad: true, time_hm: _fabNowHm() });
+            fabContactsLoad(null);
+            return;
+          }
+          var pendEl = boxm.querySelector('.fab-msg-ask-pending');
+          if (pendEl && d.message && d.message.id) {
+            pendEl.setAttribute('data-id', d.message.id);
+            pendEl.classList.remove('fab-msg-ask-pending');
+            _fabMsgsById[d.message.id] = d.message;
+          }
+          if (d.bot) {
+            var nb = d.bot;
+            nb.links = (d.links || nb.links || []).map(function (l) { return { href: l.href || l }; });
+            nb.threadId = d.message && d.message.id;
+            nb.reply_content = (nb.reply_content || '') || text;
+            _fabAppendMsg(nb);
+          }
+          fabContactsLoad(null);
+        }).catch(function () {
+          _fabBotPending = false;
+          _fabAppendMsg({ kind: 'bot', is_mine: false, content: '⚠ 网络异常，发送失败。', bad: true, time_hm: _fabNowHm() });
+          fabContactsLoad(null);
+        });
+    }
+    function fabPeerSend() {
+      var input = document.getElementById('fabPeerInput');
+      var text = input.value.trim();
+      if (!text || fabMentionIsOpen()) return;
+      input.value = '';
+      var quote = _fabQuoteMsg;
+      fabPeerQuoteClear();
+      if (!_fabPeerUid) { fabMentionScan(); return; }
+      _fabSendMsg(text, quote);
+    }
+    function fabPeerAskCurrent() {
+      var input = document.getElementById('fabPeerInput');
+      var text = input.value.trim();
+      if (!text || !_fabPeerUid) return;
+      input.value = '';
+      var quote = _fabQuoteMsg;
+      fabPeerQuoteClear();
+      _fabPeerDoAsk(text, quote);
+    }
+    function fabPeerReanswer(msgId) {
+      if (_fabBotPending) return;
+      var tgt = _fabMsgsById[msgId] || null;
+      var threadId = (tgt && tgt.kind === 'bot') ? (tgt.reply_to_id || msgId) : msgId;
+      _fabAppendMsg({ kind: 'bot', is_mine: false, loading: true, threadId: threadId, time_hm: _fabNowHm() });
+      _fabBotPending = true;
+      var body = { message_id: msgId };
+      fetch('/api/chat/reanswer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        .then(function (r) { return r.json(); }).then(function (d) {
+          _fabRemoveLoading();
+          if (d && d.ok) {
+            var boxm = document.getElementById('fabPeerMsgs');
+            if (boxm) boxm.querySelectorAll('[data-bot="1"][data-thread="' + threadId + '"]').forEach(function (n) { if (!n.getAttribute('data-loading')) n.remove(); });
+            var nb = d.bot || {};
+            nb.links = nb.links || (d.links || []).map(function (l) { return { href: l.href || l }; });
+            nb.threadId = threadId;
+            _fabAppendMsg(nb);
+          } else {
+            _fabAppendMsg({ kind: 'bot', is_mine: false, content: '⚠ 重新回答失败：' + ((d && d.error) || ''), bad: true, time_hm: _fabNowHm() });
+          }
+          _fabBotPending = false;
+        }).catch(function () {
+          _fabRemoveLoading();
+          _fabAppendMsg({ kind: 'bot', is_mine: false, content: '⚠ 网络异常，重新回答失败。', bad: true, time_hm: _fabNowHm() });
+          _fabBotPending = false;
+        });
+    }
+    function fabPeerQuote(id) {
+      var m = _fabMsgsById[id];
+      if (!m || m.loading) return;
+      if (_fabQuoteMsg && _fabQuoteMsg.id === id) { fabPeerQuoteClear(); return; }
+      _fabQuoteMsg = { id: id, content: String(m.content || '').slice(0, 120), kind: m.kind };
+      var bar = document.getElementById('fabQuoteBar');
+      if (bar) {
+        document.getElementById('fabQuoteTxt').textContent = (m.kind === 'bot' ? '🤖 ' : '') + _fabQuoteMsg.content;
+        bar.classList.remove('d-none');
+      }
+      var inp = document.getElementById('fabPeerInput');
+      if (inp) inp.focus();
+    }
+    function fabPeerQuoteClear() {
+      _fabQuoteMsg = null;
+      var bar = document.getElementById('fabQuoteBar');
+      if (bar) bar.classList.add('d-none');
+    }
+    /* ---- @联想下拉 ---- */
+    function fabMentionScan() {
+      var inp = _fabInput();
+      var val = inp.value;
+      var mt = val.match(/(?:^|\s)@([\u4e00-\u9fa5A-Za-z0-9_]*)!?$/);
+      if (!mt) { fabMentionHide(); return; }
+      var prefix = mt[1].toLowerCase();
+      var list = _fabContacts.filter(function (c) { return !prefix || (c.name || '').toLowerCase().indexOf(prefix) === 0 || (c.username || '').toLowerCase().indexOf(prefix) === 0; });
+      list.sort(function (a, b) { return (b.hot ? 1 : 0) - (a.hot ? 1 : 0) || (b.unread ? 1 : 0) - (a.unread ? 1 : 0); });
+      list = list.slice(0, 12);
+      var box = _fabMentionBox();
+      if (!box) return;
+      if (!list.length) { fabMentionHide(); return; }
+      box.innerHTML = list.map(function (c, i) {
+        return '<div class="fab-mention-item" data-id="' + c.id + '" data-i="' + i + '" onclick="fabMentionPick(' + c.id + ')">' +
+          '<div class="fab-pc-avatar">' + _fabEsc(_fabAva(c.name)) + '</div>' +
+          '<span class="fab-mention-name">' + _fabEsc(c.name) + '</span>' +
+          (c.hot ? '<span class="fab-mention-hot">常问</span>' : '') +
+          '</div>';
+      }).join('');
+      box.style.display = '';
+      _fabMentionIdx = -1;
+      _fabMentionHighlight();
+    }
+    var _fabMentionIdx = -1;
+    function _fabMentionHighlight() {
+      var box = _fabMentionBox();
+      if (!box) return;
+      Array.prototype.forEach.call(box.querySelectorAll('.fab-mention-item'), function (n) {
+        n.style.background = (n.getAttribute('data-i') === String(_fabMentionIdx)) ? 'var(--gray-100)' : '';
+      });
+    }
+    function fabMentionPick(uid) {
+      var contact = _fabContacts.filter(function (x) { return x.id === uid; })[0] || null;
+      if (contact) _fabPeerUser = { id: contact.id, name: contact.name, username: contact.username };
+      var fromBear = !_fabPeerUid;
+      if (fromBear) { var bi = document.getElementById('fabChatInput'); if (bi) bi.value = ''; }
+      fabSelect(uid);
+      fabMentionHide();
+    }
+    function fabMentionHide() {
+      var box = _fabMentionBox();
+      if (box) box.style.display = 'none';
+    }
+    function fabMentionIsOpen() { var box = _fabMentionBox(); return box && box.style.display !== 'none'; }
+    function fabMentionCycle(dy) {
+      var box = _fabMentionBox();
+      if (!box || box.style.display === 'none') return false;
+      var items = box.querySelectorAll('.fab-mention-item');
+      if (!items.length) return true;
+      _fabMentionIdx = (_fabMentionIdx + dy + items.length) % items.length;
+      _fabMentionHighlight();
+      var it = items[_fabMentionIdx];
+      if (it) it.scrollIntoView({ block: 'nearest' });
+      return true;
+    }
+    /* ---- 发送/快捷键/未读角标 ---- */
+    function fabSend() {
+      if (_fabPeerUid) { fabPeerSend(); return; }
+      fabAsk();
+    }
+    function fabKeydown(e) {
+      if (e.key === 'Enter') {
+        if (fabMentionIsOpen()) {
+          var box = _fabMentionBox();
+          var it = box.querySelector('[data-i="' + _fabMentionIdx + '"]');
+          if (it) { fabMentionPick(parseInt(it.getAttribute('data-id'), 10)); }
+          e.preventDefault(); return false;
+        }
+        e.preventDefault();
+        fabSend();
+        return false;
+      }
+      if (e.key === 'ArrowDown') { if (fabMentionCycle(1)) { e.preventDefault(); } return; }
+      if (e.key === 'ArrowUp') { if (fabMentionCycle(-1)) { e.preventDefault(); } return; }
+      if (e.key === 'Escape') { fabMentionHide(); fabPeerQuoteClear(); }
+      return true;
+    }
+    function fabChatUnreadRefresh() {
+      fetch('/api/chat/unread').then(function (r) { return r.json(); }).then(function (d) {
+        var n = (d && d.count) || 0;
+        var b = document.getElementById('fabUnreadBadge');
+        if (b) { b.textContent = n > 99 ? '99+' : n; b.classList.toggle('d-none', !(n > 0)); }
+      }).catch(function () {});
+    }
+    (function () {
+      fabChatUnreadRefresh();
+      setInterval(function () { fabContactsLoad(null); }, 20000);
+      var bi = document.getElementById('fabChatInput');
+      if (bi) bi.addEventListener('input', fabMentionScan);
+      var pi = document.getElementById('fabPeerInput');
+      if (pi) pi.addEventListener('input', fabMentionScan);
+    })();
     function fabAsk() {
       var box = document.getElementById('fabChatBox');
       var input = document.getElementById('fabChatInput');
@@ -439,6 +986,17 @@
       var forceLlm = /^@llm/i.test(raw);
       var q = raw.replace(/^@llm/i, '').trim();
       if (!q) return;
+      var mAt = q.match(/^@([\u4e00-\u9fa5A-Za-z0-9_]+)(?:\s+(.*))?$/);
+      if (mAt) {
+        fabMentionHide();
+        var cAt = _fabFindContact(mAt[1]);
+        if (cAt) {
+          input.value = '';
+          fabSelect(cAt.id);
+          if (mAt[2] && mAt[2].trim()) fabPeerDoAsk(mAt[2].trim(), null);
+          return;
+        }
+      }
       input.value = '';
       var empty = document.getElementById('fabChatEmpty');
       if (empty) empty.style.display = 'none';
@@ -448,7 +1006,7 @@
       turn.className = 'fab-turn';
       box.appendChild(turn);
       fabChatBubble(turn, 'user', '<div style="white-space:pre-wrap;">' + escFn(raw) + '</div>');
-      var loading = fabChatBubble(turn, 'avatar fab-chat-loading', forceLlm ? '正在调用大模型…' : '小熊检索中…');
+      var loading = fabChatBubble(turn, 'avatar fab-chat-loading', forceLlm ? '正在调用大模型…' : '小知检索中…');
       function renderSources(sources) {
         (sources || []).slice(0, 3).forEach(function (s) {
           var d = document.createElement('a');
@@ -466,7 +1024,7 @@
             loading.remove();
             var kb = (d && d.kb) || [], tasks = (d && d.tasks) || [], notes = (d && d.notes) || [];
             if (!kb.length && !tasks.length && !notes.length) {
-              fabChatBubble(turn, 'avatar', '全站检索（知识库 · 待办 · 随手记）没有找到相关结果，换个问法试试？');
+              fabChatBubble(turn, 'avatar', '没有找到相关结果，换个问法试试？');
               fabChatCommit();
               return;
             }
@@ -611,10 +1169,14 @@
     if (_fab && _fabBtn) {
       (function () {
         var fab = _fab, btn = _fabBtn;
+        var sh = document.getElementById('fabSheet');
+        if (sh) sh.addEventListener('click', function (e) { e.stopPropagation(); });
         function openFabDialog() {
           fab.classList.add('open');
           btn.setAttribute('aria-expanded', 'true');
           positionFabSheet();
+          if (!_fabContacts.length) fabContactsLoad(null);
+          fabChatUnreadRefresh();
         }
         function handleToggle() {
           if (fab.classList.contains('d-none')) return;

@@ -711,31 +711,35 @@
       if (m && m.id) _fabMsgsById[m.id] = m;
       else if (m) { _fabMsgsById._tmp = m; }
     }
+    var _nlSeq = 0;
+    function _nlNid() { return --_nlSeq; }
     function _fabMsgHtml(m) {
       var mine = !!m.is_mine;
       var isBot = m.kind === 'bot';
+      var nl = !!m.nl;
       var cls = isBot ? 'fab-msg-bot' : (mine ? 'fab-msg-mine' : 'fab-msg-theirs');
       var tid = String(m.threadId || m.reply_to_id || m.id || 0);
-      var html = '<div class="fab-msg ' + cls + (m.bad ? ' fab-msg-bot' : '') + (m.pending ? ' fab-msg-ask-pending' : '') + '" data-id="' + m.id + '" data-bot="' + (isBot ? '1' : '0') + '" data-loading="' + (m.loading ? '1' : '') + '" data-thread="' + tid + '">';
+      var hrefsJson = m.links && m.links.length ? _fabEsc(JSON.stringify(m.links.map(function (l) { return (l && l.href) || l; }))) : '';
+      var html = '<div class="fab-msg ' + cls + (m.bad ? ' fab-msg-bot' : '') + (m.pending ? ' fab-msg-ask-pending' : '') + '" data-id="' + m.id + '" data-nl="' + (nl ? '1' : '') + '" data-bot="' + (isBot ? '1' : '0') + '" data-loading="' + (m.loading ? '1' : '') + '" data-thread="' + tid + '"' + (nl && m.content ? ' data-txt="' + _fabEsc(String(m.content).slice(0, 4000)) + '"' : '') + (hrefsJson ? ' data-hrefs="' + hrefsJson + '"' : '') + (nl && m.content ? ' data-c="' + _fabEsc(String(m.content).trim().slice(0, 120)) + '"' : '') + (nl && m.question ? ' data-q="' + _fabEsc(String(m.question).slice(0, 1000)) + '"' : '') + '>';
       html += '<div class="fab-msg-row">';
-      if (!mine && !isBot) html += '<div class="fab-msg-ava">' + _fabEsc(_fabAva(_fabPeerUser ? _fabPeerUser.name : '?')) + '</div>';
+      if (!mine && !isBot) html += '<div class="fab-msg-ava">' + _fabEsc(_fabAva(_fabPeerUser ? _fabPeerUser.name : (nl ? '小知' : '?'))) + '</div>';
       html += '<div style="flex:1;min-width:0;display:flex;flex-direction:column;' + (mine ? 'align-items:flex-end' : 'align-items:flex-start') + '">';
-      if (isBot) html += '<span class="fab-msg-ai-tag">🤖 AI 代答</span>';
+      if (isBot) html += '<span class="fab-msg-ai-tag">' + (nl ? '🤖 小知' : '🤖 AI 代答') + '</span>';
       html += '<div class="fab-msg-bubble">';
-      if (m.loading) html += '<div class="fab-chat-loading">梳理资料中…</div>';
+      if (m.loading) html += '<div class="fab-chat-loading">检索资料中…</div>';
       else {
         if (m.reply_content) html += '<div class="fab-msg-quote">' + _fabEsc(m.reply_content) + '</div>';
         html += '<div class="fab-msg-content">';
         if (!mine && isBot && (m.links && m.links.length)) html += _fabBotAnswer(m);
         else html += '<div style="white-space:pre-wrap;">' + _fabEsc(m.content || '') + '</div>';
         html += '</div>';
+        html += '<div class="fab-msg-actions">';
+        if (!m.loading && !m.bad) html += '<button class="fab-msg-act" onclick="' + (nl ? 'fabNlQuote' : 'fabPeerQuote') + '(' + m.id + ')">引用</button>';
+        if (!m.loading && !m.bad && (m.source === 'ask' || m.kind === 'bot')) html += '<button class="fab-msg-act" onclick="' + (nl ? 'fabNlReanswer' : 'fabPeerReanswer') + '(' + m.id + ')">🤖 重新回答</button>';
+        if (!m.loading && !m.bad && isBot && (m.content || '')) html += '<button class="fab-msg-act fab-tidy-chip" onclick="fabAskTidy(this)" data-id="' + m.id + '" data-txt="' + _fabEsc(String(m.content).slice(0, 4000)) + '" data-hrefs="' + hrefsJson + '">✨ LLM 整理</button>';
+        html += '</div>';
       }
       html += '</div></div></div>';
-      html += '<div class="fab-msg-actions">';
-      if (!m.loading && !m.bad) html += '<button class="fab-msg-act" onclick="fabPeerQuote(' + m.id + ')">引用</button>';
-      if (!m.loading && !m.bad && (m.source === 'ask' || m.kind === 'bot')) html += '<button class="fab-msg-act" onclick="fabPeerReanswer(' + m.id + ')">🤖 重新回答</button>';
-      if (!m.loading && !m.bad && isBot && (m.content || '')) html += '<button class="fab-msg-act fab-tidy-chip" onclick="fabAskTidy(this)" data-id="' + m.id + '">✨ LLM 整理</button>';
-      html += '</div>';
       html += '<div class="fab-msg-time">' + _fabEsc(m.time_hm || _fabNowHm()) + '</div>';
       html += '</div>';
       return html;
@@ -889,23 +893,117 @@
           _fabBotPending = false;
         });
     }
-    function fabPeerQuote(id) {
-      var m = _fabMsgsById[id];
-      if (!m || m.loading) return;
-      if (_fabQuoteMsg && _fabQuoteMsg.id === id) { fabPeerQuoteClear(); return; }
-      _fabQuoteMsg = { id: id, content: String(m.content || '').slice(0, 120), kind: m.kind };
+    function _fabSetQuoteFromData(id, m) {
+      m = m || _fabMsgsById[id] || null;
+      if (!m || m.loading || m.bad) return;
+      var content = String(m.content || '').trim();
+      if (!content) return;
+      if (_fabQuoteMsg && String(_fabQuoteMsg.id) === String(id)) { fabPeerQuoteClear(); return; }
+      _fabQuoteMsg = { id: id, content: content.slice(0, 120), kind: m.kind };
       var bar = document.getElementById('fabQuoteBar');
       if (bar) {
         document.getElementById('fabQuoteTxt').textContent = (m.kind === 'bot' ? '🤖 ' : '') + _fabQuoteMsg.content;
         bar.classList.remove('d-none');
       }
+    }
+    function fabPeerQuote(id) {
+      _fabSetQuoteFromData(id, null);
       var inp = document.getElementById('fabPeerInput');
+      if (inp) inp.focus();
+    }
+    function fabNlQuote(id) {
+      var box = document.getElementById('fabChatBox');
+      var m = _fabMsgsById[id] || null;
+      if ((!m || !m.content) && box) {
+        var el = box.querySelector('.fab-msg[data-id="' + id + '"]');
+        if (el) {
+          var ca = el.getAttribute('data-c');
+          if (ca !== null && ca !== '') m = { content: ca, kind: el.getAttribute('data-bot') === '1' ? 'bot' : 'user' };
+        }
+      }
+      _fabSetQuoteFromData(id, m);
+      var inp = document.getElementById('fabChatInput');
       if (inp) inp.focus();
     }
     function fabPeerQuoteClear() {
       _fabQuoteMsg = null;
       var bar = document.getElementById('fabQuoteBar');
       if (bar) bar.classList.add('d-none');
+    }
+    function _fabNlTurn() {
+      var box = document.getElementById('fabChatBox');
+      var turns = box ? box.querySelectorAll('.fab-turn') : null;
+      var turn = turns ? turns[turns.length - 1] : null;
+      return turn || fabChatAddTurn();
+    }
+    function _fabNlAppend(m) {
+      var turn = _fabNlTurn();
+      if (m.id != null) _fabStoreMsg(m);
+      var wrap = document.createElement('div');
+      wrap.innerHTML = _fabMsgHtml(m);
+      var node = wrap.firstElementChild;
+      if (node) turn.appendChild(node);
+      var box = document.getElementById('fabChatBox');
+      if (box) box.scrollTop = box.scrollHeight;
+      return node;
+    }
+    function _fabNlRemoveLoading() {
+      var box = document.getElementById('fabChatBox');
+      if (!box) return;
+      var n = box.querySelector('[data-loading="1"]');
+      if (n) n.remove();
+    }
+    function _fabNlBotMsg(d, askId) {
+      var links = (d.links || []).map(function (l) {
+        if (typeof l === 'string') return { href: l, tag: '' };
+        return { href: (l && l.href) || '#', title: (l && l.title) || '', tag: (l && l.tag) || '' };
+      });
+      return { id: _nlNid(), kind: 'bot', is_mine: false, source: 'intent', content: d.content || '', links: links, rows: d.rows || [], threadId: askId, nl: true, time_hm: _fabNowHm() };
+    }
+    function _fabNlAppendNlBot(d, askId) { _fabNlAppend(_fabNlBotMsg(d, askId)); }
+    function fabNlReanswer(msgId) {
+      if (_fabBotPending) return;
+      var box = document.getElementById('fabChatBox');
+      if (!box) return;
+      var tgt = _fabMsgsById[msgId] || null;
+      var el = box.querySelector('.fab-msg[data-id="' + msgId + '"]');
+      var askId = msgId;
+      if (el) {
+        var ta = el.getAttribute('data-thread');
+        if (ta && ta !== '0') askId = ta;
+      }
+      var askEl = box.querySelector('.fab-msg[data-id="' + askId + '"]') || el;
+      var question = '';
+      var qAttr = askEl ? askEl.getAttribute('data-q') : null;
+      if (qAttr !== null && qAttr !== '') question = qAttr;
+      else if (tgt && tgt.kind === 'bot') {
+        var src = tgt.reply_to_id || tgt.threadId;
+        var sm = src ? _fabMsgsById[src] : null;
+        if (sm) question = sm.content || '';
+      }
+      else if (tgt && tgt.kind === 'user') question = tgt.content || '';
+      question = String(question || '').trim();
+      if (!question) return;
+      _fabNlAppend({ id: _nlNid(), kind: 'bot', is_mine: false, loading: true, threadId: askId, nl: true, time_hm: _fabNowHm() });
+      _fabBotPending = true;
+      var cfg = window.FAB_CONFIG || {};
+      fetch(cfg.nlAsk || '/api/chat/nl', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: question }) })
+        .then(function (r) { return r.json(); }).then(function (d) {
+          _fabNlRemoveLoading();
+          if (d && d.ok) {
+            box.querySelectorAll('[data-nl="1"][data-bot="1"][data-thread="' + askId + '"]').forEach(function (n) { if (!n.getAttribute('data-loading')) n.remove(); });
+            _fabNlAppendNlBot(d, askId);
+          } else {
+            _fabNlAppend({ id: _nlNid(), kind: 'bot', is_mine: false, content: '⚠ ' + ((d && d.error) || '重新回答失败'), bad: true, nl: true, time_hm: _fabNowHm() });
+          }
+          _fabBotPending = false;
+          fabChatCommit();
+        }).catch(function () {
+          _fabNlRemoveLoading();
+          _fabNlAppend({ id: _nlNid(), kind: 'bot', is_mine: false, content: '⚠ 网络异常，重新回答失败。', bad: true, nl: true, time_hm: _fabNowHm() });
+          _fabBotPending = false;
+          fabChatCommit();
+        });
     }
     /* ---- @联想下拉 ---- */
     function fabMentionScan() {
@@ -1104,58 +1202,55 @@
     function fabNlAsk(q, raw) {
       var box = document.getElementById('fabChatBox');
       if (!box) return;
-      var esc = window.esc || function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); };
       var empty = document.getElementById('fabChatEmpty');
       if (empty) empty.style.display = 'none';
       var turn = fabChatAddTurn();
-      fabChatBubble(turn, 'user', '<div style="white-space:pre-wrap;">' + esc(raw || q) + '</div>');
-      var loading = fabChatBubble(turn, 'avatar fab-chat-loading', '小知检索中…');
+      var askId = _nlNid();
+      var qtext = (raw || q);
+      var quote = _fabQuoteMsg;
+      fabPeerQuoteClear();
+      _fabNlAppend({ id: askId, kind: 'user', is_mine: true, pending: true, source: 'ask', content: qtext, question: qtext, threadId: askId, reply_content: quote ? quote.content : '', reply_to_id: quote ? quote.id : null, nl: true, time_hm: _fabNowHm() });
+      _fabNlAppend({ id: _nlNid(), kind: 'bot', is_mine: false, loading: true, threadId: askId, nl: true, time_hm: _fabNowHm() });
+      _fabBotPending = true;
       var cfg = window.FAB_CONFIG || {};
       fetch(cfg.nlAsk || '/api/chat/nl', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: q })
       }).then(function (r) { return r.json(); }).then(function (d) {
-        loading.remove();
+        _fabNlRemoveLoading();
         if (!(d && d.ok)) {
-          fabChatBubble(turn, 'avatar', '⚠ ' + esc((d && d.error) || '理解失败，换个说法试试？'));
+          _fabNlAppend({ id: _nlNid(), kind: 'bot', is_mine: false, content: '⚠ ' + ((d && d.error) || '理解失败，换个说法试试？'), bad: true, nl: true, time_hm: _fabNowHm() });
           fabChatCommit();
+          _fabBotPending = false;
           return;
         }
         var actionActs = { task_create: 1, note_create: 1, education: 1, upload: 1 };
-        if (d.intent === 'task_create' || d.intent === 'note_create' || d.intent === 'education' || d.intent === 'upload') {
+        if (actionActs[d.intent]) {
           var actions = {
             task_create: ['打开「快速创建待办」', 'task_create'],
             note_create: ['打开「随手记」', 'note_create'],
             education: ['进入教育娱乐', 'education'],
             upload: ['打开「上传知识」', 'upload']
           };
-          var hintHtml = '<div class="fab-action-hint"><div style="white-space:pre-wrap;">' + esc(d.content || '') + '</div>';
-          var a = actions[d.intent];
-          if (a) hintHtml += '<button type="button" class="fab-tidy-btn" data-act="' + a[1] + '" onclick="fabNlAction(this)">' + a[0] + '</button>';
-          hintHtml += '</div>';
-          fabChatBubble(turn, 'avatar', hintHtml);
+          var node = _fabNlAppend(_fabNlBotMsg(d, askId));
+          var a = actions[d.intent] || [];
+          if (a.length && node) {
+            var contentEl = node.querySelector('.fab-msg-content') || node;
+            contentEl.insertAdjacentHTML('beforeend', '<div class="fab-action-hint"><button type="button" class="fab-tidy-btn" data-act="' + a[1] + '" onclick="fabNlAction(this)">' + a[0] + '</button></div>');
+          }
           fabChatCommit();
+          _fabBotPending = false;
           return;
         }
-        var hrefs = (d.links || []).map(function (l) { return l.href || '#'; });
-        fabChatBubble(turn, 'avatar', fabChatRefLinks(d.content || '', hrefs));
-        var rows = d.rows || [];
-        var hasRef = /\[资料\s*\d+\]/.test(d.content || '');
-        if (rows.length && !hasRef) {
-          var rowsHtml = '';
-          rows.slice(0, 5).forEach(function (r) {
-            rowsHtml += '<a class="fab-chat-src" href="' + esc(r.href || '#') + '" target="_blank" rel="noopener">' + esc(r.tag ? '[' + r.tag + '] ' : '') + esc(r.title || '') + '</a>';
-          });
-          fabChatBubble(turn, 'avatar', rowsHtml);
-        }
-        var tidyStrip = '<div class="fab-tidy-strip"><i class="bi bi-stars"></i> 想让回答更有条理、更精炼？' +
-          '<button type="button" class="fab-tidy-btn fab-tidy-prio" onclick="fabAskTidy(this)" data-txt="' + esc((d.content || '').slice(0, 4000)) + '" data-hrefs="' + esc(JSON.stringify(hrefs)) + '">✨ 用大模型整理</button></div>';
-        fabChatBubble(turn, 'avatar', tidyStrip);
+        _fabNlAppendNlBot(d, askId);
+        _fabBotPending = false;
         fabChatCommit();
       }).catch(function () {
-        loading.remove();
-        fabAskHint('⚠ 网络异常，暂时无法回答。');
+        _fabNlRemoveLoading();
+        _fabNlAppend({ id: _nlNid(), kind: 'bot', is_mine: false, content: '⚠ 网络异常，暂时无法回答。', bad: true, nl: true, time_hm: _fabNowHm() });
+        _fabBotPending = false;
+        fabChatCommit();
       });
     }
     function showQuickNoteModal() {

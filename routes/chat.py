@@ -25,17 +25,8 @@ from core.timeutil import cn_now
 from kb.chat_intent import (_SEARCH_KW, ACTION_INTENTS, QUERY_INTENTS,
                             classify_question, parse_question_time)
 
-_CHAT_DISABLED_HINT = '大模型服务未启用，未能自动起草回答；可人工回复。'
 _CHAT_NO_SOURCE_HINT = ('TA 当前没有可用的非个人待办/笔记/公开知识库资料，'
                         '暂时无法基于TA的内容回答。')
-
-
-def _chat_system(target, asker):
-    return (
-        f'你是{target}的资料助手，基于TA的待办、笔记和公开知识库资料来回答'
-        f'{asker}的问题。资料以 [资料 N] 标注，引用具体事实时用 [资料 N] 简单标注。'
-        '回答简洁，使用中文；如果资料不足以回答，明确说"资料中未找到"，不要编造。'
-        '不要逐条复述每条资料。\n\n')
 
 
 def _conv_key(a, b):
@@ -321,12 +312,61 @@ def _build_target_sources(question, target):
     return sources[:6], links
 
 
+def _numbered_sources_text(sources, links):
+    """把检索到的 sources 拼成紧凑引用列表(每行: · [标签] 标题：摘要… [资料 N])。"""
+    import re as _re
+    lines = []
+    for i, s in enumerate(sources, 1):
+        title = (s.get('title') or '').strip()
+        raw = (s.get('text') or '').strip()
+        flat = _re.sub(r'\s+', ' ', raw).strip()
+        if not flat or flat == title or flat.startswith(title):
+            snip = ''
+        else:
+            snip = '：' + (flat[:44] + '…' if len(flat) > 44 else flat)
+        if len(title) > 60:
+            title = title[:57] + '…'
+        marker = f' [资料 {i}]' if i - 1 < len(links) else ''
+        lines.append(f'· {title}{snip}{marker}')
+    return '\n'.join(lines)
+
+
+def _query_candidates(question):
+    """生成检索候选词: 去掉「搜一下」「是什么」「怎么」等前后缀, 干净词优先、原句兜底。"""
+    q = (question or '').strip()
+    forms = []
+
+    def _p(x):
+        x = (x or '').strip('的「《" \t：:，。 ')
+        if x and x not in forms:
+            forms.append(x)
+
+    for kw in sorted(_SEARCH_KW, key=len, reverse=True):
+        if q.startswith(kw):
+            _p(q[len(kw):])
+            break
+    for tail in ('是什么意思', '什么意思', '是什么', '怎么样', '怎么回事',
+                 '是什么含义', '怎么做', '怎么弄', '如何做', '怎么办',
+                 '怎么进行', '怎么', '如何', '为什么', '为啥', '什么'):
+        if q.endswith(tail):
+            _p(q[:-len(tail)])
+            break
+    for head in ('请问', '告诉我', '教我', '怎么', '如何', '怎样'):
+        if q.startswith(head):
+            _p(q[len(head):])
+            break
+    _p(q)
+    return forms
+
+
 def _draft_bot_answer(peer, question, ask_msg_id, source='ask'):
-    """生成并保存大模型代答消息(基于被@人资料), 失败写入提示文本。"""
-    from kb.knowledge import KB_LLM_DISABLED, llm_ask
+    """基于被@人资料检索并生成代答消息(不默认调大模型, 整理由前端 ✨ 触发)。"""
     sources, links = [], []
     try:
-        sources, links = _build_target_sources(question, peer)
+        for cq in _query_candidates(question):
+            sources, links = _build_target_sources(cq, peer)
+            if sources:
+                break
     except Exception as _e:
         app.logger.warning('chat target sources failed: %s', _e)
 
@@ -336,26 +376,11 @@ def _draft_bot_answer(peer, question, ask_msg_id, source='ask'):
         return m, links
 
     if not sources:
-        text = _CHAT_NO_SOURCE_HINT
-        return _finalize(_make_message(peer, text, 'bot', source, ask_msg_id))
-    if KB_LLM_DISABLED:
-        m = _make_message(peer, _CHAT_DISABLED_HINT, 'bot', source, ask_msg_id)
-        m.extra = json.dumps({'links': links}, ensure_ascii=False)
-        db.session.add(m)
-        return m, links
-    try:
-        answer = (llm_ask(
-            question, sources,
-            system=_chat_system(_display(peer), _display(current_user)),
-            force=True) or '').strip()
-        if not answer or 'LLM 服务已禁用' in answer:
-            answer = _CHAT_DISABLED_HINT
-        return _finalize(_make_message(peer, answer, 'bot', source, ask_msg_id))
-    except Exception as e:
-        app.logger.warning('chat bot answer failed: %s', e)
-        m = _make_message(peer, f'大模型代答失败：{e}', 'bot', source, ask_msg_id)
-        db.session.add(m)
-        return m, links
+        return _finalize(_make_message(peer, _CHAT_NO_SOURCE_HINT,
+                                       'bot', source, ask_msg_id))
+    text = _numbered_sources_text(sources, links)
+    content = f'在 {_display(peer)} 的资料中找到 {len(sources)} 条相关内容：\n{text}'
+    return _finalize(_make_message(peer, content, 'bot', source, ask_msg_id))
 
 
 def _rows_from_links(links):
@@ -383,7 +408,6 @@ def _answer_natural(question, target=None):
     target=None 表示小知助手(查询本人数据); target 为私聊对象时,
     检索/问答基于对方资料。返回 dict: intent/content/rows/links/meta。
     """
-    from kb.knowledge import KB_LLM_DISABLED, llm_ask
     from routes.search import _unified_search_data
 
     cls = classify_question(question)
@@ -470,58 +494,25 @@ def _answer_natural(question, target=None):
                 'content': f'📅 {scope_name} 在{label}的日程安排：\n' + '\n'.join(lines),
                 'rows': rows, 'links': [], 'meta': {'time': span}}
 
-    # 其余意图(search / knowledge / chat): 资料检索 + 大模型整理
+    # 其余意图(search / knowledge / chat): 双方统一「先检索、不默认调大模型」, 整理由 ✨ 触发; 仅检索范围不同
     if target is not None:
-        sources, links = _build_target_sources(question, target)
+        sources, links = [], []
+        for cq in _query_candidates(question):
+            sources, links = _build_target_sources(cq, target)
+            if sources:
+                break
         if not sources:
             return {'intent': intent,
                     'content': f'{peer_name} 目前没有可用的非个人待办 / 笔记 / 公开知识资料来回答这个问题。',
                     'rows': [], 'links': [], 'meta': meta}
-        if KB_LLM_DISABLED:
-            bullet = '\n'.join(f'· [{s.get("title") or ""}]' for s in sources[:8])
-            return {'intent': intent,
-                    'content': f'已找到 {len(sources)} 条相关线索：\n{bullet}\n'
-                               '（大模型服务未启用，以上为资料列表，可点开下方链接查看）',
-                    'rows': _rows_from_links(links), 'links': links, 'meta': meta}
-        answer = ''
-        try:
-            answer = (llm_ask(question, sources,
-                              system=_chat_system(peer_name, me_name),
-                              force=True) or '').strip()
-        except Exception as e:
-            app.logger.warning('chat nl peer llm failed: %s', e)
-        if not answer or 'LLM 服务已禁用' in answer:
-            answer = '检索到一些资料，但大模型整理失败，请查看下方链接。'
-        return {'intent': intent, 'content': answer,
+        text = _numbered_sources_text(sources, links)
+        return {'intent': intent,
+                'content': f'在 {peer_name} 的资料中找到 {len(sources)} 条相关内容：\n{text}',
                 'rows': _rows_from_links(links), 'links': links, 'meta': meta}
 
     # 小知: 默认先检索展示结果(不用大模型汇总), 用户点「✨ 用大模型整理」时再经 /api/chat/tidy 调用
-    query = question.strip()
-    candidates = [query]
-    if intent == 'search':
-        for kw in sorted(_SEARCH_KW, key=len, reverse=True):
-            if query.startswith(kw):
-                rest = query[len(kw):].lstrip('的「《" \t：:')
-                if rest:
-                    candidates.insert(0, rest)
-                break
-    elif intent == 'knowledge':
-        for tail in ('是什么意思', '什么意思', '是什么', '怎么样', '怎么回事',
-                     '是什么含义', '怎么做', '怎么弄', '如何做', '怎么办',
-                     '怎么进行', '怎么', '如何', '为什么', '为啥', '什么'):
-            if query.endswith(tail):
-                rest = query[:-len(tail)].strip('的：:，。 ')
-                if rest:
-                    candidates.insert(0, rest)
-                break
-        for head in ('请问', '告诉我', '教我', '怎么', '如何', '怎样'):
-            if candidates[0].startswith(head):
-                rest = candidates[0][len(head):].strip()
-                if rest:
-                    candidates.insert(0, rest)
-                break
     hits = {'kb': [], 'tasks': [], 'notes': []}
-    for cq in dict.fromkeys(candidates):
+    for cq in _query_candidates(question):
         hits = _unified_search_data(cq)
         if hits.get('kb') or hits.get('tasks') or hits.get('notes'):
             break
@@ -555,12 +546,10 @@ def _answer_natural(question, target=None):
         return {'intent': intent,
                 'content': '没有在知识库 · 待办 · 随手记中检索到相关内容，换个问法试试？',
                 'rows': [], 'links': [], 'meta': meta}
-    bullet = '\n'.join(
-        f'· {s.get("title") or ""}' + ((f'：{(s.get("text") or "")[:80]}') if s.get('text') else '') +
-        (f' [资料 {i}]' if i - 1 < len(links) else '')
-        for i, s in enumerate(sources[:6], 1))
+    text = _numbered_sources_text(sources[:8], links)
+    head = f'共找到 {len(sources)} 条相关内容' + (f'（列出前 {min(len(sources), 8)} 条）' if len(sources) > 8 else '')
     return {'intent': intent,
-            'content': f'共找到 {len(sources)} 条相关内容：\n{bullet}',
+            'content': f'{head}：\n{text}',
             'rows': rows, 'links': links, 'meta': meta}
 
 

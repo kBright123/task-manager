@@ -279,7 +279,7 @@
     .fab-side-item .fab-pc-main { min-width: 0; }
     .fab-side-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); flex-shrink: 0; }
     .fab-side-bear { background: #fef3c7; color: #b45309; }
-    .fab-main .fab-chat-box { flex: 1 1 auto; border: none; border-radius: 0; background: transparent; padding: 8px 10px 6px; }
+    .fab-main .fab-chat-box { flex: 1 1 auto; border: none; border-radius: 0; background: transparent; padding: 8px 10px 18px; }
     .fab-compose { position: relative; padding: 6px 10px 8px; flex-shrink: 0; border-top: 1px solid var(--gray-100); background: var(--gray-50); }
     .fab-chat-title { font-size: .8rem; font-weight: 600; color: var(--gray-700); margin: 8px 0 4px; }
     @media (max-width: 767px) { .fab-sheet { width: calc(100vw - 28px); } }
@@ -295,7 +295,7 @@
     .fab-dialog-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 4px; border: 1px solid var(--gray-200); background: var(--gray-50); color: var(--gray-800); border-radius: 8px; padding: 5px 2px; font-size: .74rem; font-weight: 600; text-align: center; cursor: pointer; white-space: nowrap; transition: border-color .15s, background .15s; }
     .fab-dialog-btn:hover { border-color: var(--primary); background: var(--primary-light); }
     .fab-dialog-btn i { font-size: .95rem; line-height: 1; }
-    .fab-chat-box { flex: 1 1 0; min-height: 0; max-height: none; overflow-y: auto; border: 1px solid var(--gray-200); border-radius: 8px; padding: 8px 10px; background: var(--gray-50); display: flex; flex-direction: column; gap: 6px; scrollbar-width: thin; }
+    .fab-chat-box { flex: 1 1 0; min-height: 0; max-height: none; overflow-y: auto; border: 1px solid var(--gray-200); border-radius: 8px; padding: 8px 10px 18px; background: var(--gray-50); display: flex; flex-direction: column; gap: 6px; scrollbar-width: thin; }
     .fab-chat-box::-webkit-scrollbar { width: 6px; }
     .fab-chat-box::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 3px; }
     .fab-chat-empty { color: var(--gray-400); font-size: .76rem; text-align: center; padding: 16px 6px; margin: auto; width: 100%; }
@@ -337,7 +337,7 @@
     .fab-chip-hot { font-size: .6rem; color: #b45309; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 5px; padding: 0 4px; line-height: 14px; }
 
     /* ---- 群聊消息气泡(微信风格) ---- */
-    #fabPeerMsgs { flex: 1 1 auto; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 2px 2px 6px; }
+    #fabPeerMsgs { flex: 1 1 auto; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 2px 2px 16px; }
     .fab-msg { display: flex; flex-direction: column; max-width: 100%; position: relative; }
     .fab-msg-row { display: flex; align-items: flex-start; gap: 6px; }
     .fab-msg-mine { align-self: flex-end; }
@@ -351,9 +351,7 @@
     .fab-msg-mine .fab-msg-time { align-self: flex-end; }
     .fab-msg-quote { font-size: .7rem; color: var(--gray-500); background: rgba(0,0,0,.06); border-left: 2px solid var(--primary); border-radius: 4px; padding: 3px 6px; margin-bottom: 4px; white-space: pre-wrap; word-break: break-word; max-height: 40px; overflow: hidden; }
     .fab-msg-bot .fab-msg-quote { background: rgba(180, 83, 9, .08); }
-    .fab-msg-actions { display: none; gap: 4px; position: absolute; top: -8px; margin: 0; background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 6px; padding: 1px 4px; box-shadow: 0 2px 6px rgba(15,23,42,.12); z-index: 5; }
-    .fab-msg-mine .fab-msg-actions { right: 0; }
-    .fab-msg-theirs .fab-msg-actions, .fab-msg-bot .fab-msg-actions { left: 0; }
+    .fab-msg-actions { display: none; gap: 4px; position: absolute; top: auto; bottom: -11px; right: 0; margin: 0; background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 6px; padding: 1px 4px; box-shadow: 0 2px 6px rgba(15,23,42,.12); z-index: 5; }
     .fab-msg:hover .fab-msg-actions { display: flex; }
     .fab-msg-act { border: 1px solid var(--gray-200); background: var(--gray-50); color: var(--gray-600); border-radius: 6px; font-size: .66rem; padding: 1px 6px; cursor: pointer; white-space: nowrap; }
     .fab-msg-act:hover { border-color: var(--primary); color: var(--primary); }

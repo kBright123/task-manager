@@ -359,6 +359,27 @@ def _query_candidates(question):
     return forms
 
 
+def _kb_fused_sources(question, uid):
+    """知识库全量融合检索(与对侧/代答同一 search_pages): 语义向量 + 关键词 RRF。
+
+    uid 为检索范围主体(小知=当前用户本人, 对侧=对方用户)。"""
+    import kb.knowledge as _kb
+    out = []
+    try:
+        doc_ids = _kb._doc_ids_for_user(uid)
+        for h in _kb.search_pages(question, k=6, alpha=0.5,
+                                  doc_ids=doc_ids)[:3]:
+            out.append({
+                'title': h.get('title') or h.get('filename') or '',
+                'text': h.get('text') or '',
+                'href': url_for('kb.doc_detail', doc_id=h.get('doc_id')),
+                'tag': '知识库',
+            })
+    except Exception as _e:
+        app.logger.warning('chat kb fused search failed: %s', _e)
+    return out
+
+
 def _draft_bot_answer(peer, question, ask_msg_id, source='ask'):
     """基于被@人资料检索并生成代答消息(不默认调大模型, 整理由前端 ✨ 触发)。"""
     sources, links = [], []
@@ -510,10 +531,14 @@ def _answer_natural(question, target=None):
                 'content': f'在 {peer_name} 的资料中找到 {len(sources)} 条相关内容：\n{text}',
                 'rows': _rows_from_links(links), 'links': links, 'meta': meta}
 
-    # 小知: 默认先检索展示结果(不用大模型汇总), 用户点「✨ 用大模型整理」时再经 /api/chat/tidy 调用
+    # 小知: 默认先检索展示结果(不用大模型汇总), 用户点「✨ 用大模型整理」时再经 /api/chat/tidy 调用;
+    # 知识库腿与对侧/代答共用同一 search_pages 全量融合(语义向量 + 关键词 RRF), 保证两侧检索逻辑一致
     hits = {'kb': [], 'tasks': [], 'notes': []}
     for cq in _query_candidates(question):
-        hits = _unified_search_data(cq)
+        unified = _unified_search_data(cq)
+        hits = {'kb': _kb_fused_sources(cq, current_user.id),
+                'tasks': unified.get('tasks') or [],
+                'notes': unified.get('notes') or []}
         if hits.get('kb') or hits.get('tasks') or hits.get('notes'):
             break
     kb, tasks, notes = (hits.get('kb') or []), (hits.get('tasks') or []), (hits.get('notes') or [])
@@ -528,10 +553,8 @@ def _answer_natural(question, target=None):
         _row(tag, title, text[:140], href)
 
     for it in kb[:3]:
-        p = (it.get('pages') or [{}])[0]
-        _add_src(f"[知识库] {it.get('title') or it.get('filename') or ''}",
-                 p.get('snippet') or '',
-                 it.get('detail_url') or it.get('preview_url') or '#', '知识库')
+        _add_src(f"[知识库] {it.get('title') or ''}", it.get('text') or '',
+                 it.get('href') or '#', '知识库')
     for t in tasks[:3]:
         note = '；'.join(x for x in [
             ('状态 ' + str(t.get('status') or '')),

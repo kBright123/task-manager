@@ -2133,6 +2133,92 @@ def _db_conn():
     return conn
 
 
+def _fuzzy_bigrams(s):
+    """文本的字符二元组集合(去空白、小写)。"""
+    s = re.sub(r'\s+', '', s or '').lower()
+    return set(s[i:i + 2] for i in range(len(s) - 1))
+
+
+def fuzzy_coverage(query, text):
+    """查询对文本的字符二元组覆盖率(0~1): 查询与库内内容差一两个字也能命中。
+
+    通用化近似匹配: 如查询「青年理论学习小组」而库内只有「青年理论小组」,
+    精确子串(整句 LIKE/AND 分词)匹配不上, 但二元组覆盖率仍较高(>=0.55)可召回。"""
+    qb = _fuzzy_bigrams(query)
+    if not qb:
+        return 0.0
+    tb = _fuzzy_bigrams(text)
+    if not tb:
+        return 0.0
+    hit = 0
+    for b in qb:
+        if b in tb:
+            hit += 1
+    return hit / len(qb)
+
+
+_FUZZY_MIN_COVERAGE = 0.55
+
+
+def _fuzzy_search_pages(query, k=8, exclude=None):
+    """精确关键词命中稀少的模糊兜底: 全量页按二元组覆盖率过滤排序。"""
+    conn = _db_conn()
+    try:
+        rows = conn.execute(
+            'SELECT p.doc_id, p.page_no, COALESCE(d.title, \'\'), '
+            'COALESCE(d.filename, \'\'), p.text FROM kb_page p '
+            'LEFT JOIN kb_document d ON d.id = p.doc_id').fetchall()
+        out = []
+        for doc_id, page_no, title, filename, text in rows:
+            if exclude:
+                key = page_doc_id(doc_id, page_no)
+                if key in exclude:
+                    continue
+            cov = max(fuzzy_coverage(query, title or ''),
+                      fuzzy_coverage(query, text or ''))
+            if cov >= _FUZZY_MIN_COVERAGE:
+                out.append({'doc_id': doc_id, 'page_no': page_no,
+                            'title': title, 'filename': filename,
+                            'text': text, 'score': round(cov, 3)})
+        out.sort(key=lambda r: (-r['score'], r['doc_id'], r['page_no']))
+        return out[:k]
+    finally:
+        conn.close()
+
+
+def _fuzzy_search_points(query, k=6, exclude=None):
+    """"知识点模糊兜底, 字段与 keyword_search_points 保持一致。"""
+    conn = _db_conn()
+    try:
+        rows = conn.execute(
+            'SELECT p.id, p.doc_id, p.title, p.content, p.page_start, '
+            'COALESCE(d.title, \'\'), COALESCE(d.filename, \'\'), '
+            'COALESCE(c.name, \'\') FROM kb_point p '
+            'LEFT JOIN kb_document d ON d.id = p.doc_id '
+            'LEFT JOIN kb_collection c ON c.id = d.collection_id').fetchall()
+        out = []
+        for pid, doc_id, title, content, page_start, doc_title, \
+                filename, cname in rows:
+            if exclude and pid in exclude:
+                continue
+            title = title or ''
+            content = content or ''
+            cov = max(fuzzy_coverage(query, title), fuzzy_coverage(query, content))
+            if cov >= _FUZZY_MIN_COVERAGE:
+                out.append({
+                    'point_id': pid, 'doc_id': doc_id,
+                    'title': _clean_point_title(title) or title,
+                    'doc_title': doc_title, 'filename': filename,
+                    'content': content, 'page_start': page_start,
+                    'collection_name': cname,
+                    'score': round(cov, 3),
+                })
+        out.sort(key=lambda r: (-r['score'], r['doc_id'], r['point_id']))
+        return out[:k]
+    finally:
+        conn.close()
+
+
 def keyword_search_pages(query, k=40):
     """SQLite 关键词检索(LIKE 子串匹配)。
 
@@ -2173,7 +2259,11 @@ def keyword_search_pages(query, k=40):
                         'title': title, 'filename': filename,
                         'text': text, 'score': float(hits)})
         out.sort(key=lambda r: (-r['score'], r['doc_id'], r['page_no']))
-        return out[:k]
+        out = out[:k]
+        if len(out) < 3:
+            exclude = {page_doc_id(r['doc_id'], r['page_no']) for r in out}
+            out.extend(_fuzzy_search_pages(query, k=k - len(out), exclude=exclude))
+        return out
     finally:
         conn.close()
 
@@ -2223,7 +2313,11 @@ def keyword_search_points(query, k=12):
                 'score': float(hits + 5 * title_hits),
             })
         out.sort(key=lambda r: (-r['score'], r['doc_id'], r['point_id']))
-        return out[:k]
+        out = out[:k]
+        if len(out) < 3:
+            exclude = {r['point_id'] for r in out}
+            out.extend(_fuzzy_search_points(query, k=k - len(out), exclude=exclude))
+        return out
     finally:
         conn.close()
 

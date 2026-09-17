@@ -39,6 +39,8 @@ def _unified_search_data(q):
         return {'q': '', 'tasks': [], 'notes': [], 'kb': [], 'total': 0}
     pat = f'%{q}%'
 
+    import kb.knowledge as _kb
+
     now = cn_now()
 
     # 待办(我参与的)
@@ -48,8 +50,8 @@ def _unified_search_data(q):
         TaskAssignment.note.like(pat)))
     assigns = TaskAssignment.query.join(Task).filter(
         *filters).order_by(Task.end_time.desc()).limit(20).all()
-    tasks = []
-    for a in assigns:
+
+    def _task_row(a):
         end = a.task.end_time
         if end < now:
             pri = '高'
@@ -57,7 +59,7 @@ def _unified_search_data(q):
             pri = '中'
         else:
             pri = '低'
-        tasks.append({
+        return {
             'task_id': a.task.id,
             'title': a.task.title,
             'description': a.task.description or '',
@@ -67,24 +69,55 @@ def _unified_search_data(q):
             'priority': pri,
             'end_date': end.strftime('%m-%d'),
             'detail_url': url_for('user_tasks') + '?highlight=' + str(a.task.id),
-        })
+        }
+
+    tasks = [_task_row(a) for a in assigns]
+
+    # 通用化兜底: 整串 LIKE 命不中的近义问法(如「青年理论学习小组」vs 待办里存的
+    # 「青年理论小组」), 改用字符二元组覆盖率近似召回, 避免问法略异就搜不到
+    if not tasks and len(q) >= 2:
+        fuzzy = []
+        rows = TaskAssignment.query.join(Task).filter(
+            TaskAssignment.user_id == current_user.id).all()
+        for a in rows:
+            hay = ' '.join(filter(None, [
+                a.task.title or '', a.task.description or '', a.note or '']))
+            cov = _kb.fuzzy_coverage(q, hay)
+            if cov >= _kb._FUZZY_MIN_COVERAGE:
+                fuzzy.append((round(cov, 3), a))
+        fuzzy.sort(key=lambda x: -x[0])
+        tasks = [_task_row(a) for _, a in fuzzy[:20]]
 
     # 笔记(个人)
     from routes.notes import Note, parse_tags_json
     notes = Note.query.filter(Note.user_id == current_user.id).filter(
         db.or_(Note.title.like(pat), Note.content.like(pat))
     ).order_by(Note.created_at.desc()).limit(20).all()
-    note_rows = [{
-        'id': n.id,
-        'title': n.title,
-        'content': (n.content or '')[:200],
-        'tags': parse_tags_json(n.tags),
-        'thread': n.thread.name if n.thread else '',
-        'created_at': n.created_at.strftime('%Y-%m-%d %H:%M') if
-        n.created_at else '',
-        'date': n.created_at.strftime('%m-%d') if n.created_at else '',
-        'detail_url': url_for('notes.index', note_id=n.id),
-    } for n in notes]
+
+    def _note_row(n):
+        return {
+            'id': n.id,
+            'title': n.title,
+            'content': (n.content or '')[:200],
+            'tags': parse_tags_json(n.tags),
+            'thread': n.thread.name if n.thread else '',
+            'created_at': n.created_at.strftime('%Y-%m-%d %H:%M') if
+            n.created_at else '',
+            'date': n.created_at.strftime('%m-%d') if n.created_at else '',
+            'detail_url': url_for('notes.index', note_id=n.id),
+        }
+
+    note_rows = [_note_row(n) for n in notes]
+
+    if not note_rows and len(q) >= 2:
+        fuzzy = []
+        for n in Note.query.filter(Note.user_id == current_user.id).all():
+            hay = ' '.join(filter(None, [n.title or '', n.content or '']))
+            cov = _kb.fuzzy_coverage(q, hay)
+            if cov >= _kb._FUZZY_MIN_COVERAGE:
+                fuzzy.append((round(cov, 3), n))
+        fuzzy.sort(key=lambda x: -x[0])
+        note_rows = [_note_row(n) for _, n in fuzzy[:20]]
 
     # 知识库(优先知识点,再补文档页;按当前用户可见范围过滤)
     kb = []

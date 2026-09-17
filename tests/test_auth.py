@@ -59,7 +59,7 @@ def no_mail(monkeypatch):
 
 def test_self_register_email_verify_auto_approved(no_mail):
     username = _unique('zreg_')
-    email = f'{username}@example.com'
+    email = f'{username}@qq.com'
     c = app.test_client()
     try:
         r = _send_code(c, username, email)
@@ -84,7 +84,7 @@ def test_self_register_email_verify_auto_approved(no_mail):
 
 def test_self_register_login_works(no_mail):
     username = _unique('zlog_')
-    email = f'{username}@example.com'
+    email = f'{username}@qq.com'
     c = app.test_client()
     try:
         code = _extract_dev_code(_send_code(c, username, email))
@@ -104,7 +104,7 @@ def test_self_register_login_works(no_mail):
 
 def test_self_register_wrong_code_does_not_create(no_mail):
     username = _unique('zbad_')
-    email = f'{username}@example.com'
+    email = f'{username}@qq.com'
     c = app.test_client()
     try:
         _send_code(c, username, email)
@@ -118,7 +118,7 @@ def test_self_register_wrong_code_does_not_create(no_mail):
 
 def test_self_register_duplicate_username_rejected(no_mail):
     username = _unique('zdup_')
-    email = f'{username}@example.com'
+    email = f'{username}@qq.com'
     c = app.test_client()
     try:
         code = _extract_dev_code(_send_code(c, username, email))
@@ -126,7 +126,7 @@ def test_self_register_duplicate_username_rejected(no_mail):
                                   '_csrf_token': _csrf(c)})
         # 同用户名, 不同邮箱: 应拒绝
         c2 = app.test_client()
-        r = _send_code(c2, username, f'{username}2@example.com')
+        r = _send_code(c2, username, f'{username}2@qq.com')
         assert '该账号已注册' in r.get_data(as_text=True)
     finally:
         _cleanup(username, email)
@@ -134,7 +134,7 @@ def test_self_register_duplicate_username_rejected(no_mail):
 
 def test_self_register_duplicate_email_rejected(no_mail):
     username = _unique('zdup2_')
-    email = f'{username}@example.com'
+    email = f'{username}@qq.com'
     c = app.test_client()
     try:
         code = _extract_dev_code(_send_code(c, username, email))
@@ -155,3 +155,22 @@ def test_self_register_requires_email_format(no_mail):
                                   '_csrf_token': _csrf(c)}, follow_redirects=True)
     assert '邮箱格式不正确' in r.get_data(as_text=True)
     assert _user_count(username, 'not-an-email') == 0
+
+
+def test_self_register_rejects_uncommon_email_domain(no_mail):
+    from core.models import OperationLog
+    from app import db
+    c = app.test_client()
+    username = _unique('zdom_')
+    email = f'{username}@example.com'
+    r = c.post('/register', data={**_fields(username, email),
+                                  '_csrf_token': _csrf(c)}, follow_redirects=True)
+    body = r.get_data(as_text=True)
+    assert '常见邮箱' in body, '非常见后缀应被拦截提示'
+    assert _user_count(username, email) == 0, '被拦截的邮箱不应创建账号'
+    with app.app_context():
+        logs = (OperationLog.query
+                .filter_by(action='register_blocked', target=username)
+                .order_by(OperationLog.id.desc()).all())
+    assert logs, '被拦截的注册应写入操作日志'
+    assert email in logs[0].detail

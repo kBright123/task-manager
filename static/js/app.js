@@ -612,7 +612,7 @@
         .then(function (r) { return r.json(); }).then(function (d) {
           if (!(d && d.ok)) { _fabAppendMsg({ kind: 'bot', is_mine: false, content: '⚠ 删除失败：' + ((d && d.error) || '未知错误'), bad: true, time_hm: _fabNowHm() }); return; }
 
-          if (_fabPeerUid === peerId) {
+          if (String(_fabPeerUid || 0) === String(peerId)) {
             _fabPeerUid = 0;
             _fabPeerUser = null;
             fabPeerQuoteClear();

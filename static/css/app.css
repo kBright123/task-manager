@@ -338,12 +338,12 @@
 
     /* ---- 群聊消息气泡(微信风格) ---- */
     #fabPeerMsgs { flex: 1 1 auto; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 2px 2px 16px; }
-    .fab-msg { display: flex; flex-direction: column; max-width: 100%; position: relative; }
+    .fab-msg { display: flex; flex-direction: column; width: 100%; max-width: 100%; position: relative; }
     .fab-msg-row { display: flex; align-items: flex-start; gap: 6px; }
     .fab-msg-mine { align-self: flex-end; }
     .fab-msg-theirs { align-self: flex-start; }
     .fab-msg-ava { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: .7rem; font-weight: 700; color: var(--primary); background: var(--primary-light); }
-    .fab-msg-bubble { max-width: 82%; padding: 6px 10px; border-radius: 12px; font-size: .8rem; line-height: 1.45; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; position: relative; }
+    .fab-msg-bubble { width: fit-content; max-width: 82%; min-width: 0; padding: 6px 10px; border-radius: 12px; font-size: .8rem; line-height: 1.45; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; position: relative; }
     .fab-msg-mine .fab-msg-bubble { background: var(--primary); color: #fff; border-radius: 12px 12px 2px 12px; }
     .fab-msg-theirs .fab-msg-bubble { background: #fff; border: 1px solid var(--gray-200); color: var(--gray-800); border-radius: 12px 12px 12px 2px; }
     .fab-msg-bot .fab-msg-bubble { background: #fefce8; border: 1px solid #fde68a; color: #78350f; }

@@ -489,8 +489,18 @@ function dashRenderTimeline(jump){
   var _ki=extractKeyInfo(t.full_description||t.description);
   html+='<div class="tl-card-title" data-id="'+t.id+'" role="button" tabindex="0" aria-label="查看任务:'+esc(t.title)+'" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">'+esc(t.title)+renderKeyTags(_ki)+(t.cross_day&&t.days_left!==null&&t.days_left!==undefined?'<span class="tl-days-left">'+esc('（剩余'+t.days_left+'工作日）')+'</span>':'')+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
   html+='</div></div></div>';});html+='</div></div>';});html+='</div>';
+  // 刷新前快照(在骨架屏替换前由 dashLoadTimeline 记录): 完成任务/编辑后的静默对账刷新按"之前的规则"恢复展开与滚动, 不因重渲染折叠
+  var kv = (!jump && window._tlKeepView) ? window._tlKeepView : null;
+  var opened = kv ? kv.opened : {}, prevScroll = kv ? kv.scrollTop : 0;
   el.innerHTML=html;
   var wrap=el.querySelector('.tl-wrap')||el;
+  if(kv&&wrap){
+    // 恢复原展开分区(仅仍存在且仍有任务的分区; 已清空的分区本轮不渲染, 自然不恢复)
+    wrap.querySelectorAll('.tl-section').forEach(function(s){
+      if(opened[s.getAttribute('data-s')])s.classList.add('open');
+    });
+    wrap.scrollTop=prevScroll;
+  }
   if(jump){
     if(_tlFilter){
       // 日期筛选态: 展示该日涉及的全部时间点(含跨天任务透出的多个分区),
@@ -617,6 +627,13 @@ function tlSecDashJump(hd){
 function dashLoadTimeline(keepView){
   _dashShowCompleted=document.getElementById('dashShowCompleted')?.checked||false;
   var el=document.getElementById('dashTimeline');if(!el)return;
+  // 静默对账刷新(keepView)前快照当前展开分区与滚动位置, 供重渲染后按原样恢复
+  window._tlKeepView = keepView ? (function(){
+    var pw=el.querySelector('.tl-wrap'); if(!pw)return null;
+    var opened={};
+    pw.querySelectorAll('.tl-section.open').forEach(function(s){opened[s.getAttribute('data-s')]=1;});
+    return {opened:opened, scrollTop:pw.scrollTop||0};
+  })() : null;
   el.innerHTML='<div class="tl-axis"></div><div style="padding:8px 2px;"><div class="tl-skeleton" style="width:72%"></div><div class="tl-skeleton" style="width:88%"></div><div class="tl-skeleton" style="width:55%"></div></div>';
   var params=[];if(_dashShowCompleted)params.push('show_completed=1');
   if(_tlFilter){params.push('start='+_tlFilter);params.push('end='+_tlFilter);}

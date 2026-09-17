@@ -19,6 +19,7 @@
 from app import (app, login_required, User, client_ip, cn_now,
                  create_notification, db, generate_verify_code,
                  log_operation, logger, normalize_email, send_email,
+                 email_has_common_suffix,
                  send_verify_code)
 
 from flask import (flash, jsonify, redirect, render_template, request,
@@ -340,6 +341,11 @@ def register():
         email = normalize_email(email)
         if not email:
             errs.append('邮箱格式不正确,请检查后重试')
+        elif not email_has_common_suffix(email):
+            # 先校验常见邮箱后缀: 非常见后缀直接拦截, 并记入操作日志
+            log_operation('register_blocked', username,
+                          f'邮箱后缀不是常见邮箱:{email}')
+            errs.append('邮箱后缀不在常见邮箱列表中,请换用 qq/163/gmail 等邮箱')
         if not errs:
             if User.query.filter_by(username=username).first():
                 errs.append('该账号已注册，请直接登录')

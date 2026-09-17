@@ -83,7 +83,23 @@ def log_operation(action, target='', detail='', user=None):
 COMMON_EMAIL_SUFFIXES = ['qq.com', '163.com', '126.com', 'gmail.com',
                          'outlook.com', 'hotmail.com', 'foxmail.com',
                          'sina.com', 'sohu.com', '139.com', '189.cn',
-                         'aliyun.com', 'icloud.com', 'yahoo.com']
+                         'aliyun.com', 'icloud.com', 'yahoo.com',
+                         '126.net', '163.net', 'vip.163.com', '188.com',
+                         'tom.com', '21cn.com', 'wo.cn', '10086.cn',
+                         'sina.cn', 'sina.com.cn', 'yahoo.com.cn',
+                         'googlemail.com', 'live.com', 'msn.com',
+                         'me.com', 'mac.com', 'protonmail.com', 'proton.me',
+                         'dingtalk.com', 'yeah.net']
+
+def email_has_common_suffix(email):
+    """注册拦截: 邮箱域名是否为常见邮箱后缀(防滥用注册)。
+    返回 True 表示常见/允许; local@域名 无 @ 或域名不在白名单返回 False。"""
+    domain = ''
+    if email and '@' in email:
+        domain = (email.rsplit('@', 1)[1] or '').lower().strip('.')
+    return bool(domain) and any(
+        domain == d.lower() or domain.endswith('.' + d.lower())
+        for d in COMMON_EMAIL_SUFFIXES)
 
 def normalize_email(value):
     """规范化邮箱地址;不合法返回 None。"""

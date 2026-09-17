@@ -129,9 +129,9 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'instance', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 604800  # 静态资源缓存 7 天
-# 登录会话最长 4 小时(配合登录时 session.permanent = True 生效),
+# 登录会话最长 7 天(配合登录时 session.permanent = True 生效),
 # 超过则自动退出登录;所有登录会话共享该有效期。
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=4)
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 # HTTPS 部署时设环境变量 COOKIE_SECURE=1: 会话 Cookie 仅经加密连接传输
@@ -496,6 +496,7 @@ _orm_event.listen(_ORM_Session, 'do_orm_execute', _soft_delete_exclude)
 # ---- 业务辅助与 NLP 解析(再导出保持 from app import X 兼容) ----
 from core.app_services import (get_job_setting, set_job_setting, client_ip,
                           log_operation, normalize_email, send_email,
+                          email_has_common_suffix,
                           generate_verify_code, send_verify_code,
                           load_user, _api_token_user,
                           _load_user_from_api_token, allowed_file,

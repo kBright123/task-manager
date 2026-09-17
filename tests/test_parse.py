@@ -60,13 +60,17 @@ def test_category_course_is_training():
 
 def test_blur_timespan_not_override_explicit_date():
     """模糊时段词(中期/年底)不得覆盖明确日期(回归: 中期检查通知截止误析为9-30)."""
-    NOTICE = ('各位领导、同事：2026年度“一处一课题”工作现开展中期检查，'
-              '请各课题组根据当前工作进展，如实总结当前进度和成果，'
-              '认真分析存在的问题和改进措施，科学拟定下阶段研究计划，'
-              '填写《工作进度汇总表》并于8月28日下班前反馈。')
+    from datetime import timedelta
+    from core.timeutil import cn_now
+    now = cn_now()
+    end = now + timedelta(days=20)
+    NOTICE = (f'各位领导、同事：{now.year}年度“一处一课题”工作现开展中期检查，'
+              f'请各课题组根据当前工作进展，如实总结当前进度和成果，'
+              f'认真分析存在的问题和改进措施，科学拟定下阶段研究计划，'
+              f'填写《工作进度汇总表》并于{end.month}月{end.day}日下班前反馈。')
     span = np._parse_timespan_jionlp(NOTICE)
     assert span and span['end'] is not None
-    assert span['end'].strftime('%m-%d') == '08-28'
+    assert span['end'].strftime('%m-%d') == end.strftime('%m-%d')
     # 仅模糊词时仍兜底可用
     r = parse_task_from_text('系统升级年底前完成上线')
     assert r['end_time'] is not None
@@ -260,15 +264,20 @@ def test_sessions_suppress_recurrence():
 
 def test_extract_sessions_stage_unit():
     """「第X阶段/段」作为多场次单元: 正确拆分并按序排列."""
-    text = ('第一阶段：9月7日下午3:00-4:00\n'
-            '第二阶段：9月18日下午3:00-4:00')
+    from datetime import timedelta
+    from core.timeutil import cn_now
+    now = cn_now()
+    d1 = now + timedelta(days=30)
+    d2 = now + timedelta(days=45)
+    text = (f'第一阶段：{d1.month}月{d1.day}日下午3:00-4:00\n'
+            f'第二阶段：{d2.month}月{d2.day}日下午3:00-4:00')
     out = np._extract_sessions(text)
     assert len(out) == 2
     assert [s['label'] for s in out] == ['第一阶段', '第二阶段']
     assert [s['index'] for s in out] == [1, 2]
     # 下午3:00 → 15:00
-    assert _fmt(out[0]['start']) == '2026-09-07 15:00'
-    assert _fmt(out[1]['start']) == '2026-09-18 15:00'
+    assert _fmt(out[0]['start']) == _fmt(d1.replace(hour=15, minute=0))
+    assert _fmt(out[1]['start']) == _fmt(d2.replace(hour=15, minute=0))
 
 
 def test_extract_sessions_ampm_conversion():
@@ -283,14 +292,20 @@ def test_extract_sessions_ampm_conversion():
 
 def test_extract_sessions_multi_date_in_stage():
     """同一阶段内多个日期(「、」连接, 文档称任选其一)各拆一场."""
-    text = ('第一阶段：9月7日下午3:00。\n'
-            '第二阶段：9月18日下午3:00、9月19日上午9:00，任选一天。')
+    from datetime import timedelta
+    from core.timeutil import cn_now
+    now = cn_now()
+    d1 = now + timedelta(days=20)
+    d2 = now + timedelta(days=45)
+    d3 = now + timedelta(days=46)
+    text = (f'第一阶段：{d1.month}月{d1.day}日下午3:00。\n'
+            f'第二阶段：{d2.month}月{d2.day}日下午3:00、{d3.month}月{d3.day}日上午9:00，任选一天。')
     out = np._extract_sessions(text)
     assert len(out) == 3
     assert [s['label'] for s in out] == ['第一阶段', '第二阶段', '第二阶段']
-    assert _fmt(out[0]['start']) == '2026-09-07 15:00'
-    assert _fmt(out[1]['start']) == '2026-09-18 15:00'
-    assert _fmt(out[2]['start']) == '2026-09-19 09:00'
+    assert _fmt(out[0]['start']) == _fmt(d1.replace(hour=15, minute=0))
+    assert _fmt(out[1]['start']) == _fmt(d2.replace(hour=15, minute=0))
+    assert _fmt(out[2]['start']) == _fmt(d3.replace(hour=9, minute=0))
     # 主时间取第一场
     r = parse_task_from_text(text)
     sess = r.get('sessions') or []

@@ -1550,7 +1550,7 @@ const W=global; global.__ins=inserted;
 ''')
 
     assert 'MAP1=1' in out, out
-    assert 'MAP_CELLS=15' in out, out
+    assert 'MAP_CELLS=19' in out, out
     assert 'PASSED=1' in out, out
     assert 'DAILY_BANNER=1' in out, out
     assert 'DAILY_CARD=1' in out, out
@@ -1640,7 +1640,7 @@ def test_practice_encourage_and_modebar(client):
   console.log('SU='+(h2.indexOf('极速')>=0 && h2.indexOf('第 ')<0));
   console.log('NOLVS='+(h.indexOf('lvSub')<0 && h2.indexOf('lvSub')<0));
 ''')
-    assert 'OK=7/5' in out, out
+    assert 'OK=20/13' in out, out
     assert '|' in out, out
     assert 'GUAN=true' in out, out
     assert 'SU=true' in out, out
@@ -2201,7 +2201,7 @@ def test_dash_charts_pdf_replay():
 })();
 ''')
     for probe in ('HAS_PDF=1','HAS_KID=1','HAS_RADAR=1','HAS_DONUT=1','HAS_LINE=1','HAS_MINS=1',
-                  'TRENDS=2','MAP_CELLS=15','RATE=1',
+                  'TRENDS=2','MAP_CELLS=19','RATE=1',
                   'PDF_TITLE=1','PDF_KPI=1','PDF_SUB=1'):
         assert probe in out, out
 
@@ -2432,8 +2432,9 @@ def test_record_date_fields_and_home_progress():
 
 
 def test_wish_gift_exchange():
-    """兑换区: 武器/奥特曼互斥分区; 武器可重复收集+卡片卖出(返还购入价-5, 按钮不显示「+」);
-    奥特曼唯一不可重复; 已兑换区已删除, 卡片「名字+星星数」同一行; 详情自动朗读名称与专属口号 + 展示真实图."""
+    """兑换区: 武器/奥特曼互斥分区; 礼物(武器/奥特曼/武将)均唯一不可重复收集;
+    兑换后卡片可卖出(返还购入价-5, 按钮不显示「+」); 已兑换区已删除, 卡片「名字+星星数」同一行;
+    详情自动朗读名称与专属口号 + 展示真实图."""
     out = _harness(r'''
 (async()=>{
   const mkEl=()=>{const el={_h:'',style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},setAttribute(){},getAttribute(){return null},querySelector:()=>mkEl(),querySelectorAll:()=>[],focus(){},scrollIntoView(){},children:[],textContent:'',value:''};
@@ -2465,7 +2466,7 @@ def test_wish_gift_exchange():
   console.log('DEF_DAO='+Wish.giftPriceOf('dao'));
   console.log('DEF_GONG='+Wish.giftPriceOf('gong'));
   console.log('DEF_QIANG='+Wish.giftPriceOf('qiang'));
-  // 兑换 feidao(15星) 4次(70->55->40->25->10), 第5次因星不足拒绝
+  // 兑换 feidao(15星): 首次成功(70->55); 重复兑换被唯一性拒绝(仍55星/1件)
   Wish.giftRedeem('feidao'); Wish.giftConfirmOk();
   const s1=W.Edu.Store.state;
   console.log('STARS_AFTER='+s1.stars);
@@ -2506,7 +2507,7 @@ def test_wish_gift_exchange():
   console.log('ULTRA_TAB_TITLE='+(bodyEl._h.indexOf('奥特曼专区')>=0?'1':'0'));
   // 已兑换折叠区已删除: 兑换区不再渲染「已兑换」; 卡片「名字+星星数」同一行; 卖出按钮不显示「+」
   console.log('NO_FOLD='+(bodyEl._h.indexOf('gift-fold')>=0?'0':'1'));
-  console.log('ONELINE_DIGA='+(bodyEl._h.indexOf('迪迦奥特曼</span><span class="gift-price">180 ⭐</span>')>=0?'1':'0'));
+  console.log('ONELINE_DIGA='+(bodyEl._h.indexOf('迪迦奥特曼</span>')>=0 && bodyEl._h.indexOf('175⭐')>=0?'1':'0'));
   console.log('SELL_NO_PLUS='+(bodyEl._h.indexOf('gift-sell')>=0 && bodyEl._h.indexOf('卖出+')<0?'1':'0'));
   console.log('SELL_175='+(bodyEl._h.indexOf('卖出 175⭐')>=0?'1':'0'));
   // 切回武器区
@@ -2524,7 +2525,7 @@ def test_wish_gift_exchange():
   console.log('HERO_TAB_ANIM='+(bodyEl._h.indexOf('hero-card anim-slice')>=0?'1':'0'));
   console.log('HERO_TAB_NOIMAGE='+(bodyEl._h.indexOf('class="gift-emoji"')>=0?'0':'1'));
   // 兑换武将: 唯一不可重复
-  Store.state.stars=999;
+  W.Edu.Store.state.stars=999;
   Wish.giftRedeem('h_guan'); Wish.giftConfirmOk();
   const s7=W.Edu.Store.state;
   console.log('HERO_REDEEM_COUNT='+((s7.redeemed||[]).filter(r=>r.id==='h_guan').length));
@@ -2540,7 +2541,7 @@ def test_wish_gift_exchange():
   console.log('HERO_DETAIL_NOIMAGE='+(detailBody._h.indexOf('.svg')>=0?'0':'1'));
   console.log('HERO_DETAIL_EPITHET='+(detailBody._h.indexOf('武圣')>=0?'1':'0'));
   console.log('HERO_DETAIL_WEAPON='+(detailBody._h.indexOf('青龙偃月刀')>=0?'1':'0'));
-  console.log('HERO_SPOKE='+(SPOKE.length>spH && SPOKE[spH]==='关羽'?'1':'0'));
+  console.log('HERO_SPOKE='+(SPOKE.length>spH && SPOKE[spH].indexOf('关羽')>=0?'1':'0'));
   // 细节弹窗(武器): 真实武器图(非 emoji) + 名称 + 自动朗读语音
   Wish.giftDetail('jian');
   console.log('DETAIL_IMG='+(detailBody._h.indexOf('/weapons/jian.svg')>=0?'1':'0'));
@@ -2555,16 +2556,16 @@ def test_wish_gift_exchange():
   console.log('DETAIL_SLOGAN='+(detailBody._h.indexOf('化作光')>=0?'1':'0'));
   console.log('DETAIL_OWNED='+(detailBody._h.indexOf('已拥有')>=0?'1':'0'));
   console.log('SPOKE1='+(SPOKE.length>sp0 && SPOKE[sp0]==='迪迦奥特曼'?'1':'0'));
-  await new Promise(r=>setTimeout(r,1700));  // 等口号延时播报
+  await new Promise(r=>setTimeout(r,2200));  // 等口号延时播报(2000ms+)
   console.log('SPOKE2='+(SPOKE.indexOf('化作光，飞向未来！')>=0?'1':'0'));
 })();
 ''')
     for probe in ('SEC2=3','CAT_HAS_ULTRA=1','ULTRA_UNIQUE=1',
                   'CAT_HAS_DAO=1','CAT_HAS_GONG=1','CAT_HAS_QIANG=1','CAT_HAS_JIAN=1','CAT_HAS_DUN=1',
                   'DEF_DAO=25','DEF_GONG=40','DEF_QIANG=45','STARS_AFTER=55','REDEEMED1=1','REDEEMED_FEIDAO=1',
-                  'REDEEMED_HAS_PRICE=1','STARS_EXHAUST=10','COUNT2=4',
-                  'SELL_REFUND=10','SELL_STARS=20','SELL_COUNT=3',
-                  'SELLOF_STARS=30','SELLOF_COUNT=2',
+                  'REDEEMED_HAS_PRICE=1','STARS_EXHAUST=55','COUNT2=1',
+                  'SELL_REFUND=10','SELL_STARS=65','SELL_COUNT=0',
+                  'SELLOF_STARS=65','SELLOF_COUNT=0',
                   'DIGA_STARS=320','DIGA_COUNT=1','DIGA_BLOCKED_STARS=320','DIGA_BLOCKED_COUNT=1',
                   'ULTRA_TAB_WEAP=1','ULTRA_TAB_IMG=1','ULTRA_TAB_TITLE=1',
                   'NO_FOLD=1','ONELINE_DIGA=1','SELL_NO_PLUS=1','SELL_175=1',

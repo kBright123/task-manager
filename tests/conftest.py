@@ -10,6 +10,10 @@ os.environ.setdefault('KB_AUTOPIP', '0')
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# 测试模式下关闭登录/注册等滑动窗口限速, 避免跨用例互相干扰
+from app import app  # noqa: E402
+app.config['TESTING'] = True
+
 try:
     import pytest  # noqa: E402
 except ImportError:  # 零依赖运行(run_tests.py)时无 pytest

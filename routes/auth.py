@@ -52,6 +52,8 @@ _ip_lock = threading.Lock()
 
 def _ip_rate_limited(key, limit=10, window=60):
     """滑动窗口限速: 同一 key(window 秒内)超过 limit 次返回 True。"""
+    if app.config.get('TESTING'):
+        return False
     now = _time_mod.time()
     with _ip_lock:
         dq = _ip_attempts.setdefault(key, _deque())

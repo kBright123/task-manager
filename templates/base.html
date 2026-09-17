@@ -402,7 +402,7 @@
   {% include '_quick_task_modal.html' %}
   {% if current_user.is_authenticated %}
   <div id="quickFab" class="quick-fab">
-    <!-- 小知助手面板(贴球展开, Chatwoot/Crisp 风格; 快捷操作+对话检索, 数字分身优先全局检索兜底) -->
+    <!-- 小知助手面板(贴球展开, Chatwoot/Crisp 风格; 快捷操作 + 自然语言提问/意图分类/LLM 整理) -->
     <div id="fabSheet" class="fab-sheet" role="dialog" aria-label="小知助手">
       <div class="fab-sheet-head">
         <button type="button" class="fab-sheet-max" onclick="fabToggleMax()" aria-label="最大化"><i class="bi bi-arrows-angle-expand"></i></button>
@@ -424,7 +424,7 @@
         </div>
         <div class="fab-main">
           <div class="fab-chat-box" id="fabChatBox">
-            <div class="fab-chat-empty" id="fabChatEmpty"><i class="bi bi-search"></i>&nbsp;输入问题，检索知识库 · 待办 · 随手记；以 @LLM 开头直接问大模型</div>
+            <div class="fab-chat-empty" id="fabChatEmpty"><i class="bi bi-search"></i>&nbsp;输入问题，检索知识库 · 待办 · 随手记，或直接添加待办 / 随手记</div>
           </div>
           <div class="fab-peer" id="fabPeer" hidden>
             <div class="fab-peer-head" id="fabPeerHead">
@@ -565,9 +565,6 @@
     resultsPage: '{{ url_for("unified_search_page") }}'
   };
   window.FAB_CONFIG = {
-    avatarAsk: '{{ url_for("kb.api_avatar_ask") }}',
-    unifiedSearch: '{{ url_for("api_unified_search") }}',
-    docDetail: '{{ url_for("kb.doc_detail", doc_id=0) }}',
     nlAsk: '{{ url_for("api_chat_nl") }}'
   };
   {% if current_user.is_authenticated %}

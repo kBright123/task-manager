@@ -506,13 +506,8 @@ from core.app_services import (get_job_setting, set_job_setting, client_ip,
                           ALLOWED_EXTENSIONS, SENSITIVE_WORDS,
                           check_sensitive_words, highlight_sensitive_words,
                           find_similar_tasks, JOB_SCHEDULE_DEFAULTS)
-from kb.nlp_parser import (WEEKDAY_MAP, parse_chinese_datetime, WEEK_KEYS,
-                        NEXT_WEEK_KEYS, _parse_time,
-                        _find_all_datetime_candidates,
-                        detect_deadline_from_text, extract_assignees_from_text,
-                        TITLE_BLOCK_WORDS, TITLE_CLEAN_PREFIX,
-                        extract_title_from_text, parse_task_from_text,
-                        ensure_jionlp_async, _get_jionlp)
+from kb.nlp_parser import (extract_title_from_text, parse_task_from_text,
+                        ensure_jionlp_async, _parse_time)
 
 
 # ---- 数据库迁移/初始化(幂等) ----

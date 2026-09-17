@@ -27,11 +27,7 @@
 """
 import datetime
 
-
-def cn_now():
-    """当前北京时间(naive), 全项目统一时间源(与服务器时区无关)。"""
-    return datetime.datetime.now(
-        datetime.timezone(datetime.timedelta(hours=8))).replace(tzinfo=None)
+from core.timeutil import cn_now
 import hashlib
 import json
 import logging

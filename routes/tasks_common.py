@@ -16,13 +16,7 @@
 
 # -*- coding: utf-8 -*-
 """tasks 路由, 自 app.py 单文件拆分, 保持原 endpoint 名称不变。"""
-from app import (app, login_required, Group, Notification, Task,
-                 TaskAssignment, User, _count_kb, _count_notes,
-                 allowed_file, check_sensitive_words, cn_now,
-                 create_notification, db, file_content_matches,
-                 find_similar_tasks, get_same_group_users,
-                 highlight_sensitive_words, logger, parse_task_from_text,
-                 task_group)
+from app import (Group, TaskAssignment, User, db)
 
 
 

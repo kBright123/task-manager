@@ -22,14 +22,12 @@ from app import app, db
 from core.app_services import create_notification
 from core.models import ChatMessage, Task, TaskAssignment, User
 from core.timeutil import cn_now
-from kb.chat_intent import ACTION_INTENTS, QUERY_INTENTS, classify_question, parse_question_time
+from kb.chat_intent import (_SEARCH_KW, ACTION_INTENTS, QUERY_INTENTS,
+                            classify_question, parse_question_time)
 
 _CHAT_DISABLED_HINT = '大模型服务未启用，未能自动起草回答；可人工回复。'
 _CHAT_NO_SOURCE_HINT = ('TA 当前没有可用的非个人待办/笔记/公开知识库资料，'
                         '暂时无法基于TA的内容回答。')
-_ASK_SYSTEM_NL = ('你是「小知」助手，基于资料回答用户问题。检索结果已在界面展示，'
-                  '请精炼作答，不要逐条复述；引用具体事实时用 [资料 N] 标注。'
-                  '回答控制在几句话或少量要点。\n\n')
 
 
 def _chat_system(target, asker):
@@ -497,8 +495,36 @@ def _answer_natural(question, target=None):
         return {'intent': intent, 'content': answer,
                 'rows': _rows_from_links(links), 'links': links, 'meta': meta}
 
-    # 小知: 本人统一检索(待办+随手记+知识库) → 大模型精炼
-    hits = _unified_search_data(question)
+    # 小知: 默认先检索展示结果(不用大模型汇总), 用户点「✨ 用大模型整理」时再经 /api/chat/tidy 调用
+    query = question.strip()
+    candidates = [query]
+    if intent == 'search':
+        for kw in sorted(_SEARCH_KW, key=len, reverse=True):
+            if query.startswith(kw):
+                rest = query[len(kw):].lstrip('的「《" \t：:')
+                if rest:
+                    candidates.insert(0, rest)
+                break
+    elif intent == 'knowledge':
+        for tail in ('是什么意思', '什么意思', '是什么', '怎么样', '怎么回事',
+                     '是什么含义', '怎么做', '怎么弄', '如何做', '怎么办',
+                     '怎么进行', '怎么', '如何', '为什么', '为啥', '什么'):
+            if query.endswith(tail):
+                rest = query[:-len(tail)].strip('的：:，。 ')
+                if rest:
+                    candidates.insert(0, rest)
+                break
+        for head in ('请问', '告诉我', '教我', '怎么', '如何', '怎样'):
+            if candidates[0].startswith(head):
+                rest = candidates[0][len(head):].strip()
+                if rest:
+                    candidates.insert(0, rest)
+                break
+    hits = {'kb': [], 'tasks': [], 'notes': []}
+    for cq in dict.fromkeys(candidates):
+        hits = _unified_search_data(cq)
+        if hits.get('kb') or hits.get('tasks') or hits.get('notes'):
+            break
     kb, tasks, notes = (hits.get('kb') or []), (hits.get('tasks') or []), (hits.get('notes') or [])
     sources, links = [], []
 
@@ -529,21 +555,12 @@ def _answer_natural(question, target=None):
         return {'intent': intent,
                 'content': '没有在知识库 · 待办 · 随手记中检索到相关内容，换个问法试试？',
                 'rows': [], 'links': [], 'meta': meta}
-    if KB_LLM_DISABLED:
-        bullet = '\n'.join(f'· {s.get("title") or ""}' for s in sources[:8])
-        return {'intent': intent,
-                'content': f'共找到 {len(sources)} 条相关内容：\n{bullet}',
-                'rows': rows, 'links': links, 'meta': meta}
-    answer = ''
-    try:
-        answer = (llm_ask(question, sources, system=_ASK_SYSTEM_NL,
-                          force=True) or '').strip()
-    except Exception as e:
-        app.logger.warning('chat nl llm failed: %s', e)
-    if not answer or 'LLM 服务已禁用' in answer:
-        bullet = '\n'.join(f'· {s.get("title") or ""}' for s in sources[:8])
-        answer = f'已找到 {len(sources)} 条相关内容：\n{bullet}'
-    return {'intent': intent, 'content': answer,
+    bullet = '\n'.join(
+        f'· {s.get("title") or ""}' + ((f'：{(s.get("text") or "")[:80]}') if s.get('text') else '') +
+        (f' [资料 {i}]' if i - 1 < len(links) else '')
+        for i, s in enumerate(sources[:6], 1))
+    return {'intent': intent,
+            'content': f'共找到 {len(sources)} 条相关内容：\n{bullet}',
             'rows': rows, 'links': links, 'meta': meta}
 
 
@@ -600,12 +617,11 @@ def api_chat_tidy():
     from kb.knowledge import KB_LLM_DISABLED, llm_ask
     if KB_LLM_DISABLED:
         return jsonify({'ok': False, 'error': 'LLM 服务未启用'})
-    import re as _re
-    cleaned = _re.sub(r'\s*\[资料\s*\d+\]\s*', ' ', txt).strip()
     try:
         answer = (llm_ask(
-            '把以下回答整理得更清晰、更有条理，保留要点与数据，去掉 [资料 N] 标注，'
-            '直接输出整理后的正文：\n\n' + cleaned,
+            '将以下回答整理得更清晰、更有条理，保留要点与数据；'
+            '若某条要点来自某条资料，请原样保留对应的 [资料 N] 标注，'
+            '不要编造或重新编号；直接输出整理后的正文：\n\n' + txt,
             [], system='你是内容整理助手，只输出整理后的正文，不要解释、不要客套、不要开头语。',
             force=True) or '').strip()
     except Exception as e:

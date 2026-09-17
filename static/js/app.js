@@ -421,14 +421,14 @@
       box.scrollTop = box.scrollHeight;
       return d;
     }
-    function fabChatRefLinks(answer, hrefs) {
+    function fabChatRefLinks(answer, hrefs, cls) {
       var esc = window.esc || function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); };
       var safe = esc(answer);
       var out = safe.replace(/\[资料\s*(\d+)\]/g, function (m, n) {
         var h = hrefs[parseInt(n, 10) - 1];
         return h ? '<a class="fab-chat-ref" target="_blank" rel="noopener" href="' + esc(h) + '">' + m + '</a>' : m;
       });
-      return '<div style="white-space:pre-wrap;">' + out + '</div>';
+      return '<div style="white-space:pre-wrap;" class="' + (cls || '') + '">' + out + '</div>';
     }
     /* ---- 微信式会话: 左侧会话列表(小知置顶 + 同组联系人) + 右侧对话窗 + @联想 ---- */
     var _fabPeerUid = 0;
@@ -1060,15 +1060,25 @@
     }
     function fabAskTidy(btn) {
       function close() { var s = btn.querySelector ? btn.querySelector('.fab-tidy-spin') : null; if (s) s.remove(); }
-      function escF(s) { return window.esc ? window.esc(s) : _fabEsc(s); }
       var spin = document.createElement('span');
       spin.className = 'fab-tidy-spin';
       spin.textContent = ' ✨整理中…';
       btn.appendChild(spin);
       var txt = btn.getAttribute('data-txt') || '';
+      var hrefs = [];
+      var hrefsStr = btn.getAttribute('data-hrefs');
+      if (hrefsStr) {
+        try {
+          var parr = JSON.parse(hrefsStr);
+          if (Array.isArray(parr)) hrefs = parr.map(function (h) { return (h && h.href) ? h.href : h; });
+        } catch (e) { hrefs = []; }
+      }
       if (!txt && btn.getAttribute('data-id')) {
         var m = _fabMsgsById[String(btn.getAttribute('data-id'))];
-        if (m) txt = m.content || '';
+        if (m) {
+          txt = m.content || '';
+          hrefs = ((m.links) || []).map(function (l) { return (l && l.href) || '#'; });
+        }
       }
       var text = (txt || '').trim();
       if (!text) { close(); return; }
@@ -1081,7 +1091,7 @@
         if (d && d.ok && d.answer) {
           var bubble = btn.closest ? btn.closest('.fab-msg-bubble') : null;
           var holder = bubble ? bubble.querySelector('.fab-msg-content') : null;
-          if (holder) holder.innerHTML = '<div class="fab-tidy-box" style="white-space:pre-wrap;">' + escF(d.answer) + '</div>';
+          if (holder) holder.innerHTML = fabChatRefLinks(d.answer, hrefs, 'fab-tidy-box');
           else fabAskHint('✨ LLM 整理：\n' + d.answer);
         } else {
           fabAskHint('⚠ ' + ((d && d.error) || '整理失败，请稍后再试。'));
@@ -1131,7 +1141,8 @@
         var hrefs = (d.links || []).map(function (l) { return l.href || '#'; });
         fabChatBubble(turn, 'avatar', fabChatRefLinks(d.content || '', hrefs));
         var rows = d.rows || [];
-        if (rows.length) {
+        var hasRef = /\[资料\s*\d+\]/.test(d.content || '');
+        if (rows.length && !hasRef) {
           var rowsHtml = '';
           rows.slice(0, 5).forEach(function (r) {
             rowsHtml += '<a class="fab-chat-src" href="' + esc(r.href || '#') + '" target="_blank" rel="noopener">' + esc(r.tag ? '[' + r.tag + '] ' : '') + esc(r.title || '') + '</a>';
@@ -1139,7 +1150,7 @@
           fabChatBubble(turn, 'avatar', rowsHtml);
         }
         var tidyStrip = '<div class="fab-tidy-strip"><i class="bi bi-stars"></i> 想让回答更有条理、更精炼？' +
-          '<button type="button" class="fab-tidy-btn fab-tidy-prio" onclick="fabAskTidy(this)" data-txt="' + esc((d.content || '').slice(0, 4000)) + '">✨ 用大模型整理</button></div>';
+          '<button type="button" class="fab-tidy-btn fab-tidy-prio" onclick="fabAskTidy(this)" data-txt="' + esc((d.content || '').slice(0, 4000)) + '" data-hrefs="' + esc(JSON.stringify(hrefs)) + '">✨ 用大模型整理</button></div>';
         fabChatBubble(turn, 'avatar', tidyStrip);
         fabChatCommit();
       }).catch(function () {

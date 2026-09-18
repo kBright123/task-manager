@@ -165,6 +165,12 @@ _TASK_DONE_RE = re.compile(
 _SCHEDULE_KW = ('日程', '任务', '待办', '安排', '会议', '开会', '周报', '计划',
                 '做什么', '干什么', '忙什么', '在忙', '有没有事', '有什么')
 
+# 内容性宾语: 句子携带这些词时, 优先按「检索具体内容」处理, 而不是"查日程"。
+# 例:「会议材料有哪些」→ 检索; 「今天有什么任务」→ 日程。
+_SCHEDULE_CONTENT_KW = ('材料', '资料', '文档', '内容', '纪要', '记录', '流程',
+                        '规则', '模板', '报销', '知识', '问题', '要求', '清单',
+                        '文件', '格式', '范本', '方案', '预算', '发票')
+
 _SEARCH_KW = ('搜索', '搜一下', '查一下', '查找', '找一下', '帮忙找', '帮我找',
               '有没有', '查查', '检索', '搜搜', '查资料')
 
@@ -206,7 +212,8 @@ def classify_question(text):
     if _TASK_DONE_RE.match(raw):
         out['intent'] = 'task_done'
         return out
-    if any(k in raw for k in _SCHEDULE_KW):
+    if any(k in raw for k in _SCHEDULE_KW) and not any(
+            k in raw for k in _SCHEDULE_CONTENT_KW):
         out['intent'] = 'schedule'
         return out
     if any(k in raw for k in _SEARCH_KW):

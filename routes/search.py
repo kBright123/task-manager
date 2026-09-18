@@ -74,7 +74,7 @@ def _unified_search_data(q):
     tasks = [_task_row(a) for a in assigns]
 
     # 通用化兜底: 整串 LIKE 命不中的近义问法(如「青年理论学习小组」vs 待办里存的
-    # 「青年理论小组」), 改用字符二元组覆盖率近似召回, 避免问法略异就搜不到
+    # 「青年理论小组」), 改用字形覆盖率(单字+二元组)+同义词近似召回
     if not tasks and len(q) >= 2:
         fuzzy = []
         rows = TaskAssignment.query.join(Task).filter(
@@ -82,7 +82,7 @@ def _unified_search_data(q):
         for a in rows:
             hay = ' '.join(filter(None, [
                 a.task.title or '', a.task.description or '', a.note or '']))
-            cov = _kb.fuzzy_coverage(q, hay)
+            cov = _kb.fuzzy_coverage_syn(q, hay)
             if cov >= _kb._FUZZY_MIN_COVERAGE:
                 fuzzy.append((round(cov, 3), a))
         fuzzy.sort(key=lambda x: -x[0])
@@ -113,7 +113,7 @@ def _unified_search_data(q):
         fuzzy = []
         for n in Note.query.filter(Note.user_id == current_user.id).all():
             hay = ' '.join(filter(None, [n.title or '', n.content or '']))
-            cov = _kb.fuzzy_coverage(q, hay)
+            cov = _kb.fuzzy_coverage_syn(q, hay)
             if cov >= _kb._FUZZY_MIN_COVERAGE:
                 fuzzy.append((round(cov, 3), n))
         fuzzy.sort(key=lambda x: -x[0])

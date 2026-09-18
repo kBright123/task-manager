@@ -2139,29 +2139,86 @@ def _fuzzy_bigrams(s):
     return set(s[i:i + 2] for i in range(len(s) - 1))
 
 
+def _fuzzy_chars(s):
+    """文本的字符集合(去空白、小写)。"""
+    return set(re.sub(r'\s+', '', s or '').lower()) - {' ', '\t', '\n'}
+
+
 def fuzzy_coverage(query, text):
-    """查询对文本的字符二元组覆盖率(0~1): 查询与库内内容差一两个字也能命中。
+    """查询对文本的字形覆盖率(0~1): 单字覆盖率 55% + 二元组覆盖率 45% 加权。
 
-    通用化近似匹配: 如查询「青年理论学习小组」而库内只有「青年理论小组」,
-    精确子串(整句 LIKE/AND 分词)匹配不上, 但二元组覆盖率仍较高(>=0.55)可召回。"""
+    通用化近似匹配:
+    - 差一两个字: 「青年理论学习小组」vs「青年理论小组」仍可达 0.8;
+    - 部分关键词(中间缺字): 「青年学习」对「青年理论学习小组」单字全覆盖,
+      二元组覆盖一半 → ~0.78, 也能召回, 弥补纯二元组对跳字无能为力的短板。"""
+    _, uni, bg = _fuzzy_features(query, text)
+    if uni <= 0:
+        return 0.0
+    return 0.55 * uni + 0.45 * bg
+
+
+def _fuzzy_features(query, text):
+    """返回 (query_char_count>0, 单字覆盖率, 二元组覆盖率)。"""
+    qc = _fuzzy_chars(query)
+    tc = _fuzzy_chars(text)
+    if not qc or not tc:
+        return 0, 0.0, 0.0
     qb = _fuzzy_bigrams(query)
-    if not qb:
-        return 0.0
     tb = _fuzzy_bigrams(text)
-    if not tb:
-        return 0.0
-    hit = 0
-    for b in qb:
-        if b in tb:
-            hit += 1
-    return hit / len(qb)
+    uni = len(qc & tc) / len(qc)
+    bg = len(qb & tb) / len(qb) if qb and tb else 0.0
+    return 1, uni, bg
 
 
-_FUZZY_MIN_COVERAGE = 0.55
+_FUZZY_MIN_COVERAGE = 0.6
+
+
+# 同义词组(办公常用词): 字符完全不重叠的近义词也走「同义命中」召回。
+# 成员至少 2 个字, 太泛的单字(会/期)不收入, 避免误伤。
+_SYNONYM_GROUPS = (
+    ('会议', ('会议', '开会', '例会', '晨会', '周会', '座谈', '碰头会')),
+    ('学习', ('学习', '培训', '研习', '进修', '上课', '课程', '授课')),
+    ('考试', ('考试', '测验', '考核', '测评', '月考', '期考')),
+    ('报告', ('报告', '汇报', '总结', '简报', '周报', '月报', '述职')),
+    ('请假', ('请假', '休假', '调休', '年假', '病假', '事假', '婚假')),
+    ('出差', ('出差', '外出', '外勤', '差旅')),
+    ('报销', ('报销', '发票', '报账', '费用报销')),
+    ('加班', ('加班', '值班', '值守', '夜班')),
+    ('截止', ('截止', '到期', '期限', '最后期限')),
+    ('材料', ('材料', '资料', '文件', '文档', '附件', '素材')),
+    ('纪要', ('纪要', '记录', '备忘录', '速记')),
+    ('进度', ('进度', '进展', '里程碑')),
+    ('调研', ('调研', '调查', '走访')),
+    ('整理', ('整理', '梳理', '归档', '汇编')),
+    ('修改', ('修改', '修订', '调整', '改动')),
+)
+
+
+def _syn_group_hits(s):
+    """文本命中的同义词组集合(组内成员以其子串出现即算)。"""
+    s = s or ''
+    hits = set()
+    for gid, members in _SYNONYM_GROUPS:
+        for m in members:
+            if m in s:
+                hits.add(gid)
+                break
+    return hits
+
+
+def fuzzy_coverage_syn(query, text):
+    """同义词感知覆盖率: 字符覆盖率不足时, 若查询与文本命中同一同义词组则视为命中。
+
+    场景: 问「开会时间」, 库内写的是「例会记录」——字符完全不重叠, 单靠字形
+    覆盖率永远为 0; 两者都命中「会议」同义词组 → 覆盖率视为 1.0 召回。"""
+    cov = fuzzy_coverage(query, text)
+    if cov < _FUZZY_MIN_COVERAGE and _syn_group_hits(query) & _syn_group_hits(text):
+        cov = max(cov, 1.0)
+    return cov
 
 
 def _fuzzy_search_pages(query, k=8, exclude=None):
-    """精确关键词命中稀少的模糊兜底: 全量页按二元组覆盖率过滤排序。"""
+    """精确关键词命中稀少的模糊兜底: 全量页按覆盖率(单字+二元组+同义词)过滤排序。"""
     conn = _db_conn()
     try:
         rows = conn.execute(
@@ -2174,8 +2231,8 @@ def _fuzzy_search_pages(query, k=8, exclude=None):
                 key = page_doc_id(doc_id, page_no)
                 if key in exclude:
                     continue
-            cov = max(fuzzy_coverage(query, title or ''),
-                      fuzzy_coverage(query, text or ''))
+            cov = max(fuzzy_coverage_syn(query, title or ''),
+                      fuzzy_coverage_syn(query, text or ''))
             if cov >= _FUZZY_MIN_COVERAGE:
                 out.append({'doc_id': doc_id, 'page_no': page_no,
                             'title': title, 'filename': filename,
@@ -2203,7 +2260,8 @@ def _fuzzy_search_points(query, k=6, exclude=None):
                 continue
             title = title or ''
             content = content or ''
-            cov = max(fuzzy_coverage(query, title), fuzzy_coverage(query, content))
+            cov = max(fuzzy_coverage_syn(query, title),
+                      fuzzy_coverage_syn(query, content))
             if cov >= _FUZZY_MIN_COVERAGE:
                 out.append({
                     'point_id': pid, 'doc_id': doc_id,

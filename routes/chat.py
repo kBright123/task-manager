@@ -280,8 +280,8 @@ def api_chat_send():
 def _build_target_sources(question, target):
     """基于被@人的内容构建 llm_ask 的 sources 与前端 links(按相似度从高到低)。
 
-    三类来源各自「精确 LIKE + 同义词/部分关键词兜底」, 合并后按相似度降序。"""
-    pat = f'%{question}%'
+    三类来源各自「字面 + 同义词/部分关键词」单遍打分, 合并后按相似度降序。
+    待办/随记复用 routes.search 的请求内缓存(同一请求多次候选词不再重扫全表)。"""
     cands = []
 
     def _push(tag, title, text, href, sim):
@@ -289,7 +289,8 @@ def _build_target_sources(question, target):
                       'text': text or '', 'href': href or '#'})
 
     import kb.knowledge as _kb
-    from core.models import Task, TaskAssignment
+    from routes.search import (_cached_user_note_rows, _cached_user_task_rows,
+                               _accept_candidate as _accept_cov_text)
     now = cn_now()
 
     def _task_note(a):
@@ -310,59 +311,34 @@ def _build_target_sources(question, target):
         return ' '.join(filter(None, [
             a.task.title or '', a.task.description or '', a.note or '']))
 
-    def _push_task(a):
-        cov = _kb.fuzzy_coverage_syn(question, _task_hay(a))
+    def _push_task(a, cov):
         _push('待办', f"[待办] {a.task.title or ''}",
               (a.task.description or '') + (f'（{_task_note(a)}）' if
                                             _task_note(a) else ''),
               url_for('user_tasks') + '?highlight=' + str(a.task.id), cov)
 
-    assigns = TaskAssignment.query.join(Task).filter(
-        TaskAssignment.user_id == target.id,
-        Task.category != '个人',
-        db.or_(Task.title.like(pat), Task.description.like(pat),
-               TaskAssignment.note.like(pat)),
-    ).order_by(Task.end_time.desc()).limit(20).all()
-    seen_tasks = set()
-    for a in assigns:
-        seen_tasks.add(a.task.id)
-        _push_task(a)
-    if len(question) >= 2:
-        for a in TaskAssignment.query.join(Task).filter(
-                TaskAssignment.user_id == target.id,
-                Task.category != '个人').all():
-            if a.task.id in seen_tasks:
-                continue
-            if _kb.fuzzy_coverage_syn(question, _task_hay(a)) >= \
-                    _kb._FUZZY_MIN_COVERAGE:
-                seen_tasks.add(a.task.id)
-                _push_task(a)
-
-    from routes.notes import Note
+    # 待办(我参与、非个人分类)
+    for a in _cached_user_task_rows(target.id):
+        if a.task.category == '个人':
+            continue
+        hay = _task_hay(a)
+        cov = _kb.fuzzy_coverage_syn(question, hay)
+        if _accept_cov_text(question, hay, cov):
+            _push_task(a, cov)
 
     def _note_hay(n):
         return ' '.join(filter(None, [n.title or '', n.content or '']))
 
-    def _push_note(n):
+    def _push_note(n, cov):
         _push('随记', f"[随记] {n.title or ''}", n.content or '',
-              url_for('notes.index', note_id=n.id),
-              _kb.fuzzy_coverage_syn(question, _note_hay(n)))
+              url_for('notes.index', note_id=n.id), cov)
 
-    exact_notes = Note.query.filter(Note.user_id == target.id).filter(
-        db.or_(Note.title.like(pat), Note.content.like(pat))
-    ).order_by(Note.created_at.desc()).limit(20).all()
-    seen_notes = set()
-    for n in exact_notes:
-        seen_notes.add(n.id)
-        _push_note(n)
-    if len(question) >= 2:
-        for n in Note.query.filter(Note.user_id == target.id).all():
-            if n.id in seen_notes:
-                continue
-            if _kb.fuzzy_coverage_syn(question, _note_hay(n)) >= \
-                    _kb._FUZZY_MIN_COVERAGE:
-                seen_notes.add(n.id)
-                _push_note(n)
+    # 随记(个人)
+    for n in _cached_user_note_rows(target.id):
+        hay = _note_hay(n)
+        cov = _kb.fuzzy_coverage_syn(question, hay)
+        if _accept_cov_text(question, hay, cov):
+            _push_note(n, cov)
 
     try:
         doc_ids = _kb._doc_ids_for_user(target.id)
@@ -442,7 +418,7 @@ def _kb_fused_sources(question, uid):
     try:
         doc_ids = _kb._doc_ids_for_user(uid)
         for h in _kb.search_pages(question, k=6, alpha=0.5,
-                                  doc_ids=doc_ids)[:3]:
+                                  doc_ids=doc_ids)[:5]:
             out.append({
                 'title': h.get('title') or h.get('filename') or '',
                 'text': h.get('text') or '',
@@ -630,7 +606,7 @@ def _answer_natural(question, target=None):
     # 知识库只保留字面/同义召回 ≥ 阈值的页, 避免语义向量兜上来的弱相关文档(如
     # 「青年理论学习小组」问出「消费者权益保护培训考核题」)把准确结果挤下去
     cands = []
-    for it in kb[:3]:
+    for it in kb[:5]:
         kcov = _kb.fuzzy_coverage_syn(question, ' '.join(filter(None, [
             it.get('title') or '', it.get('text') or ''])))
         if kcov < _kb._FUZZY_MIN_COVERAGE:
@@ -639,7 +615,7 @@ def _answer_natural(question, target=None):
                       'title': it.get('title') or '',
                       'text': it.get('text') or '',
                       'href': it.get('href') or '#'})
-    for t in tasks[:3]:
+    for t in tasks[:5]:
         note = '；'.join(x for x in [
             ('状态 ' + str(t.get('status') or '')),
             ('截止 ' + str(t.get('end_time') or ''))] if x)
@@ -647,13 +623,13 @@ def _answer_natural(question, target=None):
                       'title': t.get('title') or '',
                       'text': (t.get('description') or '') + (('（' + note + '）') if note else ''),
                       'href': t.get('detail_url') or '#'})
-    for n in notes[:3]:
+    for n in notes[:5]:
         cands.append({'sim': float(n.get('score') or 0), 'tag': '随记',
                       'title': n.get('title') or '',
                       'text': n.get('content') or '',
                       'href': n.get('detail_url') or '#'})
     cands.sort(key=lambda c: -c['sim'])
-    for c in cands[:9]:
+    for c in cands[:10]:
         _add_src(f"[{c['tag']}] {c['title']}", c['text'], c['href'], c['tag'])
     if not sources:
         return {'intent': intent,

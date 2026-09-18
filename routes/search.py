@@ -17,6 +17,50 @@
 # -*- coding: utf-8 -*-
 """search 路由, 自 app.py 单文件拆分, 保持原 endpoint 名称不变。"""
 from app import (app, login_required, Task, TaskAssignment, cn_now, db)
+from flask import g
+import kb.knowledge as _kb
+
+
+def _cached_user_task_rows(uid):
+    """某用户参与的任务分配(join Task, 按截止时间倒序), 请求内缓存。
+
+    问答/检索在候选词循环里会对同一用户多次取数, 缓存避免每轮重扫全表;
+    仅存活于当前请求, 不常驻内存。"""
+    key = f'_ut_rows_{uid}'
+    rows = getattr(g, key, None)
+    if rows is None:
+        rows = TaskAssignment.query.options(
+            db.joinedload(TaskAssignment.task)
+        ).join(Task).filter(
+            TaskAssignment.user_id == uid
+        ).order_by(Task.end_time.desc().nulls_last()).all()
+        setattr(g, key, rows)
+    return rows
+
+
+def _cached_user_note_rows(uid):
+    """某用户的随笔记(创建倒序), 请求内缓存。"""
+    key = f'_un_rows_{uid}'
+    rows = getattr(g, key, None)
+    if rows is None:
+        from routes.notes import Note
+        rows = Note.query.options(
+            db.joinedload(Note.thread)
+        ).filter(Note.user_id == uid).order_by(
+            Note.created_at.desc()).all()
+        setattr(g, key, rows)
+    return rows
+
+
+def _accept_candidate(q, hay, cov):
+    """统一检索的召回门槛: 字形覆盖率合格(近义/缺字/同义)或字面子串命中。
+
+    字面子串与覆盖率口径保持一致(子串命中覆盖率天然 1.0), 但对单字符/含空格
+    等覆盖率(单字权重低)不达标的输入, 仍按「原?子串出现」召回, 保持旧 LIKE 行为。"""
+    if cov >= _kb._FUZZY_MIN_COVERAGE:
+        return True
+    return bool(q) and q in hay
+
 
 def _kb_path(name):
     """集合名(可能形如 '一级·二级')转展示路径: '/一级/二级'。"""
@@ -37,19 +81,12 @@ def _unified_search_data(q):
     q = (q or '').strip()
     if not q:
         return {'q': '', 'tasks': [], 'notes': [], 'kb': [], 'total': 0}
-    pat = f'%{q}%'
-
-    import kb.knowledge as _kb
 
     now = cn_now()
 
-    # 待办(我参与的)
-    filters = [TaskAssignment.user_id == current_user.id]
-    filters.append(db.or_(
-        Task.title.like(pat), Task.description.like(pat),
-        TaskAssignment.note.like(pat)))
-    assigns = TaskAssignment.query.join(Task).filter(
-        *filters).order_by(Task.end_time.desc()).limit(20).all()
+    # 待办(我参与的) + 笔记: 单次取数 + 单遍打分
+    # 避免「精确 LIKE 一次 + 近义全量再扫一次」的双查询/双扫描;
+    # 同词覆盖率把精确(1.0)与近义统一排序, 结果与原实现一致。
 
     def _task_hay(a):
         return ' '.join(filter(None, [
@@ -79,29 +116,16 @@ def _unified_search_data(q):
     # 检索结果按相似度从高到低排列(同分再按截止时间倒序);
     # 精确命中再少也保留, 合并同义/部分关键词近义命中一起排序
     cands = []
-    seen = set()
-    for a in assigns:
-        cands.append((_kb.fuzzy_coverage_syn(q, _task_hay(a)),
-                      a.task.end_time, a.task.id, a))
-        seen.add(a.task.id)
-    if len(q) >= 2:
-        rows = TaskAssignment.query.join(Task).filter(
-            TaskAssignment.user_id == current_user.id).all()
-        for a in rows:
-            if a.task.id in seen:
-                continue
-            cov = _kb.fuzzy_coverage_syn(q, _task_hay(a))
-            if cov >= _kb._FUZZY_MIN_COVERAGE:
-                cands.append((cov, a.task.end_time, a.task.id, a))
-                seen.add(a.task.id)
+    for a in _cached_user_task_rows(current_user.id):
+        hay = _task_hay(a)
+        cov = _kb.fuzzy_coverage_syn(q, hay)
+        if _accept_candidate(q, hay, cov):
+            cands.append((cov, a.task.end_time, a.task.id, a))
     cands.sort(key=lambda r: (-r[0], -(r[1].timestamp() if r[1] else 0)))
     tasks = [_task_row(a, s) for s, _, _, a in cands[:20]]
 
     # 笔记(个人)
-    from routes.notes import Note, parse_tags_json
-    notes = Note.query.filter(Note.user_id == current_user.id).filter(
-        db.or_(Note.title.like(pat), Note.content.like(pat))
-    ).order_by(Note.created_at.desc()).limit(20).all()
+    from routes.notes import parse_tags_json
 
     def _note_hay(n):
         return ' '.join(filter(None, [n.title or '', n.content or '']))
@@ -121,26 +145,17 @@ def _unified_search_data(q):
         }
 
     ncands = []
-    seen_notes = set()
-    for n in notes:
-        ncands.append((_kb.fuzzy_coverage_syn(q, _note_hay(n)),
-                       n.created_at, n.id, n))
-        seen_notes.add(n.id)
-    if len(q) >= 2:
-        for n in Note.query.filter(Note.user_id == current_user.id).all():
-            if n.id in seen_notes:
-                continue
-            cov = _kb.fuzzy_coverage_syn(q, _note_hay(n))
-            if cov >= _kb._FUZZY_MIN_COVERAGE:
-                ncands.append((cov, n.created_at, n.id, n))
-                seen_notes.add(n.id)
+    for n in _cached_user_note_rows(current_user.id):
+        hay = _note_hay(n)
+        cov = _kb.fuzzy_coverage_syn(q, hay)
+        if _accept_candidate(q, hay, cov):
+            ncands.append((cov, n.created_at, n.id, n))
     ncands.sort(key=lambda r: (-r[0], -(r[1].timestamp() if r[1] else 0)))
     note_rows = [_note_row(n, s) for s, _, _, n in ncands[:20]]
 
     # 知识库(优先知识点,再补文档页;按当前用户可见范围过滤)
     kb = []
     try:
-        import kb.knowledge as _kb
         visible = _kb._visible_doc_ids()  # None=全部(管理员)
         visible_points = _kb._visible_point_ids()
         vp_set = set(visible_points) if visible_points is not None else None
@@ -221,7 +236,7 @@ def _unified_search_data(q):
     except Exception as _e:
         app.logger.warning('unified kb search failed: %s', _e)
 
-    total = len(tasks) + len(notes) + len(kb)
+    total = len(tasks) + len(note_rows) + len(kb)
     if total > 0:
         try:
             from kb.knowledge import record_history

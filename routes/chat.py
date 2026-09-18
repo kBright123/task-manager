@@ -14,6 +14,7 @@
 """
 from datetime import timedelta
 import json
+import re
 
 from flask import jsonify, request, url_for
 from flask_login import current_user, login_required
@@ -27,6 +28,31 @@ from kb.chat_intent import (_SEARCH_KW, ACTION_INTENTS, QUERY_INTENTS,
 
 _CHAT_NO_SOURCE_HINT = ('TA 当前没有可用的非个人待办/笔记/公开知识库资料，'
                         '暂时无法基于TA的内容回答。')
+
+
+def _preview_text(raw, n=28):
+    """会话列表单行预览: 去掉代答横幅/列表圆点/【标签】/（状态…）/引用箭头,
+    折叠空白后截断。避免「在 xx 的资料中找到 N 条相关内容」这类长结构化
+    回答把左侧会话列表撑乱, 只留下真正有价值的第一条标题。"""
+    if not raw:
+        return ''
+    s = raw
+    s = re.sub(
+        r'^(?:\s+)?(?:🤖\s*)?(?:'
+        r'在[^\n：:]{1,40}的资料中[:：]?\s*)?'
+        r'共?\s*找到\s*[\d一二三四五六七八九十百]+\s*条\s*相关内容\s*[:：]\s*',
+        '', s)
+    s = re.sub(r'[🤖✨📢🗂\U0001F000-\U0001FAFF\u2600-\u27BF'
+               r'\U0001F900-\U0001F9FF]+', '', s)
+    s = re.sub(r'[·•●*]\s*', '', s)
+    s = re.sub(r'【[^】]{0,24}】', '', s)
+    s = re.sub(r'\s*（状态[^）]*）', '', s)
+    s = re.sub(r'\s*\[资料\s*\d+\]', '', s)
+    s = re.sub(r'\s*>>>[^\n]*', '', s)
+    s = re.sub(r'\s+', ' ', s).strip(' -—·:：,，。')
+    if not s:
+        return ''
+    return s if len(s) <= n else s[:n - 1].rstrip() + '…'
 
 
 def _conv_key(a, b):
@@ -117,7 +143,7 @@ def api_chat_contacts():
             'last_ts': last.created_at.strftime('%Y-%m-%d %H:%M') if
             last else '',
             'last_epoch': (last.created_at.timestamp() if last else 0),
-            'last_preview': (last.content or '')[:40] if last else '',
+            'last_preview': _preview_text(last.content) if last else '',
             'last_kind': last.kind if last else '',
             'freq': freq,
             'hot': unread > 0 or freq >= 5,

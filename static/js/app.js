@@ -443,6 +443,13 @@
     function _fabAva(name) { return (name || '?').trim().charAt(0).toUpperCase(); }
     function _fabNowHm() { var d = new Date(); function p(n) { return (n < 10 ? '0' : '') + n; } return p(d.getHours()) + ':' + p(d.getMinutes()); }
     function _fabScroll() { var b = document.getElementById('fabPeerMsgs'); if (b) b.scrollTop = b.scrollHeight; }
+    function fabSheetScrollBottom() {
+      // 展开悬浮球时把聊天区域对齐到最后一条(小知/对侧都滚), 避免停在旧位置
+      var cb = document.getElementById('fabChatBox');
+      if (cb) cb.scrollTop = cb.scrollHeight;
+      var pb = document.getElementById('fabPeerMsgs');
+      if (pb) pb.scrollTop = pb.scrollHeight;
+    }
     function _fabInput() {
       return document.getElementById(_fabPeerUid ? 'fabPeerInput' : 'fabChatInput');
     }
@@ -1287,6 +1294,7 @@
           fab.classList.add('open');
           btn.setAttribute('aria-expanded', 'true');
           positionFabSheet();
+          setTimeout(fabSheetScrollBottom, 30);
           if (!_fabContacts.length) fabContactsLoad(null);
           fabChatUnreadRefresh();
         }

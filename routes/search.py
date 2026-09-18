@@ -51,7 +51,11 @@ def _unified_search_data(q):
     assigns = TaskAssignment.query.join(Task).filter(
         *filters).order_by(Task.end_time.desc()).limit(20).all()
 
-    def _task_row(a):
+    def _task_hay(a):
+        return ' '.join(filter(None, [
+            a.task.title or '', a.task.description or '', a.note or '']))
+
+    def _task_row(a, score):
         end = a.task.end_time
         if end < now:
             pri = '高'
@@ -69,24 +73,29 @@ def _unified_search_data(q):
             'priority': pri,
             'end_date': end.strftime('%m-%d'),
             'detail_url': url_for('user_tasks') + '?highlight=' + str(a.task.id),
+            'score': round(score, 3),
         }
 
-    tasks = [_task_row(a) for a in assigns]
-
-    # 通用化兜底: 整串 LIKE 命不中的近义问法(如「青年理论学习小组」vs 待办里存的
-    # 「青年理论小组」), 改用字形覆盖率(单字+二元组)+同义词近似召回
-    if not tasks and len(q) >= 2:
-        fuzzy = []
+    # 检索结果按相似度从高到低排列(同分再按截止时间倒序);
+    # 精确命中再少也保留, 合并同义/部分关键词近义命中一起排序
+    cands = []
+    seen = set()
+    for a in assigns:
+        cands.append((_kb.fuzzy_coverage_syn(q, _task_hay(a)),
+                      a.task.end_time, a.task.id, a))
+        seen.add(a.task.id)
+    if len(q) >= 2:
         rows = TaskAssignment.query.join(Task).filter(
             TaskAssignment.user_id == current_user.id).all()
         for a in rows:
-            hay = ' '.join(filter(None, [
-                a.task.title or '', a.task.description or '', a.note or '']))
-            cov = _kb.fuzzy_coverage_syn(q, hay)
+            if a.task.id in seen:
+                continue
+            cov = _kb.fuzzy_coverage_syn(q, _task_hay(a))
             if cov >= _kb._FUZZY_MIN_COVERAGE:
-                fuzzy.append((round(cov, 3), a))
-        fuzzy.sort(key=lambda x: -x[0])
-        tasks = [_task_row(a) for _, a in fuzzy[:20]]
+                cands.append((cov, a.task.end_time, a.task.id, a))
+                seen.add(a.task.id)
+    cands.sort(key=lambda r: (-r[0], -(r[1].timestamp() if r[1] else 0)))
+    tasks = [_task_row(a, s) for s, _, _, a in cands[:20]]
 
     # 笔记(个人)
     from routes.notes import Note, parse_tags_json
@@ -94,7 +103,10 @@ def _unified_search_data(q):
         db.or_(Note.title.like(pat), Note.content.like(pat))
     ).order_by(Note.created_at.desc()).limit(20).all()
 
-    def _note_row(n):
+    def _note_hay(n):
+        return ' '.join(filter(None, [n.title or '', n.content or '']))
+
+    def _note_row(n, score):
         return {
             'id': n.id,
             'title': n.title,
@@ -105,19 +117,25 @@ def _unified_search_data(q):
             n.created_at else '',
             'date': n.created_at.strftime('%m-%d') if n.created_at else '',
             'detail_url': url_for('notes.index', note_id=n.id),
+            'score': round(score, 3),
         }
 
-    note_rows = [_note_row(n) for n in notes]
-
-    if not note_rows and len(q) >= 2:
-        fuzzy = []
+    ncands = []
+    seen_notes = set()
+    for n in notes:
+        ncands.append((_kb.fuzzy_coverage_syn(q, _note_hay(n)),
+                       n.created_at, n.id, n))
+        seen_notes.add(n.id)
+    if len(q) >= 2:
         for n in Note.query.filter(Note.user_id == current_user.id).all():
-            hay = ' '.join(filter(None, [n.title or '', n.content or '']))
-            cov = _kb.fuzzy_coverage_syn(q, hay)
+            if n.id in seen_notes:
+                continue
+            cov = _kb.fuzzy_coverage_syn(q, _note_hay(n))
             if cov >= _kb._FUZZY_MIN_COVERAGE:
-                fuzzy.append((round(cov, 3), n))
-        fuzzy.sort(key=lambda x: -x[0])
-        note_rows = [_note_row(n) for _, n in fuzzy[:20]]
+                ncands.append((cov, n.created_at, n.id, n))
+                seen_notes.add(n.id)
+    ncands.sort(key=lambda r: (-r[0], -(r[1].timestamp() if r[1] else 0)))
+    note_rows = [_note_row(n, s) for s, _, _, n in ncands[:20]]
 
     # 知识库(优先知识点,再补文档页;按当前用户可见范围过滤)
     kb = []

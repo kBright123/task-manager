@@ -278,28 +278,21 @@ def api_chat_send():
 
 
 def _build_target_sources(question, target):
-    """基于被@人的内容构建 llm_ask 的 sources 与前端 links。"""
-    from datetime import datetime
+    """基于被@人的内容构建 llm_ask 的 sources 与前端 links(按相似度从高到低)。
+
+    三类来源各自「精确 LIKE + 同义词/部分关键词兜底」, 合并后按相似度降序。"""
     pat = f'%{question}%'
-    sources, links = [], []
+    cands = []
 
-    def _add(title, text, href, tag):
-        text = (text or '').strip()
-        if not text:
-            text = (title or '').strip()
-        sources.append({'title': title or '', 'page': '',
-                        'text': text[:500]})
-        links.append({'title': title or '', 'href': href or '#', 'tag': tag})
+    def _push(tag, title, text, href, sim):
+        cands.append({'sim': sim, 'tag': tag, 'title': title or '',
+                      'text': text or '', 'href': href or '#'})
 
+    import kb.knowledge as _kb
     from core.models import Task, TaskAssignment
     now = cn_now()
-    assigns = TaskAssignment.query.join(Task).filter(
-        TaskAssignment.user_id == target.id,
-        Task.category != '个人',
-        db.or_(Task.title.like(pat), Task.description.like(pat),
-               TaskAssignment.note.like(pat)),
-    ).order_by(Task.end_time.desc()).limit(3).all()
-    for a in assigns:
+
+    def _task_note(a):
         end = a.task.end_time
         if end < now:
             pri = '高'
@@ -307,35 +300,86 @@ def _build_target_sources(question, target):
             pri = '中'
         else:
             pri = '低'
-        note = '；'.join(x for x in [
+        return '；'.join(x for x in [
             ('状态 ' + str(a.status or '')),
             ('截止 ' + str(a.task.end_time.strftime('%Y-%m-%d %H:%M') if
              a.task.end_time else '')),
             ('优先级 ' + pri)] if x)
-        _add(f"[待办] {a.task.title or ''}",
-             (a.task.description or '') + (f'（{note}）' if note else ''),
-             url_for('user_tasks') + '?highlight=' + str(a.task.id),
-             '待办')
+
+    def _task_hay(a):
+        return ' '.join(filter(None, [
+            a.task.title or '', a.task.description or '', a.note or '']))
+
+    def _push_task(a):
+        cov = _kb.fuzzy_coverage_syn(question, _task_hay(a))
+        _push('待办', f"[待办] {a.task.title or ''}",
+              (a.task.description or '') + (f'（{_task_note(a)}）' if
+                                            _task_note(a) else ''),
+              url_for('user_tasks') + '?highlight=' + str(a.task.id), cov)
+
+    assigns = TaskAssignment.query.join(Task).filter(
+        TaskAssignment.user_id == target.id,
+        Task.category != '个人',
+        db.or_(Task.title.like(pat), Task.description.like(pat),
+               TaskAssignment.note.like(pat)),
+    ).order_by(Task.end_time.desc()).limit(20).all()
+    seen_tasks = set()
+    for a in assigns:
+        seen_tasks.add(a.task.id)
+        _push_task(a)
+    if len(question) >= 2:
+        for a in TaskAssignment.query.join(Task).filter(
+                TaskAssignment.user_id == target.id,
+                Task.category != '个人').all():
+            if a.task.id in seen_tasks:
+                continue
+            if _kb.fuzzy_coverage_syn(question, _task_hay(a)) >= \
+                    _kb._FUZZY_MIN_COVERAGE:
+                seen_tasks.add(a.task.id)
+                _push_task(a)
 
     from routes.notes import Note
-    notes = Note.query.filter(Note.user_id == target.id).filter(
+
+    def _note_hay(n):
+        return ' '.join(filter(None, [n.title or '', n.content or '']))
+
+    def _push_note(n):
+        _push('随记', f"[随记] {n.title or ''}", n.content or '',
+              url_for('notes.index', note_id=n.id),
+              _kb.fuzzy_coverage_syn(question, _note_hay(n)))
+
+    exact_notes = Note.query.filter(Note.user_id == target.id).filter(
         db.or_(Note.title.like(pat), Note.content.like(pat))
-    ).order_by(Note.created_at.desc()).limit(3).all()
-    for n in notes:
-        _add(f"[随记] {n.title or ''}", n.content or '',
-             url_for('notes.index', note_id=n.id), '随记')
+    ).order_by(Note.created_at.desc()).limit(20).all()
+    seen_notes = set()
+    for n in exact_notes:
+        seen_notes.add(n.id)
+        _push_note(n)
+    if len(question) >= 2:
+        for n in Note.query.filter(Note.user_id == target.id).all():
+            if n.id in seen_notes:
+                continue
+            if _kb.fuzzy_coverage_syn(question, _note_hay(n)) >= \
+                    _kb._FUZZY_MIN_COVERAGE:
+                seen_notes.add(n.id)
+                _push_note(n)
 
     try:
-        import kb.knowledge as _kb
         doc_ids = _kb._doc_ids_for_user(target.id)
         hits = _kb.search_pages(question, k=6, alpha=0.5, doc_ids=doc_ids)
-        for h in hits[:3]:
-            _add(f"[知识库] {h['title'] or ''}",
-                 h.get('text') or '', h.get('page') or '-',
-                 url_for('kb.doc_detail', doc_id=h['doc_id']), '知识库')
+        for i, h in enumerate(hits[:3]):
+            _push('知识库', f"[知识库] {h['title'] or ''}", h.get('text') or '',
+                  url_for('kb.doc_detail', doc_id=h['doc_id']), 1.0 / (i + 1))
     except Exception as _e:
         app.logger.warning('chat kb search failed: %s', _e)
-    return sources[:6], links
+
+    cands.sort(key=lambda c: -c['sim'])
+    sources, links = [], []
+    for c in cands[:6]:
+        text = (c['text'] or '').strip() or (c['title'] or '').strip()
+        sources.append({'title': c['title'], 'page': '', 'text': text[:500]})
+        links.append({'title': c['title'], 'href': c['href'], 'tag': c['tag']})
+    return sources, links
 
 
 def _numbered_sources_text(sources, links):
@@ -578,19 +622,30 @@ def _answer_natural(question, target=None):
         links.append({'title': title or '', 'href': href or '#', 'tag': tag})
         _row(tag, title, text[:140], href)
 
-    for it in kb[:3]:
-        _add_src(f"[知识库] {it.get('title') or ''}", it.get('text') or '',
-                 it.get('href') or '#', '知识库')
+    # 三类结果按相似度从高到低合并: 知识库按 RRF 排名折算 1/(i+1),
+    # 待办/随记用统一检索给出的 0~1 相似度, 跨类型一起排序
+    cands = []
+    for i, it in enumerate(kb[:3]):
+        cands.append({'sim': 1.0 / (i + 1), 'tag': '知识库',
+                      'title': it.get('title') or '',
+                      'text': it.get('text') or '',
+                      'href': it.get('href') or '#'})
     for t in tasks[:3]:
         note = '；'.join(x for x in [
             ('状态 ' + str(t.get('status') or '')),
             ('截止 ' + str(t.get('end_time') or ''))] if x)
-        _add_src(f"[待办] {t.get('title') or ''}",
-                 (t.get('description') or '') + (('（' + note + '）') if note else ''),
-                 t.get('detail_url') or '#', '待办')
+        cands.append({'sim': float(t.get('score') or 0), 'tag': '待办',
+                      'title': t.get('title') or '',
+                      'text': (t.get('description') or '') + (('（' + note + '）') if note else ''),
+                      'href': t.get('detail_url') or '#'})
     for n in notes[:3]:
-        _add_src(f"[随记] {n.get('title') or ''}", n.get('content') or '',
-                 n.get('detail_url') or '#', '随记')
+        cands.append({'sim': float(n.get('score') or 0), 'tag': '随记',
+                      'title': n.get('title') or '',
+                      'text': n.get('content') or '',
+                      'href': n.get('detail_url') or '#'})
+    cands.sort(key=lambda c: -c['sim'])
+    for c in cands[:9]:
+        _add_src(f"[{c['tag']}] {c['title']}", c['text'], c['href'], c['tag'])
     if not sources:
         return {'intent': intent,
                 'content': '没有在知识库 · 待办 · 随手记中检索到相关内容，换个问法试试？',

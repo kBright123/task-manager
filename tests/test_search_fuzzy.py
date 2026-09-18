@@ -133,6 +133,41 @@ def test_unified_search_recalls_partial_keyword_note(client):
             db.session.commit()
 
 
+def test_unified_search_ranks_by_similarity(client):
+    """多个命中(精确+近义)按相似度从高到低排列。"""
+    from datetime import timedelta
+    from core.models import Task, TaskAssignment
+    from core.timeutil import cn_now
+    base = cn_now()
+    with app.app_context():
+        t1 = Task(title='青年理论学习小组策划', description='1', category='工作',
+                  creator_id=1, start_time=base, end_time=base + timedelta(hours=2))
+        t2 = Task(title='青年理论小组会议', description='2', category='工作',
+                  creator_id=1, start_time=base, end_time=base + timedelta(hours=1))
+        db.session.add_all([t1, t2])
+        db.session.flush()
+        db.session.add_all([TaskAssignment(task_id=t1.id, user_id=1),
+                            TaskAssignment(task_id=t2.id, user_id=1)])
+        db.session.commit()
+        ids = [t1.id, t2.id]
+    try:
+        data = client.get('/api/unified-search?q=青年理论学习小组').get_json()
+        rows = data['tasks']
+        titles = [t['title'] for t in rows]
+        assert '青年理论学习小组策划' in titles and '青年理论小组会议' in titles
+        assert titles.index('青年理论学习小组策划') < \
+               titles.index('青年理论小组会议'), titles
+        scores = [t['score'] for t in rows]
+        assert all(scores[i] >= scores[i + 1] for i in range(len(scores) - 1))
+    finally:
+        with app.app_context():
+            db.session.query(TaskAssignment).filter(
+                TaskAssignment.task_id.in_(ids)).delete(synchronize_session=False)
+            db.session.query(Task).filter(Task.id.in_(ids)).delete(
+                synchronize_session=False)
+            db.session.commit()
+
+
 def test_keyword_pages_recalls_near_miss_kb(client):
     with app.app_context():
         suffix = secrets.token_hex(3)

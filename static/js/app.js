@@ -595,6 +595,7 @@
       row += '<div class="fab-pc-side">';
       if (c.last_ts) row += '<div class="fab-pc-time">' + _fabEsc(String(c.last_ts).slice(5, 16)) + '</div>';
       if (c.unread) row += '<span class="fab-pc-unread">' + c.unread + '</span>';
+      row += '<button type="button" class="fab-pc-del" aria-label="删除会话" title="删除会话" onclick="event.stopPropagation(); fabPeerDelById(' + c.id + ')"><i class="bi bi-trash2"></i></button>';
       row += '</div></div>';
       return row;
       }).join('');
@@ -640,6 +641,12 @@
             if (chat) chat.style.display = '';
             _fabSetFoot(false);
           }
+          // 同步内存联系人: 无会话后不再显示在列表(列表过滤 last_ts)
+          _fabContacts.forEach(function (c) {
+            if (String(c.id) === String(peerId)) {
+              c.last_ts = ''; c.last_preview = ''; c.unread = 0; c.hint = '';
+            }
+          });
           _fabSideReset();
           fabSideBuild();
           _fabRefreshPeerStatus();

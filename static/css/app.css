@@ -334,6 +334,9 @@
     .fab-pc-side { text-align: right; flex-shrink: 0; }
     .fab-pc-time { font-size: .64rem; color: var(--gray-400); }
     .fab-pc-unread { display: inline-block; min-width: 16px; height: 16px; padding: 0 4px; margin-top: 2px; background: var(--danger, #dc3545); color: #fff; border-radius: 9px; font-size: .64rem; line-height: 16px; text-align: center; }
+    .fab-pc-del { border: none; background: none; color: var(--gray-400); font-size: .7rem; line-height: 1; padding: 3px 5px; margin-top: 3px; border-radius: 50%; cursor: pointer; visibility: hidden; }
+    .fab-side-item:hover .fab-pc-del { visibility: visible; }
+    .fab-side-item .fab-pc-del:hover { color: #dc3545; background: var(--gray-100); }
     .fab-chip-hot { font-size: .6rem; color: #b45309; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 5px; padding: 0 4px; line-height: 14px; }
 
     /* ---- 群聊消息气泡(微信风格) ---- */

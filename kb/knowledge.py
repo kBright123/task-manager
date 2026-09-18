@@ -2206,14 +2206,50 @@ def _syn_group_hits(s):
     return hits
 
 
-def fuzzy_coverage_syn(query, text):
-    """同义词感知覆盖率: 字符覆盖率不足时, 若查询与文本命中同一同义词组则视为命中。
+_SYN_COVERAGE_BOOST = 0.62
+_SYN_SHORT_QUERY = 4
+_SYN_OUTSIDE_MIN = 0.5
 
-    场景: 问「开会时间」, 库内写的是「例会记录」——字符完全不重叠, 单靠字形
-    覆盖率永远为 0; 两者都命中「会议」同义词组 → 覆盖率视为 1.0 召回。"""
+
+def _syn_word_chars(s, gid):
+    """文本 s 中命中同义词组 gid 的所有成员词包含的字集合。"""
+    out = set()
+    for g, members in _SYNONYM_GROUPS:
+        if g != gid:
+            continue
+        for m in members:
+            if m in (s or ''):
+                out.update(m)
+    return out
+
+
+def fuzzy_coverage_syn(query, text):
+    """同义词感知覆盖率: 字符覆盖率不足时, 命中同一同义词组则小幅抬升到 0.62。
+
+    匹配代价与防汎化原则:
+    - 短问句(≤4字), 如「开会/会议材料/例会时间」: 组共享即可兜底, 让
+      「开会→例会」「会议材料→周例会材料」这类字符几乎不重叠的意图短语能召回;
+    - 长问句(≥5字), 多为「青年理论学习小组」这类专名: 仅组共享(如其中的
+      「学习」与文本里的「培训」)就把无关培训资料顶上来是误伤, 必须另有同义组
+      之外的字面重叠、且覆盖非组字过半(挡住「2026年…通知」里唯一的"年"、或
+      「青年大讲堂培训」里零散的"青年"), 才给抬升;
+    - 抬升只到 0.62 而非 1.0: 精确/字面命中始终排在同义召回之前。"""
     cov = fuzzy_coverage(query, text)
-    if cov < _FUZZY_MIN_COVERAGE and _syn_group_hits(query) & _syn_group_hits(text):
-        cov = max(cov, 1.0)
+    if cov >= _FUZZY_MIN_COVERAGE:
+        return cov
+    shared = _syn_group_hits(query) & _syn_group_hits(text)
+    if not shared:
+        return cov
+    qlen = len(re.sub(r'\s+', '', query or ''))
+    if qlen <= _SYN_SHORT_QUERY:
+        return max(cov, _SYN_COVERAGE_BOOST)
+    qc = _fuzzy_chars(query)
+    lit = qc & _fuzzy_chars(text)
+    for g in shared:
+        inside = _syn_word_chars(query, g)
+        base = qc - inside
+        if base and len(lit - inside) / len(base) >= _SYN_OUTSIDE_MIN:
+            return max(cov, _SYN_COVERAGE_BOOST)
     return cov
 
 

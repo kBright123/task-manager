@@ -41,6 +41,24 @@ def test_fuzzy_synonym_hit():
     assert fuzzy_coverage_syn('开会', '周一采购清单') < _FUZZY_MIN_COVERAGE
 
 
+def test_fuzzy_synonym_no_pollution_long_query():
+    # 长专名问句里只有「学习」与文本的「培训」同组、没有其它字面重叠, 不得抬升:
+    # 否则「青年理论学习小组」会把整个培训题库/培训通知都顶上来
+    assert fuzzy_coverage_syn('青年理论学习小组',
+                              '关于开展2026年消费者权益保护远程培训的通知') \
+        < _FUZZY_MIN_COVERAGE
+    assert fuzzy_coverage_syn('青年理论学习小组',
+                              '岗位资格继续教育学习') < _FUZZY_MIN_COVERAGE
+    assert fuzzy_coverage_syn('青年理论学习小组',
+                              '2026年全国标准化远程培训通知') < _FUZZY_MIN_COVERAGE
+    # 长问句但确有同义组以外的字面重叠, 仍允许同义兜底(会议组+「材料」字面)
+    assert fuzzy_coverage_syn('会议材料安排', '整理周会笔记材料') \
+        >= _FUZZY_MIN_COVERAGE
+    assert fuzzy_coverage_syn('青年理论学习小组',
+                              '青年理论小组第二党支部学习') \
+        >= _FUZZY_MIN_COVERAGE
+
+
 def _mk_task(client):
     title = f'青年理论小组{secrets.token_hex(3)}'
     r = client.post('/api/quick-task', json={
@@ -159,6 +177,34 @@ def test_unified_search_ranks_by_similarity(client):
                titles.index('青年理论小组会议'), titles
         scores = [t['score'] for t in rows]
         assert all(scores[i] >= scores[i + 1] for i in range(len(scores) - 1))
+    finally:
+        with app.app_context():
+            db.session.query(TaskAssignment).filter(
+                TaskAssignment.task_id.in_(ids)).delete(synchronize_session=False)
+            db.session.query(Task).filter(Task.id.in_(ids)).delete(
+                synchronize_session=False)
+            db.session.commit()
+
+
+def test_unified_search_drops_training_noise_for_org_query(client):
+    """「青年理论学习小组」不被「消费者权益…远程培训通知」类待办汎化命中。"""
+    from datetime import timedelta
+    from core.models import Task, TaskAssignment
+    from core.timeutil import cn_now
+    base = cn_now()
+    with app.app_context():
+        t = Task(title='消保无小事', description='关于开展2026年消费者权益保护'
+                 '远程培训的通知, 各位领导同事请按时参加', category='工作',
+                 creator_id=1, start_time=base, end_time=base + timedelta(hours=2))
+        db.session.add(t)
+        db.session.flush()
+        db.session.add(TaskAssignment(task_id=t.id, user_id=1))
+        db.session.commit()
+        ids = [t.id]
+    try:
+        data = client.get('/api/unified-search?q=青年理论学习小组').get_json()
+        titles = [x['title'] for x in data['tasks']]
+        assert '消保无小事' not in titles, f'培训噪音混入: {titles}'
     finally:
         with app.app_context():
             db.session.query(TaskAssignment).filter(

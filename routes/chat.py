@@ -367,9 +367,13 @@ def _build_target_sources(question, target):
     try:
         doc_ids = _kb._doc_ids_for_user(target.id)
         hits = _kb.search_pages(question, k=6, alpha=0.5, doc_ids=doc_ids)
-        for i, h in enumerate(hits[:3]):
+        for h in hits[:3]:
+            cov = _kb.fuzzy_coverage_syn(question, ' '.join(filter(None, [
+                h.get('title') or '', h.get('text') or ''])))
+            if cov < _kb._FUZZY_MIN_COVERAGE:
+                continue
             _push('知识库', f"[知识库] {h['title'] or ''}", h.get('text') or '',
-                  url_for('kb.doc_detail', doc_id=h['doc_id']), 1.0 / (i + 1))
+                  url_for('kb.doc_detail', doc_id=h['doc_id']), cov)
     except Exception as _e:
         app.logger.warning('chat kb search failed: %s', _e)
 
@@ -622,11 +626,16 @@ def _answer_natural(question, target=None):
         links.append({'title': title or '', 'href': href or '#', 'tag': tag})
         _row(tag, title, text[:140], href)
 
-    # 三类结果按相似度从高到低合并: 知识库按 RRF 排名折算 1/(i+1),
-    # 待办/随记用统一检索给出的 0~1 相似度, 跨类型一起排序
+    # 三类结果按相似度从高到低合并, 且都走同一个相似度口径(fuzzy_coverage_syn):
+    # 知识库只保留字面/同义召回 ≥ 阈值的页, 避免语义向量兜上来的弱相关文档(如
+    # 「青年理论学习小组」问出「消费者权益保护培训考核题」)把准确结果挤下去
     cands = []
-    for i, it in enumerate(kb[:3]):
-        cands.append({'sim': 1.0 / (i + 1), 'tag': '知识库',
+    for it in kb[:3]:
+        kcov = _kb.fuzzy_coverage_syn(question, ' '.join(filter(None, [
+            it.get('title') or '', it.get('text') or ''])))
+        if kcov < _kb._FUZZY_MIN_COVERAGE:
+            continue
+        cands.append({'sim': kcov, 'tag': '知识库',
                       'title': it.get('title') or '',
                       'text': it.get('text') or '',
                       'href': it.get('href') or '#'})

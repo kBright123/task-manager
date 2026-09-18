@@ -438,10 +438,11 @@
 
     /* Stat Cards */
     .stat-grid { display: grid; gap: 16px; }
+    .stat-grid-5 { grid-template-columns: repeat(5, 1fr); }
     .stat-grid-4 { grid-template-columns: repeat(4, 1fr); }
     .stat-grid-3 { grid-template-columns: repeat(3, 1fr); }
-    @media (max-width: 767px) { .stat-grid-4 { grid-template-columns: repeat(2, 1fr); gap: 10px; } .stat-grid-3 { grid-template-columns: 1fr; gap: 10px; } }
-    @media (min-width: 768px) and (max-width: 1023px) { .stat-grid-4 { grid-template-columns: repeat(2, 1fr); } .stat-grid-3 { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 767px) { .stat-grid-5 { grid-template-columns: repeat(2, 1fr); gap: 10px; } .stat-grid-4 { grid-template-columns: repeat(2, 1fr); gap: 10px; } .stat-grid-3 { grid-template-columns: 1fr; gap: 10px; } }
+    @media (min-width: 768px) and (max-width: 1023px) { .stat-grid-5 { grid-template-columns: repeat(3, 1fr); } .stat-grid-4 { grid-template-columns: repeat(2, 1fr); } .stat-grid-3 { grid-template-columns: repeat(3, 1fr); } }
     .stat-card { padding: 18px 20px; border-radius: var(--radius); color: #fff; cursor: pointer; transition: transform .15s, box-shadow .15s; }
     .stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
     .stat-card .stat-icon { font-size: 1.4rem; margin-bottom: 6px; opacity: .9; }

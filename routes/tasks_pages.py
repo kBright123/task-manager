@@ -208,6 +208,21 @@ def user_dashboard():
         pass
     points_delta = new_points_yesterday - new_points_prev
 
+    # 看板方块: 当前用户「进行中」条目数 + 新增数较前日趋势
+    from core.models import BoardItem
+    board_pending = BoardItem.query.filter(
+        BoardItem.user_id == current_user.id,
+        BoardItem.done.is_(False)).count()
+    new_board_yesterday = BoardItem.query.filter(
+        BoardItem.user_id == current_user.id,
+        BoardItem.created_at >= yesterday_start,
+        BoardItem.created_at < today_start).count()
+    new_board_prev = BoardItem.query.filter(
+        BoardItem.user_id == current_user.id,
+        BoardItem.created_at >= day_before_start,
+        BoardItem.created_at < yesterday_start).count()
+    board_delta = new_board_yesterday - new_board_prev
+
     try:
         from kb.knowledge import KbCollection as _KbCollection
         from kb.knowledge import _visible_collection_ids as _kb_visible_cols
@@ -243,6 +258,7 @@ def user_dashboard():
                            docs_delta=docs_delta,
                            points_count=points_count,
                            points_delta=points_delta,
+                           board_pending=board_pending, board_delta=board_delta,
                            collections=_collections)
 def _assignment_counts_by_user(creator_id):
     """{display name -> number of assigned tasks}, 只统计当前用户创建(分配)的任务."""

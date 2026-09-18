@@ -261,8 +261,8 @@
     @keyframes fabSheetIn { from { opacity: 0; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: none; } }
     .fab-sheet-head { display: flex; align-items: center; justify-content: flex-end; padding: 6px 8px 2px; }
     .fab-sheet-head button + button { margin-left: 8px; }
-    .fab-sheet-max, .fab-sheet-close { border: none; background: none; color: var(--gray-400); font-size: .85rem; line-height:1; padding:4px; cursor:pointer; border-radius:50%; }
-    .fab-sheet-max:hover, .fab-sheet-close:hover { color: var(--gray-700); background: var(--gray-100); }
+    .fab-sheet-max, .fab-sheet-close, .fab-chat-clear { border: none; background: none; color: var(--gray-400); font-size: .85rem; line-height:1; padding:4px; cursor:pointer; border-radius:50%; }
+    .fab-sheet-max:hover, .fab-sheet-close:hover, .fab-chat-clear:hover { color: var(--gray-700); background: var(--gray-100); }
     .fab-sheet-body { flex: 1 1 auto; padding: 2px 0 0; display: flex; flex-direction: row; overflow: hidden; min-height: 0; }
     .fab-main { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 0; overflow: hidden; }
     .fab-side { width: 178px; min-width: 178px; max-width: 178px; border-right: 1px solid var(--gray-100); background: var(--gray-100); display: flex; flex-direction: column; overflow: hidden; }

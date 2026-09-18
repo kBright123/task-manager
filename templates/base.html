@@ -405,6 +405,7 @@
     <!-- 小知助手面板(贴球展开, Chatwoot/Crisp 风格; 快捷操作 + 自然语言提问/意图分类/LLM 整理) -->
     <div id="fabSheet" class="fab-sheet" role="dialog" aria-label="小知助手">
       <div class="fab-sheet-head">
+        <button type="button" class="fab-sheet-max fab-chat-clear" id="fabChatClear" onclick="fabChatClear()" aria-label="清除小知对话" title="清除小知对话"><i class="bi bi-trash2"></i></button>
         <button type="button" class="fab-sheet-max" onclick="fabToggleMax()" aria-label="最大化"><i class="bi bi-arrows-angle-expand"></i></button>
         <button type="button" class="fab-sheet-close" onclick="closeFab()" aria-label="关闭"><i class="bi bi-x-lg"></i></button>
       </div>

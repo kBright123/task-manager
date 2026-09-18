@@ -163,6 +163,17 @@
     function fabChatTrim() { var box = document.getElementById('fabChatBox'); if (!box) return; var turns = box.querySelectorAll('.fab-turn'); for (var i = 0; i < turns.length - _FAB_CHAT_MAX_TURNS; i++) turns[i].remove(); }
     function fabChatPersist() { var box = document.getElementById('fabChatBox'); if (!box) return; try { var turns = box.querySelectorAll('.fab-turn'); var arr = []; for (var i = Math.max(0, turns.length - _FAB_CHAT_MAX_TURNS); i < turns.length; i++) arr.push(turns[i].innerHTML); localStorage.setItem(_fabChatKey(), JSON.stringify(arr)); } catch (e) { /* ignore storage errors */ } }
     function fabChatCommit() { fabChatTrim(); fabChatPersist(); }
+    function fabChatClear() {
+      // 只清小知对话内容(展示 + 本地历史), 不动联系人/会话列表
+      if (!confirm('清除小知对话内容？联系人会话不受影响。')) return;
+      var box = document.getElementById('fabChatBox');
+      var empty = document.getElementById('fabChatEmpty');
+      if (box) box.innerHTML = '';
+      if (box && empty) box.appendChild(empty);
+      if (empty) empty.style.display = '';
+      try { localStorage.removeItem(_fabChatKey()); } catch (e) { /* ignore */ }
+      fabChatUnreadRefresh();
+    }
     function fabChatRestore() {
       var box = document.getElementById('fabChatBox');
       if (!box) return;
@@ -643,6 +654,8 @@
       var peerFoot = document.getElementById('fabPeerFoot');
       if (chatFoot) chatFoot.classList.toggle('d-none', !!peer);
       if (peerFoot) peerFoot.classList.toggle('d-none', !peer);
+      var clr = document.getElementById('fabChatClear');
+      if (clr) clr.classList.toggle('d-none', !!peer);
     }
     function fabSelectAssist() {
       _fabPeerUid = 0;

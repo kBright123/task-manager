@@ -138,6 +138,38 @@
   .tl-older{text-align:left;font-size:.72rem;color:var(--gray-500);background:var(--gray-100);border-radius:6px;margin:0 0 8px 28px;padding:5px 10px;cursor:pointer;user-select:none;width:fit-content;}
   .tl-older:hover{color:var(--primary);background:var(--primary-light);}
   .tl-empty i{font-size:2rem;display:block;margin-bottom:8px;}
+  /* 看板视图(日历区切换, 布局镜像右侧时间轴) */
+  #calNavLeft.board-hidden{display:none!important;}
+  .board-view-wrap{flex:1 1 0;min-height:0;display:flex;flex-direction:column;padding-top:8px;}
+  .board-add{display:flex;gap:6px;padding:0 2px 8px;flex-shrink:0;}
+  .board-list{flex:1 1 0;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 2px 18px;scrollbar-width:thin;scrollbar-color:var(--gray-300) transparent;}
+  .board-list::-webkit-scrollbar{width:6px;height:6px;}
+  .board-list::-webkit-scrollbar-thumb{background:var(--gray-300);border-radius:3px;}
+  .board-list::-webkit-scrollbar-track{background:transparent;}
+  @media (min-width:768px){ #calCard > .card-body{overflow:hidden;}.board-view-wrap{overflow:hidden;}}
+  .board-card{position:relative;margin-bottom:6px;padding:6px 9px;background:#fff;border:1px solid var(--gray-200);border-radius:6px;transition:all .15s;font-size:.8rem;cursor:default;}
+  .board-card:hover{border-color:var(--primary);box-shadow:var(--shadow-sm);}
+  .board-card.done{background:var(--gray-50);opacity:.6;}
+  .board-title{font-weight:600;color:var(--gray-800);word-break:break-word;white-space:pre-wrap;font-size:.8rem;line-height:1.45;padding-top:1px;}
+  .board-card.done .board-title{text-decoration:line-through;color:var(--gray-400);}
+  .board-meta{display:flex;align-items:center;gap:6px;margin-top:3px;}
+  .board-status{font-size:.58rem;line-height:16px;padding:0 6px;border-radius:8px;font-weight:600;white-space:nowrap;}
+  .board-status.s-ongoing{color:#7a5c0a;background:#fff7e0;border:1px solid #f3d27a;}
+  .board-status.s-done{color:#347a47;background:#e8f6ec;border:1px solid #b6e0c0;}
+  .board-time{font-size:.65rem;color:var(--gray-400);white-space:nowrap;}
+  .board-acts{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;}
+  .board-btn{border:none;background:none;color:var(--primary);font-size:.66rem;cursor:pointer;padding:1px 4px;border-radius:4px;white-space:nowrap;line-height:1.4;}
+  .board-btn:hover{background:var(--primary-light);}
+  .board-btn-done{color:#2e7d32;}
+  .board-btn-done:hover{color:#1b5e20;background:rgba(46,125,50,.08);}
+  .board-btn-edit:hover{color:#13538f;}
+  .board-edit-input{font-size:.78rem;min-width:0;}
+  [data-theme="dark"] .board-card{background:#16233b;border-color:#223052;}
+  [data-theme="dark"] .board-card.done{background:#111c30;opacity:.62;}
+  [data-theme="dark"] .board-card.done .board-title{color:#4b5a75;}
+  [data-theme="dark"] .board-title{color:#dbe3ee;}
+  [data-theme="dark"] .board-btn{color:#7fb3e8;}
+  [data-theme="dark"] .board-btn:hover{background:rgba(74,144,217,.15);}
   /* --- 暗色模式补全(本页特有面) --- */
   [data-theme="dark"] #calSheet{background:#101a2d!important;}
   [data-theme="dark"] #qtMentionDropdown{background:#101a2d!important;border-color:var(--gray-300)!important;box-shadow:0 4px 16px rgba(0,0,0,.45)!important;}
@@ -284,7 +316,7 @@
   <div class="col-md-6 dash-col">
     <div class="card mb-3" id="calCard" style="background:rgba(245,247,250,.72);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.6);box-shadow:0 4px 20px rgba(0,0,0,.06);position:relative;">
       <div class="card-header d-flex justify-content-between align-items-center py-0 px-2" style="background:transparent;border-bottom:1px solid rgba(0,0,0,.05);height:36px;">
-        <div class="d-flex align-items-center gap-1">
+        <div class="d-flex align-items-center gap-1" id="calNavLeft">
           <button class="btn btn-sm" aria-label="上一月" style="border:none;padding:4px 8px;font-size:.9rem;color:#666;" onclick="calNav(-1)"><i class="bi bi-chevron-left"></i></button>
           <span id="calTitle" style="font-size:.88rem;font-weight:700;color:#333;cursor:pointer;" onclick="calTogglePicker()"></span>
           <button class="btn btn-sm" aria-label="下一月" style="border:none;padding:4px 8px;font-size:.9rem;color:#666;" onclick="calNav(1)"><i class="bi bi-chevron-right"></i></button>
@@ -292,7 +324,8 @@
          <div class="d-flex align-items-center gap-1" style="flex-shrink:0;">
           <button class="btn btn-sm btn-outline-secondary" id="dtBackBtn" style="padding:3px 10px;font-size:.7rem;border-radius:4px;line-height:1.3;flex-shrink:0;display:none;" onclick="closeDayTimeline()"><i class="bi bi-arrow-left"></i> 返回</button>
           <span id="dtDayTitle" class="d-none" style="font-size:.75rem;font-weight:600;color:var(--gray-700);white-space:nowrap;"></span>
-          <button class="btn btn-sm btn-outline-secondary" id="calTodayBtn" style="padding:3px 10px;font-size:.7rem;border-radius:4px;line-height:1.3;flex-shrink:0;" onclick="calGoToday()">今天</button>
+          <button class="btn btn-sm btn-outline-primary" id="boardToggleBtn" style="padding:3px 10px;font-size:.7rem;border-radius:4px;line-height:1.3;flex-shrink:0;white-space:nowrap;" onclick="boardOpen()">📋 看板</button>
+          <button class="btn btn-sm btn-outline-secondary" id="boardBackBtn" style="padding:3px 10px;font-size:.7rem;border-radius:4px;line-height:1.3;flex-shrink:0;white-space:nowrap;display:none;" onclick="boardClose()"><i class="bi bi-arrow-left"></i> 返回日历</button>
         </div>
       </div>
       <div class="card-body py-0 px-2" style="background:transparent;position:relative;padding-top:14px;padding-bottom:10px;">
@@ -318,6 +351,13 @@
         </div>
         <div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:0;"></div>
         <div id="dayTimelineBody" class="d-none" style="max-height:340px;overflow-y:auto;padding:4px 0;"></div>
+        <div id="boardView" class="d-none board-view-wrap">
+          <div class="board-add">
+            <input type="text" id="boardInput" class="form-control form-control-sm" style="font-size:.78rem;flex:1;min-width:0;" placeholder="新增看板内容，回车保存" maxlength="2000" autocomplete="off" onkeydown="if(event.key==='Enter')boardAdd()">
+            <button type="button" class="btn btn-sm btn-primary" style="flex-shrink:0;font-size:.72rem;padding:2px 12px;" onclick="boardAdd()">新增</button>
+          </div>
+          <div id="boardList" class="board-list"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -764,14 +804,6 @@ var sx=null,sy=null;
 g.addEventListener('touchstart',function(e){sx=e.touches[0].clientX;sy=e.touches[0].clientY;},{passive:true});
 g.addEventListener('touchend',function(e){if(sx==null)return;var dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5){calNav(dx<0?1:-1);}sx=null;},{passive:true});
 })();
-function calGoToday(){
-  var today=new Date();
-  calYear=today.getFullYear();
-  calMonth=today.getMonth()+1;
-  calRender();
-  if(_tlFilter)tlClearFilter();
-  openDayTimeline(today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0'));
-}
 var _calPickerYear=calYear;
 function calTogglePicker(){var el=document.getElementById('calPicker');el.classList.toggle('d-none');if(!el.classList.contains('d-none'))calRenderPicker();}
 function calPickerNav(delta){_calPickerYear+=delta;calRenderPicker();}
@@ -871,6 +903,99 @@ function calSheetClose(){
 }
 function tlClearFilter(){_tlFilter=null;document.querySelectorAll('.cal-cell.selected').forEach(function(c){c.classList.remove('selected');});dashLoadTimeline();}
 calRender();
+// === 看板视图(日历区切换, 数据源 /api/board) ===
+function battr(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function _boardHeaders(){return {'Content-Type':'application/json','X-CSRF-Token':window.CSRF_TOKEN||''};}
+function boardList(){
+  document.getElementById('boardList').innerHTML='<div style="text-align:center;padding:26px 10px;color:var(--gray-400);"><span class="spinner-border spinner-border-sm"></span></div>';
+  fetchJSON('/api/board').then(function(d){
+    var items=(d&&d.ok)?(d.items||[]):[];
+    if(!items.length){document.getElementById('boardList').innerHTML='<div class="tl-empty"><i class="bi bi-clipboard-check"></i>看板暂无内容<br><span style="font-size:.7rem;color:var(--gray-400);">在上方输入框新增第一条吧</span></div>';return;}
+    var html='';
+    items.forEach(function(it){
+      html+='<div class="board-card'+(it.done?' done':'')+'" data-id="'+it.id+'">';
+      html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">';
+      html+='<div style="flex:1;min-width:0;">';
+      html+='<div class="board-title" data-field="title">'+esc(it.content)+'</div>';
+      html+='<div class="board-meta"><span class="board-status '+(it.done?'s-done':'s-ongoing')+'">'+(it.done?'已完成':'进行中')+'</span><span class="board-time"><i class="bi bi-clock" style="font-size:.6rem;"></i> '+esc(it.date)+'</span></div>';
+      html+='</div>';
+      html+='<div class="board-acts">';
+      html+='<button type="button" class="board-btn board-btn-edit" onclick="boardEdit('+it.id+')"><i class="bi bi-pencil" style="font-size:.6rem;"></i> 编辑</button>';
+      html+='<button type="button" class="board-btn board-btn-done" onclick="boardToggleDone('+it.id+','+(it.done?'false':'true')+')">'+(it.done?'<i class="bi bi-arrow-counterclockwise" style="font-size:.6rem;"></i> 撤销':'<i class="bi bi-check-lg" style="font-size:.6rem;"></i> 完成')+'</button>';
+      html+='</div>';
+      html+='</div></div>';
+    });
+    document.getElementById('boardList').innerHTML=html;
+  }).catch(function(){
+    document.getElementById('boardList').innerHTML='<div style="text-align:center;padding:26px 10px;color:var(--danger);">加载失败</div>';
+  });
+}
+function boardOpen(){
+  var bv=document.getElementById('boardView');
+  var grid=document.getElementById('calGrid');
+  var week=document.getElementById('calWeekHd');
+  var navL=document.getElementById('calNavLeft');
+  var dayB=document.getElementById('dayTimelineBody');
+  var backBtn=document.getElementById('dtBackBtn');
+  var dayTitle=document.getElementById('dtDayTitle');
+  var picker=document.getElementById('calPicker');
+  if(!bv)return;
+  if(grid)grid.classList.add('d-none');
+  if(week)week.classList.add('d-none');
+  if(navL)navL.classList.add('board-hidden');
+  if(dayB)dayB.classList.add('d-none');
+  if(backBtn)backBtn.style.display='none';
+  if(dayTitle)dayTitle.classList.add('d-none');
+  if(picker)picker.classList.add('d-none');
+  document.getElementById('boardToggleBtn').style.display='none';
+  document.getElementById('boardBackBtn').style.display='';
+  bv.classList.remove('d-none');
+  boardList();
+}
+function boardClose(){
+  var bv=document.getElementById('boardView');
+  var grid=document.getElementById('calGrid');
+  var week=document.getElementById('calWeekHd');
+  var navL=document.getElementById('calNavLeft');
+  if(bv)bv.classList.add('d-none');
+  if(grid)grid.classList.remove('d-none');
+  if(week)week.classList.remove('d-none');
+  if(navL)navL.classList.remove('board-hidden');
+  document.getElementById('boardToggleBtn').style.display='';
+  document.getElementById('boardBackBtn').style.display='none';
+}
+function boardAdd(){
+  var inp=document.getElementById('boardInput');
+  var v=((inp&&inp.value)||'').trim();
+  if(!v){if(inp)inp.focus();return;}
+  fetchJSON('/api/board',{method:'POST',headers:_boardHeaders(),body:JSON.stringify({content:v})}).then(function(d){
+    if(d&&d.ok){if(inp)inp.value='';boardList();}
+    else{if(inp)inp.focus();toast((d&&d.error)||'新增失败','danger');}
+  }).catch(function(){toast('新增失败','danger');});
+}
+function boardToggleDone(id,done){
+  fetchJSON('/api/board/'+id,{method:'PUT',headers:_boardHeaders(),body:JSON.stringify({done:!!done})}).then(function(d){
+    if(d&&d.ok)boardList();else toast((d&&d.error)||'操作失败','danger');
+  }).catch(function(){toast('操作失败','danger');});
+}
+function boardEdit(id){
+  var card=document.querySelector('.board-card[data-id="'+id+'"]');
+  if(!card)return;
+  var t=card.querySelector('.board-title[data-field="title"]');
+  var old=t?t.textContent:'';
+  if(!t||card.querySelector('.board-edit-input')){boardList();return;}
+  card.querySelector('.board-acts').style.display='none';
+  t.innerHTML='<div style="display:flex;gap:4px;align-items:center;"><input type="text" class="form-control form-control-sm board-edit-input" maxlength="2000" value="'+battr(old)+'" onkeydown="if(event.key===\'Enter\')boardSaveEdit('+id+');if(event.key===\'Escape\')boardList();"><button type="button" class="btn btn-sm btn-primary" style="font-size:.68rem;padding:1px 8px;flex-shrink:0;" onclick="boardSaveEdit('+id+')">保存</button><button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:.68rem;padding:1px 8px;flex-shrink:0;" onclick="boardList()">取消</button></div>';
+  var inp=t.querySelector('input');if(inp){inp.focus();inp.select();}
+}
+function boardSaveEdit(id){
+  var inp=document.querySelector('.board-card[data-id="'+id+'"] .board-edit-input');
+  var v=inp?inp.value.trim():'';
+  if(!v){toast('内容不能为空','danger');if(inp)inp.focus();return;}
+  fetchJSON('/api/board/'+id,{method:'PUT',headers:_boardHeaders(),body:JSON.stringify({content:v})}).then(function(d){
+    if(d&&d.ok)boardList();else toast((d&&d.error)||'保存失败','danger');
+  }).catch(function(){toast('保存失败','danger');});
+}
 // 一屏自适应: 按行顶部实际位置精确锁定高度, 兼容不同导航/边距高度(预留6px舍入容差)
 </script>
 <script>
@@ -891,7 +1016,7 @@ function openDayTimeline(dateStr){
   var weekH=document.getElementById('calWeekHd');
   var backBtn=document.getElementById('dtBackBtn');
   var dayTitle=document.getElementById('dtDayTitle');
-  var todayBtn=document.getElementById('calTodayBtn');
+  var todayBtn=document.getElementById('boardToggleBtn');
   calG.classList.add('d-none');
   weekH.classList.add('d-none');
   backBtn.style.display='';
@@ -917,7 +1042,7 @@ function closeDayTimeline(){
   var weekH=document.getElementById('calWeekHd');
   var backBtn=document.getElementById('dtBackBtn');
   var dayTitle=document.getElementById('dtDayTitle');
-  var todayBtn=document.getElementById('calTodayBtn');
+  var todayBtn=document.getElementById('boardToggleBtn');
   body.classList.add('d-none');
   body.innerHTML='';
   calG.classList.remove('d-none');

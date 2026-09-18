@@ -937,6 +937,7 @@ import routes.tasks_pages
 import routes.search
 import routes.notify
 import routes.chat
+import routes.board
 
 def _ensure_soft_delete_column():
     """幂等: 为 task 表补 deleted_at 列(SQLite ADD COLUMN 安全)."""

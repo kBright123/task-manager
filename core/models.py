@@ -94,6 +94,22 @@ class TaskAssignment(db.Model):
     user = db.relationship('User', backref='task_assignments')
 
 
+class BoardItem(db.Model):
+    """个人看板条目(日历区「看板」视图, 每用户独立, 进行中/已完成)."""
+    __tablename__ = 'board_item'
+    __table_args__ = (
+        db.Index('ix_board_user_created', 'user_id', 'created_at'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    content = db.Column(db.Text, nullable=False)
+    done = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=cn_now, index=True)
+    updated_at = db.Column(db.DateTime, default=cn_now, onupdate=cn_now)
+
+    user = db.relationship('User', backref='board_items')
+
+
 class EmailLog(db.Model):
     __tablename__ = 'email_log'
     id = db.Column(db.Integer, primary_key=True)

@@ -36,6 +36,7 @@ def _board_item_dict(it):
         'id': it.id,
         'content': it.content or '',
         'done': bool(it.done),
+        'discarded': bool(it.discarded),
         'date': it.created_at.strftime('%m-%d %H:%M') if it.created_at else '',
         'created_at': it.created_at.strftime('%Y-%m-%d %H:%M') if it.created_at else '',
     }
@@ -44,7 +45,9 @@ def _board_item_dict(it):
 @app.route('/api/board', methods=['GET'])
 @login_required
 def api_board_list():
-    items = BoardItem.query.filter_by(user_id=current_user.id).order_by(
+    items = BoardItem.query.filter(
+        BoardItem.user_id == current_user.id,
+        BoardItem.discarded.is_(False)).order_by(
         BoardItem.done, BoardItem.created_at.desc(), BoardItem.id.desc()).all()
     return jsonify({'ok': True, 'items': [_board_item_dict(i) for i in items]})
 
@@ -73,6 +76,8 @@ def api_board_update(item_id):
     data = request.get_json(silent=True) or {}
     if 'done' in data:
         item.done = bool(data.get('done'))
+    if 'discarded' in data:
+        item.discarded = bool(data.get('discarded'))
     if 'content' in data:
         content = (data.get('content') or '').strip()
         if not content:

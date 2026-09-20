@@ -104,6 +104,7 @@ class BoardItem(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     content = db.Column(db.Text, nullable=False)
     done = db.Column(db.Boolean, default=False)
+    discarded = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=cn_now, index=True)
     updated_at = db.Column(db.DateTime, default=cn_now, onupdate=cn_now)
 

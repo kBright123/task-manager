@@ -80,6 +80,41 @@ def test_board_finished_first_then_newest(client):
         _cleanup(tag)
 
 
+def test_board_discard_hides_from_list(client):
+    """废弃(discarded)后从列表隐藏, 完成态/内容保留; 可取消废弃恢复显示."""
+    tag = _mk()
+    try:
+        r = client.post('/api/board', json={'content': tag + '废弃我'},
+                        headers=CSRF).get_json()
+        assert r['ok']
+        bid = r['item']['id']
+        client.put('/api/board/%d' % bid, json={'done': True}, headers=CSRF).get_json()
+
+        # 废弃后不在默认列表
+        r = client.put('/api/board/%d' % bid, json={'discarded': True},
+                       headers=CSRF).get_json()
+        assert r['ok'] and r['item']['discarded'] is True
+        ids = [i['id'] for i in client.get('/api/board').get_json()['items']]
+        assert bid not in ids
+
+        # 直接 PUT 仍可更新已废弃条目的内容/完成态
+        r = client.put('/api/board/%d' % bid,
+                       json={'content': tag + '改过', 'done': False},
+                       headers=CSRF).get_json()
+        assert r['ok'] and r['item']['content'] == tag + '改过'
+        assert r['item']['done'] is False and r['item']['discarded'] is True
+
+        # 取消废弃恢复显示
+        r = client.put('/api/board/%d' % bid, json={'discarded': False},
+                       headers=CSRF).get_json()
+        assert r['ok'] and r['item']['discarded'] is False
+        mine = [i for i in client.get('/api/board').get_json()['items']
+                if i['id'] == bid]
+        assert len(mine) == 1
+    finally:
+        _cleanup(tag)
+
+
 def test_board_cross_user_isolated(client):
     """用户1无法读写用户2的看板条目(返回 404)."""
     from app import app, db

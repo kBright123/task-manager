@@ -212,7 +212,8 @@ def user_dashboard():
     from core.models import BoardItem
     board_pending = BoardItem.query.filter(
         BoardItem.user_id == current_user.id,
-        BoardItem.done.is_(False)).count()
+        BoardItem.done.is_(False),
+        BoardItem.discarded.is_(False)).count()
     new_board_yesterday = BoardItem.query.filter(
         BoardItem.user_id == current_user.id,
         BoardItem.created_at >= yesterday_start,

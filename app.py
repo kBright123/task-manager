@@ -951,11 +951,25 @@ def _ensure_soft_delete_column():
         db.session.commit()
 
 
+def _ensure_board_discarded_column():
+    """幂等: 为 board_item 表补 discarded 列(SQLite ADD COLUMN 安全)."""
+    from sqlalchemy import text, inspect as sa_inspect
+    insp = sa_inspect(db.engine)
+    if 'board_item' in insp.get_table_names():
+        cols = [c['name'] for c in insp.get_columns('board_item')]
+        if 'discarded' not in cols:
+            db.session.execute(text(
+                'ALTER TABLE board_item ADD COLUMN discarded BOOLEAN NOT NULL DEFAULT 0'))
+            db.session.commit()
+
+
 # ---- 启动即执行一次性 UTC→北京时间历史数据迁移(幂等, 多 worker 安全) ----
 with app.app_context():
     _migrate_utc_to_cn_time()
 with app.app_context():
     _ensure_soft_delete_column()
+with app.app_context():
+    _ensure_board_discarded_column()
 
 # 后台预装 jionlp(容器缺依赖时不阻塞首次解析; 已装则立即返回)
 try:

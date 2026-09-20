@@ -472,6 +472,30 @@
   </div>
 </div>
 
+<!-- Board Detail Drawer (参考任务详情抽屉: 右侧滑出) -->
+<div class="drawer-overlay d-none" id="boardDrawerOverlay" onclick="closeBoardDrawer()"></div>
+<div class="drawer d-none" id="boardDrawer">
+  <div class="d-flex justify-content-between align-items-center p-3" style="border-bottom:1px solid var(--gray-100);">
+    <div class="d-flex align-items-center gap-2 flex-grow-1" style="min-width:0;">
+      <span id="boardDrawerTitle" style="font-size:1rem;font-weight:700;" class="text-truncate"></span>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary" style="border:none;font-size:1.2rem;" onclick="closeBoardDrawer()"><i class="bi bi-x"></i></button>
+  </div>
+  <div class="p-3" id="boardDrawerBody">
+    <div class="d-flex flex-wrap gap-2 mb-2">
+      <button class="btn btn-sm btn-success" id="boardDrawerDoneBtn" style="padding:2px 10px;font-size:.7rem;" onclick="boardDrawerDone()"><i class="bi bi-check-lg"></i> 完成</button>
+      <button class="btn btn-sm btn-outline-primary" id="boardDrawerEditBtn" style="padding:2px 10px;font-size:.7rem;" onclick="boardDrawerEdit()"><i class="bi bi-pencil"></i> 编辑</button>
+      <button class="btn btn-sm btn-outline-danger" id="boardDrawerDiscardBtn" style="padding:2px 10px;font-size:.7rem;" onclick="boardDrawerDiscard()"><i class="bi bi-x-circle"></i> 废弃</button>
+      <button class="btn btn-sm btn-outline-danger" id="boardDrawerDeleteBtn" style="padding:2px 10px;font-size:.7rem;" onclick="boardDrawerDelete()"><i class="bi bi-trash"></i> 删除</button>
+    </div>
+    <div id="boardDrawerContentBox"></div>
+    <div class="d-flex justify-content-between mb-2" style="font-size:.8rem;">
+      <span><span class="text-muted">创建</span> <strong id="boardDrawerDate"></strong></span>
+      <span><span class="text-muted">状态</span> <strong id="boardDrawerStatus"></strong></span>
+    </div>
+  </div>
+</div>
+
 {% set mode = "server" %}
 {% set form_action = url_for('user_edit_task') %}
 {% set show_assign = True %}
@@ -947,13 +971,14 @@ function boardList(){
   document.getElementById('boardList').innerHTML='<div style="text-align:center;padding:26px 10px;color:var(--gray-400);"><span class="spinner-border spinner-border-sm"></span></div>';
   fetchJSON('/api/board').then(function(d){
     var items=(d&&d.ok)?(d.items||[]):[];
+    _boardItems=items;
     if(!items.length){document.getElementById('boardList').innerHTML='<div class="tl-empty"><i class="bi bi-clipboard-check"></i>看板暂无内容<br><span style="font-size:.7rem;color:var(--gray-400);">在下方输入框新增第一条吧</span></div>';return;}
     var html='';
     items.forEach(function(it){
       html+='<div class="board-card'+(it.done?' done':'')+'" data-id="'+it.id+'">';
       html+='<div class="board-head">';
       html+='<input type="checkbox" class="form-check-input board-check" '+(it.done?'checked ':'')+'data-id="'+it.id+'" aria-label="标记完成看板项" onchange="boardToggleDone('+it.id+',this.checked)">';
-      html+='<div class="board-title" data-field="title" onclick="boardToggleExpand('+it.id+')">'+esc(it.content)+'</div>';
+      html+='<div class="board-title" data-field="title" role="button" tabindex="0" onclick="openBoardDrawer('+it.id+')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">'+esc(it.content)+'</div>';
       html+='</div>';
       html+='<div class="board-meta-row">';
       html+='<span class="board-time">'+esc(it.date)+'</span>';
@@ -965,20 +990,9 @@ function boardList(){
       html+='</div>';
     });
     document.getElementById('boardList').innerHTML=html;
-    // 检测超 2 行的内容: 标记可展开, 供「展开」提示
-    Array.prototype.forEach.call(
-      document.querySelectorAll('#boardList .board-title'),function(t){
-        if(t.scrollHeight>t.clientHeight+1)t.classList.add('has-more');
-      });
   }).catch(function(){
     document.getElementById('boardList').innerHTML='<div style="text-align:center;padding:26px 10px;color:var(--danger);">加载失败</div>';
   });
-}
-function boardToggleExpand(id){
-  var c=document.querySelector('.board-card[data-id="'+id+'"] .board-title');
-  if(!c)return;
-  c.classList.toggle('expanded');
-  if(c.classList.contains('expanded'))c.classList.remove('has-more');
 }
 function boardOpen(){
   var bv=document.getElementById('boardView');
@@ -1065,6 +1079,73 @@ function boardSaveEdit(id){
   fetchJSON('/api/board/'+id,{method:'PUT',headers:_boardHeaders(),body:JSON.stringify({content:v})}).then(function(d){
     if(d&&d.ok)boardList();else toast((d&&d.error)||'保存失败','danger');
   }).catch(function(){toast('保存失败','danger');});
+}
+/* === 看板详情抽屉(右侧滑出, 参考任务详情抽屉) === */
+var _boardItems=[];
+var _boardDrawerId=null;
+function _boardItemById(id){for(var i=0;i<_boardItems.length;i++){if(_boardItems[i].id===id)return _boardItems[i];}return null;}
+function _boardPut(id,payload){
+  return fetchJSON('/api/board/'+id,{method:'PUT',headers:_boardHeaders(),body:JSON.stringify(payload)});
+}
+function openBoardDrawer(id){
+  var it=_boardItemById(id);if(!it)return;
+  _boardDrawerId=id;
+  document.getElementById('boardDrawerTitle').textContent=it.content;
+  document.getElementById('boardDrawerContentBox').innerHTML='<div style="font-size:.86rem;color:var(--gray-700);white-space:pre-wrap;word-break:break-word;margin-bottom:12px;">'+linkifyText(escapeHtml(it.content)).replace(/\n/g,'<br>')+'</div>';
+  document.getElementById('boardDrawerDate').textContent=it.created_at||'';
+  var st=document.getElementById('boardDrawerStatus');
+  st.textContent=it.done?'已完成':'进行中';
+  st.style.color=it.done?'var(--gray-500)':'var(--primary)';
+  var db=document.getElementById('boardDrawerDoneBtn');
+  db.className='btn btn-sm '+(it.done?'btn-outline-warning':'btn-success');
+  db.innerHTML=it.done?'<i class="bi bi-arrow-counterclockwise"></i> 撤销':'<i class="bi bi-check-lg"></i> 完成';
+  document.getElementById('boardDrawer').classList.remove('d-none');
+  document.getElementById('boardDrawerOverlay').classList.remove('d-none');
+}
+function closeBoardDrawer(){
+  document.getElementById('boardDrawer').classList.add('d-none');
+  document.getElementById('boardDrawerOverlay').classList.add('d-none');
+}
+function boardDrawerDone(){
+  var it=_boardItemById(_boardDrawerId);if(!it)return;
+  _boardPut(_boardDrawerId,{done:!it.done}).then(function(d){
+    if(d&&d.ok){it.done=!it.done;openBoardDrawer(_boardDrawerId);boardList();}
+    else toast((d&&d.error)||'操作失败','danger');
+  }).catch(function(){toast('操作失败','danger');});
+}
+function boardDrawerEdit(){
+  var it=_boardItemById(_boardDrawerId);if(!it)return;
+  var box=document.getElementById('boardDrawerContentBox');
+  box.innerHTML='<input type="text" class="form-control form-control-sm board-drawer-input" maxlength="2000" value="'+battr(it.content)+'" onkeydown="if(event.key===\'Enter\')boardDrawerSave();if(event.key===\'Escape\')openBoardDrawer('+_boardDrawerId+');"><div class="d-flex gap-2 mt-2"><button type="button" class="btn btn-sm btn-primary" style="font-size:.68rem;padding:1px 10px;" onclick="boardDrawerSave()">保存</button><button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:.68rem;padding:1px 10px;" onclick="openBoardDrawer('+_boardDrawerId+')">取消</button></div>';
+  var inp=box.querySelector('input');if(inp){inp.focus();inp.select();}
+}
+function boardDrawerSave(){
+  var inp=document.querySelector('#boardDrawerContentBox .board-drawer-input');
+  var v=inp?(inp.value||'').trim():'';if(!v){toast('内容不能为空','danger');if(inp)inp.focus();return;}
+  _boardPut(_boardDrawerId,{content:v}).then(function(d){
+    if(d&&d.ok){
+      var it=_boardItemById(_boardDrawerId);if(it)it.content=v;
+      openBoardDrawer(_boardDrawerId);boardList();toast('已保存','success');
+    }else toast((d&&d.error)||'保存失败','danger');
+  }).catch(function(){toast('保存失败','danger');});
+}
+function boardDrawerDiscard(){
+  var it=_boardItemById(_boardDrawerId);if(!it)return;
+  var txt=it.content||'';txt=txt.length>20?txt.slice(0,20)+'…':txt;
+  if(!window.confirm('确认废弃「'+txt+'」？废弃后将从看板移除'))return;
+  _boardPut(_boardDrawerId,{discarded:true}).then(function(d){
+    if(d&&d.ok){closeBoardDrawer();boardList();toast('已废弃','success');}
+    else toast((d&&d.error)||'操作失败','danger');
+  }).catch(function(){toast('操作失败','danger');});
+}
+function boardDrawerDelete(){
+  var it=_boardItemById(_boardDrawerId);if(!it)return;
+  var txt=it.content||'';txt=txt.length>12?txt.slice(0,12)+'…':txt;
+  if(!window.confirm('确认删除这条看板？\n'+txt))return;
+  fetchJSON('/api/board/'+_boardDrawerId,{method:'DELETE',headers:_boardHeaders()}).then(function(d){
+    if(d&&d.ok){closeBoardDrawer();boardList();toast('已删除','success');}
+    else toast((d&&d.error)||'删除失败','danger');
+  }).catch(function(){toast('删除失败','danger');});
 }
 // 一屏自适应: 按行顶部实际位置精确锁定高度, 兼容不同导航/边距高度(预留6px舍入容差)
 </script>

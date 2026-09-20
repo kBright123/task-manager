@@ -459,6 +459,8 @@ function followInit() {
   try { cv = localStorage.getItem('followCollapsed'); } catch (e) {}
   var card = document.getElementById('followCard');
   if (card && cv === '1') card.classList.remove('open');
+  // 记录用户是否手工折叠过(本次会话): 折叠后滚动不再自动展开, 仅在手工点击时恢复
+  window._followManualCollapsed = cv === '1';
   window.followLoad();
 }
 
@@ -466,6 +468,7 @@ window.followToggleHeader = function () {
   var card = document.getElementById('followCard');
   if (!card) return;
   var open = card.classList.toggle('open');
+  window._followManualCollapsed = !open;
   try { localStorage.setItem('followCollapsed', open ? '0' : '1'); } catch (e) {}
 };
 

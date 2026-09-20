@@ -73,7 +73,7 @@
     .tasks-layout>.tasks-panel:nth-child(2) .form-control::placeholder{font-size:.7rem;}
     .tasks-layout > .tasks-panel .card-footer{border-top:1px solid var(--gray-100);}
     /* 时间轴视图 - 分段式 */
-    .tl-wrap{position:relative;overflow-y:auto;flex:1;padding:12px 12px 12px 16px;}
+    .tl-wrap{position:relative;overflow-y:auto;flex:1;padding:12px 12px 12px 16px;overflow-anchor:none;}
     .tl-axis{position:absolute;left:28px;top:0;bottom:0;width:2px;background:var(--gray-200);}
     .tl-section{margin-bottom:4px;}
     .tl-section-hd{display:flex;align-items:center;gap:6px;padding:4px 0 2px 22px;position:relative;}
@@ -646,8 +646,10 @@ function renderTimeline(el,jump){
     if(sec&&wrap.scrollHeight>wrap.clientHeight){wrap.scrollTop=sec.offsetTop-8;}
   }
   tlfAccordion(true);
+  // 滚动动画优化: 按帧合并折叠/展开, 避免滚动过程中反复触发造成卡顿
   wrap.onscroll=function(){
-    tlfAccordion(false);
+    if(window._tlfRaf)return;
+    window._tlfRaf=requestAnimationFrame(function(){window._tlfRaf=null;tlfAccordion(false);});
   };
   if(!wrap._tlGestureBound){
     wrap._tlGestureBound=true;
@@ -673,27 +675,42 @@ function renderTimeline(el,jump){
     }
   }
 }
-// 分区折叠: 时间点常驻轴上(仅标题), 滚动到哪个时间点就展开哪个分区
+// 分区折叠: 时间点常驻轴上(仅标题); 滚动展开当前分区, 越过其全部待办后自动折叠(关注节点同样参与)
 function tlfAccordion(force){
   var el=document.getElementById('taskTimelineView');
   if(!el)return;
   var secs=[].slice.call(el.querySelectorAll('.tl-section')).filter(function(s){return !s.classList.contains('follow');});
   if(!secs.length){window._tlfCurEl=null;return;}
   if(window._tlfStepping)return;
-  var cur=null;
-  // 当前分区=最后一个标题越过视口中线的分区
-  var mid=el.scrollTop+Math.min(el.clientHeight*0.45,260);
-  secs.forEach(function(s){
-    if(s.offsetTop<=mid)cur=s;
-  });
-  if(!cur)cur=secs[0];
-  if(!force&&window._tlfCurEl===cur)return;
-  window._tlfCurEl=cur;
-  // 若目标分区头已在视口上方, 展开带来的高度增量需补偿, 防止视图跳动
-  var compensate=cur.offsetTop<el.scrollTop;
-  var before=el.scrollHeight;
-  if(!cur.classList.contains('open'))cur.classList.add('open');
-  if(compensate)el.scrollTop+=el.scrollHeight-before;
+  var vtop=el.scrollTop;
+  var mid=vtop+Math.min(el.clientHeight*0.45,260);
+  var changed=false,delta=0,cur=null;
+  // 分区与视口相交(top<=mid 且 内容未整块滚出视口顶部)则展开; 内容全部滚出即收起
+  function apply(s){
+    var before=s.offsetHeight;
+    var top=s.offsetTop,bottom=top+before;
+    var active=top<=mid&&bottom>=vtop;
+    if(active)cur=s;
+    var wasOpen=s.classList.contains('open');
+    if(!active&&force)return; // 初始/静默对账刷新只维持既有展开态, 不主动收起
+    if(wasOpen===active)return;
+    s.classList.toggle('open',active);
+    changed=true;
+    // 仅当收起的是整块位于视口上方的分区时才补偿滚动位置, 防止视图跳动(下方收起无需补偿)
+    if(!active&&bottom<vtop)delta+=before-s.offsetHeight;
+  }
+  secs.forEach(apply);
+  // 关注节点: 越过其全部待办自动收起, 回到视口自动展开; 用户手工折叠过(本次会话)则不自动展开
+  var f=document.getElementById('followCard');
+  if(f){
+    var fbefore=f.offsetHeight,fTop=f.offsetTop,fbot=fTop+fbefore;
+    var fOpen=f.classList.contains('open');
+    if(fOpen&&!(fTop<=mid&&fbot>=vtop)&&fbot<vtop){f.classList.remove('open');changed=true;delta+=fbefore-f.offsetHeight;}
+    else if(!fOpen&&fTop<=mid&&fbot>=vtop&&!window._followManualCollapsed){f.classList.add('open');changed=true;}
+  }
+  if(!changed&&window._tlfCurEl===cur)return;
+  window._tlfCurEl=cur||window._tlfCurEl;
+  if(delta)el.scrollTop=Math.max(0,el.scrollTop-delta);
 }
 // 初始级联展开: 今天始终展开; 今天不足3条时沿未来方向展开分区, 直到可见约3-5条(今天无待办也能继续展开)
 function tlfCascadeExpand(){
@@ -731,7 +748,7 @@ function tlfStep(dir){
   window._tlfStepping=true;
   if(!nxt.classList.contains('open'))nxt.classList.add('open');
   el.scrollTo({top:Math.max(nxt.offsetTop-6,0),behavior:reduce?'auto':'smooth'});
-  setTimeout(function(){window._tlfStepping=false;},400);
+  setTimeout(function(){window._tlfStepping=false;tlfAccordion(false);},400);
 }
 // 点击时间点标题: 已展开则折叠, 未展开则展开并平滑滚到该分区
 function tlSecJump(hd){
@@ -744,6 +761,8 @@ function tlSecJump(hd){
   window._tlfCurEl=sec;
   var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
   el.scrollTo({top:Math.max(sec.offsetTop-6,0),behavior:reduce?'auto':'smooth'});
+  // 平滑滚动结束后重算一次折叠, 收起滚动途中的离场分区
+  if(!reduce)setTimeout(function(){tlfAccordion(false);},360);
 }
 // 锚点导航: 平滑滚动到对应分区(尊重系统减弱动效偏好)
 // 勾选乐观更新: 即时反馈, 失败回滚, 成功后静默对账刷新(不整页重载不打断浏览)

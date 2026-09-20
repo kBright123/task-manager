@@ -47,7 +47,7 @@
   .stat-card .stat-trend .trend-pill.down { color: #fee2e2; background: rgba(255,255,255,.18); }
   .stat-card .stat-trend .trend-pill.flat { color: rgba(255,255,255,.92); background: rgba(255,255,255,.12); }
   /* 时间轴 */
-  .tl-wrap{position:relative;overflow-y:auto;flex:1;padding:12px 12px 28px 16px;}
+  .tl-wrap{position:relative;overflow-y:auto;flex:1;padding:12px 12px 28px 16px;overflow-anchor:none;}
   /* 桌面端双栏铺满一屏: 时间轴与日历拉伸至视口剩余高度 */
   @media (min-width:768px){
     /* 纯CSS一屏(不依赖JS测量): 容器锁定视口剩余高(扣除固定导航64px), 行弹性填充 */
@@ -538,7 +538,11 @@ function dashRenderTimeline(jump){
     }
   }
   dashAccordion(true);
-  wrap.onscroll=function(){dashAccordion(false);};
+  // 滚动动画优化: 按帧合并折叠/展开, 避免滚动过程中反复触发造成卡顿
+  wrap.onscroll=function(){
+    if(window._dtlRaf)return;
+    window._dtlRaf=requestAnimationFrame(function(){window._dtlRaf=null;dashAccordion(false);});
+  };
   if(!wrap._tlGestureBound){
     wrap._tlGestureBound=true;
     var accY=null;
@@ -563,27 +567,42 @@ function dashRenderTimeline(jump){
     }
   }
 }
-// 分区折叠(首页): 时间点常驻轴上(仅标题), 滚动到哪个时间点就展开哪个分区
+// 分区折叠(首页): 时间点常驻轴上(仅标题); 滚动展开当前分区, 越过其全部待办后自动折叠(关注节点同样参与)
 function dashAccordion(force){
   var el=document.getElementById('dashTimeline');if(!el)return;
   var wrap=el.querySelector('.tl-wrap')||el;
   var secs=[].slice.call(wrap.querySelectorAll('.tl-section')).filter(function(s){return !s.classList.contains('follow');});
   if(!secs.length){window._dtlCurEl=null;return;}
   if(window._dtlStepping)return;
-  var cur=null;
-  // 当前分区=最后一个标题越过视口中线的分区
-  var mid=wrap.scrollTop+Math.min(wrap.clientHeight*0.45,260);
-  secs.forEach(function(s){
-    if(s.offsetTop<=mid)cur=s;
-  });
-  if(!cur)cur=secs[0];
-  if(!force&&window._dtlCurEl===cur)return;
-  window._dtlCurEl=cur;
-  // 目标分区头在视口上方时补偿展开高度, 防视图跳动
-  var compensate=cur.offsetTop<wrap.scrollTop;
-  var before=wrap.scrollHeight;
-  if(!cur.classList.contains('open'))cur.classList.add('open');
-  if(compensate)wrap.scrollTop+=wrap.scrollHeight-before;
+  var vtop=wrap.scrollTop;
+  var mid=vtop+Math.min(wrap.clientHeight*0.45,260);
+  var changed=false,delta=0,cur=null;
+  // 分区与视口相交(top<=mid 且 内容未整块滚出视口顶部)则展开; 内容全部滚出即收起
+  function apply(s){
+    var before=s.offsetHeight;
+    var top=s.offsetTop,bottom=top+before;
+    var active=top<=mid&&bottom>=vtop;
+    if(active)cur=s;
+    var wasOpen=s.classList.contains('open');
+    if(!active&&force)return; // 初始/静默对账刷新只维持既有展开态, 不主动收起
+    if(wasOpen===active)return;
+    s.classList.toggle('open',active);
+    changed=true;
+    if(!active&&bottom<vtop)delta+=before-s.offsetHeight;
+  }
+  secs.forEach(apply);
+  // 关注节点: 越过其全部待办自动收起, 回到视口自动展开; 用户手工折叠过(本次会话)则不自动展开
+  var f=document.getElementById('followCard');
+  if(f){
+    var fbefore=f.offsetHeight,fTop=f.offsetTop,fbot=fTop+fbefore;
+    var fOpen=f.classList.contains('open');
+    if(fOpen&&!(fTop<=mid&&fbot>=vtop)&&fbot<vtop){f.classList.remove('open');changed=true;delta+=fbefore-f.offsetHeight;}
+    else if(!fOpen&&fTop<=mid&&fbot>=vtop&&!window._followManualCollapsed){f.classList.add('open');changed=true;}
+  }
+  if(!changed&&window._dtlCurEl===cur)return;
+  window._dtlCurEl=cur||window._dtlCurEl;
+  // 收起整块位于视口上方的分区时补偿滚动位置, 防止视图跳动
+  if(delta)wrap.scrollTop=Math.max(0,wrap.scrollTop-delta);
 }
 // 分区步进(滚轮/触摸兜底, 首页): 折叠态内容不足一屏无滚动量, 在边界继续滑动即切换分区
 // 初始级联展开(首页): 今天始终展开; 今天不足3条时沿未来方向展开分区, 直到可见约3-5条(今天无待办也能继续展开)
@@ -634,7 +653,7 @@ function dashTlStep(dir){
   window._dtlStepping=true;
   if(!nxt.classList.contains('open'))nxt.classList.add('open');
   wrap.scrollTo({top:Math.max(nxt.offsetTop-6,0),behavior:reduce?'auto':'smooth'});
-  setTimeout(function(){window._dtlStepping=false;},400);
+  setTimeout(function(){window._dtlStepping=false;dashAccordion(false);},400);
 }
 // 点击时间点标题(首页): 已展开则折叠, 未展开则展开并平滑滚到该分区
 function tlSecDashJump(hd){
@@ -647,6 +666,8 @@ function tlSecDashJump(hd){
   window._dtlCurEl=sec;
   var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
   wrap.scrollTo({top:Math.max(sec.offsetTop-6,0),behavior:reduce?'auto':'smooth'});
+  // 平滑滚动结束后重算一次折叠, 收起滚动途中的离场分区
+  if(!reduce)setTimeout(function(){dashAccordion(false);},360);
 }
 function dashLoadTimeline(keepView){
   _dashShowCompleted=document.getElementById('dashShowCompleted')?.checked||false;
@@ -741,22 +762,24 @@ document.addEventListener('keydown',function(e){
 // 删除待办(fetch+可撤销): 10s 内可通过 toast 撤销, 以原字段重新创建
 function dashDeleteSubmit(ev){
   ev.preventDefault();
-  if(!confirm('确认删除此待办？将移入回收站，可在回收站恢复。'))return false;
-  var data=_dashDrawerData;
-  var id=(ev.target.action.match(/\/(\d+)\/delete/)||[])[1];
-  fetchJSON('/api/task/'+id+'/delete',{method:'POST'}).then(function(d){
-    if(!d||!d.ok){toast((d&&d.error)||'删除失败','error');return;}
-    closeTaskDrawer();
-    dashLoadTimeline();
-    if(data&&data.title){
-      toast('已移入回收站「'+data.title+'」',{actionLabel:'撤销',duration:8000,onAction:function(){
-        fetchJSON('/api/task/'+id+'/restore',{method:'POST'}).then(function(rd){
-          if(rd.ok){toast('已恢复','success');}else{toast(rd.error||'恢复失败','error');}
-          dashLoadTimeline();
-        }).catch(function(e){toast(netErrMsg(e),'error');});
-      }});
-    }else if(window.toast){toast('已删除','success');}
-  }).catch(function(e){toast(netErrMsg(e),'error');});
+  uiConfirm('确认删除此待办？将移入回收站，可在回收站恢复。').then(function(yes){
+    if(!yes)return;
+    var data=_dashDrawerData;
+    var id=(ev.target.action.match(/\/(\d+)\/delete/)||[])[1];
+    fetchJSON('/api/task/'+id+'/delete',{method:'POST'}).then(function(d){
+      if(!d||!d.ok){toast((d&&d.error)||'删除失败','error');return;}
+      closeTaskDrawer();
+      dashLoadTimeline();
+      if(data&&data.title){
+        toast('已移入回收站「'+data.title+'」',{actionLabel:'撤销',duration:8000,onAction:function(){
+          fetchJSON('/api/task/'+id+'/restore',{method:'POST'}).then(function(rd){
+            if(rd.ok){toast('已恢复','success');}else{toast(rd.error||'恢复失败','error');}
+            dashLoadTimeline();
+          }).catch(function(e){toast(netErrMsg(e),'error');});
+        }});
+      }else if(window.toast){toast('已删除','success');}
+    }).catch(function(e){toast(netErrMsg(e),'error');});
+  });
   return false;
 }
 

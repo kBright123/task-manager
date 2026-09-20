@@ -1,8 +1,8 @@
 // 全局共享常量与工具(时间轴渲染/分类色板), 页面内联脚本依赖本文件先加载
-window.KB_CAT_COLORS = { '工作': 'var(--primary)', '个人': 'var(--success)', '会议': 'var(--meeting)', '培训': 'var(--training)', '考试': 'var(--exam)' };
-window.KB_TL_ORDER = ['past', 'past_month', 'past_week', 'today', 'tomorrow', 'future_week', 'future_month', 'later'];
-window.KB_TL_FUTURE = ['tomorrow', 'future_week', 'future_month', 'later'];
-window.KB_TL_PAST = ['past_week', 'past_month', 'past'];
+window.KB_CAT_COLORS = { '工作': 'var(--primary)', '个人': 'var(--success)', '会议': 'var(--meeting)', '培训': 'var(--training)', '考试': 'var(--exam)', '关注': 'var(--tracking)' };
+window.KB_TL_ORDER = ['past', 'past_week', 'today', 'tomorrow', 'future_two_weeks', 'later'];
+window.KB_TL_FUTURE = ['tomorrow', 'future_two_weeks', 'later'];
+window.KB_TL_PAST = ['past_week', 'past'];
 
 // ============ 教育·孩子资料(生日/性别/多个孩子/活跃孩子) ============
 // 数据存 localStorage, 供 教育乐园 与 个人信息 两页共享;
@@ -448,4 +448,132 @@ window.toggleEduMode = function () {
   var target = (path === '/edu') ? '/' : '/edu/';
   try { localStorage.setItem('edu_mode', target === '/edu/' ? 'edu' : 'work'); } catch (e) {}
   window.location.href = target;
+};
+
+// ============ 关注区块(共享: 首页 & 待办页) 数据源 /api/tasks/follow ============
+window._tFOLLOW = [];
+
+function followInit() {
+  // 恢复上次手工折叠状态
+  var cv = null;
+  try { cv = localStorage.getItem('followCollapsed'); } catch (e) {}
+  var card = document.getElementById('followCard');
+  if (card && cv === '1') card.classList.remove('open');
+  window.followLoad();
+}
+
+window.followToggleHeader = function () {
+  var card = document.getElementById('followCard');
+  if (!card) return;
+  var open = card.classList.toggle('open');
+  try { localStorage.setItem('followCollapsed', open ? '0' : '1'); } catch (e) {}
+};
+
+window.followLoad = function () {
+  var list = document.getElementById('followList');
+  if (!list) return;
+  var cntE = document.getElementById('followCount');
+  if (!window._tFOLLOW_LOADING) list.innerHTML = '<div class="tl-empty" style="padding:16px;">加载中...</div>';
+  window._tFOLLOW_LOADING = true;
+  fetchJSON('/api/tasks/follow').then(function (d) {
+    if (!d || !d.ok) {
+      list.innerHTML = '<div class="tl-empty" style="padding:16px;">加载失败</div>';
+      return;
+    }
+    window._tFOLLOW = d.items || [];
+    var act = 0, i;
+    for (i = 0; i < window._tFOLLOW.length; i++) { if (!window._tFOLLOW[i].done) act++; }
+    if (cntE) cntE.textContent = act + ' 项进行中';
+    window.followRender();
+  }).catch(function () {
+    list.innerHTML = '<div class="tl-empty" style="padding:16px;">' +
+      (window.netErrMsg ? netErrMsg({kind: 'network'}) : '加载失败') + '</div>';
+  });
+};
+
+window.followRender = function () {
+  var list = document.getElementById('followList');
+  if (!list) return;
+  var items = window._tFOLLOW;
+  if (!items.length) {
+    list.innerHTML = '<div class="tl-empty" style="padding:10px 0 14px;"><i class="bi bi-star"></i>暂无关注事项' +
+      '<div style="font-size:.7rem;color:var(--gray-400);">悬停时间轴待办，点击右上角五角星即可关注</div></div>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < items.length; i++) {
+    var it = items[i];
+    var color = (window.KB_CAT_COLORS && window.KB_CAT_COLORS[it.category]) || 'var(--tracking)';
+    var isDone = !!it.done;
+    html += '<div class="tl-card' + (isDone ? ' completed' : '') + '" id="tl-' + it.id + '">' +
+      '<div style="display:flex;align-items:flex-start;gap:6px;">' +
+      '<input type="checkbox" class="form-check-input follow-check" style="flex-shrink:0;" ' +
+      (isDone ? 'checked disabled' : (it.assignment_id == null ? 'disabled' : '')) +
+      ' data-aid="' + (it.assignment_id == null ? '' : it.assignment_id) +
+      '" aria-label="标记完成:' + esc(it.title) + '" onchange="followToggle(this)">' +
+      '<div style="flex:1;min-width:0;">' +
+      '<div class="tl-card-time">' +
+      (it.start_time
+        ? esc(it.start_time.substring(5, 16) + ' - ' + (it.end_time ? it.end_time.substring(5, 16) : ''))
+        : '<span style="color:#adb5bd;">未排期</span>') +
+      '</div>' +
+      '<div class="tl-card-title" data-id="' + it.id + '" role="button" tabindex="0" aria-label="查看关注:' + esc(it.title) + '" ' +
+      (isDone ? 'style="text-decoration:line-through;"' : 'style="cursor:pointer;"') +
+      ' onclick="followOpenItem(' + it.id + ')" ' +
+      'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">' +
+      esc(it.title) +
+      (window.renderKeyTags && window.extractKeyInfo ? renderKeyTags(extractKeyInfo(it.full_description || '')) : '') +
+      '<span class="tl-card-cat" style="background:' + color + ';">' + esc(it.category) + '</span>' +
+      '<button type="button" class="tl-follow-btn tl-follow-dot" data-fid="' + it.id + '" title="取消关注" aria-label="取消关注:' + esc(it.title) + '" ' +
+      'onclick="event.stopPropagation();followToggleStar(this,' + it.id + ')"><i class="bi bi-star-fill"></i></button></div>' +
+      '</div>' +
+      '</div></div>';
+  }
+  list.innerHTML = html;
+};
+
+window.followOpenItem = function (id) {
+  var items = window._tFOLLOW, i;
+  for (i = 0; i < items.length; i++) {
+    if (items[i].id === id) {
+      if (window.followOpen) window.followOpen(items[i]);
+      return;
+    }
+  }
+};
+
+window.followToggle = function (cb) {
+  var aid = cb.getAttribute('data-aid');
+  if (!aid) return;
+  var card = cb.closest('.tl-card');
+  var want = cb.checked;
+  if (card) card.classList.add('pending');
+  fetch('/user/tasks/' + aid + '/toggle', {method: 'POST'}).then(function (r) { return r.json(); }).then(function (d) {
+    if (!d.ok) throw new Error(d.error || '操作失败');
+    if (want && window.toast) toast('已完成', 'success');
+    window.followReloadAll();
+  }).catch(function (err) {
+    cb.checked = !want;
+    if (card) card.classList.remove('pending');
+    if (window.toast) toast((err && err.message) || '操作失败', 'danger');
+  });
+};
+
+// 关注/取消关注: 关注 → 移出时间轴进入关注节点; 取消 → 按日期回到时间轴
+window.followToggleStar = function (btn, taskId) {
+  fetchJSON('/api/task/' + taskId + '/follow', {method: 'POST'}).then(function (d) {
+    if (d && d.ok) {
+      if (window.toast) toast(d.is_followed ? '已关注' : '已取消关注', 'success');
+    } else {
+      if (window.toast) toast((d && d.error) || '操作失败', 'danger');
+    }
+    window.followReloadAll();
+  }).catch(function (e) {
+    if (window.toast) toast(window.netErrMsg ? netErrMsg(e) : '操作失败', 'danger');
+  });
+};
+
+window.followReloadAll = function () {
+  window.followLoad();
+  if (window.followAfter) { try { window.followAfter(); } catch (e) {} }
 };

@@ -1,0 +1,22 @@
+<!-- 关注节点(共享, 内嵌于时间轴滚动区内最顶部, 随时间轴一起滚动; 与时间轴待办同格式渲染 tl-card; 默认展开, 点击表头可手工折叠; 表头只保留一个五角星标记, 无新增按钮) -->
+<div class="tl-section follow open" id="followCard">
+  <div class="tl-section-hd" role="button" tabindex="0" aria-expanded="true"
+       onclick="followToggleHeader()"
+       onkeydown="if(event.key==='Enter'||event.key===' ')event.preventDefault();followToggleHeader();">
+    <span class="tl-section-label"><i class="bi bi-star-fill" style="color:var(--tracking);"></i> 关注</span>
+    <span class="tl-section-count" id="followCount">0 项进行中</span>
+    <i class="bi bi-chevron-down follow-chev"></i>
+  </div>
+  <div class="tl-items" id="followList"></div>
+</div>
+
+<script>
+  // shared.js(定义 followInit)在页面底部加载, 此内联脚本先于它执行,
+  // 因此须把初始化推迟到 DOMContentLoaded 之后(共享脚本同步执行完必已就绪),
+  // 否则关注节点首屏将永不加载数据(数据"丢失"假象)。
+  function _followBootNow() {
+    if (document.getElementById('followCard') && window.followInit) window.followInit();
+  }
+  if (window.followInit) _followBootNow();
+  else document.addEventListener('DOMContentLoaded', _followBootNow);
+</script>

@@ -91,7 +91,8 @@
     .tl-section.today{background:rgba(255,193,7,.06);border-radius:8px;padding:4px 8px;margin-left:-8px;margin-right:-8px;}
     .tl-section.tomorrow .tl-section-dot{border-color:var(--primary);}
     .tl-section.tomorrow .tl-section-label{color:var(--primary);}
-    .tl-section.future_week .tl-section-dot{border-color:var(--primary);background:var(--primary-light);}
+    .tl-section.future_two_weeks .tl-section-dot{border-color:var(--primary);background:var(--primary-light);}
+    .tl-section.future_two_weeks .tl-section-label{color:var(--primary);}
     .tl-section.completed .tl-section-dot{border-color:var(--success);background:var(--success);}
     .tl-section.completed .tl-section-label{color:var(--success);}
     .tl-section.abandoned .tl-section-dot{border-color:var(--gray-400);background:var(--gray-400);}
@@ -145,7 +146,7 @@
         <span class="badge" id="catCountAll" style="background:var(--gray-100);color:var(--gray-500);font-size:.58rem;">0</span>
       </a>
       {% for g in task_categories %}
-      {% set color = 'var(--primary)' if g.category == '工作' else 'var(--success)' if g.category == '个人' else 'var(--meeting)' if g.category == '会议' else 'var(--training)' if g.category == '培训' else 'var(--exam)' if g.category == '考试' else 'var(--warning)' %}
+      {% set color = 'var(--primary)' if g.category == '工作' else 'var(--success)' if g.category == '个人' else 'var(--meeting)' if g.category == '会议' else 'var(--training)' if g.category == '培训' else 'var(--exam)' if g.category == '考试' else 'var(--tracking)' if g.category == '关注' else 'var(--warning)' %}
       <a class="cat-item" href="#" onclick="selectCategory('{{ g.category }}');return false;" data-cat="{{ g.category }}">
         <span class="cat-dot" style="background:{{ color }};"></span>
         <span class="text-truncate" style="flex:1;">{{ g.category }}</span>
@@ -186,6 +187,10 @@
         <label class="d-flex align-items-center gap-1 mb-0" style="font-size:.68rem;color:var(--gray-500);cursor:pointer;">
           <input type="checkbox" id="tlShowCompleted" checked onchange="loadTaskFeed()" style="margin:0;width:12px;height:12px;">
           <span>已完成</span>
+        </label>
+        <label class="d-flex align-items-center gap-1 mb-0" style="font-size:.68rem;color:var(--gray-500);cursor:pointer;">
+          <input type="checkbox" id="tlShowHistory" onchange="loadTaskFeed()" style="margin:0;width:12px;height:12px;">
+          <span>历史待办</span>
         </label>
         <button id="batchDeleteBtn" class="btn btn-sm btn-outline-danger d-none" style="font-size:.68rem;padding:1px 8px;" onclick="batchDeleteSelected()"><i class="bi bi-trash"></i> 批量删除</button>
         <button class="btn btn-sm btn-outline-secondary" style="font-size:.68rem;padding:1px 8px;" onclick="openTrashModal()"><i class="bi bi-trash3"></i> 回收站</button>
@@ -327,6 +332,10 @@
         <div class="col-md-6 d-flex flex-column">
           <label style="font-size:.78rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:2px;">待办描述</label>
           <textarea name="description" class="form-control flex-grow-1" style="font-size:.84rem;padding:6px 10px;resize:none;min-height:240px;">{{ preview.raw_text }}</textarea>
+          <label class="form-check mt-2 mb-0" style="font-size:.8rem;cursor:pointer;">
+            <input type="checkbox" class="form-check-input" name="followed" value="1" style="margin-top:2px;" {% if preview.followed %}checked{% endif %}>
+            <i class="bi bi-star-fill" style="color:var(--warning);"></i> 关注（橙色五角星，移入顶部「关注」节点）
+          </label>
           <div class="d-flex gap-2 pt-2 justify-content-end">
             <a href="{{ url_for('user_tasks') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-x"></i> 取消</a>
             <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg"></i> 确认发布</button>
@@ -395,7 +404,11 @@
       {% if sensitive_text %}<div class="mt-2 p-2 rounded" style="background:var(--gray-50);font-size:.82rem;word-break:break-all;">{{ sensitive_text|safe }}</div>{% endif %}
     </div>
     {% endif %}
-    <div class="tl-wrap" id="taskTimelineView"><div class="tl-axis"></div></div>
+    <div class="tl-wrap" id="taskTimelineView">
+      <div class="tl-axis"></div>
+      {% include '_follow_strip.html' %}
+      <div id="taskTimelineSections"></div>
+    </div>
     <div class="card-footer" style="background:var(--gray-50);padding:10px 14px 12px;">
       <form method="POST" class="d-flex gap-2" onsubmit="return false;">
         <input type="hidden" name="action" value="preview">
@@ -552,28 +565,31 @@ var _tlfCache=[];
 function tlfDateStr(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function loadTaskFeed(keepView){
   var el=document.getElementById('taskTimelineView');
-  if(!el) return;
-  el.innerHTML='<div class="tl-axis"></div><div style="padding:8px 2px;"><div class="tl-skeleton" style="width:72%"></div><div class="tl-skeleton" style="width:88%"></div><div class="tl-skeleton" style="width:55%"></div></div>';
+  var secEl=document.getElementById('taskTimelineSections');
+  if(!el||!secEl) return;
+  secEl.innerHTML='<div style="padding:8px 2px;"><div class="tl-skeleton" style="width:72%"></div><div class="tl-skeleton" style="width:88%"></div><div class="tl-skeleton" style="width:55%"></div></div>';
   var cat=window.taskFilter.category||'';
   var showCompleted=document.getElementById('tlShowCompleted')?.checked;
+  var showHistory=document.getElementById('tlShowHistory')?.checked;
   var params=[];
   if(cat) params.push('category='+encodeURIComponent(cat));
   if(showCompleted) params.push('show_completed=1');
+  if(showHistory) params.push('show_history=1');
   var qs=params.length?'?'+params.join('&'):'';
   fetchJSON('/api/tasks/timeline'+qs).then(function(d){
     var cnt=document.getElementById('taskFeedCount');
     renderCatCounts(d.categories);
     if(!d.ok||!d.tasks||!d.tasks.length){
       _tlfCache=[];
-      renderTimeline(el,false);
+      renderTimeline(secEl,false);
       if(cnt) cnt.textContent='';
       return;
     }
     _tlfCache=d.tasks;
     if(cnt) cnt.textContent='共 '+d.tasks.length+' 条';
-    renderTimeline(el,!keepView);
+    renderTimeline(secEl,!keepView);
   }).catch(function(e){
-    el.innerHTML='<div class="tl-axis"></div><div class="tl-empty"><i class="bi bi-exclamation-circle"></i><div style="margin-bottom:12px;">'+(window.netErrMsg?netErrMsg(e):'加载失败')+'</div><button class="btn btn-sm btn-outline-primary" onclick="loadTaskFeed()">重试</button></div>';
+    secEl.innerHTML='<div class="tl-empty"><i class="bi bi-exclamation-circle"></i><div style="margin-bottom:12px;">'+(window.netErrMsg?netErrMsg(e):'加载失败')+'</div><button class="btn btn-sm btn-outline-primary" onclick="loadTaskFeed()">重试</button></div>';
   });
 }
 function renderTimeline(el,jump){
@@ -611,7 +627,9 @@ function renderTimeline(el,jump){
       if(!isCompleted){
         html+='<input type="checkbox" class="form-check-input tl-batch-check" style="flex-shrink:0;width:13px;height:13px;margin-top:3px;" data-tid="'+t.id+'" aria-label="选择:'+esc(t.title)+'">';
       }
-      html+='</div></div>';
+      html+='</div>';
+      html+='<button type="button" class="tl-follow-btn" data-fid="'+t.id+'" title="关注：移入关注节点" aria-label="关注:'+esc(t.title)+'" onclick="followToggleStar(this,'+t.id+')"><i class="bi bi-star"></i></button>';
+      html+='</div>';
     });
     html+='</div></div>';
   });
@@ -619,12 +637,12 @@ function renderTimeline(el,jump){
     html='<div class="tl-empty"><i class="bi bi-calendar-x"></i>暂无任务'+
       '<div style="margin-top:10px;"><button type="button" class="btn btn-primary btn-sm es-action" onclick="focusQuickAdd()">记一条</button></div></div>';
   }
-  el.innerHTML='<div class="tl-axis"></div>'+html;
+  el.innerHTML=html;
   var wrap=el.closest('.tl-wrap')||el.parentElement||el;
   if(jump){
     tlfCascadeExpand();
     var sec=el.querySelector('.tl-section.today');
-    if(!sec){var future=['tomorrow','future_week','future_month','later'];for(var i=0;i<future.length;i++){sec=el.querySelector('.tl-section.'+future[i]);if(sec)break;}}
+    if(!sec){var future=['tomorrow','future_two_weeks','later'];for(var i=0;i<future.length;i++){sec=el.querySelector('.tl-section.'+future[i]);if(sec)break;}}
     if(sec&&wrap.scrollHeight>wrap.clientHeight){wrap.scrollTop=sec.offsetTop-8;}
   }
   tlfAccordion(true);
@@ -659,7 +677,7 @@ function renderTimeline(el,jump){
 function tlfAccordion(force){
   var el=document.getElementById('taskTimelineView');
   if(!el)return;
-  var secs=el.querySelectorAll('.tl-section');
+  var secs=[].slice.call(el.querySelectorAll('.tl-section')).filter(function(s){return !s.classList.contains('follow');});
   if(!secs.length){window._tlfCurEl=null;return;}
   if(window._tlfStepping)return;
   var cur=null;
@@ -680,7 +698,7 @@ function tlfAccordion(force){
 // 初始级联展开: 今天始终展开; 今天不足3条时沿未来方向展开分区, 直到可见约3-5条(今天无待办也能继续展开)
 function tlfCascadeExpand(){
   var el=document.getElementById('taskTimelineView');if(!el)return;
-  var order=['tomorrow','future_week','future_month','later'];
+  var order=['tomorrow','future_two_weeks','later'];
   var count=function(k){var s=el.querySelector('.tl-section.'+k);return s?s.querySelectorAll('.tl-card').length:0;};
   var today=el.querySelector('.tl-section.today');
   var visible=today?count('today'):0;
@@ -703,7 +721,7 @@ function tlfCascadeExpand(){
 function tlfStep(dir){
   var el=document.getElementById('taskTimelineView');
   if(!el)return;
-  var secs=[].slice.call(el.querySelectorAll('.tl-section'));
+  var secs=[].slice.call(el.querySelectorAll('.tl-section')).filter(function(s){return !s.classList.contains('follow');});
   if(!secs.length)return;
   var idx=secs.indexOf(window._tlfCurEl);
   var nxt=secs[Math.min(Math.max((idx<0?0:idx)+dir,0),secs.length-1)];
@@ -769,7 +787,7 @@ function kbStep(dir){
 // t 回到今天分区
 function jumpTodaySection(){
   var el=document.getElementById('taskTimelineView');if(!el)return;
-  var sec=el.querySelector('.tl-section.today')||el.querySelector('.tl-section.tomorrow')||el.querySelector('.tl-section.future_week');
+  var sec=el.querySelector('.tl-section.today')||el.querySelector('.tl-section.tomorrow')||el.querySelector('.tl-section.future_two_weeks');
   var hd=sec&&sec.querySelector('.tl-section-hd');
   if(hd)tlSecJump(hd);
 }
@@ -777,12 +795,14 @@ function jumpTodaySection(){
 (function(){
   var el=document.getElementById('taskTimelineView');if(!el)return;
   el.addEventListener('click',function(e){
+    if(e.target.closest('.follow-check')){e.stopPropagation();return;}
+    if(e.target.closest('.tl-follow-btn')){e.stopPropagation();return;}
     if(e.target.closest('.tl-check')){e.stopPropagation();return;}
     if(e.target.closest('.tl-batch-check')){e.stopPropagation();updateBatchDeleteBtn();return;}
     var tt=e.target.closest('.tl-card-title');
-    if(tt&&tt.getAttribute('data-id')){tlOpenEdit(parseInt(tt.getAttribute('data-id'),10));return;}
+    if(tt&&tt.getAttribute('data-id')&&!tt.closest('.tl-section.follow')){tlOpenEdit(parseInt(tt.getAttribute('data-id'),10));return;}
     var card=e.target.closest('.tl-card');
-    if(card){var ti=card.querySelector('.tl-card-title');if(ti&&ti.getAttribute('data-id'))tlOpenEdit(parseInt(ti.getAttribute('data-id'),10));}
+    if(card&&!card.closest('.tl-section.follow')){var ti=card.querySelector('.tl-card-title');if(ti&&ti.getAttribute('data-id'))tlOpenEdit(parseInt(ti.getAttribute('data-id'),10));}
   });
   el.addEventListener('change',function(e){
     var cb=e.target.closest('.tl-check');
@@ -803,6 +823,9 @@ document.addEventListener('keydown',function(e){
 function tlOpenEdit(id){
   loadTaskDetail(id);
 }
+// 关注区块钩子(渲染逻辑见 static/js/shared.js): 打开抽屉 + 联动刷新时间轴
+window.followOpen=function(it){loadTaskDetail(it.id);};
+window.followAfter=function(){loadTaskFeed(true);};
 function toggleTaskText(e,link){
   e.stopPropagation();
   var b=link.parentElement.querySelector('.bbl');
@@ -831,6 +854,7 @@ function renderCatCounts(categories){
   document.querySelectorAll('.cat-item[data-cat]').forEach(function(c){
     var cat=c.getAttribute('data-cat');
     if(!cat) return;
+    if(cat==='关注') return; // 关注计数由关注节点维护(旧跟踪数据迁移后的分类不进分类统计)
     var count=categories[cat]||0;
     var badge=c.querySelector('.cat-count');
     if(badge)badge.textContent=count;
@@ -1103,7 +1127,7 @@ async function deleteTask(id){
       .then(function(d){
         if(!d||!d.ok){alert((d&&d.error)||'删除失败');return;}
         d.deleted&&d.deleted.forEach(function(tid){var i=_tlfCache.findIndex(function(x){return x.id===tid});if(i>-1)_tlfCache.splice(i,1);});
-        var el=document.getElementById('taskTimelineView');var cnt=document.getElementById('taskFeedCount');
+        var el=document.getElementById('taskTimelineSections');var cnt=document.getElementById('taskFeedCount');
         if(cnt)cnt.textContent='共 '+_tlfCache.length+' 条';if(el)renderTimeline(el,false);
         toast('已移入回收站（共'+d.count+'项）',{actionLabel:'撤销',duration:8000,onAction:function(){
           d.deleted.forEach(function(tid){fetchJSON('/api/task/'+tid+'/restore',{method:'POST'});});
@@ -1117,7 +1141,7 @@ async function deleteTask(id){
       if(!d||!d.ok){alert((d&&d.error)||'删除失败');return;}
       var i=_tlfCache.findIndex(function(x){return x.id===id;});
       if(i>-1)_tlfCache.splice(i,1);
-      var el=document.getElementById('taskTimelineView');
+      var el=document.getElementById('taskTimelineSections');
       var cnt=document.getElementById('taskFeedCount');
       if(cnt)cnt.textContent='共 '+_tlfCache.length+' 条';
       if(el)renderTimeline(el,false);
@@ -1143,7 +1167,7 @@ async function batchDeleteSelected(){
     .then(function(d){
       if(!d||!d.ok){alert((d&&d.error)||'删除失败');return;}
       d.deleted&&d.deleted.forEach(function(tid){var i=_tlfCache.findIndex(function(x){return x.id===tid});if(i>-1)_tlfCache.splice(i,1);});
-      var el=document.getElementById('taskTimelineView');var cnt=document.getElementById('taskFeedCount');
+      var el=document.getElementById('taskTimelineSections');var cnt=document.getElementById('taskFeedCount');
       if(cnt)cnt.textContent='共 '+_tlfCache.length+' 条';if(el)renderTimeline(el,false);
       updateBatchDeleteBtn();
       toast('已移入回收站（共'+d.count+'项）',{actionLabel:'撤销',duration:8000,onAction:function(){

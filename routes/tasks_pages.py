@@ -208,21 +208,29 @@ def user_dashboard():
         pass
     points_delta = new_points_yesterday - new_points_prev
 
-    # 看板方块: 当前用户「进行中」条目数 + 新增数较前日趋势
-    from core.models import BoardItem
-    board_pending = BoardItem.query.filter(
-        BoardItem.user_id == current_user.id,
-        BoardItem.done.is_(False),
-        BoardItem.discarded.is_(False)).count()
-    new_board_yesterday = BoardItem.query.filter(
-        BoardItem.user_id == current_user.id,
-        BoardItem.created_at >= yesterday_start,
-        BoardItem.created_at < today_start).count()
-    new_board_prev = BoardItem.query.filter(
-        BoardItem.user_id == current_user.id,
-        BoardItem.created_at >= day_before_start,
-        BoardItem.created_at < yesterday_start).count()
-    board_delta = new_board_yesterday - new_board_prev
+    # 关注方块: 当前用户关注的待办中未完成数 + 新增关注较前日趋势
+    me = current_user.id
+    follow_done_ids = {r[0] for r in db.session.query(TaskAssignment.task_id).filter(
+        TaskAssignment.user_id == me,
+        TaskAssignment.status.in_(('completed', 'approved', 'abandoned'))).all()}
+    follow_pending = Task.query.filter(
+        Task.creator_id == me,
+        Task.is_followed == True,
+        Task.deleted_at.is_(None),
+        ~Task.id.in_(follow_done_ids)).count()
+    new_follow_yesterday = Task.query.filter(
+        Task.creator_id == me,
+        Task.is_followed == True,
+        Task.deleted_at.is_(None),
+        Task.created_at >= yesterday_start,
+        Task.created_at < today_start).count()
+    new_follow_prev = Task.query.filter(
+        Task.creator_id == me,
+        Task.is_followed == True,
+        Task.deleted_at.is_(None),
+        Task.created_at >= day_before_start,
+        Task.created_at < yesterday_start).count()
+    follow_delta = new_follow_yesterday - new_follow_prev
 
     try:
         from kb.knowledge import KbCollection as _KbCollection
@@ -259,7 +267,8 @@ def user_dashboard():
                            docs_delta=docs_delta,
                            points_count=points_count,
                            points_delta=points_delta,
-                           board_pending=board_pending, board_delta=board_delta,
+                           follow_pending=follow_pending,
+                           follow_delta=follow_delta,
                            collections=_collections)
 def _assignment_counts_by_user(creator_id):
     """{display name -> number of assigned tasks}, 只统计当前用户创建(分配)的任务."""
@@ -352,6 +361,7 @@ def user_tasks():
             try:
                 title = request.form.get('title', '').strip()
                 category = request.form.get('category', '').strip() or '工作'
+                followed = request.form.get('followed') == '1'
                 start_str = request.form.get('start_time', '').strip()
                 end_str = request.form.get('end_time', '').strip()
                 description = request.form.get('description', '').strip()
@@ -388,6 +398,7 @@ def user_tasks():
                         'recurrence': recurrence,
                         'recurrence_count': recurrence_count,
                         'recurrence_interval_days': recurrence_interval_days,
+                        'followed': followed,
                     }
                     my_assigned_ids = {a.task_id for a in TaskAssignment.query.filter_by(user_id=current_user.id).all()}
                     other_assigned = Task.query.filter(Task.id.in_(my_assigned_ids), Task.creator_id != current_user.id).order_by(Task.created_at.desc()).all() if my_assigned_ids else []
@@ -433,7 +444,7 @@ def user_tasks():
                         task = Task(title=t_title, description=description,
                                     category=category, start_time=t_start,
                                     end_time=t_end, creator_id=current_user.id,
-                                    is_all=is_all)
+                                    is_all=is_all, is_followed=followed)
                         db.session.add(task)
                         db.session.flush()
                         if is_all:
@@ -464,6 +475,8 @@ def user_tasks():
             if not parsed.get('title') or parsed['title'] == '未命名待办' or len(parsed.get('title', '')) < 2:
                 flash('无法从描述中提取待办标题，请确保包含明确的待办名称（至少2个字）', 'danger')
                 return redirect(url_for('user_tasks'))
+            # 自动归类「跟踪」功能已下线: 无日期/远期任务正常留在时间轴,
+            # 是否进入「关注」节点完全由用户五角星操作决定
             parsed['raw_text'] = text
             is_admin_user = current_user.role == 'admin'
             if not is_admin_user:

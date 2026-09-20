@@ -193,20 +193,16 @@ def _task_display_and_section(t, status, now, ref=None):
     diff_days = (ref_date - today_date).days
     if display == 'abandoned':
         section, section_label = 'abandoned', '已废弃'
-    elif diff_days < -31:
+    elif diff_days < -14:
         section, section_label = 'past', '更早'
-    elif diff_days < -7:
-        section, section_label = 'past_month', '过去一个月'
     elif diff_days < 0:
-        section, section_label = 'past_week', '过去一周'
+        section, section_label = 'past_week', '过去两周'
     elif diff_days == 0:
         section, section_label = 'today', '今天 · ' + today_date.strftime('%m月%d日')
     elif diff_days == 1:
         section, section_label = 'tomorrow', '明天'
-    elif diff_days <= 7:
-        section, section_label = 'future_week', '未来一周'
-    elif diff_days <= 31:
-        section, section_label = 'future_month', '未来一个月'
+    elif diff_days <= 14:
+        section, section_label = 'future_two_weeks', '未来两周'
     else:
         section, section_label = 'later', '更远'
     return display, section, section_label
@@ -214,20 +210,16 @@ def _task_display_and_section(t, status, now, ref=None):
 
 def _section_of_diff(diff_days):
     """按与今天的天数差映射到时间轴分组(section/section_label)。"""
-    if diff_days < -31:
+    if diff_days < -14:
         return 'past', '更早'
-    if diff_days < -7:
-        return 'past_month', '过去一个月'
     if diff_days < 0:
-        return 'past_week', '过去一周'
+        return 'past_week', '过去两周'
     if diff_days == 0:
         return 'today', '今天'
     if diff_days == 1:
         return 'tomorrow', '明天'
-    if diff_days <= 7:
-        return 'future_week', '未来一周'
-    if diff_days <= 31:
-        return 'future_month', '未来一个月'
+    if diff_days <= 14:
+        return 'future_two_weeks', '未来两周'
     return 'later', '更远'
 
 
@@ -331,7 +323,8 @@ def _day_span_entries(t, status, now, ref=None):
 def api_tasks_timeline():
     """时间轴:返回当前用户相关任务的时间分布数据。
     ?start=YYYY-MM-DD&end=YYYY-MM-DD 可选,不传则返回全部待办;
-    ?show_completed=1 包含已完成;?category=分类 按分类筛选。"""
+    ?show_completed=1 包含已完成;?show_history=1 展示过去两周/更早的历史待办
+    (默认不勾选即不展示过去时间节点的待办);?category=分类 按分类筛选。"""
     today = cn_now().replace(hour=0, minute=0, second=0, microsecond=0)
     try:
         start = datetime.strptime(request.args.get('start', ''), '%Y-%m-%d') \
@@ -347,6 +340,7 @@ def api_tasks_timeline():
         end = end.replace(hour=23, minute=59, second=59)
     category = (request.args.get('category') or '').strip()
     show_completed = request.args.get('show_completed', '') == '1'
+    show_history = request.args.get('show_history', '') == '1'
     # 查询当前用户的任务(创建的 + 被分配的)
     task_ids = set()
     # 创建的任务(排除已入回收站)
@@ -406,12 +400,18 @@ def api_tasks_timeline():
     out = []
     all_categories = {}
     cat_key = lambda t: (t.category or '').strip() or '未分类'
+    # 「历史待办」默认不勾选且非单日检索时: 不展示过去时间节点的待办(过去两周/更早)
+    hide_past = not show_history and not (start and end)
     for t in tasks:
         a = assigns.get(t.id)
         status = a.status if a else 'pending'
         now = cn_now()
         # 归类基准: 已完成按完成时间归档; 未完成按开始时间(自开始起加入时间轴)
         done = status in ('completed', 'approved')
+        # 关注(五角星)任务的未完成项移出时间轴, 单独在「关注」节点展示;
+        # 已完成/已废弃的关注任务释放回时间轴, 按完成时间归档到原时间点
+        if t.is_followed and not done:
+            continue
         ref = (a.completed_at or t.end_time) if (done and a) else t.end_time
         if start and end:
             if done:
@@ -423,23 +423,21 @@ def api_tasks_timeline():
                         t.start_time <= end and t.end_time >= start):
                     continue
         spans = _day_span_entries(t, status, now, ref=ref)
-        # 分类计数 — 与「全部」同口径的全集统计(不受category过滤影响, 归一化脏数据)
-        s2 = status
-        if s2 != 'abandoned' and not (s2 in ('completed', 'approved') and not show_completed):
-            k = cat_key(t)
-            all_categories[k] = all_categories.get(k, 0) + 1
-        if category and cat_key(t) != category:
-            continue
         base_days_left = None
         if not done and t.start_time and t.end_time and \
                 t.end_time.date() != t.start_time.date():
             base_days_left = _count_remaining_workdays(
                 now.date(), t.end_time.date())
+        has_visible = False
         for sp in spans:
             display = sp['display']
             # 默认不展示已完成
             if display == 'completed' and not show_completed:
                 continue
+            # 默认不展示过去的待办(过去两周/更早)
+            if hide_past and sp['section'] in ('past', 'past_week'):
+                continue
+            has_visible = True
             dl = sp['days_left'] if sp['days_left'] is not None else base_days_left
             out.append({
                 'id': t.id,
@@ -449,8 +447,8 @@ def api_tasks_timeline():
                 'description': (t.description or '')[:200],
                 'full_description': t.description or '',
                 'category': cat_key(t),
-                'start_time': t.start_time.strftime('%Y-%m-%d %H:%M'),
-                'end_time': t.end_time.strftime('%Y-%m-%d %H:%M'),
+                'start_time': t.start_time.strftime('%Y-%m-%d %H:%M') if t.start_time else '',
+                'end_time': t.end_time.strftime('%Y-%m-%d %H:%M') if t.end_time else '',
                 'progress': a.progress if a else 0,
                 'status': status,
                 'display': display,
@@ -462,9 +460,17 @@ def api_tasks_timeline():
                 'assignment_id': a.id if a else None,
                 'creator_id': t.creator_id,
                 'is_owner': t.creator_id == current_user.id or current_user.role == 'admin',
+                'is_followed': bool(t.is_followed),
                 'assignee_ids': assignee_map.get(t.id, []),
                 'group_ids': [g.id for g in t.groups],
             })
+        # 分类计数 — 与「全部」同口径的全集统计(不受category过滤影响),
+        # 以当前可见集为准(如实反映已完成/历史待办筛选)
+        if has_visible and status != 'abandoned':
+            k = cat_key(t)
+            all_categories[k] = all_categories.get(k, 0) + 1
+        if category and cat_key(t) != category:
+            continue
     # 安全上限: 防止极端数据量下响应过大(has_more 提示被截断)
     TL_MAX = 2000
     has_more = len(out) > TL_MAX
@@ -670,6 +676,100 @@ def api_tasks_calendar():
 
 _NOT_READY={'ok':False,'error':'智能时间解析正在初始化（首次需加载语言包），请稍候几秒再试','not_ready':True}
 
+@app.route('/api/tasks/follow', methods=['GET'])
+@login_required
+def api_tasks_follow():
+    """关注节点: 五角星关注的任务(移出时间轴)。
+    GET: 当前用户相关(创建/被分配)且未完成/未废弃的关注任务。"""
+    me = current_user.id
+    mine_ids = {r[0] for r in db.session.query(TaskAssignment.task_id).filter(
+        TaskAssignment.user_id == me).all()}
+    tasks = Task.query.filter(
+        Task.is_followed == True,
+        Task.deleted_at.is_(None),
+        db.or_(Task.creator_id == me, Task.id.in_(mine_ids))
+    ).order_by(Task.created_at.desc()).all()
+    items = _follow_items(tasks)
+    return jsonify({'ok': True, 'items': items})
+
+
+@app.route('/api/task/<int:task_id>/follow', methods=['POST'])
+@login_required
+def api_task_follow(task_id):
+    """五角星关注开关: 翻转任务关注状态(关注→移入关注节点; 取消→回到时间轴)."""
+    task = Task.query.filter_by(id=task_id, deleted_at=None).first()
+    if not task:
+        return jsonify({'ok': False, 'error': '待办不存在'}), 404
+    me = current_user.id
+    assignee_ok = TaskAssignment.query.filter_by(
+        task_id=task.id, user_id=me).first() is not None
+    if not (task.creator_id == me or assignee_ok or current_user.role == 'admin'):
+        return jsonify({'ok': False, 'error': '无权操作该待办'}), 403
+    task.is_followed = not task.is_followed
+    db.session.commit()
+    return jsonify({'ok': True, 'is_followed': bool(task.is_followed),
+                    'task_id': task.id})
+
+
+def _serialize_follow_item(t, assignment, assignee_ids=None):
+    """关注条目的序列化结构(兼容首页任务抽屉 dashOpenTaskDrawer)."""
+    status = assignment.status if assignment else 'pending'
+    done = status in ('completed', 'approved')
+    fmt = lambda dt: dt.strftime('%Y-%m-%d %H:%M') if dt else ''
+    return {
+        'id': t.id,
+        'title': t.title,
+        'category': t.category or '未分类',
+        'status': status,
+        'done': done,
+        'display': 'completed' if done else 'pending',
+        'progress': assignment.progress if assignment else 0,
+        'start_time': fmt(t.start_time),
+        'end_time': fmt(t.end_time),
+        'full_description': t.description or '',
+        'assignee_ids': assignee_ids if assignee_ids is not None
+                        else [a.user_id for a in t.assignments],
+        'group_ids': [g.id for g in t.groups],
+        'assignment_id': assignment.id if assignment else None,
+        'creator_id': t.creator_id,
+        'is_owner': t.creator_id == current_user.id or
+        current_user.role == 'admin',
+        'is_followed': True,
+        'note': assignment.note if assignment else '',
+        'attachment': assignment.attachment if assignment else '',
+        'created_at': (t.created_at.strftime('%Y-%m-%d %H:%M')
+                       if t.created_at else ''),
+    }
+
+
+def _follow_items(tasks):
+    """批量组装关注条目: 已完成/已废弃的关注任务释放回时间轴归档,
+    不再停留关注节点; 剩余的未完成项未完成在前(新的在前)。"""
+    if not tasks:
+        return []
+    ids = [t.id for t in tasks]
+    me = current_user.id
+    assign_map = {a.task_id: a for a in TaskAssignment.query.filter(
+        TaskAssignment.task_id.in_(ids),
+        TaskAssignment.user_id == me).all()}
+    all_assigns = {}
+    for a in TaskAssignment.query.filter(TaskAssignment.task_id.in_(ids)).all():
+        all_assigns.setdefault(a.task_id, []).append(a.user_id)
+    items = []
+    for t in tasks:
+        it = _serialize_follow_item(t, assign_map.get(t.id),
+                                    all_assigns.get(t.id, []))
+        it['_ts'] = t.created_at.timestamp() if t.created_at else 0
+        items.append(it)
+    # 已完成/已废弃的关注项不再展示于关注节点(回到时间轴按其时间点归档)
+    items = [it for it in items
+             if it['status'] not in ('completed', 'approved', 'abandoned')]
+    items.sort(key=lambda x: (1 if x['done'] else 0, -x['_ts']))
+    for it in items:
+        it.pop('_ts', None)
+    return items
+
+
 @app.route('/api/quick-task/preview', methods=['POST'])
 @login_required
 def api_quick_task_preview():
@@ -810,6 +910,7 @@ def api_quick_task():
     if end <= start:
         end = start + timedelta(hours=1)
     category = (data.get('category') or '').strip() or '工作'
+    followed = bool(data.get('followed'))
     description = (data.get('description') or '').strip() or title
 
     is_all = current_user.role == 'admin' and bool(data.get('is_all'))
@@ -901,7 +1002,7 @@ def api_quick_task():
                 task = Task(title=t_title, description=description,
                             category=category, start_time=t_start,
                             end_time=t_end, creator_id=current_user.id,
-                            is_all=is_all)
+                            is_all=is_all, is_followed=followed)
                 db.session.add(task)
                 db.session.flush()
                 if is_all:

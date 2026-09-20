@@ -60,6 +60,17 @@ def _mk_task(client, start=None, end=None):
     return title
 
 
+def _cleanup_titles(titles):
+    """按唯一标题清理本用例创建的待办(关联分配级联删除), 防止重复检测累积误报."""
+    from app import app
+    from core.extensions import db
+    from core.models import Task
+    with app.app_context():
+        for t in Task.query.filter(Task.title.in_(titles)).all():
+            db.session.delete(t)
+        db.session.commit()
+
+
 def test_feed_requires_token():
     c = _anon_client()
     assert c.get('/user/todo.ics').status_code == 401
@@ -68,70 +79,76 @@ def test_feed_requires_token():
 
 def test_feed_content_and_rotation(client):
     title = _mk_task(client)
-    old = _get_token() or ('old-' + secrets.token_urlsafe(16))
-    _set_token(old)
+    titles = [title]
+    try:
+        old = _get_token() or ('old-' + secrets.token_urlsafe(16))
+        _set_token(old)
 
-    # 会话登录可直接访问; 内容含 VCALENDAR/转义/UID
-    r = client.get('/user/todo.ics')
-    assert r.status_code == 200, r.status_code
-    assert r.mimetype == 'text/calendar'
-    body = r.get_data(as_text=True)
-    assert 'BEGIN:VCALENDAR' in body and 'END:VCALENDAR' in body
-    assert 'METHOD:PUBLISH' in body
-    assert title in body
-    assert '\\,' in body, '描述中的逗号应被 RFC5545 转义'
-    assert 'UID:todo-' in body
-    # 空值属性行必须省略(小米日历/ical4j 对个别空属性解析严格)
-    for ln in body.split('\r\n'):
-        head = ln.split(':', 1)[0]
-        assert not (head in ('DESCRIPTION', 'CATEGORIES', 'SUMMARY')
-                    and ln.endswith(':')), ln
-    # 默认自带提醒: 开始在今天的待办→开始前30分钟
-    assert 'BEGIN:VALARM' in body and 'TRIGGER:-PT30M' in body
+        # 会话登录可直接访问; 内容含 VCALENDAR/转义/UID
+        r = client.get('/user/todo.ics')
+        assert r.status_code == 200, r.status_code
+        assert r.mimetype == 'text/calendar'
+        body = r.get_data(as_text=True)
+        assert 'BEGIN:VCALENDAR' in body and 'END:VCALENDAR' in body
+        assert 'METHOD:PUBLISH' in body
+        assert title in body
+        assert '\\,' in body, '描述中的逗号应被 RFC5545 转义'
+        assert 'UID:todo-' in body
+        # 空值属性行必须省略(小米日历/ical4j 对个别空属性解析严格)
+        for ln in body.split('\r\n'):
+            head = ln.split(':', 1)[0]
+            assert not (head in ('DESCRIPTION', 'CATEGORIES', 'SUMMARY')
+                        and ln.endswith(':')), ln
+        # 默认自带提醒: 开始在今天的待办→开始前30分钟
+        assert 'BEGIN:VALARM' in body and 'TRIGGER:-PT30M' in body
 
-    # 默认同步「未来3天」: 今天与明天截止的都在源里;
-    # 开始不在今天的→截止前60分钟(RELATED=END)
-    from datetime import timedelta
-    from core.timeutil import cn_now as _cn_now
-    tomorrow = _cn_now() + timedelta(days=1)
-    tmr_title = _mk_task(
-        client,
-        start=tomorrow.replace(hour=9, minute=0, second=0, microsecond=0),
-        end=tomorrow.replace(hour=10, minute=0, second=0, microsecond=0))
-    bd = client.get('/user/todo.ics').get_data(as_text=True)
-    assert title in bd and tmr_title in bd
-    assert '未来3日待办' in bd
-    # 非今天开始的→截止前60分钟(绝对时间格式,避免小米RELATED=END兼容问题)
-    assert 'TRIGGER;VALUE=DATE-TIME:' in bd
+        # 默认同步「未来3天」: 今天与明天截止的都在源里;
+        # 开始不在今天的→截止前60分钟(RELATED=END)
+        from datetime import timedelta
+        from core.timeutil import cn_now as _cn_now
+        tomorrow = _cn_now() + timedelta(days=1)
+        tmr_title = _mk_task(
+            client,
+            start=tomorrow.replace(hour=9, minute=0, second=0, microsecond=0),
+            end=tomorrow.replace(hour=10, minute=0, second=0, microsecond=0))
+        titles.append(tmr_title)
+        bd = client.get('/user/todo.ics').get_data(as_text=True)
+        assert title in bd and tmr_title in bd
+        assert '未来3日待办' in bd
+        # 非今天开始的→截止前60分钟(绝对时间格式,避免小米RELATED=END兼容问题)
+        assert 'TRIGGER;VALUE=DATE-TIME:' in bd
 
-    # 第4天(窗口外)默认不出现, ?days=N 可扩大时间窗
-    far = _cn_now() + timedelta(days=3)
-    far_title = _mk_task(
-        client,
-        start=far.replace(hour=9, minute=0, second=0, microsecond=0),
-        end=far.replace(hour=10, minute=0, second=0, microsecond=0))
-    bd2 = client.get('/user/todo.ics').get_data(as_text=True)
-    assert far_title not in bd2
-    b7 = client.get('/user/todo.ics?days=7').get_data(as_text=True)
-    assert far_title in b7 and '未来7日待办' in b7
+        # 第4天(窗口外)默认不出现, ?days=N 可扩大时间窗
+        far = _cn_now() + timedelta(days=3)
+        far_title = _mk_task(
+            client,
+            start=far.replace(hour=9, minute=0, second=0, microsecond=0),
+            end=far.replace(hour=10, minute=0, second=0, microsecond=0))
+        titles.append(far_title)
+        bd2 = client.get('/user/todo.ics').get_data(as_text=True)
+        assert far_title not in bd2
+        b7 = client.get('/user/todo.ics?days=7').get_data(as_text=True)
+        assert far_title in b7 and '未来7日待办' in b7
 
-    # token 鉴权访问 / 错误令牌 401
-    r2 = _anon_client().get(f'/user/todo.ics?token={old}')
-    assert r2.status_code == 200 and title in r2.get_data(as_text=True)
-    assert _anon_client().get(f'/user/todo.ics?token={old}x').status_code == 401
+        # token 鉴权访问 / 错误令牌 401
+        r2 = _anon_client().get(f'/user/todo.ics?token={old}')
+        assert r2.status_code == 200 and title in r2.get_data(as_text=True)
+        assert _anon_client().get(f'/user/todo.ics?token={old}x').status_code == 401
 
-    # 轮换: 旧链接立即失效, 新链接可用
-    rr = client.post('/profile/api-token/rotate', headers=CSRF)
-    assert rr.status_code == 200, rr.status_code
-    d = rr.get_json()
-    assert d.get('ok') and d.get('feed_path', '').startswith('/user/todo.ics')
-    # DB 仅存哈希, 原始令牌只通过签发响应返回
-    assert _get_token() != d.get('token')
-    new = d.get('token')
-    assert new and new != old
-    assert _anon_client().get(f'/user/todo.ics?token={old}').status_code == 401
-    r3 = _anon_client().get(f'/user/todo.ics?token={new}')
-    assert r3.status_code == 200 and title in r3.get_data(as_text=True)
+        # 轮换: 旧链接立即失效, 新链接可用
+        rr = client.post('/profile/api-token/rotate', headers=CSRF)
+        assert rr.status_code == 200, rr.status_code
+        d = rr.get_json()
+        assert d.get('ok') and d.get('feed_path', '').startswith('/user/todo.ics')
+        # DB 仅存哈希, 原始令牌只通过签发响应返回
+        assert _get_token() != d.get('token')
+        new = d.get('token')
+        assert new and new != old
+        assert _anon_client().get(f'/user/todo.ics?token={old}').status_code == 401
+        r3 = _anon_client().get(f'/user/todo.ics?token={new}')
+        assert r3.status_code == 200 and title in r3.get_data(as_text=True)
+    finally:
+        _cleanup_titles(titles)
 
 
 def test_ics_fold_and_allday():
@@ -192,17 +209,20 @@ def test_ics_fold_and_allday():
 def test_feed_excludes_completed(client):
     """已完成的待办不再同步/提醒: 完成后从订阅源消失。"""
     title = _mk_task(client)
-    body = client.get('/user/todo.ics').get_data(as_text=True)
-    assert title in body
-    from app import app as flask_app
-    from core.extensions import db as _db
-    from core.models import Task, TaskAssignment
-    with flask_app.app_context():
-        t = Task.query.filter(Task.title == title).first()
-        assert t is not None
-        n = TaskAssignment.query.filter_by(task_id=t.id).update(
-            {'status': 'completed'})
-        assert n >= 1
-        _db.session.commit()
-    body = client.get('/user/todo.ics').get_data(as_text=True)
-    assert title not in body
+    try:
+        body = client.get('/user/todo.ics').get_data(as_text=True)
+        assert title in body
+        from app import app as flask_app
+        from core.extensions import db as _db
+        from core.models import Task, TaskAssignment
+        with flask_app.app_context():
+            t = Task.query.filter(Task.title == title).first()
+            assert t is not None
+            n = TaskAssignment.query.filter_by(task_id=t.id).update(
+                {'status': 'completed'})
+            assert n >= 1
+            _db.session.commit()
+        body = client.get('/user/todo.ics').get_data(as_text=True)
+        assert title not in body
+    finally:
+        _cleanup_titles([title])

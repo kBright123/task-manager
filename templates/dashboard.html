@@ -116,7 +116,8 @@
   .tl-section.today{background:rgba(255,193,7,.06);border-radius:8px;padding:4px 8px;margin-left:-8px;margin-right:-8px;}
   .tl-section.tomorrow .tl-section-dot{border-color:var(--primary);}
   .tl-section.tomorrow .tl-section-label{color:var(--primary);}
-  .tl-section.future_week .tl-section-dot{border-color:var(--primary);background:var(--primary-light);}
+  .tl-section.future_two_weeks .tl-section-dot{border-color:var(--primary);background:var(--primary-light);}
+  .tl-section.future_two_weeks .tl-section-label{color:var(--primary);}
   .tl-section.abandoned .tl-section-dot{border-color:var(--gray-400);background:var(--gray-400);}
   .tl-section.abandoned .tl-section-label{color:var(--gray-400);}
   .tl-items{margin-left:16px;padding-left:10px;}
@@ -137,58 +138,8 @@
   .tl-empty{text-align:center;padding:60px 20px;color:var(--gray-400);}
   .tl-older{text-align:left;font-size:.72rem;color:var(--gray-500);background:var(--gray-100);border-radius:6px;margin:0 0 8px 28px;padding:5px 10px;cursor:pointer;user-select:none;width:fit-content;}
   .tl-older:hover{color:var(--primary);background:var(--primary-light);}
-  .tl-empty i{font-size:2rem;display:block;margin-bottom:8px;}
-  /* 看板视图(日历区切换) */
-  #calNavLeft.board-hidden{display:none!important;}
-  #calNavLeft.board-hidden + div{margin-left:auto!important;}
-  .board-view-wrap{flex:1 1 0;min-height:0;display:flex;flex-direction:column;padding-top:8px;}
-  .board-add{display:flex;gap:6px;padding:6px 2px 0;flex-shrink:0;border-top:1px solid var(--gray-200);}
-  .board-list{flex:1 1 0;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 2px 0;scrollbar-width:thin;scrollbar-color:var(--gray-300) transparent;}
-  .board-list::-webkit-scrollbar{width:6px;height:6px;}
-  .board-list::-webkit-scrollbar-thumb{background:var(--gray-300);border-radius:3px;}
-  .board-list::-webkit-scrollbar-track{background:transparent;}
-  @media (min-width:768px){ #calCard > .card-body{overflow:hidden;}.board-view-wrap{overflow:hidden;}}
-  .board-card{position:relative;margin-bottom:6px;padding:6px 9px;background:#fff;border:1px solid var(--gray-200);border-radius:6px;transition:all .15s;font-size:.8rem;cursor:default;}
-  .board-card:hover{border-color:var(--primary);box-shadow:var(--shadow-sm);}
-  .board-card.done{background:var(--gray-50);opacity:.6;}
-  .board-head{display:flex;align-items:flex-start;gap:6px;}
-  .board-check{margin-top:2px;flex-shrink:0;width:16px;height:16px;cursor:pointer;accent-color:#2e7d32;}
-  .board-card.done .board-check{accent-color:var(--gray-400);}
-  .board-title{font-weight:600;color:var(--gray-800);word-break:break-word;white-space:pre-wrap;font-size:.8rem;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer;position:relative;padding-right:14px;flex:1;min-width:0;}
-  .board-title:hover{color:var(--primary);}
-  .board-title.expanded{-webkit-line-clamp:none;overflow:visible;}
-  .board-title.has-more::after{content:'展开';position:absolute;right:0;top:0;font-size:.6rem;color:var(--primary);background:linear-gradient(90deg,transparent,#fff 45%);padding-left:10px;}
-  .board-title.expanded.has-more::after{content:'收起';background:none;padding:0;}
-  .board-title.board-editing{cursor:default;display:block;padding-right:0;flex:none;width:100%;}
-  .board-title.board-editing:hover{color:inherit;}
-  .board-card.done .board-title{text-decoration:line-through;color:var(--gray-400);}
-  .board-card.editing .board-check{visibility:hidden;}
-  .board-meta-row{display:flex;align-items:center;gap:6px;margin-top:4px;}
-  .board-status{font-size:.58rem;line-height:16px;padding:0 6px;border-radius:8px;font-weight:600;white-space:nowrap;}
-  .board-status.s-ongoing{color:#7a5c0a;background:#fff7e0;border:1px solid #f3d27a;}
-  .board-status.s-done{color:#347a47;background:#e8f6ec;border:1px solid #b6e0c0;}
-  .board-time{font-size:.65rem;color:var(--gray-400);white-space:nowrap;}
-  .board-mrow-sp{flex:1;min-width:4px;}
-  .board-btn{border:none;background:none;color:var(--gray-600);font-size:.66rem;cursor:pointer;padding:2px 6px;border-radius:4px;white-space:nowrap;line-height:1.4;}
-  .board-btn:hover{background:var(--primary-light);}
-  .board-btn-edit{border:1px solid var(--gray-200);border-radius:4px;color:var(--gray-600);}
-  .board-btn-edit:hover{color:#13538f;background:var(--primary-light);border-color:var(--primary);}
-  .board-btn-del{border:1px solid #f3c6c0;border-radius:4px;color:#c0392b;background:#fdecea;}
-  .board-btn-del:hover{color:#a93226;background:rgba(192,57,43,.12);border-color:#c0392b;}
-  .board-edit-input{font-size:.78rem;min-width:0;}
-  [data-theme="dark"] .board-card{background:#16233b;border-color:#223052;}
-  [data-theme="dark"] .board-card.done{background:#111c30;opacity:.62;}
-  [data-theme="dark"] .board-card.done .board-title{color:#4b5a75;}
-  [data-theme="dark"] .board-card.done .board-check{opacity:.5;}
-  [data-theme="dark"] .board-title{color:#dbe3ee;}
-  [data-theme="dark"] .board-title.has-more::after{background:linear-gradient(90deg,transparent,#16233b 45%);}
-  [data-theme="dark"] .board-add{border-top-color:#223052;}
-  [data-theme="dark"] .board-btn-edit{border-color:#223052;color:var(--gray-400);}
-  [data-theme="dark"] .board-btn-edit:hover{color:#7fb3e8;background:rgba(74,144,217,.15);border-color:#4A90D9;}
-  [data-theme="dark"] .board-btn-del{border-color:#3a2530;color:#e08a7a;background:rgba(192,57,43,.14);}
-  [data-theme="dark"] .board-btn-del:hover{color:#f0a99a;background:rgba(192,57,43,.25);border-color:#c0392b;}
-  [data-theme="dark"] .board-status.s-ongoing{color:#e7c66b;background:#33270f;border-color:#5c4d12;}
-  /* --- 暗色模式补全(本页特有面) --- */
+.tl-empty i{font-size:2rem;display:block;margin-bottom:8px;}
+   /* --- 暗色模式补全(本页特有面) --- */
   [data-theme="dark"] #calSheet{background:#101a2d!important;}
   [data-theme="dark"] #qtMentionDropdown{background:#101a2d!important;border-color:var(--gray-300)!important;box-shadow:0 4px 16px rgba(0,0,0,.45)!important;}
   [data-theme="dark"] #qtParserWarn{background:#33270f;border-color:#5c4d12;color:#e7c66b;}
@@ -249,14 +200,14 @@
 {% block content %}
 
 <div class="stat-grid stat-grid-5 mb-4">
-  <a href="#" onclick="return boardGo()" class="stat-card card-lift" style="background:linear-gradient(135deg,var(--primary),var(--primary-dark));padding:14px 18px;text-decoration:none;">
+  <a href="#" onclick="return followGo()" class="stat-card card-lift" style="background:linear-gradient(135deg,var(--tracking),#b45309);padding:14px 18px;text-decoration:none;">
     <div class="d-flex justify-content-between align-items-center">
       <div>
-        <div class="stat-num" style="font-size:1.5rem;">{{ board_pending|default(0) }}</div>
-        <div class="stat-label">看板</div>
-        <div class="stat-trend">较前日{% set bd = board_delta|default(0) %}{% if bd > 0 %}<span class="trend-pill up">↑ {{ bd }}</span>{% elif bd < 0 %}<span class="trend-pill down">↓ {{ -bd }}</span>{% else %}<span class="trend-pill flat">—</span>{% endif %}</div>
+        <div class="stat-num" style="font-size:1.5rem;">{{ follow_pending|default(0) }}</div>
+        <div class="stat-label">关注</div>
+        <div class="stat-trend">较前日{% set td = follow_delta|default(0) %}{% if td > 0 %}<span class="trend-pill up">↑ {{ td }}</span>{% elif td < 0 %}<span class="trend-pill down">↓ {{ -td }}</span>{% else %}<span class="trend-pill flat">—</span>{% endif %}</div>
       </div>
-      <i class="bi bi-kanban" style="font-size:1.5rem;opacity:.85;"></i>
+      <i class="bi bi-star-fill" style="font-size:1.5rem;opacity:.85;"></i>
     </div>
   </a>
   <a href="{{ url_for('user_tasks') }}" class="stat-card card-lift" style="background:linear-gradient(135deg,#007a33,#006633);padding:14px 18px;text-decoration:none;">
@@ -332,11 +283,21 @@
             <input type="checkbox" id="dashShowCompleted" checked onchange="dashLoadTimeline();calRender()" style="margin:0;width:16px;height:16px;cursor:pointer;">
             <span>已完成</span>
           </label>
+          <label class="d-flex align-items-center gap-1 mb-0" style="font-size:.68rem;color:var(--gray-500);cursor:pointer;">
+            <input type="checkbox" id="dashShowHistory" onchange="dashLoadTimeline();calRender()" style="margin:0;width:16px;height:16px;cursor:pointer;">
+            <span>历史待办</span>
+          </label>
           <span id="dashFeedCount" style="font-size:.68rem;color:var(--gray-400);"></span>
         </div>
       </div>
       <div class="card-body py-0 px-0" id="dashTimeline" style="min-height:60px;overflow-y:auto;">
-        <div style="text-align:center;color:var(--gray-400);font-size:.78rem;padding:16px;">加载中...</div>
+        <div class="tl-wrap">
+          <div class="tl-axis"></div>
+          {% include '_follow_strip.html' %}
+          <div id="dashTimelineSections">
+            <div style="text-align:center;color:var(--gray-400);font-size:.78rem;padding:16px;">加载中...</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -349,11 +310,10 @@
           <span id="calTitle" style="font-size:.88rem;font-weight:700;color:#333;cursor:pointer;" onclick="calTogglePicker()"></span>
           <button class="btn btn-sm" aria-label="下一月" style="border:none;padding:4px 8px;font-size:.9rem;color:#666;" onclick="calNav(1)"><i class="bi bi-chevron-right"></i></button>
         </div>
-         <div class="d-flex align-items-center gap-1" style="flex-shrink:0;">
-          <button class="btn btn-sm btn-outline-secondary" id="dtBackBtn" style="padding:3px 10px;font-size:.7rem;border-radius:4px;line-height:1.3;flex-shrink:0;display:none;" onclick="closeDayTimeline()"><i class="bi bi-arrow-left"></i> 返回</button>
-          <span id="dtDayTitle" class="d-none" style="font-size:.75rem;font-weight:600;color:var(--gray-700);white-space:nowrap;"></span>
-          <button class="btn btn-sm btn-outline-primary" id="boardToggleBtn" style="padding:3px 10px;font-size:.7rem;border-radius:4px;line-height:1.3;flex-shrink:0;white-space:nowrap;" onclick="boardToggle()">📋 看板</button>
-        </div>
+<div class="d-flex align-items-center gap-1" style="flex-shrink:0;">
+           <button class="btn btn-sm btn-outline-secondary" id="dtBackBtn" style="padding:3px 10px;font-size:.7rem;border-radius:4px;line-height:1.3;flex-shrink:0;display:none;" onclick="closeDayTimeline()"><i class="bi bi-arrow-left"></i> 返回</button>
+           <span id="dtDayTitle" class="d-none" style="font-size:.75rem;font-weight:600;color:var(--gray-700);white-space:nowrap;"></span>
+         </div>
       </div>
       <div class="card-body py-0 px-2" style="background:transparent;position:relative;padding-top:14px;padding-bottom:10px;">
         <div id="calPicker" class="cal-picker d-none"></div>
@@ -378,13 +338,6 @@
         </div>
         <div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:0;"></div>
         <div id="dayTimelineBody" class="d-none" style="max-height:340px;overflow-y:auto;padding:4px 0;"></div>
-        <div id="boardView" class="d-none board-view-wrap">
-          <div id="boardList" class="board-list"></div>
-          <div class="board-add">
-            <input type="text" id="boardInput" class="form-control form-control-sm" style="font-size:.78rem;flex:1;min-width:0;" placeholder="新增看板内容，回车保存" maxlength="2000" autocomplete="off" onkeydown="if(event.key==='Enter')boardAdd()">
-            <button type="button" class="btn btn-sm btn-primary" style="flex-shrink:0;font-size:.72rem;padding:2px 12px;" onclick="boardAdd()">新增</button>
-          </div>
-        </div>
       </div>
     </div>
   </div>
@@ -472,30 +425,6 @@
   </div>
 </div>
 
-<!-- Board Detail Drawer (参考任务详情抽屉: 右侧滑出) -->
-<div class="drawer-overlay d-none" id="boardDrawerOverlay" onclick="closeBoardDrawer()"></div>
-<div class="drawer d-none" id="boardDrawer">
-  <div class="d-flex justify-content-between align-items-center p-3" style="border-bottom:1px solid var(--gray-100);">
-    <div class="d-flex align-items-center gap-2 flex-grow-1" style="min-width:0;">
-      <span id="boardDrawerTitle" style="font-size:1rem;font-weight:700;" class="text-truncate"></span>
-    </div>
-    <button class="btn btn-sm btn-outline-secondary" style="border:none;font-size:1.2rem;" onclick="closeBoardDrawer()"><i class="bi bi-x"></i></button>
-  </div>
-  <div class="p-3" id="boardDrawerBody">
-    <div class="d-flex flex-wrap gap-2 mb-2">
-      <button class="btn btn-sm btn-success" id="boardDrawerDoneBtn" style="padding:2px 10px;font-size:.7rem;" onclick="boardDrawerDone()"><i class="bi bi-check-lg"></i> 完成</button>
-      <button class="btn btn-sm btn-outline-primary" id="boardDrawerEditBtn" style="padding:2px 10px;font-size:.7rem;" onclick="boardDrawerEdit()"><i class="bi bi-pencil"></i> 编辑</button>
-      <button class="btn btn-sm btn-outline-danger" id="boardDrawerDiscardBtn" style="padding:2px 10px;font-size:.7rem;" onclick="boardDrawerDiscard()"><i class="bi bi-x-circle"></i> 废弃</button>
-      <button class="btn btn-sm btn-outline-danger" id="boardDrawerDeleteBtn" style="padding:2px 10px;font-size:.7rem;" onclick="boardDrawerDelete()"><i class="bi bi-trash"></i> 删除</button>
-    </div>
-    <div id="boardDrawerContentBox"></div>
-    <div class="d-flex justify-content-between mb-2" style="font-size:.8rem;">
-      <span><span class="text-muted">创建</span> <strong id="boardDrawerDate"></strong></span>
-      <span><span class="text-muted">状态</span> <strong id="boardDrawerStatus"></strong></span>
-    </div>
-  </div>
-</div>
-
 {% set mode = "server" %}
 {% set form_action = url_for('user_edit_task') %}
 {% set show_assign = True %}
@@ -551,7 +480,7 @@ function openEditTaskDrawer(){
   var es=document.getElementById('editAssigneeSearch');if(es)es.value='';closeTaskDrawer();new bootstrap.Modal(document.getElementById('editTaskModal')).show();
 }
 
-var _dashShowCompleted=false;var _tlFilter=null;
+var _dashShowCompleted=false;var _dashShowHistory=false;var _tlFilter=null;
 var _tlCache=[];
 function tlDateStr(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function tlJumpToday(el){
@@ -561,17 +490,19 @@ function tlJumpToday(el){
   wrap.scrollTop=sec?(sec.offsetTop-6):0;
 }
 function dashRenderTimeline(jump){
-  var el=document.getElementById('dashTimeline');if(!el)return;
+  var el=document.getElementById('dashTimeline');
+  var host=document.getElementById('dashTimelineSections');
+  if(!el||!host)return;
   var tasks=_tlCache;
   if(!tasks.length){
-    el.innerHTML='<div class="tl-empty"><i class="bi bi-calendar-x"></i>'+
+    host.innerHTML='<div class="tl-empty"><i class="bi bi-calendar-x"></i>'+
       (_tlFilter?'该日暂无待办':'暂无待办任务')+'</div>';
     return;
   }
   var catColors=window.KB_CAT_COLORS;
    var order=window.KB_TL_ORDER;var groups={};
   tasks.forEach(function(t){if(t.display==='abandoned')return;var s=t.section||'later';if(!groups[s])groups[s]={label:t.section_label,items:[]};groups[s].items.push(t);});
-  var html='<div class="tl-wrap"><div class="tl-axis"></div>';
+  var html='';
   order.forEach(function(s){var g=groups[s];if(!g||!g.items||!g.items.length)return;g.items.sort(function(a,b){return (a.start_time||'').localeCompare(b.start_time||'');});html+='<div class="tl-section '+s+'" data-s="'+s+'"><div class="tl-section-hd" role="button" tabindex="0" aria-label="展开'+esc(g.label)+'的待办" onclick="tlSecDashJump(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}"><div class="tl-section-dot"></div><span class="tl-section-label">'+esc(g.label)+'</span><span class="tl-section-count">'+g.items.length+'</span></div><div class="tl-items">';
   g.items.forEach(function(t){var color=catColors[t.category]||'var(--primary)';var isCompleted=t.display==='completed';var taskDate=t.start_time?t.start_time.substring(0,10):'';
   html+='<div class="tl-card '+t.display+'" id="dtl-'+t.id+'" data-date="'+taskDate+'"><div style="display:flex;align-items:flex-start;gap:6px;">';
@@ -579,11 +510,13 @@ function dashRenderTimeline(jump){
   html+='<div style="flex:1;min-width:0;"><div class="tl-card-time">'+esc(t.start_time.substring(5,16))+' - '+esc(t.end_time.substring(5,16))+'</div>';
   var _ki=extractKeyInfo(t.full_description||t.description);
   html+='<div class="tl-card-title" data-id="'+t.id+'" role="button" tabindex="0" aria-label="查看任务:'+esc(t.title)+'" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">'+esc(t.title)+renderKeyTags(_ki)+(t.cross_day&&t.days_left!==null&&t.days_left!==undefined?'<span class="tl-days-left">'+esc('（剩余'+t.days_left+'工作日）')+'</span>':'')+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
-  html+='</div></div></div>';});html+='</div></div>';});html+='</div>';
+  html+='</div></div>';
+  html+='<button type="button" class="tl-follow-btn" data-fid="'+t.id+'" title="关注：移入关注节点" aria-label="关注:'+esc(t.title)+'" onclick="followToggleStar(this,'+t.id+')"><i class="bi bi-star"></i></button>';
+  html+='</div>';});html+='</div></div>';});
   // 刷新前快照(在骨架屏替换前由 dashLoadTimeline 记录): 完成任务/编辑后的静默对账刷新按"之前的规则"恢复展开与滚动, 不因重渲染折叠
   var kv = (!jump && window._tlKeepView) ? window._tlKeepView : null;
   var opened = kv ? kv.opened : {}, prevScroll = kv ? kv.scrollTop : 0;
-  el.innerHTML=html;
+  host.innerHTML=html;
   var wrap=el.querySelector('.tl-wrap')||el;
   if(kv&&wrap){
     // 恢复原展开分区(仅仍存在且仍有任务的分区; 已清空的分区本轮不渲染, 自然不恢复)
@@ -634,7 +567,7 @@ function dashRenderTimeline(jump){
 function dashAccordion(force){
   var el=document.getElementById('dashTimeline');if(!el)return;
   var wrap=el.querySelector('.tl-wrap')||el;
-  var secs=wrap.querySelectorAll('.tl-section');
+  var secs=[].slice.call(wrap.querySelectorAll('.tl-section')).filter(function(s){return !s.classList.contains('follow');});
   if(!secs.length){window._dtlCurEl=null;return;}
   if(window._dtlStepping)return;
   var cur=null;
@@ -691,7 +624,7 @@ function dashCascadeExpand(){
 function dashTlStep(dir){
   var el=document.getElementById('dashTimeline');if(!el)return;
   var wrap=el.querySelector('.tl-wrap')||el;
-  var secs=[].slice.call(wrap.querySelectorAll('.tl-section'));
+  var secs=[].slice.call(wrap.querySelectorAll('.tl-section')).filter(function(s){return !s.classList.contains('follow');});
   if(!secs.length)return;
   var idx=secs.indexOf(window._dtlCurEl);
   var nxt=secs[Math.min(Math.max((idx<0?0:idx)+dir,0),secs.length-1)];
@@ -717,7 +650,9 @@ function tlSecDashJump(hd){
 }
 function dashLoadTimeline(keepView){
   _dashShowCompleted=document.getElementById('dashShowCompleted')?.checked||false;
+  _dashShowHistory=document.getElementById('dashShowHistory')?.checked||false;
   var el=document.getElementById('dashTimeline');if(!el)return;
+  var host=document.getElementById('dashTimelineSections');if(!host)return;
   // 静默对账刷新(keepView)前快照当前展开分区与滚动位置, 供重渲染后按原样恢复
   window._tlKeepView = keepView ? (function(){
     var pw=el.querySelector('.tl-wrap'); if(!pw)return null;
@@ -725,8 +660,9 @@ function dashLoadTimeline(keepView){
     pw.querySelectorAll('.tl-section.open').forEach(function(s){opened[s.getAttribute('data-s')]=1;});
     return {opened:opened, scrollTop:pw.scrollTop||0};
   })() : null;
-  el.innerHTML='<div class="tl-axis"></div><div style="padding:8px 2px;"><div class="tl-skeleton" style="width:72%"></div><div class="tl-skeleton" style="width:88%"></div><div class="tl-skeleton" style="width:55%"></div></div>';
+  host.innerHTML='<div style="padding:8px 2px;"><div class="tl-skeleton" style="width:72%"></div><div class="tl-skeleton" style="width:88%"></div><div class="tl-skeleton" style="width:55%"></div></div>';
   var params=[];if(_dashShowCompleted)params.push('show_completed=1');
+  if(_dashShowHistory)params.push('show_history=1');
   if(_tlFilter){params.push('start='+_tlFilter);params.push('end='+_tlFilter);}
   var chip=document.getElementById('tlFilterChip');
   if(chip){if(_tlFilter){document.getElementById('tlFilterText').textContent=_tlFilter.substring(5).replace('-','/');chip.classList.remove('d-none');}else{chip.classList.add('d-none');}}
@@ -736,7 +672,7 @@ function dashLoadTimeline(keepView){
     if(!d.ok||!d.tasks||!d.tasks.length){_tlCache=[];dashRenderTimeline(false);if(cnt)cnt.textContent='';return;}
     _tlCache=d.tasks;if(cnt)cnt.textContent='共 '+d.tasks.length+' 条';
     dashRenderTimeline(!keepView);
-  }).catch(function(e){el.innerHTML='<div class="tl-empty"><i class="bi bi-exclamation-circle"></i><div style="margin-bottom:12px;">'+(window.netErrMsg?netErrMsg(e):'加载失败')+'</div><button class="btn btn-sm btn-outline-primary" onclick="dashLoadTimeline()">重试</button></div>';});
+  }).catch(function(e){host.innerHTML='<div class="tl-empty"><i class="bi bi-exclamation-circle"></i><div style="margin-bottom:12px;">'+(window.netErrMsg?netErrMsg(e):'加载失败')+'</div><button class="btn btn-sm btn-outline-primary" onclick="dashLoadTimeline()">重试</button></div>';});
 }
 // 勾选乐观更新(首页): 即时反馈, 失败回滚, 成功后静默对账刷新
 function dashOptToggle(cb){
@@ -768,7 +704,7 @@ function dashToggleDesc(el){
 function dashJumpToday(){
   var el=document.getElementById('dashTimeline');if(!el)return;
   var wrap=el.querySelector('.tl-wrap')||el;
-  var sec=wrap.querySelector('.tl-section.today')||wrap.querySelector('.tl-section.tomorrow')||wrap.querySelector('.tl-section.future_week');
+  var sec=wrap.querySelector('.tl-section.today')||wrap.querySelector('.tl-section.tomorrow')||wrap.querySelector('.tl-section.future_two_weeks');
   var hd=sec&&sec.querySelector('.tl-section-hd');
   if(hd)tlSecDashJump(hd);
 }
@@ -776,15 +712,17 @@ function dashJumpToday(){
 (function(){
   var el=document.getElementById('dashTimeline');if(!el)return;
   el.addEventListener('click',function(e){
+    if(e.target.closest('.follow-check')){e.stopPropagation();return;}
+    if(e.target.closest('.tl-follow-btn')){e.stopPropagation();return;}
     if(e.target.closest('.tl-check')){e.stopPropagation();return;}
     var tt=e.target.closest('.tl-card-title');
-    if(tt){
+    if(tt&&!tt.closest('.tl-section.follow')){
       var id=parseInt(tt.getAttribute('data-id'),10),i;
       for(i=0;i<_tlCache.length;i++){if(_tlCache[i].id===id){dashOpenTaskDrawer(_tlCache[i]);return;}}
       return;
     }
     var card=e.target.closest('.tl-card');
-    if(card){var ti=card.querySelector('.tl-card-title');if(ti){var id2=parseInt(ti.getAttribute('data-id'),10);for(var j=0;j<_tlCache.length;j++){if(_tlCache[j].id===id2){dashOpenTaskDrawer(_tlCache[j]);return;}}}}
+    if(card&&!card.closest('.tl-section.follow')){var ti=card.querySelector('.tl-card-title');if(ti){var id2=parseInt(ti.getAttribute('data-id'),10);for(var j=0;j<_tlCache.length;j++){if(_tlCache[j].id===id2){dashOpenTaskDrawer(_tlCache[j]);return;}}}}
   });
   el.addEventListener('change',function(e){
     var cb=e.target.closest('.tl-check');
@@ -954,199 +892,14 @@ function calSheetClose(){
 }
 function tlClearFilter(){_tlFilter=null;document.querySelectorAll('.cal-cell.selected').forEach(function(c){c.classList.remove('selected');});dashLoadTimeline();}
 calRender();
-// === 看板视图(日历区切换, 数据源 /api/board) ===
-function battr(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function _boardHeaders(){return {'Content-Type':'application/json','X-CSRF-Token':window.CSRF_TOKEN||''};}
-function boardToggle(){
-  var bv=document.getElementById('boardView');
-  if(bv&&!bv.classList.contains('d-none')){boardClose();}
-  else{boardOpen();}
-}
-function boardGo(){
-  boardOpen();
-  if(window.innerWidth<768){var c=document.getElementById('calCard');if(c)c.scrollIntoView({behavior:'smooth',block:'start'});}
+// === 关注区块(数据源 /api/tasks/follow, 渲染逻辑见 static/js/shared.js) ===
+function followGo(){
+  var c=document.getElementById('followCard');
+  if(c)c.scrollIntoView({behavior:'smooth',block:'start'});
   return false;
 }
-function boardList(){
-  document.getElementById('boardList').innerHTML='<div style="text-align:center;padding:26px 10px;color:var(--gray-400);"><span class="spinner-border spinner-border-sm"></span></div>';
-  fetchJSON('/api/board').then(function(d){
-    var items=(d&&d.ok)?(d.items||[]):[];
-    _boardItems=items;
-    if(!items.length){document.getElementById('boardList').innerHTML='<div class="tl-empty"><i class="bi bi-clipboard-check"></i>看板暂无内容<br><span style="font-size:.7rem;color:var(--gray-400);">在下方输入框新增第一条吧</span></div>';return;}
-    var html='';
-    items.forEach(function(it){
-      html+='<div class="board-card'+(it.done?' done':'')+'" data-id="'+it.id+'">';
-      html+='<div class="board-head">';
-      html+='<input type="checkbox" class="form-check-input board-check" '+(it.done?'checked ':'')+'data-id="'+it.id+'" aria-label="标记完成看板项" onchange="boardToggleDone('+it.id+',this.checked)">';
-      html+='<div class="board-title" data-field="title" role="button" tabindex="0" onclick="openBoardDrawer('+it.id+')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">'+esc(it.content)+'</div>';
-      html+='</div>';
-      html+='<div class="board-meta-row">';
-      html+='<span class="board-time">'+esc(it.date)+'</span>';
-      html+='<span class="board-status '+(it.done?'s-done':'s-ongoing')+'">'+(it.done?'已完成':'进行中')+'</span>';
-      html+='<span class="board-mrow-sp"></span>';
-      html+='<button type="button" class="board-btn board-btn-edit" onclick="boardEdit('+it.id+')"><i class="bi bi-pencil" style="font-size:.6rem;"></i> 编辑</button>';
-      html+='<button type="button" class="board-btn board-btn-del" onclick="boardDelete('+it.id+')"><i class="bi bi-trash" style="font-size:.6rem;"></i> 删除</button>';
-      html+='</div>';
-      html+='</div>';
-    });
-    document.getElementById('boardList').innerHTML=html;
-  }).catch(function(){
-    document.getElementById('boardList').innerHTML='<div style="text-align:center;padding:26px 10px;color:var(--danger);">加载失败</div>';
-  });
-}
-function boardOpen(){
-  var bv=document.getElementById('boardView');
-  var grid=document.getElementById('calGrid');
-  var week=document.getElementById('calWeekHd');
-  var navL=document.getElementById('calNavLeft');
-  var dayB=document.getElementById('dayTimelineBody');
-  var backBtn=document.getElementById('dtBackBtn');
-  var dayTitle=document.getElementById('dtDayTitle');
-  var picker=document.getElementById('calPicker');
-  var tBtn=document.getElementById('boardToggleBtn');
-  if(!bv)return;
-  if(grid)grid.classList.add('d-none');
-  if(week)week.classList.add('d-none');
-  if(navL)navL.classList.add('board-hidden');
-  if(dayB)dayB.classList.add('d-none');
-  if(backBtn)backBtn.style.display='none';
-  if(dayTitle)dayTitle.classList.add('d-none');
-  if(picker)picker.classList.add('d-none');
-  if(tBtn){tBtn.innerHTML='<i class="bi bi-arrow-left"></i> 返回';}
-  bv.classList.remove('d-none');
-  boardList();
-}
-function boardClose(){
-  var bv=document.getElementById('boardView');
-  var grid=document.getElementById('calGrid');
-  var week=document.getElementById('calWeekHd');
-  var navL=document.getElementById('calNavLeft');
-  var tBtn=document.getElementById('boardToggleBtn');
-  if(bv)bv.classList.add('d-none');
-  if(grid)grid.classList.remove('d-none');
-  if(week)week.classList.remove('d-none');
-  if(navL)navL.classList.remove('board-hidden');
-  if(tBtn)tBtn.innerHTML='📋 看板';
-}
-function boardAdd(){
-  var inp=document.getElementById('boardInput');
-  var v=((inp&&inp.value)||'').trim();
-  if(!v){if(inp)inp.focus();return;}
-  fetchJSON('/api/board',{method:'POST',headers:_boardHeaders(),body:JSON.stringify({content:v})}).then(function(d){
-    if(d&&d.ok){if(inp)inp.value='';boardList();}
-    else{if(inp)inp.focus();toast((d&&d.error)||'新增失败','danger');}
-  }).catch(function(){toast('新增失败','danger');});
-}
-function boardToggleDone(id,done){
-  fetchJSON('/api/board/'+id,{method:'PUT',headers:_boardHeaders(),body:JSON.stringify({done:!!done})}).then(function(d){
-    if(d&&d.ok)boardList();
-    else{
-      var cb=document.querySelector('.board-card[data-id="'+id+'"] .board-check');
-      if(cb)cb.checked=!done;
-      toast((d&&d.error)||'操作失败','danger');
-    }
-  }).catch(function(){
-    var cb=document.querySelector('.board-card[data-id="'+id+'"] .board-check');
-    if(cb)cb.checked=!done;
-    toast('操作失败','danger');
-  });
-}
-function boardDelete(id){
-  var c=document.querySelector('.board-card[data-id="'+id+'"] .board-title');
-  var txt=c?c.textContent:'';
-  if(!window.confirm('确认删除这条看板？\n'+(txt&&txt.length>12?txt.slice(0,12)+'…':txt)))return;
-  fetchJSON('/api/board/'+id,{method:'DELETE',headers:_boardHeaders()}).then(function(d){
-    if(d&&d.ok)boardList();else toast((d&&d.error)||'删除失败','danger');
-  }).catch(function(){toast('删除失败','danger');});
-}
-function boardEdit(id){
-  var card=document.querySelector('.board-card[data-id="'+id+'"]');
-  if(!card)return;
-  var t=card.querySelector('.board-title[data-field="title"]');
-  var old=t?t.textContent:'';
-  if(!t||card.querySelector('.board-edit-input')){boardList();return;}
-  card.classList.add('editing');
-  var mr=card.querySelector('.board-meta-row');if(mr)mr.style.display='none';
-  t.className='board-title board-editing';
-  t.setAttribute('onclick','');
-  t.innerHTML='<div style="display:flex;gap:4px;align-items:center;"><input type="text" class="form-control form-control-sm board-edit-input" maxlength="2000" value="'+battr(old)+'" onkeydown="if(event.key===\'Enter\')boardSaveEdit('+id+');if(event.key===\'Escape\')boardList();"><button type="button" class="btn btn-sm btn-primary" style="font-size:.68rem;padding:1px 8px;flex-shrink:0;" onclick="boardSaveEdit('+id+')">保存</button><button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:.68rem;padding:1px 8px;flex-shrink:0;" onclick="boardList()">取消</button></div>';
-  var inp=t.querySelector('input');if(inp){inp.focus();inp.select();}
-}
-function boardSaveEdit(id){
-  var inp=document.querySelector('.board-card[data-id="'+id+'"] .board-edit-input');
-  var v=inp?inp.value.trim():'';
-  if(!v){toast('内容不能为空','danger');if(inp)inp.focus();return;}
-  fetchJSON('/api/board/'+id,{method:'PUT',headers:_boardHeaders(),body:JSON.stringify({content:v})}).then(function(d){
-    if(d&&d.ok)boardList();else toast((d&&d.error)||'保存失败','danger');
-  }).catch(function(){toast('保存失败','danger');});
-}
-/* === 看板详情抽屉(右侧滑出, 参考任务详情抽屉) === */
-var _boardItems=[];
-var _boardDrawerId=null;
-function _boardItemById(id){for(var i=0;i<_boardItems.length;i++){if(_boardItems[i].id===id)return _boardItems[i];}return null;}
-function _boardPut(id,payload){
-  return fetchJSON('/api/board/'+id,{method:'PUT',headers:_boardHeaders(),body:JSON.stringify(payload)});
-}
-function openBoardDrawer(id){
-  var it=_boardItemById(id);if(!it)return;
-  _boardDrawerId=id;
-  document.getElementById('boardDrawerTitle').textContent=it.content;
-  document.getElementById('boardDrawerContentBox').innerHTML='<div style="font-size:.86rem;color:var(--gray-700);white-space:pre-wrap;word-break:break-word;margin-bottom:12px;">'+linkifyText(escapeHtml(it.content)).replace(/\n/g,'<br>')+'</div>';
-  document.getElementById('boardDrawerDate').textContent=it.created_at||'';
-  var st=document.getElementById('boardDrawerStatus');
-  st.textContent=it.done?'已完成':'进行中';
-  st.style.color=it.done?'var(--gray-500)':'var(--primary)';
-  var db=document.getElementById('boardDrawerDoneBtn');
-  db.className='btn btn-sm '+(it.done?'btn-outline-warning':'btn-success');
-  db.innerHTML=it.done?'<i class="bi bi-arrow-counterclockwise"></i> 撤销':'<i class="bi bi-check-lg"></i> 完成';
-  document.getElementById('boardDrawer').classList.remove('d-none');
-  document.getElementById('boardDrawerOverlay').classList.remove('d-none');
-}
-function closeBoardDrawer(){
-  document.getElementById('boardDrawer').classList.add('d-none');
-  document.getElementById('boardDrawerOverlay').classList.add('d-none');
-}
-function boardDrawerDone(){
-  var it=_boardItemById(_boardDrawerId);if(!it)return;
-  _boardPut(_boardDrawerId,{done:!it.done}).then(function(d){
-    if(d&&d.ok){it.done=!it.done;openBoardDrawer(_boardDrawerId);boardList();}
-    else toast((d&&d.error)||'操作失败','danger');
-  }).catch(function(){toast('操作失败','danger');});
-}
-function boardDrawerEdit(){
-  var it=_boardItemById(_boardDrawerId);if(!it)return;
-  var box=document.getElementById('boardDrawerContentBox');
-  box.innerHTML='<input type="text" class="form-control form-control-sm board-drawer-input" maxlength="2000" value="'+battr(it.content)+'" onkeydown="if(event.key===\'Enter\')boardDrawerSave();if(event.key===\'Escape\')openBoardDrawer('+_boardDrawerId+');"><div class="d-flex gap-2 mt-2"><button type="button" class="btn btn-sm btn-primary" style="font-size:.68rem;padding:1px 10px;" onclick="boardDrawerSave()">保存</button><button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:.68rem;padding:1px 10px;" onclick="openBoardDrawer('+_boardDrawerId+')">取消</button></div>';
-  var inp=box.querySelector('input');if(inp){inp.focus();inp.select();}
-}
-function boardDrawerSave(){
-  var inp=document.querySelector('#boardDrawerContentBox .board-drawer-input');
-  var v=inp?(inp.value||'').trim():'';if(!v){toast('内容不能为空','danger');if(inp)inp.focus();return;}
-  _boardPut(_boardDrawerId,{content:v}).then(function(d){
-    if(d&&d.ok){
-      var it=_boardItemById(_boardDrawerId);if(it)it.content=v;
-      openBoardDrawer(_boardDrawerId);boardList();toast('已保存','success');
-    }else toast((d&&d.error)||'保存失败','danger');
-  }).catch(function(){toast('保存失败','danger');});
-}
-function boardDrawerDiscard(){
-  var it=_boardItemById(_boardDrawerId);if(!it)return;
-  var txt=it.content||'';txt=txt.length>20?txt.slice(0,20)+'…':txt;
-  if(!window.confirm('确认废弃「'+txt+'」？废弃后将从看板移除'))return;
-  _boardPut(_boardDrawerId,{discarded:true}).then(function(d){
-    if(d&&d.ok){closeBoardDrawer();boardList();toast('已废弃','success');}
-    else toast((d&&d.error)||'操作失败','danger');
-  }).catch(function(){toast('操作失败','danger');});
-}
-function boardDrawerDelete(){
-  var it=_boardItemById(_boardDrawerId);if(!it)return;
-  var txt=it.content||'';txt=txt.length>12?txt.slice(0,12)+'…':txt;
-  if(!window.confirm('确认删除这条看板？\n'+txt))return;
-  fetchJSON('/api/board/'+_boardDrawerId,{method:'DELETE',headers:_boardHeaders()}).then(function(d){
-    if(d&&d.ok){closeBoardDrawer();boardList();toast('已删除','success');}
-    else toast((d&&d.error)||'删除失败','danger');
-  }).catch(function(){toast('删除失败','danger');});
-}
+window.followOpen=function(it){dashOpenTaskDrawer(it);};
+window.followAfter=function(){dashLoadTimeline(true);};
 // 一屏自适应: 按行顶部实际位置精确锁定高度, 兼容不同导航/边距高度(预留6px舍入容差)
 </script>
 <script>
@@ -1167,12 +920,10 @@ function openDayTimeline(dateStr){
   var weekH=document.getElementById('calWeekHd');
   var backBtn=document.getElementById('dtBackBtn');
   var dayTitle=document.getElementById('dtDayTitle');
-  var todayBtn=document.getElementById('boardToggleBtn');
   calG.classList.add('d-none');
   weekH.classList.add('d-none');
   backBtn.style.display='';
   dayTitle.classList.remove('d-none');
-  todayBtn.style.display='none';
   var d=new Date(dateStr+'T00:00:00');
   dayTitle.textContent=dateStr+' '+_dtDayNames[d.getDay()];
   body.classList.remove('d-none');
@@ -1193,14 +944,12 @@ function closeDayTimeline(){
   var weekH=document.getElementById('calWeekHd');
   var backBtn=document.getElementById('dtBackBtn');
   var dayTitle=document.getElementById('dtDayTitle');
-  var todayBtn=document.getElementById('boardToggleBtn');
   body.classList.add('d-none');
   body.innerHTML='';
   calG.classList.remove('d-none');
   weekH.classList.remove('d-none');
   backBtn.style.display='none';
   dayTitle.classList.add('d-none');
-  todayBtn.style.display='';
 }
 function _parseHM(s){var m=s.match(/(\d{2}):(\d{2})/);return m?parseInt(m[1])*60+parseInt(m[2]):480;}
 function _fmtHM(mins){var h=Math.floor(mins/60),mi=mins%60;return String(h).padStart(2,'0')+':'+String(mi).padStart(2,'0');}

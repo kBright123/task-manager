@@ -593,6 +593,11 @@ def _run_sqlite_migrations():
         cols = [r[1] for r in c.fetchall()]
         if 'category' not in cols:
             c.execute('ALTER TABLE task ADD COLUMN category TEXT DEFAULT "工作"')
+        if 'is_followed' not in cols:
+            c.execute('ALTER TABLE task ADD COLUMN is_followed INTEGER DEFAULT 0')
+        # 历史「跟踪」待办(自动归类时代)迁移为「关注」: 并入关注节点, 分类文本统一为关注
+        c.execute("UPDATE task SET is_followed=1 WHERE category='跟踪' AND is_followed=0")
+        c.execute("UPDATE task SET category='关注' WHERE category='跟踪'")
         c.execute('PRAGMA table_info(task_assignment)')
         cols = [r[1] for r in c.fetchall()]
         if 'abandoned_at' not in cols:
@@ -937,7 +942,6 @@ import routes.tasks_pages
 import routes.search
 import routes.notify
 import routes.chat
-import routes.board
 
 def _ensure_soft_delete_column():
     """幂等: 为 task 表补 deleted_at 列(SQLite ADD COLUMN 安全)."""
@@ -963,6 +967,51 @@ def _ensure_board_discarded_column():
             db.session.commit()
 
 
+def _migrate_board_to_tracking():
+    """一次性迁移: 历史看板条目并入待办库(标记「关注」+ is_followed=1)。
+
+    幂等: 以「新增待办 + 清空 board_item」的单事务执行, 任意失败整体回滚,
+    不会重复导入; 迁移完成后 board_item 表留空, 重启即为空转。"""
+    try:
+        from sqlalchemy import inspect as sa_inspect
+        insp = sa_inspect(db.engine)
+        if 'board_item' not in insp.get_table_names():
+            return
+        from core.models import BoardItem as _BI
+        rows = _BI.query.all()
+        if not rows:
+            return
+        now = cn_now()
+        for r in rows:
+            start = r.created_at or now
+            task = Task(title=(r.content or '').strip()[:200] or '未命名待办',
+                        description=r.content or '',
+                        category='关注', is_followed=True, start_time=start,
+                        end_time=start + timedelta(hours=1),
+                        creator_id=r.user_id)
+            db.session.add(task)
+            db.session.flush()
+            if r.done:
+                db.session.add(TaskAssignment(
+                    task_id=task.id, user_id=r.user_id,
+                    status='completed', progress=100,
+                    completed_at=r.created_at or now))
+            elif r.discarded:
+                db.session.add(TaskAssignment(
+                    task_id=task.id, user_id=r.user_id,
+                    status='abandoned', abandoned_at=r.created_at or now))
+            else:
+                db.session.add(TaskAssignment(
+                    task_id=task.id, user_id=r.user_id, status='pending'))
+        _BI.query.delete()
+        db.session.commit()
+        logger.info('[migrate] board_item → task(关注) 迁移完成: %d 条', len(rows))
+    except Exception:
+        db.session.rollback()
+        logger.error('[migrate] board_item → task 迁移失败(不影响启动)',
+                     exc_info=True)
+
+
 # ---- 启动即执行一次性 UTC→北京时间历史数据迁移(幂等, 多 worker 安全) ----
 with app.app_context():
     _migrate_utc_to_cn_time()
@@ -970,6 +1019,8 @@ with app.app_context():
     _ensure_soft_delete_column()
 with app.app_context():
     _ensure_board_discarded_column()
+with app.app_context():
+    _migrate_board_to_tracking()
 
 # 后台预装 jionlp(容器缺依赖时不阻塞首次解析; 已装则立即返回)
 try:

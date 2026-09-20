@@ -63,6 +63,8 @@ class Task(db.Model):
     end_time = db.Column(db.DateTime, nullable=False)
     creator_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     is_all = db.Column(db.Boolean, default=False)
+    # 关注(五角星): 关注的任务从时间轴移入「关注」节点(可随时取消关注回到时间轴)
+    is_followed = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=cn_now, index=True)
     # 软删除: 非空即已入回收站(全局查询过滤见 app.py do_orm_execute)
     deleted_at = db.Column(db.DateTime, nullable=True, index=True)

@@ -36,5 +36,5 @@ if __name__ == '__main__':
         'templates/base.html', 'templates/dashboard.html',
         'templates/tasks.html', 'templates/notes.html',
         'templates/profile.html', 'templates/task_detail.html',
-        'templates/notifications.html']
+        'templates/notifications.html', 'templates/_follow_strip.html']
     sys.exit(0 if check(files) else 1)

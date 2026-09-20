@@ -38,7 +38,10 @@
       {% elif assignment and assignment.status == 'rejected' %}已驳回
       {% else %}进行中{% endif %}
     </span>
-    <span class="badge" style="background:{{ 'var(--primary)' if task.category == '工作' else 'var(--success)' if task.category == '个人' else 'var(--meeting)' if task.category == '会议' else 'var(--training)' if task.category == '培训' else 'var(--exam)' if task.category == '考试' else 'var(--warning)' }};font-size:.72rem;">{{ task.category }}</span>
+    <span class="badge" style="background:{{ 'var(--primary)' if task.category == '工作' else 'var(--success)' if task.category == '个人' else 'var(--meeting)' if task.category == '会议' else 'var(--training)' if task.category == '培训' else 'var(--exam)' if task.category == '考试' else 'var(--tracking)' if task.category == '关注' else 'var(--warning)' }};font-size:.72rem;">{{ task.category }}</span>
+    <button type="button" id="detailFollowBtn" class="btn btn-sm {% if task.is_followed %}btn-warning{% else %}btn-outline-warning{% endif %}" style="padding:3px 8px;font-size:.75rem;" onclick="detailToggleFollow()" title="{% if task.is_followed %}取消关注{% else %}关注{% endif %}">
+      <i class="bi {% if task.is_followed %}bi-star-fill{% else %}bi-star{% endif %}"></i> {% if task.is_followed %}已关注{% else %}关注{% endif %}
+    </button>
     {% if is_admin %}
     <span class="badge bg-info d-none d-sm-inline" style="font-size:.7rem;">完成率 {{ rate }}%</span>
     {% if task.creator_id == current_user.id or task.is_all %}
@@ -263,6 +266,24 @@
 {% endfor %}
 
  <script>
+function detailToggleFollow(){
+  var btn=document.getElementById('detailFollowBtn');
+  if(btn) btn.disabled=true;
+  fetch('{{ url_for('api_task_follow', task_id=task.id) }}',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
+    if(!d||!d.ok) throw new Error((d&&d.error)||'操作失败');
+    var on=!!d.is_followed;
+    if(btn){
+      btn.classList.toggle('btn-warning',on);
+      btn.classList.toggle('btn-outline-warning',!on);
+      btn.innerHTML=on?'<i class="bi bi-star-fill"></i> 已关注':'<i class="bi bi-star"></i> 关注';
+      btn.title=on?'取消关注':'关注';
+    }
+    if(window.toast) toast(on?'已关注':'已取消关注','success');
+  }).catch(function(e){
+    if(btn) btn.disabled=false;
+    if(window.toast) toast(window.netErrMsg?netErrMsg(e):'操作失败','danger');
+  }).finally(function(){ if(btn) btn.disabled=false; });
+}
 function autoGrowDesc(el){
   if(!el) return;
   el.style.height='auto';

@@ -208,30 +208,6 @@ def user_dashboard():
         pass
     points_delta = new_points_yesterday - new_points_prev
 
-    # 关注方块: 当前用户关注的待办中未完成数 + 新增关注较前日趋势
-    me = current_user.id
-    follow_done_ids = {r[0] for r in db.session.query(TaskAssignment.task_id).filter(
-        TaskAssignment.user_id == me,
-        TaskAssignment.status.in_(('completed', 'approved', 'abandoned'))).all()}
-    follow_pending = Task.query.filter(
-        Task.creator_id == me,
-        Task.is_followed == True,
-        Task.deleted_at.is_(None),
-        ~Task.id.in_(follow_done_ids)).count()
-    new_follow_yesterday = Task.query.filter(
-        Task.creator_id == me,
-        Task.is_followed == True,
-        Task.deleted_at.is_(None),
-        Task.created_at >= yesterday_start,
-        Task.created_at < today_start).count()
-    new_follow_prev = Task.query.filter(
-        Task.creator_id == me,
-        Task.is_followed == True,
-        Task.deleted_at.is_(None),
-        Task.created_at >= day_before_start,
-        Task.created_at < yesterday_start).count()
-    follow_delta = new_follow_yesterday - new_follow_prev
-
     try:
         from kb.knowledge import KbCollection as _KbCollection
         from kb.knowledge import _visible_collection_ids as _kb_visible_cols
@@ -267,8 +243,6 @@ def user_dashboard():
                            docs_delta=docs_delta,
                            points_count=points_count,
                            points_delta=points_delta,
-                           follow_pending=follow_pending,
-                           follow_delta=follow_delta,
                            collections=_collections)
 def _assignment_counts_by_user(creator_id):
     """{display name -> number of assigned tasks}, 只统计当前用户创建(分配)的任务."""

@@ -199,17 +199,7 @@
 {% endblock %}
 {% block content %}
 
-<div class="stat-grid stat-grid-5 mb-4">
-  <a href="#" onclick="return followGo()" class="stat-card card-lift" style="background:linear-gradient(135deg,var(--tracking),#b45309);padding:14px 18px;text-decoration:none;">
-    <div class="d-flex justify-content-between align-items-center">
-      <div>
-        <div class="stat-num" style="font-size:1.5rem;">{{ follow_pending|default(0) }}</div>
-        <div class="stat-label">关注</div>
-        <div class="stat-trend">较前日{% set td = follow_delta|default(0) %}{% if td > 0 %}<span class="trend-pill up">↑ {{ td }}</span>{% elif td < 0 %}<span class="trend-pill down">↓ {{ -td }}</span>{% else %}<span class="trend-pill flat">—</span>{% endif %}</div>
-      </div>
-      <i class="bi bi-star-fill" style="font-size:1.5rem;opacity:.85;"></i>
-    </div>
-  </a>
+<div class="stat-grid stat-grid-4 mb-4">
   <a href="{{ url_for('user_tasks') }}" class="stat-card card-lift" style="background:linear-gradient(135deg,#007a33,#006633);padding:14px 18px;text-decoration:none;">
     <div class="d-flex justify-content-between align-items-center">
       <div>
@@ -915,11 +905,6 @@ function calSheetClose(){
 function tlClearFilter(){_tlFilter=null;document.querySelectorAll('.cal-cell.selected').forEach(function(c){c.classList.remove('selected');});dashLoadTimeline();}
 calRender();
 // === 关注区块(数据源 /api/tasks/follow, 渲染逻辑见 static/js/shared.js) ===
-function followGo(){
-  var c=document.getElementById('followCard');
-  if(c)c.scrollIntoView({behavior:'smooth',block:'start'});
-  return false;
-}
 window.followOpen=function(it){dashOpenTaskDrawer(it);};
 window.followAfter=function(){dashLoadTimeline(true);};
 // 一屏自适应: 按行顶部实际位置精确锁定高度, 兼容不同导航/边距高度(预留6px舍入容差)

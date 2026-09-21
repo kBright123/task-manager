@@ -605,8 +605,13 @@
   })();
   </script>
   <script src="{{ url_for('static', filename='js/shared.js', v=staticv('js/shared.js')) }}"></script>
-<div class="modal fade" id="kbConfirmModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content" style="border-radius:14px;max-width:300px;margin:auto;"><div class="modal-body text-center" style="padding:22px 20px 14px;"><div id="kbConfirmMsg" style="font-size:.9rem;line-height:1.5;"></div></div><div class="modal-footer border-0 justify-content-center gap-2 pt-0" style="padding:0 20px 18px;"><button type="button" class="btn btn-sm btn-secondary" id="kbConfirmNo" style="min-width:78px;">取消</button><button type="button" class="btn btn-sm btn-primary" id="kbConfirmYes" style="min-width:78px;">确定</button></div></div></div></div>
+<div class="modal fade" id="kbConfirmModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content" style="border-radius:14px;max-width:300px;margin:auto;"><div class="modal-body text-center" style="padding:22px 20px 14px;"><div id="kbConfirmMsg" style="font-size:.9rem;line-height:1.5;"></div><label id="kbConfirmCheckWrap" class="d-none" style="font-size:.8rem;color:var(--gray-600);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px;"><input type="checkbox" id="kbConfirmCheckCb" class="form-check-input" checked style="width:14px;height:14px;cursor:pointer;"><span id="kbConfirmCheckLabel"></span></label></div><div class="modal-footer border-0 justify-content-center gap-2 pt-0" style="padding:0 20px 18px;"><button type="button" class="btn btn-sm btn-secondary" id="kbConfirmNo" style="min-width:78px;">取消</button><button type="button" class="btn btn-sm btn-primary" id="kbConfirmYes" style="min-width:78px;">确定</button></div></div></div></div>
 <script>
+// 仅在确认弹窗(KB)弹出时提升其遮罩层级, 使其盖过首页任务抽屉(1100); 不全局影响其他弹窗
+window.kbRaiseConfirmBackdrop=function(){
+  var bds=document.querySelectorAll('.modal-backdrop');
+  if(bds.length)bds[bds.length-1].style.zIndex='1200';
+};
 window.uiConfirm=function(msg,opt){
   opt=opt||{};
   return new Promise(function(res){
@@ -615,6 +620,7 @@ window.uiConfirm=function(msg,opt){
     document.getElementById('kbConfirmMsg').textContent=msg;
     document.getElementById('kbConfirmYes').textContent=opt.okText||'确定';
     document.getElementById('kbConfirmNo').textContent=opt.cancelText||'取消';
+    var cw=document.getElementById('kbConfirmCheckWrap');if(cw)cw.classList.add('d-none');
     var inst=bootstrap.Modal.getOrCreateInstance(m);
     var done=false;
     function finish(v){if(done)return;done=true;res(v);}
@@ -622,6 +628,32 @@ window.uiConfirm=function(msg,opt){
     document.getElementById('kbConfirmYes').onclick=function(){finish(true);inst.hide();};
     document.getElementById('kbConfirmNo').onclick=function(){inst.hide();};
     inst.show();
+    kbRaiseConfirmBackdrop();
+  });
+};
+window.uiConfirmCheck=function(msg,opt){
+  opt=opt||{};
+  return new Promise(function(res){
+    var m=document.getElementById('kbConfirmModal');
+    if(!m||!window.bootstrap){res({ok:window.confirm(msg),checked:opt.checkDefault!==false});return;}
+    document.getElementById('kbConfirmMsg').textContent=msg;
+    document.getElementById('kbConfirmYes').textContent=opt.okText||'确定';
+    document.getElementById('kbConfirmNo').textContent=opt.cancelText||'取消';
+    var wrap=document.getElementById('kbConfirmCheckWrap');
+    var cb=document.getElementById('kbConfirmCheckCb');
+    if(opt.checkLabel){
+      document.getElementById('kbConfirmCheckLabel').textContent=opt.checkLabel;
+      cb.checked=opt.checkDefault!==false;
+      wrap.classList.remove('d-none');
+    }else{wrap.classList.add('d-none');cb.checked=false;}
+    var inst=bootstrap.Modal.getOrCreateInstance(m);
+    var done=false;
+    function finish(v){if(done)return;done=true;res(v);}
+    m.addEventListener('hidden.bs.modal',function(){finish({ok:false,checked:false});},{once:true});
+    document.getElementById('kbConfirmYes').onclick=function(){finish({ok:true,checked:!!opt.checkLabel&&cb.checked});inst.hide();};
+    document.getElementById('kbConfirmNo').onclick=function(){inst.hide();};
+    inst.show();
+    kbRaiseConfirmBackdrop();
   });
 };
 window.uiConfirmSubmit=function(ev,msg){

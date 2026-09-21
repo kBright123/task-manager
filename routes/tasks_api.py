@@ -1399,6 +1399,26 @@ def api_task_purge(task_id):
     return jsonify({'ok': True})
 
 
+@app.route('/api/tasks/batch_purge', methods=['POST'])
+@login_required
+def api_tasks_batch_purge():
+    """彻底删除回收站全部待办(不可逆, 创建者或管理员); 需前端 uiConfirm 二次确认。"""
+    if current_user.role == 'admin':
+        tasks = Task.query.filter(
+            Task.deleted_at.isnot(None),
+        ).execution_options(include_deleted=True).all()
+    else:
+        tasks = Task.query.filter(
+            Task.deleted_at.isnot(None),
+            Task.creator_id == current_user.id,
+        ).execution_options(include_deleted=True).all()
+    if not tasks:
+        return jsonify({'ok': False, 'error': '回收站为空'}), 404
+    for t in tasks:
+        purge_task(t)
+    return jsonify({'ok': True, 'count': len(tasks)})
+
+
 @app.route('/api/task/<int:task_id>/reopen', methods=['POST'])
 @login_required
 def api_task_reopen(task_id):

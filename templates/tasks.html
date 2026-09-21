@@ -1589,6 +1589,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <h6 class="modal-title" style="font-size:.85rem;"><i class="bi bi-trash3"></i> 回收站</h6>
         <div class="d-flex gap-2">
           <button id="trashRestoreAllBtn" class="btn btn-sm btn-outline-primary d-none" style="font-size:.72rem;padding:1px 10px;" onclick="restoreAllFromTrash()"><i class="bi bi-arrow-counterclockwise"></i> 全部恢复</button>
+          <button id="trashPurgeAllBtn" class="btn btn-sm btn-outline-danger d-none" style="font-size:.72rem;padding:1px 10px;" onclick="purgeAllFromTrash()"><i class="bi bi-trash3"></i> 全部彻底删除</button>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
       </div>
@@ -1604,12 +1605,15 @@ function openTrashModal(){
   el.innerHTML='<div class="text-center py-4"><div class="spinner-border spinner-border-sm text-secondary"></div></div>';
   var rab=document.getElementById('trashRestoreAllBtn');
   if(rab)rab.classList.add('d-none');
+  var pab=document.getElementById('trashPurgeAllBtn');
+  if(pab)pab.classList.add('d-none');
   var m=window.bootstrap?bootstrap.Modal.getOrCreateInstance(document.getElementById('trashModal')):null;
   if(m)m.show();
   fetchJSON('/api/tasks/trash').then(function(d){
     if(!d||!d.ok){el.innerHTML='<div class="tl-empty">加载失败</div>';return;}
     if(!d.items.length){el.innerHTML='<div class="tl-empty"><i class="bi bi-trash3"></i><div>回收站是空的</div></div>';return;}
     if(rab&&d.items.length>0)rab.classList.remove('d-none');
+    if(pab&&d.items.length>0)pab.classList.remove('d-none');
     var h='';
     d.items.forEach(function(t){
       h+='<div class="d-flex align-items-center justify-content-between" style="padding:8px 2px;border-bottom:1px dashed var(--gray-200);">';
@@ -1627,6 +1631,13 @@ function restoreAllFromTrash(){
   fetchJSON('/api/tasks/batch_restore',{method:'POST'}).then(function(d){
     if(!d||!d.ok){toast((d&&d.error)||'恢复失败','error');return;}
     toast('已恢复全部 '+d.count+' 项','success');loadTaskFeed();openTrashModal();
+  }).catch(function(e){toast(netErrMsg(e),'error');});
+}
+async function purgeAllFromTrash(){
+  if(!(await uiConfirm('将彻底删除回收站中的全部待办，且不可恢复，确定继续？',{okText:'全部彻底删除',cancelText:'取消'})))return;
+  fetchJSON('/api/tasks/batch_purge',{method:'POST'}).then(function(d){
+    if(!d||!d.ok){toast((d&&d.error)||'删除失败','error');return;}
+    toast('已彻底删除全部 '+d.count+' 项','success');loadTaskFeed();openTrashModal();
   }).catch(function(e){toast(netErrMsg(e),'error');});
 }
 function restoreFromTrash(id){

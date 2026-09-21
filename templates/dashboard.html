@@ -283,6 +283,7 @@
       <div class="card-body py-0 px-0" id="dashTimeline" style="min-height:60px;overflow-y:auto;">
         <div class="tl-wrap">
           <div class="tl-axis"></div>
+          {% include '_follow_strip.html' %}
           <div id="dashTimelineSections">
             <div style="text-align:center;color:var(--gray-400);font-size:.78rem;padding:16px;">加载中...</div>
           </div>
@@ -748,19 +749,62 @@ document.addEventListener('keydown',function(e){
   if(k==='n'||k==='N'){e.preventDefault();var inp=document.getElementById('qtTitle');if(inp){inp.scrollIntoView({block:'center'});inp.focus();}}
   else if(k==='t'||k==='T'){e.preventDefault();dashJumpToday();}
 });
-// 删除待办(fetch+可撤销): 10s 内可通过 toast 撤销, 以原字段重新创建
+// 周期/分阶段待办序列信息: 用于删除时提示"是否一并删除后续"
+function dashDeleteSeriesInfo(title,start_time){
+  var recPat=/^(.*?)\s*\(第(\d+)期\/共(\d+)期\)$/;
+  var m=(title||'').match(recPat);
+  if(m){
+    var cur=parseInt(m[2],10),tot=parseInt(m[3],10);
+    return {type:'rec',stage:'第'+m[2]+'期/共'+m[3]+'期',count:Math.max(0,tot-cur)};
+  }
+  var sm=(title||'').match(/^(.*?)（([^（）]+)）\s*$/);
+  if(sm){
+    var base=sm[1],cnt=0;
+    for(var i=0;i<_tlCache.length;i++){
+      var x=_tlCache[i];
+      if(!x||x.id==null||x.title===title)continue;
+      var sm2=(x.title||'').match(/^(.*?)（[^（）]+）\s*$/);
+      if(sm2&&sm2[1]===base&&start_time&&(x.start_time||'')>start_time)cnt++;
+    }
+    return {type:'sess',stage:sm[2],count:cnt};
+  }
+  return null;
+}
+// 删除待办(fetch+可撤销): 周期/分阶段任务可选一并删除后续
 function dashDeleteSubmit(ev){
   ev.preventDefault();
-  uiConfirm('确认删除此待办？将移入回收站，可在回收站恢复。').then(function(yes){
-    if(!yes)return;
-    var data=_dashDrawerData;
-    var id=(ev.target.action.match(/\/(\d+)\/delete/)||[])[1];
+  var data=_dashDrawerData;
+  var id=(ev.target.action.match(/\/(\d+)\/delete/)||[])[1];
+  var title=(data&&data.title)||'';
+  var info=dashDeleteSeriesInfo(title,(data&&data.start_time)||'');
+  var cascadeCount=info?info.count:0;
+  var msg='确认删除此待办？将移入回收站，可在回收站恢复。',checkLabel='';
+  if(info){
+    msg=info.type==='rec'
+      ? '该待办是周期任务（'+info.stage+'），将移入回收站。'
+      : '该待办是分阶段任务（'+info.stage+'），将移入回收站，可一并删除后续任务。';
+    checkLabel=info.type==='rec'?'同时删除后续 '+cascadeCount+' 期任务':'同时删除后续 '+cascadeCount+' 个任务';
+  }
+  uiConfirmCheck(msg,cascadeCount>0?{checkLabel:checkLabel}:{}).then(function(r){
+    if(!r||!r.ok)return;
+    if(cascadeCount>0&&r.checked){
+      fetchJSON('/api/tasks/batch_delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task_ids:[id],cascade:true})}).then(function(d){
+        if(!d||!d.ok){toast((d&&d.error)||'删除失败','error');return;}
+        closeTaskDrawer();
+        dashLoadTimeline();
+        toast('已移入回收站（共'+d.count+'项）',{actionLabel:'撤销',duration:8000,onAction:function(){
+          (d.deleted||[]).forEach(function(tid){fetchJSON('/api/task/'+tid+'/restore',{method:'POST'});});
+          dashLoadTimeline();
+        }});
+      }).catch(function(e){toast(netErrMsg(e),'error');});
+      return;
+    }
     fetchJSON('/api/task/'+id+'/delete',{method:'POST'}).then(function(d){
       if(!d||!d.ok){toast((d&&d.error)||'删除失败','error');return;}
       closeTaskDrawer();
       dashLoadTimeline();
-      if(data&&data.title){
-        toast('已移入回收站「'+data.title+'」',{actionLabel:'撤销',duration:8000,onAction:function(){
+      if(title){
+        toast('已移入回收站「'+title+'」',{actionLabel:'撤销',duration:8000,onAction:function(){
           fetchJSON('/api/task/'+id+'/restore',{method:'POST'}).then(function(rd){
             if(rd.ok){toast('已恢复','success');}else{toast(rd.error||'恢复失败','error');}
             dashLoadTimeline();

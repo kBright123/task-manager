@@ -802,6 +802,10 @@ def api_quick_task_preview():
     end = parsed.get('end_time') or (start + timedelta(days=1))
     if end <= start:
         end = start + timedelta(hours=1)
+    # 周期待办单期应为同日短时长: 解析器未给出截止时间, 或截止时间落在另一天(多为
+    # 未给时长时的次日兜底)时, 默认 1 小时, 避免整期待办被误判为跨天任务
+    if (parsed.get('recurrence') or '') and end.date() != start.date():
+        end = start + timedelta(hours=1)
 
     # 多场次(第X期): 每场一个待办(空场 start=None → 空时间串, 需确认页补填)
     sessions = []
@@ -925,6 +929,9 @@ def api_quick_task():
         recurrence_count = 0
     recurrence_count = max(0, min(recurrence_count, 100))  # 防超量展开(DoS)
     total = recurrence_count if recurrence_interval_days and recurrence_count > 0 else 1
+    # 周期待办未给出截止时间时, 默认 1 小时(同一天), 避免单期被当作跨天任务
+    if total > 1 and not data.get('end_time'):
+        end = start + timedelta(hours=1)
 
     # 多场次(第X期): 每场独立时间拆分为多个待办, 优先于等间隔周期展开
     sess_items = []

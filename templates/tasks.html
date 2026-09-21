@@ -1448,8 +1448,8 @@ function taskPublish(btn){
     group_ids:gids,
     is_all:is_all,
     assign_self:assign_self,
-    recurrence_interval_days:0,
-    recurrence_count:0,
+    recurrence_interval_days:rec.interval||0,
+    recurrence_count:rec.count||0,
     sessions:sess
   };
   if(btn){btn.disabled=true;}

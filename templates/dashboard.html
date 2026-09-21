@@ -575,6 +575,12 @@ function dashAccordion(force){
     if(active)cur=s;
     var wasOpen=s.classList.contains('open');
     if(!active&&force)return; // 初始/静默对账刷新只维持既有展开态, 不主动收起
+    // 手工折叠/展开过的分区: 仍在视口内(底部未滚出顶部)时保持用户意图, 不被自动折叠或自动展开顶掉
+    var mkey=s.getAttribute('data-s')||s.className;
+    var manual=window._tlManualState?window._tlManualState[mkey]:null;
+    if(manual!=null&&bottom<=vtop)manual=null; // 已完全滚出顶部, 恢复自动
+    if(manual===0&&(active||bottom>vtop))return; // 用户折叠过: 视口内不再自动展开
+    if(manual===1&&!active&&wasOpen&&bottom>vtop)return; // 用户展开过: 尚未滚出前不再自动收起
     if(wasOpen===active)return;
     s.classList.toggle('open',active);
     changed=true;
@@ -654,7 +660,11 @@ function tlSecDashJump(hd){
   var wasOpen=sec.classList.contains('open');
   sec.classList.toggle('open',!wasOpen);
   window._dtlCurEl=sec;
-  var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // 记录手工意图, 让折叠/展开不被自动折叠逻辑立即顶掉(滚出视口后自动恢复)
+  var mkey=sec.getAttribute('data-s')||sec.className;
+  window._tlManualState=window._tlManualState||{};
+  window._tlManualState[mkey]=wasOpen?0:1;
+  var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   wrap.scrollTo({top:Math.max(sec.offsetTop-6,0),behavior:reduce?'auto':'smooth'});
   // 平滑滚动结束后重算一次折叠, 收起滚动途中的离场分区
   if(!reduce)setTimeout(function(){dashAccordion(false);},360);

@@ -31,6 +31,7 @@ from services.task_service import purge_task, restore_task, soft_delete_task
 from flask_login import current_user
 from sqlalchemy import func, or_
 from werkzeug.utils import secure_filename
+from routes.tasks_common import series_hidden_ids, series_dedupe_count
 import json
 import os
 from datetime import date, datetime, time as dtime, timedelta, timezone
@@ -261,9 +262,11 @@ def _count_remaining_workdays(today_date, end_date):
 def _day_span_entries(t, status, now, ref=None):
     """时间轴条目展开: 返回该任务应展示的分组条目列表。
 
-    未完成任务按开始日期划分组(从开始起就加入时间轴); 跨天任务在
-    起始日到截止日所覆盖的每个分组各出现一次, 并携带剩余天数(days_left)
-    以在标题后标注「剩余N天」。已完成/已废弃任务保持原有按 ref 归档逻辑。
+    未完成任务: 单日任务在其开始日所在分区出现一次; 跨天任务的
+    「今天/未来」只展示最近一条——锚定在 max(开始日, 今天)(不超过截止日),
+    避免同一跨天任务在 今天/明天/未来两周 等分区各重复一条, 并携带剩余
+    天数(days_left)用于标题后标注「剩余N天」。已完成/已废弃任务保持原有
+    按 ref 归档逻辑。
 
     每项: {'display','section','section_label','days_left'}
     """
@@ -284,19 +287,10 @@ def _day_span_entries(t, status, now, ref=None):
     overall_due = t.end_time and t.end_time < now
     days_left = _count_remaining_workdays(today_date, end)
     is_cross = (start != end)
-    entries = []
-    # 每天映射分组; 按分组去重, 保证每个分组只出现一次
-    seen = set()
-    d = start
-    while d <= end:
+
+    def _entry_at(d):
         diff_days = (d - today_date).days
         section, section_label = _section_of_diff(diff_days)
-        if section in seen:
-            if len(seen) >= 8:  # 仅 8 个分组, 全部覆盖后无需继续展开
-                break
-            d += timedelta(days=1)
-            continue
-        seen.add(section)
         if diff_days == 0:
             section_label = '今天 · ' + d.strftime('%m月%d日')
         if overall_due:
@@ -307,14 +301,22 @@ def _day_span_entries(t, status, now, ref=None):
             display = 'future'
         else:
             display = 'past'
-        entries.append({'display': display, 'section': section,
-                        'section_label': section_label,
-                        'days_left': days_left if is_cross else None})
+        return {'display': display, 'section': section,
+                'section_label': section_label,
+                'days_left': days_left if is_cross else None}
+
+    if is_cross:
+        # 跨天任务: 只展示最近一条(今天/未来取最早到达的那一天, 已结束则取截止日)
+        anchor = max(start, min(today_date, end))
+        return [_entry_at(anchor)]
+    entries = []
+    # 单日任务: 开始日唯一分区, 直接输出
+    d = start
+    while d <= end:
+        entries.append(_entry_at(d))
         d += timedelta(days=1)
     if not entries:
-        section, section_label = _section_of_diff((start - today_date).days)
-        return [{'display': 'today', 'section': section,
-                 'section_label': section_label, 'days_left': days_left if is_cross else None}]
+        return [_entry_at(start)]
     return entries
 
 
@@ -397,6 +399,13 @@ def api_tasks_timeline():
     for aa in TaskAssignment.query.filter(
             TaskAssignment.task_id.in_(task_ids)).all():
         assignee_map.setdefault(aa.task_id, []).append(aa.user_id)
+    # 周期系列精简: 时间轴只展示「当前」一期——系列内存在更早未完成的一期时,
+    # 其后各期隐藏(完成当前一期后, 下一期自动浮现)
+    series_status = {}
+    for _t in tasks:
+        _sa = assigns.get(_t.id)
+        series_status[_t.id] = _sa.status if _sa else 'pending'
+    recurring_hidden = series_hidden_ids(tasks, series_status)
     out = []
     all_categories = {}
     cat_key = lambda t: (t.category or '').strip() or '未分类'
@@ -405,6 +414,8 @@ def api_tasks_timeline():
     for t in tasks:
         a = assigns.get(t.id)
         status = a.status if a else 'pending'
+        if t.id in recurring_hidden:
+            continue  # 周期系列后续一期: 当前一期未完成, 本例不展示
         now = cn_now()
         # 归类基准: 已完成按完成时间归档; 未完成按开始时间(自开始起加入时间轴)
         done = status in ('completed', 'approved')
@@ -539,6 +550,10 @@ def api_tasks_calendar():
         status_by_task = {a.task_id: a.status for a in srows}
         done_at_by_task = {a.task_id: a.completed_at for a in srows
                            if a.completed_at and start <= a.completed_at <= end}
+    # 周期系列精简: 日历方块只计「当前」一期, 后续各期不落点(完成当前一期后
+    # 下一期自动浮现)。注: 以当月范围内任务为准(跨月系列为尽力而为)
+    series_status = {t.id: status_by_task.get(t.id, 'pending') for t in tasks}
+    recurring_hidden = series_hidden_ids(tasks, series_status)
     density = {}
     items = {}
     month_start_date = start.date()
@@ -548,6 +563,8 @@ def api_tasks_calendar():
         done = st in ('completed', 'approved')
         if done and not show_completed:
             continue
+        if t.id in recurring_hidden:
+            continue  # 周期系列后续一期: 当前一期未完成, 方块中不落点
         # 跨天任务: 记录横线跨度(按开始日期分组)。独立于归档(ref)过滤,
         # 覆盖当月任意一天的跨天任务都要落线(含跨月尚未结束/跨月起始的任务)
         if not done and t.start_time and t.end_time \

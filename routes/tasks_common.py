@@ -26,7 +26,65 @@ from flask_login import current_user
 from sqlalchemy import func
 from werkzeug.utils import secure_filename
 import os
+import re
 from datetime import date, datetime, timedelta
+
+# 周期系列标题模式: 等间隔展开标题为「基础 (第N期/共M期)」
+REC_TITLE_PAT = re.compile(r'^(.*?)\s*\(第(\d+)期/共(\d+)期\)$')
+
+
+def recurring_series_key(task):
+    """周期系列标识: 标题形如「基础 (第N期/共M期)」→ (creator_id, 基础, M);
+    非周期任务返回 None."""
+    if task is None or not getattr(task, 'title', None):
+        return None
+    m = REC_TITLE_PAT.match((task.title or '').strip())
+    if not m:
+        return None
+    try:
+        return (task.creator_id, m.group(1), int(m.group(3)))
+    except (TypeError, ValueError):
+        return None
+
+
+def series_hidden_ids(tasks, status_of):
+    """周期系列「只展示当前一期」: 从系列内最早未完成一期末完成(pending/rejected)
+    起, 其后各期全部隐藏; 无未完成则全部照常显示。完成当前一期后, 下一期自动浮现。
+
+    tasks: 带 .id/.title/.creator_id/.start_time 的对象列表;
+    status_of: {task_id: 状态串}。"""
+    groups = {}
+    for t in tasks or []:
+        k = recurring_series_key(t)
+        if k is not None:
+            groups.setdefault(k, []).append(t)
+    hidden = set()
+    for members in groups.values():
+        members.sort(key=lambda x: (x.start_time or datetime.max, x.id))
+        earlier_unfinished = False
+        for t in members:
+            if earlier_unfinished:
+                hidden.add(t.id)
+            if status_of.get(t.id) in ('pending', 'rejected'):
+                earlier_unfinished = True
+    return hidden
+
+
+def series_dedupe_count(items):
+    """待办统计「周期只算一个」: 周期系列按一个计, 其余逐条计。
+    items 元素需带 .task 属性. 返回去重后的计数."""
+    seen = set()
+    n = 0
+    for it in items or []:
+        tk = getattr(it, 'task', None)
+        k = recurring_series_key(tk) if tk is not None else None
+        if k is None:
+            k = ('__solo__', getattr(tk, 'id', None) or id(it))
+        if k in seen:
+            continue
+        seen.add(k)
+        n += 1
+    return n
 
 """tasks 路由共享的纯函数, 自 routes_tasks.py 拆分。"""
 def _similar_blocked_by_assignee(similar, assignee_ids, group_ids, is_all):

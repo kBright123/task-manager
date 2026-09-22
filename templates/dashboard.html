@@ -203,7 +203,7 @@
   <a href="{{ url_for('user_tasks') }}" class="stat-card card-lift" style="background:linear-gradient(135deg,#007a33,#006633);padding:14px 18px;text-decoration:none;">
     <div class="d-flex justify-content-between align-items-center">
       <div>
-        <div class="stat-num" style="font-size:1.5rem;">{{ all_pending|length }}</div>
+        <div class="stat-num" style="font-size:1.5rem;">{{ pending_count }}</div>
         <div class="stat-label">待办</div>
         <div class="stat-trend">较前日{% if tasks_delta > 0 %}<span class="trend-pill up">↑ {{ tasks_delta }}</span>{% elif tasks_delta < 0 %}<span class="trend-pill down">↓ {{ -tasks_delta }}</span>{% else %}<span class="trend-pill flat">—</span>{% endif %}</div>
       </div>

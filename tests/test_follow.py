@@ -308,8 +308,8 @@ def test_timeline_two_weeks_split(client):
 
 def test_history_toggle_hides_past_and_cross_day(client):
     """默认(「历史待办」未勾选)不展示过去时间节点的待办(过去两周/更早);
-    勾选(show_history=1)后才展示; 跨多时间点的未完成任务只从今天起展示,
-    不落入过去的日期分组."""
+    勾选(show_history=1)后才展示过去单日; 跨多时间点的未完成任务按「最近一条」
+    只锚定在 max(开始日, 今天), 不落入过去的日期分组也不在未来分区重复."""
     from app import app, db, cn_now
     from core.models import Task, TaskAssignment
     tag = _mk('历史')
@@ -342,7 +342,7 @@ def test_history_toggle_hides_past_and_cross_day(client):
             db.session.add(TaskAssignment(task_id=ct.id, user_id=1))
             tid_cross = ct.id
             db.session.commit()
-        # 默认: 过去单日(逾期)不展示; 跨天未完成仅今天起展示, 不落过去节点
+        # 默认: 过去单日(逾期)不展示; 跨天未完成锚定今天展示一条, 不落过去节点
         ids = {t['id'] for t in
                client.get('/api/tasks/timeline').get_json()['tasks']}
         assert tid_past not in ids, '默认不应展示过去时间节点的待办'
@@ -355,13 +355,15 @@ def test_history_toggle_hides_past_and_cross_day(client):
                    for t in cross), cross
         assert not any(t['section'] in ('past', 'past_week')
                        for t in cross), cross
-        # 勾选「历史待办」: 过去单日与跨天任务的过去节点恢复展示
+        assert len(cross) == 1, '跨天任务只应展示最近一条'
+        assert cross[0]['section'] == 'today', cross
+        # 勾选「历史待办」: 过去单日恢复展示; 跨天未完成仍按「最近一条」锚定今天
         h = client.get('/api/tasks/timeline?show_history=1').get_json()
         h_ids = {t['id'] for t in h['tasks']}
         assert tid_past in h_ids, '历史待办勾选后应展示过去时间节点的待办'
         cross_h = [t for t in h['tasks'] if t['id'] == tid_cross]
-        assert any(t['section'] in ('past', 'past_week') for t in cross_h), cross_h
-        assert any(t['section'] == 'today' for t in cross_h), cross_h
+        assert len(cross_h) == 1, cross_h
+        assert cross_h[0]['section'] == 'today', cross_h
     finally:
         with app.app_context():
             for t in Task.query.filter(Task.title.like(tag + '%')).all():

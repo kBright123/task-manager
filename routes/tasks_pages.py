@@ -36,7 +36,7 @@ from datetime import date, datetime, timedelta
 
 """tasks 页面路由(/user/*), 自 routes_tasks.py 拆分, endpoint 名称不变。"""
 # 跨页面/API 共用的纯函数(拆分自 routes_tasks.py)
-from routes.tasks_common import _build_task_stats, _similar_blocked_by_assignee
+from routes.tasks_common import _build_task_stats, _similar_blocked_by_assignee, series_dedupe_count
 
 @app.route('/user/tasks/batch_delete', methods=['POST'])
 @login_required
@@ -135,6 +135,8 @@ def user_dashboard():
     week_tasks = [a for a in pending_assigns
                   if week_start <= a.task.end_time <= week_end]
     all_pending = pending_assigns
+    # 待办方块「周期只算一个」: 周期系列按一个计, 其余逐条计
+    pending_count = series_dedupe_count(pending_assigns)
 
     recent = TaskAssignment.query.join(Task).filter(
         TaskAssignment.user_id == current_user.id,
@@ -229,6 +231,7 @@ def user_dashboard():
                            recent=recent,
                            today_tasks=today_tasks, week_tasks=week_tasks,
                            all_pending=all_pending,
+                           pending_count=pending_count,
                            now=now,
                            is_admin=current_user.role == 'admin',
                            users=get_same_group_users(current_user),

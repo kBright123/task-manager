@@ -712,6 +712,7 @@ def admin_edit_task(task_id):
     try:
         task.title = title
         task.category = category
+        task.is_followed = bool(request.form.get('is_followed'))
         if start_str:
             task.start_time = datetime.strptime(start_str.replace('T', ' '), '%Y-%m-%d %H:%M')
         if end_str:

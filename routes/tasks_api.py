@@ -1142,6 +1142,7 @@ def api_task_detail(task_id):
             'end_dt': (task.end_time.strftime('%Y-%m-%dT%H:%M')
                        if task.end_time else ''),
             'is_all': task.is_all,
+            'is_followed': bool(task.is_followed),
             'creator': task.creator.name or task.creator.username,
             'creator_id': task.creator_id,
             'created_at': task.created_at.strftime('%Y-%m-%d %H:%M')
@@ -1202,6 +1203,8 @@ def api_task_edit(task_id):
     task.end_time = end
     if 'description' in data:
         task.description = (data.get('description') or '').strip()
+    if 'is_followed' in data:
+        task.is_followed = bool(data.get('is_followed'))
     # 修改任务状态(通过编辑面板)
     new_status = (data.get('status') or '').strip()
     if new_status in ('pending', 'completed', 'abandoned'):

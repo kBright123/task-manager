@@ -19,13 +19,19 @@
         <div class="modal-body" style="font-size:.85rem;max-height:72vh;overflow-y:auto;padding:10px 14px;">
           <div id="qtParserWarn" class="d-none" style="background:#FFF7E0;border:1px solid #F0D48A;color:#8A6D1A;border-radius:6px;padding:4px 8px;font-size:.72rem;margin-bottom:6px;"><i class="bi bi-exclamation-triangle"></i> 时间未能智能识别（已按旧规则解析），请手动核对开始/截止时间。</div><div id="qtDupWarn" class="mb-1"></div>
           <div class="row g-2 mb-1">
-            <div class="col">
-              <label class="form-label mb-0" style="font-size:.78rem;">标题</label>
-              <input type="text" id="qtTitle" class="form-control form-control-sm" maxlength="200" style="font-size:.85rem;padding:4px 8px;">
+            <div class="col-sm-8">
+              <div class="d-flex justify-content-between align-items-center mb-0">
+                <label class="form-label mb-0" style="font-size:.78rem;">标题</label>
+                <label class="form-check" style="font-size:.78rem;cursor:pointer;margin:0;display:flex;align-items:center;gap:6px;">
+                  <input type="checkbox" class="form-check-input" id="qtFollowed" style="margin-top:0;">
+                  <i class="bi bi-star-fill" style="color:var(--warning);"></i> 移入「关注」
+                </label>
+              </div>
+              <input type="text" id="qtTitle" class="form-control form-control-sm" maxlength="200" style="font-size:.85rem;padding:5px 9px;">
             </div>
-            <div class="col-auto">
+            <div class="col-sm-4">
               <label class="form-label mb-0" style="font-size:.78rem;">分类</label>
-              <select id="qtCategory" class="form-select form-control-sm" style="font-size:.85rem;width:100px;padding:4px 6px;">
+              <select id="qtCategory" class="form-select form-control-sm" style="font-size:.85rem;width:100%;padding:5px 9px;">
                 <option value="工作">工作</option>
                 <option value="个人">个人</option>
                 <option value="会议">会议</option>
@@ -34,31 +40,14 @@
               </select>
             </div>
           </div>
-          <div class="row g-2 mb-1" id="qtTimesRow">
-            <div class="col-6">
-              <label class="form-label mb-0" style="font-size:.78rem;">开始时间</label>
-              <input type="datetime-local" id="qtStart" class="form-control form-control-sm" style="padding:4px 8px;">
-            </div>
-            <div class="col-6">
-              <label class="form-label mb-0" style="font-size:.78rem;">截止时间</label>
-              <input type="datetime-local" id="qtEnd" class="form-control form-control-sm" style="padding:4px 8px;">
-            </div>
-          </div>
-          <div id="qtSessionsBox" class="mb-1 d-none">
+          <div class="mb-1">
             <div class="d-flex gap-1" style="font-size:.72rem;color:var(--gray-600);"><span style="width:76px;flex-shrink:0;">场次名</span><span style="flex:1.15;">开始时间</span><span style="flex:1.15;">截止时间</span><span style="width:56px;flex-shrink:0;"></span></div>
             <div id="qtSessionRows"></div>
           </div>
           <div class="mb-1">
-            <label class="form-check" style="font-size:.78rem;cursor:pointer;margin:0;">
-              <input type="checkbox" class="form-check-input" id="qtFollowed" style="margin-top:2px;">
-              <i class="bi bi-star-fill" style="color:var(--warning);"></i> 关注（移入顶部「关注」节点）
-            </label>
-          </div>
-          <div class="row g-2 mb-1">
-            <div class="col">
-              <label class="form-label mb-0" style="font-size:.78rem;">周期</label>
-              <div class="d-flex align-items-center gap-2">
-                <select id="qtRecurrenceSelect" class="form-select form-control-sm" style="font-size:.82rem;width:130px;flex-shrink:0;padding:4px 6px;" onchange="qtUpdateRecurrence()">
+            <label class="form-label mb-0" style="font-size:.78rem;">周期</label>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <select id="qtRecurrenceSelect" class="form-select form-control-sm" style="font-size:.82rem;width:130px;flex-shrink:0;padding:5px 9px;" onchange="qtUpdateRecurrence()">
                   <option value="" data-count="0" data-interval="0">不重复</option>
                   <option value="weekly" data-count="4" data-interval="7">每周（4期）</option>
                   <option value="monthly" data-count="3" data-interval="30">每月（3期）</option>
@@ -72,28 +61,42 @@
                 <span id="qtRecurrenceHint" class="text-info" style="font-size:.75rem;"></span>
               </div>
             </div>
-            {% if user_groups %}
-            <div class="col-6" id="qtGroupWrap">
-              <label class="form-label mb-0" style="font-size:.78rem;">按群组分配</label>
-              <div class="d-flex flex-wrap gap-2" id="qtGroupBox" style="border:1px solid var(--gray-200);border-radius:6px;padding:4px 6px;background:var(--gray-50);">
-                {% for g in user_groups %}
-                <label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:2px;">
-                  <input type="checkbox" class="form-check-input qt-group" value="{{ g.id }}"> {{ g.name }} <small style="color:var(--gray-400);font-size:.68rem;">({{ g.members|length }}人)</small>
-                </label>
-                {% endfor %}
+          <div class="row g-2 mb-1">
+            <div class="{% if user_groups %}col-sm-6{% endif %}">
+              <div class="mb-1">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <span style="font-size:.78rem;color:var(--gray-700);flex-shrink:0;">分配人员</span>
+                  <input type="text" id="qtAssigneeSearch" class="form-control form-control-sm" placeholder="输入 @ 姓名 快速筛选负责人..." style="font-size:.78rem;padding:2px 8px;flex:1;max-width:250px;margin-left:auto;" oninput="qtFilterAssignees(this.value)">
+                </div>
+                <div class="d-flex flex-wrap gap-1 align-items-start">
+                {% if is_admin %}
+                  <label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin:0;border:1px solid var(--gray-200);border-radius:6px;padding:4px 6px;background:var(--gray-50);flex-shrink:0;display:flex;align-items:center;gap:4px;">
+                    <input type="checkbox" class="form-check-input" id="qtAll" style="margin-top:0;"> @所有人
+                  </label>
+                {% endif %}
+                  <div id="qtAssignBox" class="d-flex flex-wrap gap-1" style="border:1px solid var(--gray-200);border-radius:6px;padding:4px 6px;background:var(--gray-50);flex:1;min-width:0;"></div>
+                  <div id="qtAssignEmpty" class="d-none" style="font-size:.72rem;color:var(--gray-400);padding:3px;">无匹配人员</div>
+                </div>
               </div>
             </div>
-            {% endif %}
-          </div>
-          <div class="mb-1">
-            <div class="d-flex justify-content-between align-items-center mb-0">
-              <label class="form-label" style="font-size:.78rem;margin:0;">分配人员{% if is_admin %}<span class="ms-2 form-check-label" style="font-size:.78rem;cursor:pointer;"><input type="checkbox" class="form-check-input" id="qtAll" style="margin-right:4px;"> @所有人</span>{% endif %}</label>
+            {% if user_groups %}
+            <div class="col-sm-6">
+              <div class="mb-1" id="qtGroupWrap">
+                <label class="form-label mb-0" style="font-size:.78rem;">按群组分配</label>
+                <div class="d-flex flex-wrap gap-2" style="border:1px solid var(--gray-200);border-radius:6px;padding:4px 6px;background:var(--gray-50);">
+                  {% for g in user_groups %}
+              <label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:2px;">
+                <input type="checkbox" class="form-check-input qt-group" value="{{ g.id }}"> {{ g.name }} <small style="color:var(--gray-400);font-size:.68rem;">({{ g.members|length }}人)</small>
+              </label>
+              {% endfor %}
             </div>
-            <div id="qtAssignBox" class="d-flex flex-wrap gap-1" style="border:1px solid var(--gray-200);border-radius:6px;padding:4px 6px;background:var(--gray-50);"></div>
+            </div>
+          </div>
+          {% endif %}
           </div>
           <div class="mb-0">
             <label class="form-label mb-0" style="font-size:.78rem;">待办描述</label>
-            <textarea id="qtDesc" class="form-control form-control-sm" rows="2" style="font-size:.8rem;resize:none;overflow-y:auto;padding:4px 8px;" oninput="autoGrowDesc(this)" onfocus="autoGrowDesc(this)"></textarea>
+            <textarea id="qtDesc" class="form-control form-control-sm" rows="4" style="font-size:.85rem;resize:none;overflow-y:auto;max-height:150px;padding:5px 9px;" oninput="autoGrowDesc(this)" onfocus="autoGrowDesc(this)"></textarea>
           </div>
         </div>
         <div class="modal-footer py-2 px-3"><span class="text-muted" id="qtErr2" style="font-size:.75rem;"></span><button class="btn btn-sm btn-outline-secondary" onclick="quickTaskBack()"><i class="bi bi-arrow-left"></i> 返回</button><button class="btn btn-sm btn-primary" onclick="quickTask()"><i class="bi bi-check"></i> 确认发布</button></div>
@@ -102,9 +105,10 @@
   </div>
 </div>
 <script>
-function qtBuildAssignees(ids){var box=document.getElementById('qtAssignBox');var self=window.qtSelfId;if(!box)return;var isAll=document.getElementById('qtAll')?document.getElementById('qtAll').checked:false;box.innerHTML=window.qtUsers.filter(function(u){return u.id>0;}).map(function(u){var checked=isAll||ids.indexOf(u.id)>-1;var selfOnly=(u.id===self);return'<label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:4px;">'+'<input type="checkbox" class="form-check-input qt-assignee" value="'+u.id+'"'+(checked?' checked':'')+' style="margin-top:2px;"> '+(u.name)+(selfOnly?' <small style="color:var(--gray-400);font-size:.68rem;">(自己)</small>':'')+'</label>';}).join('');}
+function qtBuildAssignees(ids){var box=document.getElementById('qtAssignBox');var self=window.qtSelfId;if(!box)return;var isAll=document.getElementById('qtAll')?document.getElementById('qtAll').checked:false;box.innerHTML=window.qtUsers.filter(function(u){return u.id>0;}).map(function(u){var checked=isAll||ids.indexOf(u.id)>-1;var selfOnly=(u.id===self);return'<label class="form-check form-check-inline" data-search="'+(((u.keyword||'')+' '+(u.uname||'')).toLowerCase())+'" style="font-size:.78rem;cursor:pointer;margin-right:4px;">'+'<input type="checkbox" class="form-check-input qt-assignee" value="'+u.id+'"'+(checked?' checked':'')+' style="margin-top:2px;"> '+(u.name)+(selfOnly?' <small style="color:var(--gray-400);font-size:.68rem;">(自己)</small>':'')+'</label>';}).join('');var sf=document.getElementById('qtAssigneeSearch');if(sf)qtFilterAssignees(sf.value);}
+function qtFilterAssignees(v){var f=(v||'').trim().toLowerCase().replace(/^@/,'');var shown=0;document.querySelectorAll('#qtAssignBox .form-check').forEach(function(c){var on=!f||(c.getAttribute('data-search')||'').indexOf(f)>-1;c.style.display=on?'':'none';if(on)shown++;});var e=document.getElementById('qtAssignEmpty');if(e)e.classList.toggle('d-none',shown>0);}
 (function(){var allBox=document.getElementById('qtAll');if(allBox){allBox.addEventListener('change',function(){qtBuildAssignees([]);});}var ab=document.getElementById('qtAssignBox');if(ab&&allBox){ab.addEventListener('change',function(e){if(e.target.classList.contains('qt-assignee')&&allBox.checked)allBox.checked=false;});}})();
-function autoGrowDesc(el){if(!el)return;el.style.height='auto';el.style.height=Math.min(el.scrollHeight,72)+'px';}
+function autoGrowDesc(el){if(!el)return;el.style.height='auto';el.style.height=Math.min(el.scrollHeight,150)+'px';}
 function quickTask(){var title=document.getElementById('qtTitle').value.trim();var err2=document.getElementById('qtErr2');if(title.length<2){err2.textContent='待办标题至少2个字';return;}var rows=document.querySelectorAll('#qtSessionRows .qt-sess-row');if(!rows.length){err2.textContent='请至少保留一场';return;}for(var si=0;si<rows.length;si++){var r=rows[si];var ss=r.querySelector('.qt-ss').value;var ee=r.querySelector('.qt-se').value;if(!ss||!ee){err2.textContent='第'+(si+1)+'场：请填写开始与截止时间';return;}if(ss>ee){err2.textContent='第'+(si+1)+'场：截止时间需晚于开始时间';return;}}var sess=qtGetSessions();var is_all=document.getElementById('qtAll')?document.getElementById('qtAll').checked:false;var ids=[];if(!is_all){document.querySelectorAll('.qt-assignee:checked').forEach(function(c){ids.push(parseInt(c.value));});}var gids=[];document.querySelectorAll('.qt-group:checked').forEach(function(c){gids.push(parseInt(c.value));});if(!is_all&&ids.length===0&&gids.length===0){err2.textContent='请至少选择一位负责人';return;}var re=(window.qtRec&&window.qtRec.interval)||0;var rc=(window.qtRec&&window.qtRec.count)||0;var f=sess[0];var body={title:title,start_time:f.start_time,end_time:f.end_time,category:document.getElementById('qtCategory').value,description:document.getElementById('qtDesc').value,assignee_ids:ids,group_ids:gids,is_all:is_all,recurrence_interval_days:re,recurrence_count:rc,sessions:sess,followed:document.getElementById('qtFollowed')?document.getElementById('qtFollowed').checked:false};var btn=event.target.closest('button');if(btn){btn.disabled=true;}fetch('/api/quick-task',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json();}).then(function(d){if(d.ok){location.href='/user/tasks?new='+d.task_id;}else{err2.textContent=d.error||'创建失败';}}).catch(function(){err2.textContent='创建失败，请重试';}).finally(function(){if(btn)btn.disabled=false;});}
 function qtUpdateRecurrence(){var sel=document.getElementById('qtRecurrenceSelect');var opt=sel.options[sel.selectedIndex];var custom=document.getElementById('qtRecurrenceCustom');var hint=document.getElementById('qtRecurrenceHint');var rec=window.qtRec;if(opt.value==='custom'){custom.classList.remove('d-none');if(rec){rec.mode='';rec.interval=0;rec.count=0;hint.textContent='';}return;}custom.classList.add('d-none');if(!rec)rec=window.qtRec={};rec.mode=opt.value;rec.interval=parseInt(opt.dataset.interval)||0;rec.count=parseInt(opt.dataset.count)||0;hint.innerHTML=opt.value?('<i class="bi bi-arrow-repeat"></i> '+opt.text):'';}
 function qtApplyCustomRecurrence(){var interval=parseInt(document.getElementById('qtCustomInterval').value)||7;var count=parseInt(document.getElementById('qtCustomCount').value)||3;if(count<1)count=1;window.qtRec.mode='custom';window.qtRec.interval=interval;window.qtRec.count=count;document.getElementById('qtRecurrenceHint').innerHTML='<i class="bi bi-arrow-repeat"></i> 每'+interval+'天，共'+count+'期';}
@@ -113,12 +117,11 @@ function qtRenderSessions(list){var rows=list&&list.length?list:[{label:'-',star
 function qtAddSessionRow(){var box=document.getElementById('qtSessionRows');var rows=box.querySelectorAll('.qt-sess-row');var last=rows[rows.length-1];var ss='',ee='';if(last){ss=last.querySelector('.qt-ss').value;ee=last.querySelector('.qt-se').value;}box.insertAdjacentHTML('beforeend',qtSessRowHtml('第'+(rows.length+1)+'期',ss,ee));}
 function qtSessionsActive(){var sb=document.getElementById('qtSessionsBox');return sb&&!sb.classList.contains('d-none');}
 function qtGetSessions(){var out=[];document.querySelectorAll('#qtSessionRows .qt-sess-row').forEach(function(r){var lbl=r.querySelector('.qt-sl').value.trim();var ss=r.querySelector('.qt-ss').value;var ee=r.querySelector('.qt-se').value;if(ss&&ee)out.push({label:lbl,start_time:ss,end_time:ee});});return out;}
-function quickTaskParse(){var text=document.getElementById('qtText').value.trim();if(text.length<2){document.getElementById('qtErr').textContent='请至少输入2个字';return;}var errEl=document.getElementById('qtErr');errEl.textContent='解析中...';fetchJSON('/api/quick-task/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text})}).then(function(d){if(!d.ok){errEl.textContent=(d.not_ready?'⏳ ':'')+(d.error||'解析失败');return;}document.getElementById('qtTitle').value=d.title;var pw=document.getElementById('qtParserWarn');if(pw){if(d.time_parser==='legacy'){pw.classList.remove('d-none');}else{pw.classList.add('d-none');}}document.getElementById('qtStart').value=d.start_time;document.getElementById('qtEnd').value=d.end_time;document.getElementById('qtCategory').value=d.category;document.getElementById('qtDesc').value=d.description;autoGrowDesc(document.getElementById('qtDesc'));window.qtRec={mode:'',interval:d.recurrence_interval_days||0,count:d.recurrence_count||0};var sel=document.getElementById('qtRecurrenceSelect');var hint=document.getElementById('qtRecurrenceHint');var matched=false;if(sel&&hint&&sel.options){for(var i=0;i<sel.options.length;i++){var o=sel.options[i];if(o.value&&o.value!=='custom'&&parseInt(o.dataset.interval)===window.qtRec.interval&&parseInt(o.dataset.count)===window.qtRec.count){sel.selectedIndex=i;hint.innerHTML='<i class="bi bi-arrow-repeat"></i> '+o.text;matched=true;break;}}if(!matched){if(window.qtRec.interval&&window.qtRec.count>0){sel.value='custom';var cint=document.getElementById('qtCustomInterval'),ccnt=document.getElementById('qtCustomCount'),cwrap=document.getElementById('qtRecurrenceCustom');if(cint)cint.value=window.qtRec.interval;if(ccnt)ccnt.value=window.qtRec.count;if(cwrap)cwrap.classList.remove('d-none');hint.innerHTML='<i class="bi bi-arrow-repeat"></i> 每'+window.qtRec.interval+'天，共'+window.qtRec.count+'期';}else{sel.value='';hint.textContent='';}}}document.getElementById('qtDupWarn').innerHTML='';var a=document.getElementById('qtAll');if(a){a.checked=!!d.is_all;}qtBuildAssignees(d.assignee_ids);var _sb=document.getElementById('qtSessionsBox'),_tr=document.getElementById('qtTimesRow');if(_sb){_sb.classList.remove('d-none');}if(_tr){_tr.classList.add('d-none');}qtRenderSessions(d.sessions&&d.sessions.length?d.sessions:[{label:'-',start_time:d.start_time||'',end_time:d.end_time||''}]);document.getElementById('qtStepInput').style.display='none';document.getElementById('qtStepReview').style.display='';}).catch(function(){errEl.textContent='解析失败';});}
-function quickTaskBack(){var pw=document.getElementById('qtParserWarn');if(pw)pw.classList.add('d-none');var _sb=document.getElementById('qtSessionsBox'),_tr=document.getElementById('qtTimesRow');if(_sb)_sb.classList.add('d-none');if(_tr)_tr.classList.remove('d-none');document.getElementById('qtStepReview').style.display='none';document.getElementById('qtStepInput').style.display='';document.getElementById('qtErr').textContent='';}
+function quickTaskParse(){var text=document.getElementById('qtText').value.trim();if(text.length<2){document.getElementById('qtErr').textContent='请至少输入2个字';return;}var errEl=document.getElementById('qtErr');errEl.textContent='解析中...';fetchJSON('/api/quick-task/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text})}).then(function(d){if(!d.ok){errEl.textContent=(d.not_ready?'⏳ ':'')+(d.error||'解析失败');return;}document.getElementById('qtTitle').value=d.title;var pw=document.getElementById('qtParserWarn');if(pw){if(d.time_parser==='legacy'){pw.classList.remove('d-none');}else{pw.classList.add('d-none');}}document.getElementById('qtCategory').value=d.category;document.getElementById('qtDesc').value=d.description;autoGrowDesc(document.getElementById('qtDesc'));window.qtRec={mode:'',interval:d.recurrence_interval_days||0,count:d.recurrence_count||0};var sel=document.getElementById('qtRecurrenceSelect');var hint=document.getElementById('qtRecurrenceHint');var matched=false;if(sel&&hint&&sel.options){for(var i=0;i<sel.options.length;i++){var o=sel.options[i];if(o.value&&o.value!=='custom'&&parseInt(o.dataset.interval)===window.qtRec.interval&&parseInt(o.dataset.count)===window.qtRec.count){sel.selectedIndex=i;hint.innerHTML='<i class="bi bi-arrow-repeat"></i> '+o.text;matched=true;break;}}if(!matched){if(window.qtRec.interval&&window.qtRec.count>0){sel.value='custom';var cint=document.getElementById('qtCustomInterval'),ccnt=document.getElementById('qtCustomCount'),cwrap=document.getElementById('qtRecurrenceCustom');if(cint)cint.value=window.qtRec.interval;if(ccnt)ccnt.value=window.qtRec.count;if(cwrap)cwrap.classList.remove('d-none');hint.innerHTML='<i class="bi bi-arrow-repeat"></i> 每'+window.qtRec.interval+'天，共'+window.qtRec.count+'期';}else{sel.value='';hint.textContent='';}}}document.getElementById('qtDupWarn').innerHTML='';var a=document.getElementById('qtAll');if(a){a.checked=!!d.is_all;}qtBuildAssignees(d.assignee_ids);qtRenderSessions(d.sessions&&d.sessions.length?d.sessions:[{label:'-',start_time:d.start_time||'',end_time:d.end_time||''}]);document.getElementById('qtStepInput').style.display='none';document.getElementById('qtStepReview').style.display='';}).catch(function(){errEl.textContent='解析失败';});}
+function quickTaskBack(){var pw=document.getElementById('qtParserWarn');if(pw)pw.classList.add('d-none');document.getElementById('qtStepReview').style.display='none';document.getElementById('qtStepInput').style.display='';document.getElementById('qtErr').textContent='';}
 (function(){window.qtUsers=[{id:0,name:'所有人',keyword:'@所有人'},{id:{{ current_user.id }},name:'{{ current_user.name or current_user.username }}',keyword:'{{ current_user.name or current_user.username }}'{% if current_user.name %},uname:'{{ current_user.username }}'{% endif %}},{% for u in users %}{% if u.id != current_user.id %}{id:{{ u.id }},name:'{{ u.name or u.username }}',keyword:'{{ u.name or u.username }}'{% if u.name %},uname:'{{ u.username }}'{% endif %}},{% endif %}{% endfor %}];window.qtSelfId={{ current_user.id }};var ta=document.getElementById('qtText');if(!ta)return;var dd=document.getElementById('qtMentionDropdown');if(!dd)return;var atPos=-1,filter='';function updateDropdown(){if(atPos<0){dd.style.display='none';return;}var f=filter.toLowerCase();var items=window.qtUsers.filter(function(u){return u.keyword.toLowerCase().includes(f)||(u.uname&&u.uname.includes(f));});if(!items.length){dd.style.display='none';return;}dd.innerHTML=items.map(function(u,i){var label=u.name;if(u.uname)label+=' <small style="color:var(--gray-400)">@'+u.uname+'</small>';return'<div class="qt-mention-item" data-idx="'+i+'" style="padding:6px 12px;cursor:pointer;font-size:.82rem;'+(i===0?'background:var(--gray-50);':'')+'">'+label+'</div>';}).join('');dd.style.display='block';var rect=ta.getBoundingClientRect();var spaceBelow=window.innerHeight-rect.bottom;var ddHeight=Math.min(180,items.length*32+10);dd.style.top=spaceBelow<ddHeight+10?'auto':'100%';dd.style.bottom=spaceBelow<ddHeight+10?(rect.height+4+'px'):'auto';dd.style.marginTop=spaceBelow<ddHeight+10?'0':'2px';dd.querySelectorAll('.qt-mention-item').forEach(function(el){el.onclick=function(){var idx=parseInt(el.dataset.idx);insertMention(items[idx]);};el.onmouseenter=function(){dd.querySelectorAll('.qt-mention-item').forEach(function(e){e.style.background=''});el.style.background='var(--gray-50)';};});}
 function insertMention(u){var before=ta.value.substring(0,atPos);var after=ta.value.substring(ta.selectionEnd);var insert=u.id===0?'@所有人 ':'@'+u.keyword+' ';ta.value=before+insert+after;ta.focus();ta.selectionStart=ta.selectionEnd=atPos+insert.length;atPos=-1;filter='';dd.style.display='none';document.getElementById('qtErr').textContent='';}
 ta.addEventListener('input',function(){var pos=ta.selectionStart;var val=ta.value;var searchStart=Math.max(0,pos-20);var textBefore=val.substring(searchStart,pos);var idx=textBefore.lastIndexOf('@');if(idx>=0){var afterAt=textBefore.substring(idx+1);if(!afterAt.includes(' ')&&!afterAt.includes('\n')){atPos=searchStart+idx;filter=afterAt;updateDropdown();return;}}atPos=-1;dd.style.display='none';});
 ta.addEventListener('keydown',function(e){if(dd.style.display!=='block')return;if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();var items=dd.querySelectorAll('.qt-mention-item');var cur=dd.querySelector('.qt-mention-item[style*="var(--gray-50)"]');var idx=-1;if(cur)idx=Array.from(items).indexOf(cur);if(e.key==='ArrowDown')idx=Math.min(idx+1,items.length-1);else idx=Math.max(idx-1,0);items.forEach(function(el){el.style.background=''});items[idx].style.background='var(--gray-50)';}else if(e.key==='Enter'&&atPos>=0){e.preventDefault();var items=dd.querySelectorAll('.qt-mention-item');var cur=dd.querySelector('.qt-mention-item[style*="var(--gray-50)"]');if(cur){cur.click();}}else if(e.key==='Escape'){dd.style.display='none';atPos=-1;}});
 ta.addEventListener('blur',function(){setTimeout(function(){dd.style.display='none';},200);});})();
-(function(){var s=document.getElementById('qtStart'),e=document.getElementById('qtEnd'),err=document.getElementById('qtErr2');if(!s||!e||!err)return;function orderOk(){if(s.value&&e.value&&s.value>e.value){err.textContent='结束时间需晚于开始时间';return false;}return true;}s.addEventListener('blur',function(){if(!s.value){err.textContent='请填写开始时间';}else if(e.value){orderOk();}});e.addEventListener('blur',function(){if(!e.value){err.textContent='请填写结束时间';}else{orderOk();}});s.addEventListener('input',orderOk);e.addEventListener('input',orderOk);})();
 </script>

@@ -1016,7 +1016,7 @@ activeUsers.push({{ {'id': u.id, 'name': (u.name or u.username), 'self': (u.id =
 function autoGrowDesc(el){
   if(!el) return;
   el.style.height='auto';
-  el.style.height=Math.min(el.scrollHeight, 72)+'px';
+  el.style.height=Math.min(el.scrollHeight, 150)+'px';
 }
 function openTaskEditModal(id){
   fetch('{{ url_for('api_task_detail', task_id=0) }}'.replace('/0','/' + id))
@@ -1037,6 +1037,8 @@ function openTaskEditModal(id){
       document.getElementById('editTaskEnd').value = t.end_dt || '';
       document.getElementById('editTaskDesc').value = t.description || '';
       autoGrowDesc(document.getElementById('editTaskDesc'));
+      var followedCb = document.getElementById('editTaskFollowed');
+      if (followedCb) followedCb.checked = !!t.is_followed;
       var canDelete = !!t.can_delete;
       var assignSection = document.getElementById('assignSection');
       if (assignSection) assignSection.style.display = canDelete ? '' : 'none';
@@ -1084,8 +1086,11 @@ function saveTaskEdit(){
     category: document.getElementById('editTaskCategory').value,
     start_time: document.getElementById('editTaskStart').value,
     end_time: document.getElementById('editTaskEnd').value,
-    description: document.getElementById('editTaskDesc').value
+    description: document.getElementById('editTaskDesc').value,
+    status: document.getElementById('editTaskStatus') ? document.getElementById('editTaskStatus').value : ''
   };
+  var followedCb = document.getElementById('editTaskFollowed');
+  if (followedCb) payload.is_followed = followedCb.checked;
   var doAssign = function () {
     var section = document.getElementById('assignSection');
     if (section && section.style.display === 'none') return Promise.resolve({ok: true, added: [], removed: []});
@@ -1226,13 +1231,19 @@ async function reopenTask(id){
       <div class="modal-body" style="font-size:.85rem;max-height:72vh;overflow-y:auto;padding:10px 14px;">
         <div id="tmDupWarn" class="mb-1"></div>
         <div class="row g-2 mb-1">
-          <div class="col">
-            <label class="form-label mb-0" style="font-size:.78rem;">标题</label>
-            <input type="text" id="tmTitle" class="form-control form-control-sm" maxlength="200" style="font-size:.85rem;padding:4px 8px;">
+          <div class="col-sm-8">
+            <div class="d-flex justify-content-between align-items-center mb-0">
+              <label class="form-label mb-0" style="font-size:.78rem;">标题</label>
+              <label class="form-check" style="font-size:.78rem;cursor:pointer;margin:0;display:flex;align-items:center;gap:6px;">
+                <input type="checkbox" class="form-check-input" id="tmFollowed" style="margin-top:0;">
+                <i class="bi bi-star-fill" style="color:var(--warning);"></i> 移入「关注」
+              </label>
+            </div>
+            <input type="text" id="tmTitle" class="form-control form-control-sm" maxlength="200" style="font-size:.85rem;padding:5px 9px;">
           </div>
-          <div class="col-auto">
+          <div class="col-sm-4">
             <label class="form-label mb-0" style="font-size:.78rem;">分类</label>
-            <select id="tmCategory" class="form-select form-control-sm" style="font-size:.85rem;width:100px;padding:4px 6px;">
+            <select id="tmCategory" class="form-select form-control-sm" style="font-size:.85rem;width:100%;padding:5px 9px;">
               <option value="工作">工作</option>
               <option value="个人">个人</option>
               <option value="会议">会议</option>
@@ -1241,25 +1252,14 @@ async function reopenTask(id){
             </select>
           </div>
         </div>
-        <div class="row g-2 mb-1" id="tmTimesRow">
-          <div class="col-6">
-            <label class="form-label mb-0" style="font-size:.78rem;">开始时间</label>
-            <input type="datetime-local" id="tmStart" class="form-control form-control-sm" style="padding:4px 8px;">
-          </div>
-          <div class="col-6">
-            <label class="form-label mb-0" style="font-size:.78rem;">截止时间</label>
-            <input type="datetime-local" id="tmEnd" class="form-control form-control-sm" style="padding:4px 8px;">
-          </div>
-        </div>
-        <div id="tmSessionsBox" class="mb-1 d-none">
+        <div class="mb-1">
           <div class="d-flex gap-1" style="font-size:.72rem;color:var(--gray-600);"><span style="width:76px;flex-shrink:0;">场次名</span><span style="flex:1.15;">开始时间</span><span style="flex:1.15;">截止时间</span><span style="width:56px;flex-shrink:0;"></span></div>
           <div id="tmSessionRows"></div>
         </div>
-        <div class="row g-2 mb-1">
-          <div class="col">
-            <label class="form-label mb-0" style="font-size:.78rem;">周期</label>
-            <div class="d-flex align-items-center gap-2">
-              <select id="tmRecurrenceSelect" class="form-select form-control-sm" style="font-size:.82rem;width:130px;flex-shrink:0;padding:4px 6px;" onchange="tmUpdateRecurrence()">
+        <div class="mb-1">
+          <label class="form-label mb-0" style="font-size:.78rem;">周期</label>
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+              <select id="tmRecurrenceSelect" class="form-select form-control-sm" style="font-size:.82rem;width:130px;flex-shrink:0;padding:5px 9px;" onchange="tmUpdateRecurrence()">
                 <option value="" data-count="0" data-interval="0">不重复</option>
                 <option value="weekly" data-count="4" data-interval="7">每周（4期）</option>
                 <option value="monthly" data-count="3" data-interval="30">每月（3期）</option>
@@ -1273,10 +1273,28 @@ async function reopenTask(id){
               <span id="tmRecurrenceHint" class="text-info" style="font-size:.75rem;"></span>
             </div>
           </div>
-        </div>
-        {% if user_groups %}
-        <div class="mb-1">
-          <label class="form-label mb-0" style="font-size:.78rem;">按群组分配</label>
+          <div class="row g-2 mb-1">
+          <div class="{% if user_groups %}col-sm-6{% endif %}">
+            <div class="mb-1">
+              <div class="d-flex align-items-center gap-2 mb-1">
+                <span style="font-size:.78rem;color:var(--gray-700);flex-shrink:0;">分配人员</span>
+                <input type="text" id="tmAssigneeSearch" class="form-control form-control-sm" placeholder="输入 @ 姓名 快速筛选负责人..." style="font-size:.78rem;padding:2px 8px;flex:1;max-width:250px;margin-left:auto;" oninput="tmFilterAssignees(this.value)">
+              </div>
+              <div class="d-flex flex-wrap gap-1 align-items-start">
+              {% if is_admin %}
+                <label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin:0;border:1px solid var(--gray-200);border-radius:6px;padding:4px 6px;background:var(--gray-50);flex-shrink:0;display:flex;align-items:center;gap:4px;">
+                  <input type="checkbox" class="form-check-input" id="tmAll" style="margin-top:0;"> @所有人
+                </label>
+              {% endif %}
+                <div id="tmAssignBox" class="d-flex flex-wrap gap-1" style="border:1px solid var(--gray-200);border-radius:6px;padding:4px 6px;background:var(--gray-50);flex:1;min-width:0;"></div>
+                <div id="tmAssignEmpty" class="d-none" style="font-size:.72rem;color:var(--gray-400);padding:3px;">无匹配人员</div>
+              </div>
+            </div>
+          </div>
+          {% if user_groups %}
+          <div class="col-sm-6">
+            <div class="mb-1">
+              <label class="form-label mb-0" style="font-size:.78rem;">按群组分配</label>
           <div class="d-flex flex-wrap gap-2" style="border:1px solid var(--gray-200);border-radius:6px;padding:4px 6px;background:var(--gray-50);">
             {% for g in user_groups %}
             <label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:2px;">
@@ -1284,17 +1302,13 @@ async function reopenTask(id){
             </label>
             {% endfor %}
           </div>
-        </div>
-        {% endif %}
-        <div class="mb-1">
-          <div class="d-flex justify-content-between align-items-center mb-0">
-            <label class="form-label" style="font-size:.78rem;margin:0;">分配人员{% if is_admin %}<span class="ms-2 form-check-label" style="font-size:.78rem;cursor:pointer;"><input type="checkbox" class="form-check-input" id="tmAll" style="margin-right:4px;"> @所有人</span>{% endif %}</label>
+            </div>
           </div>
-          <div id="tmAssignBox" class="d-flex flex-wrap gap-1" style="border:1px solid var(--gray-200);border-radius:6px;padding:4px 6px;background:var(--gray-50);"></div>
+          {% endif %}
         </div>
         <div class="mb-0">
           <label class="form-label mb-0" style="font-size:.78rem;">待办描述</label>
-          <textarea id="tmDesc" class="form-control form-control-sm" rows="2" style="font-size:.8rem;resize:none;overflow-y:auto;padding:4px 8px;" oninput="autoGrowDesc(this)" onfocus="autoGrowDesc(this)"></textarea>
+          <textarea id="tmDesc" class="form-control form-control-sm" rows="4" style="font-size:.85rem;resize:none;overflow-y:auto;max-height:150px;padding:5px 9px;" oninput="autoGrowDesc(this)" onfocus="autoGrowDesc(this)"></textarea>
         </div>
       </div>
       <div class="modal-footer py-2 px-3"><span class="text-muted" id="tmErr" style="font-size:.75rem;"></span><button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal"><i class="bi bi-x"></i> 取消</button><button type="button" class="btn btn-sm btn-primary" onclick="taskPublish(this)"><i class="bi bi-check"></i> 确认发布</button></div>
@@ -1313,11 +1327,24 @@ function tmBuildAssignees(ids){
   box.innerHTML=tmUsers.map(function(u){
     var checked=ids.indexOf(u.id)>=0;
     if(u.self) window.tmSelfId=u.id;
-    return '<label class="form-check form-check-inline" style="font-size:.78rem;cursor:pointer;margin-right:4px;">'+
+    return '<label class="form-check form-check-inline" data-search="'+(u.name||'').toLowerCase()+'" style="font-size:.78rem;cursor:pointer;margin-right:4px;">'+
       '<input type="checkbox" class="form-check-input tm-assignee" value="'+u.id+'"'+(checked?' checked':'')+'> '+
       (window.esc?window.esc(u.name):u.name)+(u.self?' <small style="color:var(--gray-400);font-size:.68rem;">(自己)</small>':'')+
       '</label>';
   }).join('');
+  var sf=document.getElementById('tmAssigneeSearch');
+  if(sf) tmFilterAssignees(sf.value);
+}
+function tmFilterAssignees(v){
+  var f=(v||'').trim().toLowerCase().replace(/^@/,'');
+  var shown=0;
+  document.querySelectorAll('#tmAssignBox .form-check').forEach(function(c){
+    var on=!f||(c.getAttribute('data-search')||'').indexOf(f)>-1;
+    c.style.display=on?'':'none';
+    if(on)shown++;
+  });
+  var e=document.getElementById('tmAssignEmpty');
+  if(e) e.classList.toggle('d-none',shown>0);
 }
 function taskParse(btn){
   var ta=document.getElementById('adminTaskText');
@@ -1338,16 +1365,11 @@ function taskParse(btn){
         return;
       }
       document.getElementById('tmTitle').value=d.title||'';
-      document.getElementById('tmStart').value=d.start_time||'';
-      document.getElementById('tmEnd').value=d.end_time||'';
-      var tsb=document.getElementById('tmSessionsBox'),ttr=document.getElementById('tmTimesRow');
-      var trows=d.sessions&&d.sessions.length?d.sessions:[{label:'-',start_time:d.start_time||'',end_time:d.end_time||''}];
-      tmRenderSessions(trows);
-      if(tsb)tsb.classList.remove('d-none');
-      if(ttr)ttr.classList.add('d-none');
       document.getElementById('tmCategory').value=d.category||'工作';
       document.getElementById('tmDesc').value=d.description||'';
       autoGrowDesc(document.getElementById('tmDesc'));
+      var trows=d.sessions&&d.sessions.length?d.sessions:[{label:'-',start_time:d.start_time||'',end_time:d.end_time||''}];
+      tmRenderSessions(trows);
       window.tmRec={mode:'',interval:d.recurrence_interval_days||0,count:d.recurrence_count||0};
       tmApplyRecurrenceToSelect();
       var dw=document.getElementById('tmDupWarn');
@@ -1460,7 +1482,8 @@ function taskPublish(btn){
     assign_self:assign_self,
     recurrence_interval_days:rec.interval||0,
     recurrence_count:rec.count||0,
-    sessions:sess
+    sessions:sess,
+    followed:document.getElementById('tmFollowed')?document.getElementById('tmFollowed').checked:false
   };
   if(btn){btn.disabled=true;}
   fetch('/api/quick-task',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
@@ -1468,7 +1491,7 @@ function taskPublish(btn){
       if(d.ok){
         if(window.toast)toast((d.created&&d.created.length>1)?('周期待办创建成功，共 '+d.created.length+' 个'):'待办创建成功','success');
         try{
-          var sv_st=document.getElementById('tmStart').value,sv_en=document.getElementById('tmEnd').value;
+          var sv_st=f.start_time||'',sv_en=f.end_time||'';
           var sv_a=new Date(sv_st),sv_b=new Date(sv_en);
           if(!isNaN(sv_a)&&!isNaN(sv_b)&&sv_b>sv_a){
             localStorage.setItem('tmLastDur',String(Math.round((sv_b-sv_a)/60000)));

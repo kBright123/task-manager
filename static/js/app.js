@@ -1586,6 +1586,15 @@
         }
       }
 
+      function _openQuickNote(text) {
+        if (typeof showQuickNoteModal !== 'function') return;
+        showQuickNoteModal();
+        setTimeout(function () {
+          var ne = document.getElementById('qnContent');
+          if (ne) { ne.value = text || ne.value; ne.dispatchEvent(new Event('input')); ne.focus(); }
+        }, 150);
+      }
+
       function showClipConfirm(text) {
         if (_pending) return;
         if (!_matchKeywords(text)) return;
@@ -1601,11 +1610,13 @@
         var el = document.createElement('div');
         el.style.cssText = 'background:#fff;border:1px solid var(--gray-200);border-left:4px solid var(--primary);border-radius:10px;box-shadow:var(--shadow-lg);padding:12px 14px;font-size:.83rem;color:var(--gray-700);animation:tmFadeIn .18s ease-out;max-width:340px;';
         el.innerHTML =
-          '<div style="font-weight:600;margin-bottom:6px;"><i class="bi bi-clipboard-check" style="color:var(--primary);"></i> 检测到待办内容</div>' +
-          '<div style="font-size:.78rem;color:var(--gray-500);margin-bottom:10px;word-break:break-word;max-height:60px;overflow:hidden;">' + _esc(preview) + '</div>' +
-          '<div style="display:flex;gap:8px;">' +
-            '<button class="btn btn-sm btn-primary" id="_clipConfirm" style="flex:1;"><i class="bi bi-plus-lg"></i> 创建待办</button>' +
-            '<button class="btn btn-sm btn-outline-secondary" id="_clipCancel" style="flex:1;">取消</button>' +
+          '<div style="font-weight:600;margin:2px 2px 2px 0;"><i class="bi bi-clipboard-check" style="color:var(--primary);"></i> 检测到内容</div>' +
+          '<div style="font-size:.72rem;color:var(--gray-500);margin-bottom:8px;">已识别到任务/记事信息，可创建为待办或随手记</div>' +
+          '<div style="font-size:.78rem;color:var(--gray-700);margin-bottom:10px;word-break:break-word;max-height:54px;overflow:hidden;">' + _esc(preview) + '</div>' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+            '<button class="btn btn-sm btn-primary" id="_clipConfirm" style="flex:1;min-width:56px;"><i class="bi bi-plus-lg"></i> 待办</button>' +
+            '<button class="btn btn-sm btn-outline-success" id="_clipNote" style="flex:1;min-width:86px;"><i class="bi bi-pencil-square"></i> 随手记</button>' +
+            '<button class="btn btn-sm btn-outline-secondary" id="_clipCancel" style="flex:1;min-width:60px;">取消</button>' +
           '</div>';
         c.appendChild(el);
         var timer = setTimeout(function () { _remove(); }, 8000);
@@ -1620,6 +1631,10 @@
         document.getElementById('_clipConfirm').onclick = function () {
           _remove();
           _openQuickTask(text);
+        };
+        document.getElementById('_clipNote').onclick = function () {
+          _remove();
+          _openQuickNote(text);
         };
         document.getElementById('_clipCancel').onclick = _remove;
       }
@@ -1653,4 +1668,5 @@
 
       window.showClipConfirm = showClipConfirm;
       window._clipOpenQuickTask = _openQuickTask;
+      window._clipOpenQuickNote = _openQuickNote;
     })();

@@ -497,11 +497,11 @@ function dashRenderTimeline(jump){
   g.items.forEach(function(t){var color=catColors[t.category]||'var(--primary)';var isCompleted=t.display==='completed';var taskDate=t.start_time?t.start_time.substring(0,10):'';
   html+='<div class="tl-card '+t.display+'" id="dtl-'+t.id+'" data-date="'+taskDate+'"><div style="display:flex;align-items:flex-start;gap:6px;">';
   html+='<input type="checkbox" class="form-check-input tl-check" style="flex-shrink:0;" '+(isCompleted?'checked disabled':'')+' data-aid="'+t.assignment_id+'" aria-label="标记完成:'+esc(t.title)+'">';
-  html+='<div style="flex:1;min-width:0;"><div class="tl-card-time">'+esc(t.start_time.substring(5,16))+' - '+esc(t.end_time.substring(5,16))+'</div>';
+  html+='<div style="display:flex;align-items:flex-start;gap:6px;"><button type="button" class="tl-follow-btn" data-fid="'+t.id+'" title="关注：移入关注节点" aria-label="关注:'+esc(t.title)+'" onclick="followToggleStar(this,'+t.id+')"><i class="bi bi-star"></i></button><div style="flex:1;min-width:0;padding-left:20px;">';
+  html+='<div class="tl-card-time">'+esc(t.start_time.substring(5,16))+' - '+esc(t.end_time.substring(5,16))+'</div>';
   var _ki=extractKeyInfo(t.full_description||t.description);
   html+='<div class="tl-card-title" data-id="'+t.id+'" role="button" tabindex="0" aria-label="查看任务:'+esc(t.title)+'" style="cursor:pointer;'+(isCompleted?'text-decoration:line-through;':'')+'" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">'+esc(t.title)+renderKeyTags(_ki)+(t.cross_day&&t.days_left!==null&&t.days_left!==undefined?'<span class="tl-days-left">'+esc('（剩余'+t.days_left+'工作日）')+'</span>':'')+'<span class="tl-card-cat" style="background:'+color+';">'+esc(t.category)+'</span></div>';
   html+='</div></div>';
-  html+='<button type="button" class="tl-follow-btn" data-fid="'+t.id+'" title="关注：移入关注节点" aria-label="关注:'+esc(t.title)+'" onclick="followToggleStar(this,'+t.id+')"><i class="bi bi-star"></i></button>';
   html+='</div>';});html+='</div></div>';});
   // 刷新前快照(在骨架屏替换前由 dashLoadTimeline 记录): 完成任务/编辑后的静默对账刷新按"之前的规则"恢复展开与滚动, 不因重渲染折叠
   var kv = (!jump && window._tlKeepView) ? window._tlKeepView : null;

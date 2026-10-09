@@ -358,6 +358,7 @@ def find_similar_tasks(title, description='', category='', start_time=None, end_
             desc_sim = SequenceMatcher(None, description.lower(), t.description.lower()).ratio()
         cat_sim = 1.0 if category and t.category and category == t.category else 0
         time_sim = 0
+        overlap_start = overlap_end = None
         if start_time and end_time and t.start_time and t.end_time:
             overlap_start = max(start_time, t.start_time)
             overlap_end = min(end_time, t.end_time)
@@ -365,6 +366,21 @@ def find_similar_tasks(title, description='', category='', start_time=None, end_
                 overlap = (overlap_end - overlap_start).total_seconds()
                 union = (max(end_time, t.end_time) - min(start_time, t.start_time)).total_seconds()
                 time_sim = overlap / union if union > 0 else 0
+        # If start/end are explicitly provided and they differ from candidate,
+        # do not count this as a blocking duplicate (allow publishing)
+        if start_time and end_time and t.start_time and t.end_time:
+            # Consider different if start or end differs by more than 1 minute
+            # (to tolerate minor float/str conversion issues)
+            def _same(a, b, tol_seconds=60):
+                if a == b:
+                    return True
+                try:
+                    d = abs((a - b).total_seconds())
+                    return d <= tol_seconds
+                except Exception:
+                    return False
+            if not (_same(start_time, t.start_time) and _same(end_time, t.end_time)):
+                continue  # 时间不一致 -> 允许发布，不阻止
         combined = title_sim * 0.45 + desc_sim * 0.25 + cat_sim * 0.15 + time_sim * 0.15
         if combined >= threshold:
             match_type = []

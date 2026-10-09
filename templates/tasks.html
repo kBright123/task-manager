@@ -617,8 +617,7 @@ function renderTimeline(el,jump){
       var color=catColors[t.category]||'var(--primary)';
       var isCompleted=t.display==='completed';
       html+='<div class="tl-card '+t.display+'" id="tl-'+t.id+'">';
-      html+='<button type="button" class="tl-follow-btn" data-fid="'+t.id+'" title="关注：移入关注节点" aria-label="关注:'+esc(t.title)+'" onclick="followToggleStar(this,'+t.id+')"><i class="bi bi-star"></i></button>';
-      html+='<div style="display:flex;align-items:flex-start;gap:6px;padding-left:24px;">';
+      html+='<div style="display:flex;align-items:flex-start;gap:6px;">';
       html+='<input type="checkbox" class="form-check-input tl-check" style="flex-shrink:0;" '+(isCompleted?'checked disabled':'')+' data-aid="'+t.assignment_id+'" aria-label="标记完成:'+esc(t.title)+'">';
       html+='<div style="flex:1;min-width:0;">';
       html+='<div class="tl-card-time">'+esc(t.start_time.substring(5,16))+' - '+esc(t.end_time.substring(5,16))+'</div>';
@@ -629,6 +628,7 @@ function renderTimeline(el,jump){
         html+='<input type="checkbox" class="form-check-input tl-batch-check" style="flex-shrink:0;width:13px;height:13px;margin-top:3px;" data-tid="'+t.id+'" aria-label="选择:'+esc(t.title)+'">';
       }
       html+='</div>';
+      html+='<button type="button" class="tl-follow-btn" data-fid="'+t.id+'" title="关注：移入关注节点" aria-label="关注:'+esc(t.title)+'" onclick="followToggleStar(this,'+t.id+')"><i class="bi bi-star"></i></button>';
       html+='</div>';
     });
     html+='</div></div>';

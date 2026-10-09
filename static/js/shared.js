@@ -454,13 +454,7 @@ window.toggleEduMode = function () {
 window._tFOLLOW = [];
 
 function followInit() {
-  // 恢复上次手工折叠状态
-  var cv = null;
-  try { cv = localStorage.getItem('followCollapsed'); } catch (e) {}
-  var card = document.getElementById('followCard');
-  if (card && cv === '1') card.classList.remove('open');
-  // 记录用户是否手工折叠过(本次会话): 折叠后滚动不再自动展开, 仅在手工点击时恢复
-  window._followManualCollapsed = cv === '1';
+  window._followManualCollapsed = false;
   window.followLoad();
 }
 
@@ -469,7 +463,6 @@ window.followToggleHeader = function () {
   if (!card) return;
   var open = card.classList.toggle('open');
   window._followManualCollapsed = !open;
-  try { localStorage.setItem('followCollapsed', open ? '0' : '1'); } catch (e) {}
 };
 
 window.followLoad = function () {
@@ -498,10 +491,18 @@ window.followRender = function () {
   var list = document.getElementById('followList');
   if (!list) return;
   var items = window._tFOLLOW;
+  var card = document.getElementById('followCard');
   if (!items.length) {
     list.innerHTML = '<div class="tl-empty" style="padding:10px 0 14px;"><i class="bi bi-star"></i>暂无关注事项' +
       '<div style="font-size:.7rem;color:var(--gray-400);">悬停时间轴待办，点击右上角五角星即可关注</div></div>';
+    if (card) {
+      card.classList.remove('open');
+      window._followManualCollapsed = false;
+    }
     return;
+  }
+  if (card && !card.classList.contains('open') && !window._followManualCollapsed) {
+    card.classList.add('open');
   }
   var html = '';
   for (var i = 0; i < items.length; i++) {

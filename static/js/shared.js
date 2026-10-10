@@ -462,6 +462,8 @@ window.followToggleHeader = function () {
   var card = document.getElementById('followCard');
   if (!card) return;
   var open = card.classList.toggle('open');
+  var hd = card.querySelector('.tl-section-hd');
+  if (hd) hd.setAttribute('aria-expanded', open ? 'true' : 'false');
   window._followManualCollapsed = !open;
 };
 
@@ -497,12 +499,16 @@ window.followRender = function () {
       '<div style="font-size:.7rem;color:var(--gray-400);">悬停时间轴待办，点击右上角五角星即可关注</div></div>';
     if (card) {
       card.classList.remove('open');
+      var hd = card.querySelector('.tl-section-hd');
+      if (hd) hd.setAttribute('aria-expanded', 'false');
       window._followManualCollapsed = false;
     }
     return;
   }
   if (card && !card.classList.contains('open') && !window._followManualCollapsed) {
     card.classList.add('open');
+    var hd = card.querySelector('.tl-section-hd');
+    if (hd) hd.setAttribute('aria-expanded', 'true');
   }
   var html = '';
   for (var i = 0; i < items.length; i++) {

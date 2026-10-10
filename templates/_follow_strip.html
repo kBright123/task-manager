@@ -1,6 +1,6 @@
 <!-- 关注节点(共享, 内嵌于时间轴滚动区内最顶部, 随时间轴一起滚动; 与时间轴待办同格式渲染 tl-card; 默认展开, 点击表头可手工折叠; 表头只保留一个五角星标记, 无新增按钮) -->
-<div class="tl-section follow open" id="followCard">
-  <div class="tl-section-hd" role="button" tabindex="0" aria-expanded="true"
+<div class="tl-section follow" id="followCard">
+  <div class="tl-section-hd" role="button" tabindex="0" aria-expanded="false"
        onclick="followToggleHeader()"
        onkeydown="if(event.key==='Enter'||event.key===' ')event.preventDefault();followToggleHeader();">
     <span class="tl-section-label"><i class="bi bi-star-fill" style="color:var(--tracking);"></i> 关注</span>

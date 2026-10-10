@@ -312,10 +312,12 @@ def _build_target_sources(question, target):
             a.task.title or '', a.task.description or '', a.note or '']))
 
     def _push_task(a, cov):
+        done = a.status in ('completed', 'approved')
         _push('待办', f"[待办] {a.task.title or ''}",
               (a.task.description or '') + (f'（{_task_note(a)}）' if
                                             _task_note(a) else ''),
-              url_for('user_tasks') + '?highlight=' + str(a.task.id), cov)
+              url_for('user_tasks') + '?highlight=' + str(a.task.id) +
+              ('&show_history=1' if done else ''), cov)
 
     # 待办(我参与、非个人分类)
     for a in _cached_user_task_rows(target.id):

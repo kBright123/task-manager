@@ -577,16 +577,15 @@ function loadTaskFeed(keepView){
   if(showHistory) params.push('show_history=1');
   var qs=params.length?'?'+params.join('&'):'';
   fetchJSON('/api/tasks/timeline'+qs).then(function(d){
-    var cnt=document.getElementById('taskFeedCount');
     renderCatCounts(d.categories);
     if(!d.ok||!d.tasks||!d.tasks.length){
       _tlfCache=[];
       renderTimeline(secEl,false);
-      if(cnt) cnt.textContent='';
+      window.tlTotalUpdate();
       return;
     }
     _tlfCache=d.tasks;
-    if(cnt) cnt.textContent='共 '+d.tasks.length+' 条';
+    window.tlTotalUpdate();
     renderTimeline(secEl,!keepView);
   }).catch(function(e){
     secEl.innerHTML='<div class="tl-empty"><i class="bi bi-exclamation-circle"></i><div style="margin-bottom:12px;">'+(window.netErrMsg?netErrMsg(e):'加载失败')+'</div><button class="btn btn-sm btn-outline-primary" onclick="loadTaskFeed()">重试</button></div>';
@@ -1161,8 +1160,8 @@ async function deleteTask(id){
       .then(function(d){
         if(!d||!d.ok){alert((d&&d.error)||'删除失败');return;}
         d.deleted&&d.deleted.forEach(function(tid){var i=_tlfCache.findIndex(function(x){return x.id===tid});if(i>-1)_tlfCache.splice(i,1);});
-        var el=document.getElementById('taskTimelineSections');var cnt=document.getElementById('taskFeedCount');
-        if(cnt)cnt.textContent='共 '+_tlfCache.length+' 条';if(el)renderTimeline(el,false);
+        var el=document.getElementById('taskTimelineSections');
+        window.tlTotalUpdate();if(el)renderTimeline(el,false);
         toast('已移入回收站（共'+d.count+'项）',{actionLabel:'撤销',duration:8000,onAction:function(){
           d.deleted.forEach(function(tid){fetchJSON('/api/task/'+tid+'/restore',{method:'POST'});});
           loadTaskFeed();
@@ -1176,8 +1175,7 @@ async function deleteTask(id){
       var i=_tlfCache.findIndex(function(x){return x.id===id;});
       if(i>-1)_tlfCache.splice(i,1);
       var el=document.getElementById('taskTimelineSections');
-      var cnt=document.getElementById('taskFeedCount');
-      if(cnt)cnt.textContent='共 '+_tlfCache.length+' 条';
+      window.tlTotalUpdate();
       if(el)renderTimeline(el,false);
       toast('已移入回收站「'+title+'」',{actionLabel:'撤销',duration:8000,onAction:function(){
         fetchJSON('/api/task/'+id+'/restore',{method:'POST'}).then(function(rd){
@@ -1201,8 +1199,8 @@ async function batchDeleteSelected(){
     .then(function(d){
       if(!d||!d.ok){alert((d&&d.error)||'删除失败');return;}
       d.deleted&&d.deleted.forEach(function(tid){var i=_tlfCache.findIndex(function(x){return x.id===tid});if(i>-1)_tlfCache.splice(i,1);});
-      var el=document.getElementById('taskTimelineSections');var cnt=document.getElementById('taskFeedCount');
-      if(cnt)cnt.textContent='共 '+_tlfCache.length+' 条';if(el)renderTimeline(el,false);
+      var el=document.getElementById('taskTimelineSections');
+      window.tlTotalUpdate();if(el)renderTimeline(el,false);
       updateBatchDeleteBtn();
       toast('已移入回收站（共'+d.count+'项）',{actionLabel:'撤销',duration:8000,onAction:function(){
         d.deleted.forEach(function(tid){fetchJSON('/api/task/'+tid+'/restore',{method:'POST'});});
@@ -1555,8 +1553,18 @@ function taskPublish(btn){
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-  loadTaskFeed();
   var params = new URLSearchParams(window.location.search);
+  // 统一检索/问答跳转(已完成待办): 带 show_history/show_completed 时自动勾选对应筛选,
+  // 否则历史已完成条目在时间轴默认视图下不可见
+  if (params.get('show_history') === '1') {
+    var _hcb = document.getElementById('tlShowHistory');
+    if (_hcb) _hcb.checked = true;
+  }
+  if (params.get('show_completed') === '1') {
+    var _ccb = document.getElementById('tlShowCompleted');
+    if (_ccb) _ccb.checked = true;
+  }
+  loadTaskFeed();
   var newId = params.get('new');
   var hlId = params.get('highlight');
   // 手机端详情为滑出抽屉(带全屏遮罩), 不自动打开, 避免刷新后整页变灰

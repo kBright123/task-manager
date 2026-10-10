@@ -203,7 +203,7 @@
   <a href="{{ url_for('user_tasks') }}" class="stat-card card-lift" style="background:linear-gradient(135deg,#007a33,#006633);padding:14px 18px;text-decoration:none;">
     <div class="d-flex justify-content-between align-items-center">
       <div>
-        <div class="stat-num" style="font-size:1.5rem;">{{ pending_count }}</div>
+        <div class="stat-num" style="font-size:1.5rem;" id="dashTodoCount">{{ pending_count }}</div>
         <div class="stat-label">待办</div>
         <div class="stat-trend">较前日{% if tasks_delta > 0 %}<span class="trend-pill up">↑ {{ tasks_delta }}</span>{% elif tasks_delta < 0 %}<span class="trend-pill down">↓ {{ -tasks_delta }}</span>{% else %}<span class="trend-pill flat">—</span>{% endif %}</div>
       </div>
@@ -689,9 +689,8 @@ function dashLoadTimeline(keepView){
   if(chip){if(_tlFilter){document.getElementById('tlFilterText').textContent=_tlFilter.substring(5).replace('-','/');chip.classList.remove('d-none');}else{chip.classList.add('d-none');}}
   var qs=params.length?'?'+params.join('&'):'';
   fetchJSON('/api/tasks/timeline'+qs).then(function(d){
-    var cnt=document.getElementById('dashFeedCount');
-    if(!d.ok||!d.tasks||!d.tasks.length){_tlCache=[];dashRenderTimeline(false);if(cnt)cnt.textContent='';return;}
-    _tlCache=d.tasks;if(cnt)cnt.textContent='共 '+d.tasks.length+' 条';
+    if(!d.ok||!d.tasks||!d.tasks.length){_tlCache=[];dashRenderTimeline(false);window.tlTotalUpdate();return;}
+    _tlCache=d.tasks;window.tlTotalUpdate();
     dashRenderTimeline(!keepView);
   }).catch(function(e){host.innerHTML='<div class="tl-empty"><i class="bi bi-exclamation-circle"></i><div style="margin-bottom:12px;">'+(window.netErrMsg?netErrMsg(e):'加载失败')+'</div><button class="btn btn-sm btn-outline-primary" onclick="dashLoadTimeline()">重试</button></div>';});
 }

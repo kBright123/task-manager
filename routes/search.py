@@ -100,16 +100,21 @@ def _unified_search_data(q):
             pri = '中'
         else:
             pri = '低'
+        done = a.status in ('completed', 'approved')
         return {
             'task_id': a.task.id,
             'title': a.task.title,
             'description': a.task.description or '',
             'category': a.task.category,
             'status': a.status,
+            'done': done,
             'end_time': end.strftime('%Y-%m-%d %H:%M'),
             'priority': pri,
             'end_date': end.strftime('%m-%d'),
-            'detail_url': url_for('user_tasks') + '?highlight=' + str(a.task.id),
+            # 已完成的待办多在「过去」分区(默认时间轴隐藏): 跳转时带上 history,
+            # 待办页自动勾选「历史待办」并加载, 确保点击后能看到该条
+            'detail_url': url_for('user_tasks') + '?highlight=' + str(a.task.id) +
+            ('&show_history=1' if done else ''),
             'score': round(score, 3),
         }
 

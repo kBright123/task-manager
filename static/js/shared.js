@@ -453,6 +453,19 @@ window.toggleEduMode = function () {
 // ============ 关注区块(共享: 首页 & 待办页) 数据源 /api/tasks/follow ============
 window._tFOLLOW = [];
 
+// 时间轴「共 N 条」: 合并时间轴待办与关注节点待办(未完成的关注项移出时间轴单独展示),
+// 两者互斥不重复计数; N=0 时不显示。首页「待办」统计方块同步为同一口径(含关注),
+// 日期筛选(_tlFilter)激活时方块保持全体数不动。
+window.tlTotalUpdate = function () {
+  var el = document.getElementById('taskFeedCount') || document.getElementById('dashFeedCount');
+  if (!el) return;
+  var tl = window._tlfCache || window._tlCache || [];
+  var total = tl.length + (window._tFOLLOW ? window._tFOLLOW.length : 0);
+  el.textContent = total ? ('共 ' + total + ' 条') : '';
+  var todoNum = document.getElementById('dashTodoCount');
+  if (todoNum && !window._tlFilter) todoNum.textContent = total;
+};
+
 function followInit() {
   window._followManualCollapsed = false;
   window.followLoad();
@@ -483,6 +496,7 @@ window.followLoad = function () {
     for (i = 0; i < window._tFOLLOW.length; i++) { if (!window._tFOLLOW[i].done) act++; }
     if (cntE) cntE.textContent = act + ' 项进行中';
     window.followRender();
+    window.tlTotalUpdate();
   }).catch(function () {
     list.innerHTML = '<div class="tl-empty" style="padding:16px;">' +
       (window.netErrMsg ? netErrMsg({kind: 'network'}) : '加载失败') + '</div>';

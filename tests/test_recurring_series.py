@@ -295,7 +295,7 @@ def test_dashboard_pending_card_counts_series_once(client):
     def stat_num():
         html = client.get('/user/dashboard').data.decode('utf-8')
         m = re.search(
-            r'<div class="stat-num" style="font-size:1\.5rem;">(\d+)</div>',
+            r'<div class="stat-num" style="font-size:1\.5rem;" id="dashTodoCount">(\d+)</div>',
             html)
         assert m, '未找到「待办」统计数字'
         return int(m.group(1))

@@ -395,6 +395,13 @@ function loadTags(){
     }).join('');
   });
 }
+function parseNoteResp(r){
+  return r.text().then(function(t){
+    var d=null;try{d=JSON.parse(t);}catch(e){d=null;}
+    if(!d){throw new Error('请求失败('+r.status+')，请重试');}
+    return d;
+  });
+}
 function uploadPendingImages(content){
   var imgs=pendingImages.slice();
   var replacements=[];
@@ -403,7 +410,7 @@ function uploadPendingImages(content){
     chain=chain.then(function(){
       var fd=new FormData();
       fd.append('file',p.file,p.file.name||('paste_'+Date.now()+'.png'));
-      return fetch('/notes/api/upload_image',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(d){
+      return fetch('/notes/api/upload_image',{method:'POST',body:fd}).then(parseNoteResp).then(function(d){
         if(d.ok){replacements.push({token:p.token, md:'\n!['+p.name+']('+d.url+')\n'});}
         else{throw new Error(d.error||'图片上传失败');}
       });
@@ -416,14 +423,17 @@ function uploadPendingImages(content){
   });
 }
 function sendNote(){
-  var content=document.getElementById('noteInput').value.trim();
+  var content=document.getElementById('noteInput').value.trim()||'';
+  if(!content&&pendingImages.length){
+    content=pendingImages.map(function(p){return p.token;}).join(' ');
+  }
   if(!content)return;
   var btn=document.getElementById('sendNoteBtn');
   if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> 保存中...';}
   var tags=curTag?[curTag]:[];
   uploadPendingImages(content).then(function(finalContent){
     return fetch('/notes/api/notes',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({content:finalContent,tags:tags})}).then(function(r){return r.json();});
+      body:JSON.stringify({content:finalContent,tags:tags})}).then(parseNoteResp);
   }).then(function(d){
     if(d.ok){
       clearPendingImages();
@@ -516,7 +526,7 @@ function editNoteInline(){
     '<div class="mt-2 d-flex align-items-center gap-2">'+
       '<button class="btn btn-sm btn-outline-secondary" type="button" title="上传附件(word/ppt/pdf/excel等)" onclick="document.getElementById(\'editFileInput\').click()"><i class="bi bi-paperclip"></i></button>'+
       '<input type="file" id="editFileInput" multiple style="display:none;">'+
-      '<button class="btn btn-sm btn-primary" onclick="saveEditInline()">保存</button>'+
+      '<button class="btn btn-sm btn-primary" id="metaSaveBtn" onclick="saveEditInline()"><i class="bi bi-check"></i> 保存</button>'+
       '<button class="btn btn-sm btn-outline-secondary" onclick="cancelEditInline()">取消</button>'+
     '</div>';
   document.getElementById('editFileInput').addEventListener('change',function(e){
@@ -532,12 +542,19 @@ function cancelEditInline(){
 }
 function saveEditInline(){
   var content=document.getElementById('metaEditContent').value;
+  var saveBtn=document.getElementById('metaSaveBtn');
+  if(saveBtn){saveBtn.disabled=true;saveBtn.innerHTML='<span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem;"></span> 保存中...';}
   uploadPendingImages(content).then(function(finalContent){
     return fetch('/notes/api/notes/'+curMeta.id,{method:'PUT',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({content:finalContent})}).then(function(r){return r.json();});
+      body:JSON.stringify({content:finalContent})}).then(parseNoteResp);
   }).then(function(d){
       if(d.ok){clearPendingImages();curMeta=d.note;renderMeta();loadNotes();if(window.toast)toast('笔记已更新','success');}
-      else{alert(d.error||'保存失败');}
+      else{if(window.toast)toast(d.error||'保存失败','danger');else alert(d.error||'保存失败');}
+    }).catch(function(e){
+      var msg=(e&&e.message)?e.message:'网络错误，请重试';
+      if(window.toast)toast(msg,'danger');else alert(msg);
+    }).then(function(){
+      if(saveBtn){saveBtn.disabled=false;saveBtn.innerHTML='<i class="bi bi-check"></i> 保存';}
     });
 }
 async function delNote(id){
@@ -564,7 +581,7 @@ function autoResizeNoteInput(){
 }
 document.getElementById('noteInput').addEventListener('input',function(e){
   var btn=document.getElementById('sendNoteBtn');
-  if(btn) btn.disabled=!e.target.value.trim();
+  if(btn) btn.disabled=!e.target.value.trim()&&!pendingImages.length;
   autoResizeNoteInput();
 });
 document.getElementById('noteFileInput').addEventListener('change',function(e){

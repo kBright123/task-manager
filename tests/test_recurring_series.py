@@ -369,14 +369,17 @@ def test_timeline_cross_day_shows_single_nearest_entry(client):
     finally:
         _cleanup(c2)
 
-    # 场景3: 已结束的跨天任务(昨天截止) → 默认不显示, show_history=1 也收敛为一条
+    # 场景3: 已结束的跨天任务(昨天截止, 未完成) → 默认落在「逾期未完成」分区一条
     c3 = f'跨天已完{secrets.token_hex(5)}'
     try:
         assert _mk_cross(c3, at10 - timedelta(days=5), at10 - timedelta(days=1))['ok']
-        assert _entries(c3) == [], '已结束且在过去, 默认时间轴不应显示'
+        es = _entries(c3)
+        assert len(es) == 1, '已结束的跨天未完成应只显示一条'
+        assert es[0]['section'] == 'overdue', es[0]
+        assert es[0]['display'] == 'overdue', es[0]
         dl = client.get('/api/tasks/timeline?show_history=1').get_json()
-        es = [t for t in dl['tasks'] if t['title'].startswith(c3)]
-        assert len(es) == 1, '过去归档中的跨天任务也只应显示一条'
-        assert es[0]['section'] == 'past_week', es[0]
+        es_h = [t for t in dl['tasks'] if t['title'].startswith(c3)]
+        assert len(es_h) == 1, '勾选历史记录后仍收敛为一条'
+        assert es_h[0]['section'] == 'overdue', es_h
     finally:
         _cleanup(c3)

@@ -261,8 +261,9 @@ def test_no_time_task_not_auto_categorized(client):
 
 
 def test_timeline_two_weeks_split(client):
-    """时间轴分段:  过去两周(past_week)/未来两周(future_two_weeks), 更早与更远
-    并入 past/later; 不再出现 past_month/future_week/future_month 分组."""
+    """时间轴分段(已完成按完成时间归档): 过去两周(past_week)/未来两周
+    (future_two_weeks), 更早与更远并入 past/later; 不再出现
+    past_month/future_week/future_month 分组."""
     from app import app, db, cn_now
     from core.models import Task, TaskAssignment
     now = cn_now()
@@ -272,17 +273,21 @@ def test_timeline_two_weeks_split(client):
         with app.app_context():
             for days in (-25, -5, 5, 20):
                 ttl = _mk('两周') + ('%dd' % days)
+                done_at = now + timedelta(days=days, hours=1)
                 t = Task(title=ttl, category='工作',
                          start_time=now + timedelta(days=days),
-                         end_time=now + timedelta(days=days, hours=1),
+                         end_time=done_at,
                          creator_id=1)
                 db.session.add(t)
                 db.session.flush()
-                db.session.add(TaskAssignment(task_id=t.id, user_id=1))
+                db.session.add(TaskAssignment(task_id=t.id, user_id=1,
+                                             status='completed',
+                                             completed_at=done_at))
                 titles.append(ttl)
                 by_days[days] = ttl
             db.session.commit()
-        r = client.get('/api/tasks/timeline?show_history=1').get_json()
+        r = client.get(
+            '/api/tasks/timeline?show_completed=1&show_history=1').get_json()
         secs = {t['title']: (t['section'], t['section_label'])
                 for t in r['tasks']}
         for ti in titles:
@@ -307,9 +312,9 @@ def test_timeline_two_weeks_split(client):
 
 
 def test_history_toggle_hides_past_and_cross_day(client):
-    """默认(「历史待办」未勾选)不展示过去时间节点的待办(过去两周/更早);
-    勾选(show_history=1)后才展示过去单日; 跨多时间点的未完成任务按「最近一条」
-    只锚定在 max(开始日, 今天), 不落入过去的日期分组也不在未来分区重复."""
+    """逾期未完成默认落在「逾期未完成」分区常显; 「历史记录」(show_history=1)
+    只管过去已完成/更早归档; 跨多时间点的未完成任务按「最近一条」只锚定在
+    max(开始日, 今天), 不落入过去的日期分组也不在未来分区重复."""
     from app import app, db, cn_now
     from core.models import Task, TaskAssignment
     tag = _mk('历史')
@@ -342,13 +347,13 @@ def test_history_toggle_hides_past_and_cross_day(client):
             db.session.add(TaskAssignment(task_id=ct.id, user_id=1))
             tid_cross = ct.id
             db.session.commit()
-        # 默认: 过去单日(逾期)不展示; 跨天未完成锚定今天展示一条, 不落过去节点
-        ids = {t['id'] for t in
-               client.get('/api/tasks/timeline').get_json()['tasks']}
-        assert tid_past not in ids, '默认不应展示过去时间节点的待办'
-        cross = [t for t in
-                 client.get('/api/tasks/timeline').get_json()['tasks']
-                 if t['id'] == tid_cross]
+        # 默认: 逾期未完成落在「逾期未完成」分区常显; 跨天未完成锚定今天展示一条, 不落过去节点
+        default = client.get('/api/tasks/timeline').get_json()['tasks']
+        past_hits = [t for t in default if t['id'] == tid_past]
+        assert past_hits, '逾期未完成默认应展示'
+        assert past_hits[0]['section'] == 'overdue', past_hits
+        assert past_hits[0]['display'] == 'overdue', past_hits
+        cross = [t for t in default if t['id'] == tid_cross]
         assert cross, '跨天未完成应从今天起展示'
         assert all(t['section'] in ('today', 'tomorrow',
                                     'future_two_weeks', 'later')
@@ -357,10 +362,10 @@ def test_history_toggle_hides_past_and_cross_day(client):
                        for t in cross), cross
         assert len(cross) == 1, '跨天任务只应展示最近一条'
         assert cross[0]['section'] == 'today', cross
-        # 勾选「历史待办」: 过去单日恢复展示; 跨天未完成仍按「最近一条」锚定今天
+        # 勾选「历史记录」: 逾期未完成仍常显(分区不变); 跨天未完成仍按「最近一条」锚定今天
         h = client.get('/api/tasks/timeline?show_history=1').get_json()
-        h_ids = {t['id'] for t in h['tasks']}
-        assert tid_past in h_ids, '历史待办勾选后应展示过去时间节点的待办'
+        h_past = [t for t in h['tasks'] if t['id'] == tid_past]
+        assert h_past and h_past[0]['section'] == 'overdue', h_past
         cross_h = [t for t in h['tasks'] if t['id'] == tid_cross]
         assert len(cross_h) == 1, cross_h
         assert cross_h[0]['section'] == 'today', cross_h

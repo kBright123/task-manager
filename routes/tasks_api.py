@@ -290,17 +290,20 @@ def _day_span_entries(t, status, now, ref=None):
 
     def _entry_at(d):
         diff_days = (d - today_date).days
-        section, section_label = _section_of_diff(diff_days)
-        if diff_days == 0:
-            section_label = '今天 · ' + d.strftime('%m月%d日')
         if overall_due:
+            # 逾期未完成: 独立「逾期未完成」分区, 不受「历史待办」开关影响, 默认常显
             display = 'overdue'
-        elif diff_days == 0:
-            display = 'today'
-        elif diff_days > 0:
-            display = 'future'
+            section, section_label = 'overdue', '逾期未完成'
         else:
-            display = 'past'
+            section, section_label = _section_of_diff(diff_days)
+            if diff_days == 0:
+                section_label = '今天 · ' + d.strftime('%m月%d日')
+            if diff_days == 0:
+                display = 'today'
+            elif diff_days > 0:
+                display = 'future'
+            else:
+                display = 'past'
         return {'display': display, 'section': section,
                 'section_label': section_label,
                 'days_left': days_left if is_cross else None}
@@ -326,7 +329,8 @@ def api_tasks_timeline():
     """时间轴:返回当前用户相关任务的时间分布数据。
     ?start=YYYY-MM-DD&end=YYYY-MM-DD 可选,不传则返回全部待办;
     ?show_completed=1 包含已完成;?show_history=1 展示过去两周/更早的历史待办
-    (默认不勾选即不展示过去时间节点的待办);?category=分类 按分类筛选。"""
+    (默认不勾选即不展示过去时间节点的待办);逾期未完成单独落在「逾期未完成」分区,
+    默认常显, 不受 show_history 影响;?category=分类 按分类筛选。"""
     today = cn_now().replace(hour=0, minute=0, second=0, microsecond=0)
     try:
         start = datetime.strptime(request.args.get('start', ''), '%Y-%m-%d') \
@@ -409,7 +413,8 @@ def api_tasks_timeline():
     out = []
     all_categories = {}
     cat_key = lambda t: (t.category or '').strip() or '未分类'
-    # 「历史待办」默认不勾选且非单日检索时: 不展示过去时间节点的待办(过去两周/更早)
+    # 「历史待办」默认不勾选且非单日检索时: 不展示过去归档的待办(过去两周/更早);
+    # 逾期未完成单独落在 overdue 分区, 不在此过滤, 默认常显
     hide_past = not show_history and not (start and end)
     for t in tasks:
         a = assigns.get(t.id)

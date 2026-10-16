@@ -1,8 +1,8 @@
 // 全局共享常量与工具(时间轴渲染/分类色板), 页面内联脚本依赖本文件先加载
 window.KB_CAT_COLORS = { '工作': 'var(--primary)', '个人': 'var(--success)', '会议': 'var(--meeting)', '培训': 'var(--training)', '考试': 'var(--exam)', '关注': 'var(--tracking)' };
-window.KB_TL_ORDER = ['past', 'past_week', 'today', 'tomorrow', 'future_two_weeks', 'later'];
+window.KB_TL_ORDER = ['past', 'past_week', 'overdue', 'today', 'tomorrow', 'future_two_weeks', 'later'];
 window.KB_TL_FUTURE = ['tomorrow', 'future_two_weeks', 'later'];
-window.KB_TL_PAST = ['past_week', 'past'];
+window.KB_TL_PAST = ['overdue', 'past_week', 'past'];
 
 // ============ 教育·孩子资料(生日/性别/多个孩子/活跃孩子) ============
 // 数据存 localStorage, 供 教育乐园 与 个人信息 两页共享;

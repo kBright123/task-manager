@@ -360,3 +360,26 @@ def test_timespan_future_weekday():
     r = np._parse_timespan_jionlp('周六全天') or {}
     assert r.get('start') and r['start'] > now
     assert r['start'].hour == 0 and (r['end'] or r['start']).hour == 23
+
+
+def test_timespan_undated_range_follows_prior_date():
+    """括号内无日期的分场次时间须归属同句前文日期(回归: 1024 答题通知解析成当天).
+
+    正文「10月21日下午14:00（敏捷研发赛道14:00-17:00…）」中, 括号内时刻被
+    jionlp 默认挂到基准日(今天), 若直接取显式区间会导致活动日期变成当天。
+    """
+    from datetime import timedelta
+    from core.timeutil import cn_now
+    now = cn_now()
+    d = now + timedelta(days=20)
+    text = (f'{now.year}年1024程序员节在线答题活动通知】\n'
+            f'*活动时间：{d.month}月{d.day}日下午14:00'
+            f'（敏捷研发赛道14:00-17:00，自动测试赛道14:00-16:00）。\n'
+            f'*考试时长：敏捷研发赛道180分钟，自动测试赛道120分钟。')
+    span = np._parse_timespan_jionlp(text)
+    assert span and span['start'] and span['end'], span
+    assert (span['start'].month, span['start'].day) == (d.month, d.day), span
+    assert (span['start'].hour, span['start'].minute) == (14, 0), span
+    assert (span['end'].hour, span['end'].minute) == (17, 0), span
+    r = parse_task_from_text(text)
+    assert r['start_time'].date() == d.date(), (r['start_time'], d)

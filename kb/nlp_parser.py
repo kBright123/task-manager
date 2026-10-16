@@ -442,6 +442,19 @@ def jionlp_ready():
     except Exception:
         return False
 
+# 时间实体是否自带显式日期线索(年月日/今天明天/周X等); 仅「14:00-17:00」类纯
+# 时刻实体视为无日期, 需按上下文重新归属。
+_DATE_TOKEN_PAT = re.compile(
+    r'\d{4}\s*年|\d{1,2}\s*月\s*\d{1,2}\s*[日号]|\d{1,2}\s*[日号]|'
+    r'大?后[天日]|今[天日]|明[天日]|'
+    r'[上下这本]\s*[周星期]|周[一二三四五六日天]|星期[一二三四五六日天]|'
+    r'礼拜[一二三四五六日天]')
+
+
+def _has_date_token(txt):
+    return bool(_DATE_TOKEN_PAT.search(txt or ''))
+
+
 def _parse_timespan_jionlp(text):
     """基于 JioNLP 的时间解析(KB_TIME_PARSER=legacy 回退旧正则)。
 
@@ -470,7 +483,10 @@ def _parse_timespan_jionlp(text):
     for ent in ents or []:
         txt = (ent.get('text') or '').strip()
         off = ent.get('offset') or [0, 0]
-        if not txt or re.fullmatch(r'\d{4}年?', txt):
+        # 纯年份; 或「年」后直接跟裸数字(如标题「2026年1024程序员节」被拆成
+        # 「2026年1024」) — 均非真实日期, 剔除
+        if not txt or re.fullmatch(r'\d{4}年?', txt) \
+                or re.fullmatch(r'\d{4}年\d+', txt):
             continue
         seg = text[max(0, off[0] - 80):off[0]]
         if '【' in seg and '】' not in seg.split('【')[-1]:
@@ -506,7 +522,8 @@ def _parse_timespan_jionlp(text):
                 if e and e > s - timedelta(days=7):
                     e += timedelta(days=7)
         cands.append({'txt': txt, 's': s, 'e': e, 'kind': kind,
-                      'allday': is_allday_tok, 'blur': is_blur})
+                      'allday': is_allday_tok, 'blur': is_blur,
+                      'off': off[0]})
     if not cands:
         return None
     # 显式区间补救: jionlp 有时将「15:00 - 16:00」拆为两个独立点实体,
@@ -528,7 +545,7 @@ def _parse_timespan_jionlp(text):
                                  and c['kind'] == 'point')]
                 cands.append({'txt': _rm.group(0), 's': _s, 'e': _e,
                               'kind': 'range', 'allday': False,
-                              'blur': False})
+                              'blur': False, 'off': _rm.start()})
     # 模糊时段词(中期/年底/年初等): jionlp 标记 definition=blur,
     # 其宽泛跨度(如"中期"=本季度末)会在合并时用 max() 覆盖明确日期
     # (回归: 通知含"8月28日前反馈"+"中期检查"误得截止9-30)。存在
@@ -545,6 +562,25 @@ def _parse_timespan_jionlp(text):
             tgt['s'] = tgt['s'].replace(hour=0, minute=0, second=0)
             tgt['e'] = (tgt['e'] or tgt['s']).replace(hour=23, minute=59, second=0)
         cands = rest
+    # 无日期的纯时刻实体(如括号内「14:00-17:00」)会被 jionlp 挂到基准日(今天),
+    # 与同句明确日期(如「10月21日下午14:00」)脱节 → 活动日期被分场次时间覆盖成
+    # 当天。此处按位置把无日期实体重新归属到其前最近的日期实体(回归: 1024
+    # 在线答题活动通知把日期解析成当天)。
+    _dated = sorted((c for c in cands if _has_date_token(c['txt'])),
+                    key=lambda c: c['off'])
+    if _dated:
+        for c in cands:
+            if _has_date_token(c['txt']) or c['s'].date() != now.date():
+                continue
+            prev = [d for d in _dated if d['off'] <= c['off']]
+            if not prev:
+                continue
+            delta = prev[-1]['s'].date() - c['s'].date()
+            if not delta:
+                continue
+            c['s'] = c['s'] + delta
+            if c['e']:
+                c['e'] = c['e'] + delta
     out = {'start': None, 'end': None}
     rngs = [c for c in cands if c['kind'] == 'range']
     dls = [c for c in cands if c['kind'] == 'deadline']

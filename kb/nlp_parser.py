@@ -488,6 +488,14 @@ def _parse_timespan_jionlp(text):
         if not txt or re.fullmatch(r'\d{4}年?', txt) \
                 or re.fullmatch(r'\d{4}年\d+', txt):
             continue
+        # 会议号/入会密码/工号等连续长数字(≥6 位)不是时间; 仅保留合法的紧凑
+        # 日期 YYYYMMDD, 其余(如 920200844430、202610)剔除, 避免被 jionlp
+        # 当作时间戳/日期污染待办时间
+        _digit_run = re.fullmatch(r'\D*(\d{6,})\D*', txt)
+        if _digit_run and not re.fullmatch(
+                r'(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])',
+                _digit_run.group(1)):
+            continue
         seg = text[max(0, off[0] - 80):off[0]]
         if '【' in seg and '】' not in seg.split('【')[-1]:
             continue

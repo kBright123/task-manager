@@ -54,22 +54,33 @@ _HOLIDAY_CN = {
 
 # 在线节假日接口按年缓存(数据年内不变, 进程内仅请求一次)
 _HOLIDAY_API_CACHE = {}
+# 失败负缓存: 内网部署通常无法访问外网, 若不记住失败, 每个"无节假日"月份的
+# 日历请求都会重新发起连接并阻塞到超时, 造成日历加载缓慢
+_HOLIDAY_API_FAILED = {}
+_HOLIDAY_API_FAIL_TTL = 1800  # 失败后 30 分钟内不再重试
+_HOLIDAY_API_TIMEOUT = 2      # 秒; 缩短离线环境下的阻塞时间
 
 
 def _holiday_data_from_api(year):
     """免费节假日接口(timor.tech)按年获取, 作为本地库缺失/未更新的兜底与复核。
 
     返回 {'MM-DD': {'holiday': True休/False补班, 'name': 中文节日名}}; 失败返回 None。
+    成功与失败均做缓存, 避免外网不可达时每次请求都阻塞等待超时。
     """
     if year in _HOLIDAY_API_CACHE:
         return _HOLIDAY_API_CACHE[year]
+    import time as _time
+    _now = _time.time()
+    _last_fail = _HOLIDAY_API_FAILED.get(year)
+    if _last_fail is not None and _now - _last_fail < _HOLIDAY_API_FAIL_TTL:
+        return None
     try:
         import json as _json
         import urllib.request
         url = f'https://timor.tech/api/holiday/year/{year}'
         req = urllib.request.Request(
             url, headers={'User-Agent': 'TaskManager/1.0'})
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=_HOLIDAY_API_TIMEOUT) as resp:
             data = _json.loads(resp.read().decode('utf-8'))
         out = {}
         for k, v in (data.get('holiday') or {}).items():
@@ -79,8 +90,10 @@ def _holiday_data_from_api(year):
                 'holiday': bool(v.get('holiday')),
                 'name': str(v.get('name') or '')}
         _HOLIDAY_API_CACHE[year] = out
+        _HOLIDAY_API_FAILED.pop(year, None)
         return out
     except Exception:
+        _HOLIDAY_API_FAILED[year] = _now
         return None
 @app.route('/api/group-members')
 @login_required

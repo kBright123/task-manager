@@ -383,3 +383,32 @@ def test_timespan_undated_range_follows_prior_date():
     assert (span['end'].hour, span['end'].minute) == (17, 0), span
     r = parse_task_from_text(text)
     assert r['start_time'].date() == d.date(), (r['start_time'], d)
+
+
+def test_long_digit_runs_are_not_dates():
+    """会议号/入会密码/工号等连续长数字不得被当作时间(回归: 时间戳污染)."""
+    for t in ('会议号：920200844430', '入会密码：202610', '：202610',
+              '工号 920200844430'):
+        span = np._parse_timespan_jionlp(t)
+        assert not span or (span.get('start') is None
+                            and span.get('end') is None), (t, span)
+    # 合法紧凑日期 YYYYMMDD 不受影响
+    assert np._parse_timespan_jionlp('20261017') is not None
+
+
+def test_meeting_notice_number_not_noisy():
+    """通知含会议号/密码时, 仍以正文明确日期区间的日期为准."""
+    from datetime import timedelta
+    from core.timeutil import cn_now
+    now = cn_now()
+    d = now + timedelta(days=1)
+    text = (f'“科技研习班-技术分享”将于（{d.month}月{d.day}日）下午14:00-16:00 开展。\n'
+            f'参会方式：邮连视频会议，会议号：920200844430，入会密码：202610\n'
+            f'时间：{now.year}年{d.month}月{d.day}日  下午14:00-16:00')
+    span = np._parse_timespan_jionlp(text)
+    assert span and span['start'] and span['end'], span
+    assert (span['start'].month, span['start'].day) == (d.month, d.day), span
+    assert (span['start'].hour, span['start'].minute) == (14, 0), span
+    assert (span['end'].hour, span['end'].minute) == (16, 0), span
+    r = parse_task_from_text(text)
+    assert r['end_time'].date() == d.date(), (r['end_time'], d)

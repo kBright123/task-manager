@@ -7,10 +7,39 @@
     <div class="input-group mb-1">
       <input type="text" id="calFeedUrl" class="form-control"
              value="{{ feed_url }}"
+             data-base="{{ feed_url }}"
              style="font-size:.78rem;" onclick="this.select()">
       <button type="button" class="btn btn-outline-primary" style="white-space:nowrap;font-size:.8rem;" onclick="copyFeedUrl(this)">
         <i class="bi bi-clipboard"></i> 复制
       </button>
+    </div>
+    <div class="d-flex gap-2 align-items-end mb-2 flex-wrap" style="font-size:.78rem;">
+      <div>
+        <label for="calRemind" class="d-block mb-1" style="color:var(--gray-500);">提醒内容</label>
+        <select id="calRemind" class="form-select form-select-sm" style="width:auto;font-size:.78rem;" onchange="calRebuildFeed()">
+          <option value="both" selected>开始 + 到期</option>
+          <option value="start">仅开始提醒</option>
+          <option value="due">仅到期提醒</option>
+          <option value="none">不提醒</option>
+        </select>
+      </div>
+      <div>
+        <label for="calMeetingMin" class="d-block mb-1" style="color:var(--gray-500);">会议提前</label>
+        <select id="calMeetingMin" class="form-select form-select-sm" style="width:auto;font-size:.78rem;" onchange="calRebuildFeed()">
+          <option value="15" selected>15 分钟</option>
+          <option value="5">5 分钟</option>
+          <option value="10">10 分钟</option>
+        </select>
+      </div>
+      <div>
+        <label for="calDueMin" class="d-block mb-1" style="color:var(--gray-500);">到期提前</label>
+        <select id="calDueMin" class="form-select form-select-sm" style="width:auto;font-size:.78rem;" onchange="calRebuildFeed()">
+          <option value="auto" selected>自动（30/60 分钟）</option>
+          <option value="30">30 分钟</option>
+          <option value="60">1 小时</option>
+          <option value="0">到期时</option>
+        </select>
+      </div>
     </div>
     <div class="d-flex gap-2 align-items-center mb-2 flex-wrap">
       <a id="calWebcalLink" class="btn btn-outline-success" style="font-size:.8rem;"
@@ -18,14 +47,21 @@
          onclick="return webcalAdd(this)">
         <i class="bi bi-calendar-plus"></i> 手机一键添加
       </a>
+      <a id="calDownloadLink" class="btn btn-outline-secondary" style="font-size:.8rem;"
+         href="{{ feed_url }}&download=1" download
+         title="鸿蒙 NEXT 等不支持 URL 订阅的日历，可下载后一次性导入（不会自动更新）">
+        <i class="bi bi-download"></i> 下载 .ics
+      </a>
       <button type="button" class="btn btn-outline-danger" style="white-space:nowrap;font-size:.8rem;" onclick="rotateCalToken(this)">
         <i class="bi bi-arrow-repeat"></i> 重新生成
       </button>
     </div>
     <div style="font-size:.72rem;color:var(--gray-400);margin-bottom:4px;">
-      默认同步<b>未来 3 天</b>未完成的待办；提醒规则：开始时间在今天的提前 <b>30 分钟</b>，其余在截止前 <b>1 小时</b>（均按绝对时间触发，不会重复提醒）。
-      在本站<b>完成或删除</b>待办，手机日历里的条目会在下次同步（约 1~2 小时）自动消失并撤销提醒——订阅是只读的，不能直接在手机日历上勾选完成。
-      地址可编辑：想看更多天追加 <code>?days=N</code>、换成局域网 IP。
+      默认同步<b>未来 3 天</b>未完成的<b>单日待办</b>；<b>跨天事项、已完成/已废弃/已删除的待办不会出现在订阅中</b>。如手机日历仍显示这些旧条目，请删除手机上的订阅日历后重新添加链接（订阅日历无法通过源直接删除旧事件）。
+      提醒：<b>会议仅在开始前 15 分钟提醒</b>，不再附带会议到期提醒；其他待办开始前 30 分钟，并额外提供<b>到期提醒</b>（今天开始的截止前 30 分钟，其余截止前 1 小时）；
+      可在上方选择仅开始、仅到期或关闭提醒，均按绝对时间触发，不会重复提醒。
+      在手机日历里点开事件可跳转到待办详情完成事项；在本站<b>完成或删除</b>待办，手机日历里的条目会在下次同步（约 1~2 小时）自动消失并撤销提醒。
+      地址可编辑：想看更多天追加 <code>?days=N</code>、换成局域网 IP。修改提醒选项后请重新复制链接并在手机日历中更新订阅。
     </div>
     {% elif current_user.api_token %}
     <div class="mb-2" style="font-size:.82rem;color:var(--gray-600);">
@@ -47,7 +83,8 @@
       <div style="margin-top:6px;line-height:1.9;">
         · iPhone：设置 → 日历 → 账户 → 添加账户 → 其他 → 添加已订阅的日历，粘贴链接。<br>
         · 小米/红米：日历 App → 设置 → 日历账号管理（或右上角菜单）→ 从 URL 导入 / 订阅日历，粘贴链接。<br>
-        · 华为等安卓：日历 App → 设置（或「更多日历」）→ 添加订阅日历 / URL 订阅。<br>
+        · 华为鸿蒙 4.x / EMUI：日历 App → 设置（或「更多日历」）→ 添加订阅日历 / URL 订阅，粘贴链接。<br>
+        · HarmonyOS NEXT（鸿蒙 5+）：自带日历暂不支持自定义 URL 订阅，请点上方「下载 .ics」后用日历/文件导入（一次性，不会自动更新），或使用支持 ICS 订阅的第三方日历。<br>
         · 订阅约每 1~2 小时自动刷新；链接含个人令牌请勿外传，「重新生成」后旧链接立即失效。
         <div class="mt-2 p-2" style="background:var(--gray-100);border-radius:6px;">
           <b>订阅失败排查：</b><br>

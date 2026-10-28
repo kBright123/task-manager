@@ -46,6 +46,9 @@ def _mk_task(client, start=None, end=None):
     now = cn_now()
     if start is None:
         start = (now + timedelta(hours=2)).replace(second=0, microsecond=0)
+        if start.date() != now.date():  # 避免深夜运行时落入跨天(不同步)区间
+            start = (now + timedelta(days=1)).replace(
+                hour=9, minute=0, second=0, microsecond=0)
     if end is None:
         end = start + timedelta(hours=1)
     title = f'日历订阅{rnd}'
@@ -222,6 +225,102 @@ def test_ics_fold_and_allday():
     assert 'VALARM' not in body, '全天事件不附提醒'
 
 
+def test_meeting_15min_and_due_alarm():
+    """会议只保留开始前 15 分钟提醒, 不再下发 30 分钟到期提醒; 事件带详情 URL."""
+    from datetime import datetime
+    from core.timeutil import cn_now as _cn_now
+    from routes.tasks_api import _build_todo_ics, _ics_utc
+
+    now = _cn_now()
+    s = (now + timedelta(hours=2)).replace(second=0, microsecond=0)
+    e = s + timedelta(hours=1)
+    u = type('U', (), {'name': '张三', 'username': 'zs'})()
+    meet = type('T', (), {'id': 30, 'title': '周会', 'category': '会议',
+                          'description': '', 'start_time': s,
+                          'end_time': e})()
+    body = _build_todo_ics(u, [meet], due_minutes=30,
+                           base_url='https://example.com/')
+    assert '会议即将开始' in body
+    assert f'TRIGGER;VALUE=DATE-TIME:{_ics_utc(s - timedelta(minutes=15))}' in body
+    assert '待办即将截止，请尽快完成' not in body
+    assert f'TRIGGER;VALUE=DATE-TIME:{_ics_utc(e - timedelta(minutes=30))}' not in body
+    assert body.count('BEGIN:VALARM') == 1
+    assert 'URL:https://example.com/user/tasks/30' in body
+
+    # 会议提前量可通过 meeting_minutes 调整
+    custom = _build_todo_ics(u, [meet], meeting_minutes=10,
+                             due_minutes=30)
+    assert (f'TRIGGER;VALUE=DATE-TIME:'
+            f'{_ics_utc(s - timedelta(minutes=10))}' in custom)
+
+
+def test_remind_mode_selection():
+    """订阅链接可选择 开始+到期 / 仅开始 / 仅到期 / 不提醒."""
+    from core.timeutil import cn_now as _cn_now
+    from routes.tasks_api import _build_todo_ics
+
+    now = _cn_now()
+    s = (now + timedelta(hours=2)).replace(second=0, microsecond=0)
+    e = s + timedelta(hours=1)
+    u = type('U', (), {'name': '张三', 'username': 'zs'})()
+    t = type('T', (), {'id': 31, 'title': '写材料', 'category': '工作',
+                       'description': '', 'start_time': s, 'end_time': e})()
+    none = _build_todo_ics(u, [t], remind='none', due_minutes=30)
+    assert 'BEGIN:VALARM' not in none
+    start = _build_todo_ics(u, [t], remind='start', due_minutes=30)
+    assert '待办即将开始' in start
+    assert '待办即将截止' not in start
+    due = _build_todo_ics(u, [t], remind='due', due_minutes=30)
+    assert '待办即将截止' in due
+    assert '待办即将开始' not in due
+
+
+def test_cross_day_excluded_and_options(client):
+    """跨天事项不同步到手机日历(下发取消清理); 单日事项仍同步且提醒可选."""
+    from app import app as flask_app
+    from core.extensions import db as _db
+    from core.models import Task, TaskAssignment
+    from core.timeutil import cn_now
+    import secrets as _secrets
+
+    now = cn_now()
+    day0 = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    cross_title = '跨天订阅' + _secrets.token_hex(8)
+    same_title = '单日订阅' + _secrets.token_hex(8)
+    with flask_app.app_context():
+        cross = Task(title=cross_title, description='', category='会议',
+                     start_time=day0 + timedelta(hours=23),
+                     end_time=day0 + timedelta(days=1, hours=1),
+                     creator_id=1)
+        same = Task(title=same_title, description='', category='会议',
+                    start_time=day0 + timedelta(hours=10),
+                    end_time=day0 + timedelta(hours=11),
+                    creator_id=1)
+        _db.session.add_all([cross, same])
+        _db.session.flush()
+        _db.session.add_all([TaskAssignment(task_id=cross.id, user_id=1),
+                             TaskAssignment(task_id=same.id, user_id=1)])
+        _db.session.commit()
+        cross_id, same_id = cross.id, same.id
+    try:
+        body = client.get('/user/todo.ics?days=1').get_data(as_text=True)
+        cross_blocks = _vevent_blocks(
+            body, f'UID:todo-{cross_id}@taskmanager')
+        assert cross_blocks == [], '跨天事项不应出现在订阅源中'
+        assert cross_title not in body
+        same_block = _vevent_blocks(
+            body, f'UID:todo-{same_id}@taskmanager')[0]
+        assert 'STATUS:CONFIRMED' in same_block
+        assert 'URL:http://localhost/user/tasks/%d' % same_id in same_block
+        assert 'DTSTART:' in same_block and 'DTEND:' in same_block
+        off = client.get('/user/todo.ics?days=1&remind=none').get_data(
+            as_text=True)
+        assert 'BEGIN:VALARM' not in _vevent_blocks(
+            off, f'UID:todo-{same_id}@taskmanager')[0]
+    finally:
+        _cleanup_titles([cross_title, same_title])
+
+
 def test_alarm_skipped_when_time_passed():
     """提醒时点已过的待办不下发闹钟(否则刷新时小米日历会反复补提醒):
     逾期未完成 → 无闹钟; 进行中(截止未到) → 退回截止前30分钟。"""
@@ -285,7 +384,7 @@ def _vevent_blocks(body, uid=None):
     """拆出 VEVENT 块; uid 为 None 时返回全部。"""
     blocks = ['BEGIN:VEVENT' + b.split('END:VEVENT')[0]
               for b in body.split('BEGIN:VEVENT')[1:]]
-    return [b for b in blocks if uid is None or f'UID:{uid}' in b]
+    return [b for b in blocks if uid is None or uid in b]
 
 
 def test_feed_excludes_completed(client):
@@ -308,18 +407,15 @@ def test_feed_excludes_completed(client):
             _db.session.commit()
         body = client.get('/user/todo.ics').get_data(as_text=True)
         blocks = _vevent_blocks(body, f'UID:todo-{_task_id(title)}@taskmanager')
-        # 只剩取消通知: 同 UID + STATUS:CANCELLED + 更高 SEQUENCE, 不再带闹钟
-        assert len(blocks) == 1, blocks
-        blk = blocks[0]
-        assert 'STATUS:CANCELLED' in blk and 'SEQUENCE:1' in blk
-        assert 'BEGIN:VALARM' not in blk
-        assert title in blk, '取消事件需保留标题, 便于手机端定位条目'
+        # 已完成的待办直接不输出(不再下发 STATUS:CANCELLED, 避免手机端继续显示)
+        assert blocks == [], blocks
+        assert title not in body
     finally:
         _cleanup_titles([title])
 
 
 def test_feed_cancels_deleted(client):
-    """进回收站的待办同样下发取消通知, 且不再作为正式事件出现。"""
+    """进回收站的待办直接不输出, 不再作为正式/取消事件出现。"""
     title = _mk_task(client)
     tid = _task_id(title)
     uid = f'todo-{tid}@taskmanager'
@@ -333,9 +429,8 @@ def test_feed_cancels_deleted(client):
             _db.session.commit()
         body = client.get('/user/todo.ics').get_data(as_text=True)
         blocks = _vevent_blocks(body, f'UID:{uid}')
-        assert len(blocks) == 1, blocks
-        assert 'STATUS:CANCELLED' in blocks[0]
-        assert 'STATUS:CONFIRMED' not in blocks[0]
+        assert blocks == [], blocks
+        assert title not in body
     finally:
         from app import app as flask_app
         from core.extensions import db as _db
@@ -345,3 +440,50 @@ def test_feed_cancels_deleted(client):
                 t.deleted_at = None
                 _db.session.commit()
         _cleanup_titles([title])
+
+
+def test_feed_cancels_abandoned_and_keeps_creator_task(client):
+    """废弃的待办不再同步(下发取消); 无负责人的纯自建待办仍同步。"""
+    from app import app as flask_app
+    from core.extensions import db as _db
+    from core.models import Task, TaskAssignment
+    from core.timeutil import cn_now
+    import secrets as _secrets
+
+    now = cn_now()
+    day0 = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    ab_title = '废弃订阅' + _secrets.token_hex(8)
+    own_title = '自建订阅' + _secrets.token_hex(8)
+    with flask_app.app_context():
+        ab = Task(title=ab_title, description='', category='工作',
+                  start_time=day0 + timedelta(hours=10),
+                  end_time=day0 + timedelta(hours=11), creator_id=1)
+        own = Task(title=own_title, description='', category='工作',
+                   start_time=day0 + timedelta(hours=10),
+                   end_time=day0 + timedelta(hours=11), creator_id=1)
+        _db.session.add_all([ab, own])
+        _db.session.flush()
+        _db.session.add(TaskAssignment(task_id=ab.id, user_id=1,
+                                       status='abandoned'))
+        _db.session.commit()
+        ab_id, own_id = ab.id, own.id
+    try:
+        body = client.get('/user/todo.ics').get_data(as_text=True)
+        ab_blocks = _vevent_blocks(
+            body, f'UID:todo-{ab_id}@taskmanager')
+        assert ab_blocks == [], '废弃的待办不应出现在订阅源中'
+        assert ab_title not in body
+        own_block = _vevent_blocks(
+            body, f'UID:todo-{own_id}@taskmanager')[0]
+        assert 'STATUS:CONFIRMED' in own_block
+    finally:
+        _cleanup_titles([ab_title, own_title])
+
+
+def test_feed_download_attachment(client):
+    """鸿蒙 NEXT 等不支持 URL 订阅时, ?download=1 返回附件供一次性导入."""
+    r = client.get('/user/todo.ics?download=1')
+    assert r.status_code == 200
+    assert r.headers['Content-Disposition'].startswith('attachment')
+    r2 = client.get('/user/todo.ics')
+    assert r2.headers['Content-Disposition'].startswith('inline')

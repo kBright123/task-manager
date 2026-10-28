@@ -15,6 +15,32 @@ async function rotateCalToken(btn) {
   }).catch(function () { btn.disabled = false; btn.innerHTML = orig; toast('网络错误，请重试', 'danger'); });
 }
 
+function calRebuildFeed() {
+  var input = document.getElementById('calFeedUrl');
+  if (!input) return;
+  var raw = input.getAttribute('data-base') || input.value;
+  var url;
+  try { url = new URL(raw, window.location.origin); } catch (e) { return; }
+  var remind = document.getElementById('calRemind');
+  var meet = document.getElementById('calMeetingMin');
+  var due = document.getElementById('calDueMin');
+  if (remind && remind.value !== 'both') url.searchParams.set('remind', remind.value);
+  else url.searchParams.delete('remind');
+  if (meet && meet.value !== '15') url.searchParams.set('mm', meet.value);
+  else url.searchParams.delete('mm');
+  if (due && due.value !== 'auto') url.searchParams.set('dm', due.value);
+  else url.searchParams.delete('dm');
+  input.value = url.toString();
+  var link = document.getElementById('calWebcalLink');
+  if (link) link.href = 'webcal://' + url.toString().split('://').slice(1).join('://');
+  var dl = document.getElementById('calDownloadLink');
+  if (dl) {
+    var d = new URL(url.toString());
+    d.searchParams.set('download', '1');
+    dl.href = d.toString();
+  }
+}
+
 function copyFeedUrl(btn) {
   var input = document.getElementById('calFeedUrl');
   if (!input) return;

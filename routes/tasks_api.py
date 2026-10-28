@@ -1619,18 +1619,33 @@ def _ics_utc(dt):
         .strftime('%Y%m%dT%H%M%SZ')
 
 
-def _build_todo_ics(user, tasks, feed_label='今日待办', cancelled=()):
+def _build_todo_ics(user, tasks, feed_label='今日待办', cancelled=(),
+                    remind='both', meeting_minutes=15,
+                    due_minutes=None, base_url=None):
     """生成 iCal 文本。提醒规则(VIEWER 手机本地通知):
-    开始时间在今天的待办 → 开始前 30 分钟;
-    开始时间不在今天的待办 → 截止前 60 分钟;
+    - 会议: 仅开始前 15 分钟(meeting_minutes 可调), 不再附带到期提醒;
+    - 其他待办: 开始前 30 分钟;
+    - 其他非全天事项: 另加一条到期提醒(今天开始的截止前 30 分钟,
+      其余截止前 60 分钟; due_minutes 可覆盖)。
+    remind: both(默认)/start/due/none, 供订阅链接选择提醒类型。
     全天事件不附提醒。触发器统一用绝对时间 TRIGGER;VALUE=DATE-TIME, 不用
     相对时间 / RELATED=END: 小米日历(ical4j)在订阅刷新时会把已过期的相对
     触发器重新武装 → 同一条待办当天反复提醒, 且 RELATED=END 会被算成异常值
     且在手机上关不掉。
-    提醒时点已经过去的待办不再下发闹钟(进行中的退回「截止前30分钟」),
-    避免每次刷新都补一次过期提醒。
+    提醒时点已经过去的闹钟不再下发, 避免每次刷新都补一次过期提醒。
+    每条事件附 URL, iPhone 点开后可直接进入待办详情完成事项。
     cancelled: 已完成/删除的待办, 以 STATUS:CANCELLED 形式下发, 让手机日历
     删除对应条目并撤销提醒。"""
+    remind = remind if remind in ('both', 'start', 'due', 'none') else 'both'
+    try:
+        meeting_minutes = max(0, min(int(meeting_minutes), 1440))
+    except (TypeError, ValueError):
+        meeting_minutes = 15
+    if due_minutes is not None:
+        try:
+            due_minutes = max(0, min(int(due_minutes), 1440))
+        except (TypeError, ValueError):
+            due_minutes = None
     now = cn_now()
     today = now.date()
     stamp = _ics_utc(now)
@@ -1668,27 +1683,33 @@ def _build_todo_ics(user, tasks, feed_label='今日待办', cancelled=()):
             lines.append('DESCRIPTION:' + _ics_escape(desc))
         if cat:
             lines.append('CATEGORIES:' + _ics_escape(cat))
+        if base_url:
+            lines.append('URL:' + base_url.rstrip('/') +
+                         f'/user/tasks/{t.id}')
         lines += ['STATUS:CONFIRMED',
                   'SEQUENCE:0',
                   'TRANSP:OPAQUE']
         if not allday:
-            # 提醒锚点: 开始在今天 → 开始前30分钟; 否则 → 截止前60分钟。
-            # 两个分支统一用绝对时间(VALUE=DATE-TIME), 不用 TRIGGER:-PT30M /
+            # 统一用绝对时间(VALUE=DATE-TIME), 不用 TRIGGER:-PT30M /
             # RELATED=END: 小米日历(ical4j)不支持 RELATED=END(会算成异常值
             # 如 -10268 分钟且无法关闭), 且刷新时对相对触发器会重复触发。
-            alarm_desc = '待办即将开始' if s.date() == today \
-                else '待办即将截止，请尽快完成'
-            alarm_at = (s - timedelta(minutes=30) if s.date() == today
-                        else e - timedelta(minutes=60))
-            if alarm_at <= now:
-                # 提醒时点已过(任务已在进行中/已逾期): 不下发已过去的闹钟,
-                # 否则每次订阅刷新小米日历都会把它重新武装 → 当天反复提醒;
-                # 仍在进行中的任务退回「截止前30分钟」, 逾期未完成的不再提醒
-                late_desc, late_at = '待办即将截止，请尽快完成', e - timedelta(
-                    minutes=30)
-                alarm_desc, alarm_at = (late_desc, late_at) if late_at > now \
-                    else (alarm_desc, None)
-            if alarm_at is not None:
+            # 每条待办最多下发两条闹钟: 开始提醒 + 到期提醒, 已过时点的跳过,
+            # 避免每次订阅刷新都把过期闹钟重新武装。
+            is_meeting = cat == '会议'
+            alarms = []
+            if remind in ('both', 'start'):
+                lead = meeting_minutes if is_meeting else 30
+                alarms.append((
+                    s - timedelta(minutes=lead),
+                    '会议即将开始' if is_meeting else '待办即将开始'))
+            if remind in ('both', 'due') and not is_meeting:
+                lead = (due_minutes if due_minutes is not None
+                        else (30 if s.date() == today else 60))
+                alarms.append((e - timedelta(minutes=lead),
+                               '待办即将截止，请尽快完成'))
+            for alarm_at, alarm_desc in alarms:
+                if alarm_at <= now:
+                    continue
                 lines += ['BEGIN:VALARM',
                           'ACTION:DISPLAY',
                           'DESCRIPTION:' + _ics_escape(alarm_desc),
@@ -1743,12 +1764,15 @@ def user_todo_ics():
 
     鉴权: ?token=<API令牌>(与 /api/token 同一令牌) 免 Cookie;
     已登录会话亦可直接访问。仅输出**未完成**(创建的+被指派的,
-    全部负责人已完成的不输出)且截止时间落在时间窗内的待办;
-    回收站/已完成的待办改发 STATUS:CANCELLED(同 UID + 更高 SEQUENCE),
-    让手机日历删掉旧条目并撤销提醒——只从源里去掉客户端是删不掉的。
+    本人已完成/已废弃的不输出)的单日待办; 跨天事项(开始日 != 截止日)、
+    回收站/已完成/已废弃的待办一律不输出(不下发 STATUS:CANCELLED, 避免
+    部分手机订阅客户端仍把取消条目显示成日程; 旧条目需删除订阅后重新添加)。
     参数: ?days=N  时间窗=今天起 N 天(默认 3, 即未来 3 天)
-    提醒: 开始在今天的待办开始前 30 分钟, 其余截止前 60 分钟(统一使用绝对时间,
-    避免小米日历在订阅刷新时重复触发提醒)。"""
+          ?remind=both|start|due|none  选择提醒类型(默认 both)
+          ?mm=N  会议开始前提醒分钟数(默认 15)
+          ?dm=N  到期提醒提前分钟数(缺省: 今天开始 30, 其余 60)
+    提醒: 会议仅在开始前 15 分钟提醒; 其他待办开始前 30 分钟并附带到期提醒
+    (绝对时间, 避免小米/iPhone 在订阅刷新时重复触发)。"""
     token = (request.args.get('token') or '').strip()
     user = None
     if token:
@@ -1766,6 +1790,12 @@ def user_todo_ics():
     if user is None:
         return Response('Unauthorized\n', status=401, mimetype='text/plain')
     days = _feed_q_int('days', 3, 1, 366)
+    remind = (request.args.get('remind') or 'both').strip().lower()
+    if remind not in ('both', 'start', 'due', 'none'):
+        remind = 'both'
+    meeting_minutes = _feed_q_int('mm', 15, 0, 1440)
+    due_minutes = _feed_q_int('dm', None, 0, 1440) \
+        if (request.args.get('dm') or '').strip() else None
     day0 = cn_now().replace(hour=0, minute=0, second=0, microsecond=0)
     ids = {r[0] for r in db.session.query(TaskAssignment.task_id).filter(
         TaskAssignment.user_id == user.id,
@@ -1782,33 +1812,60 @@ def user_todo_ics():
     cancelled = []
     if cand_ids:
         # 带 include_deleted: 已进回收站的待办也要能下发取消通知(手机端删条目)
+        # 时间窗按「与窗口有交集」判定: 跨天/长事项即使截止时间超出窗口末尾,
+        # 只要开始时间在窗口内也保留, 避免 iPhone 上开始/截止范围被截断。
         candidates = Task.query.filter(Task.id.in_(cand_ids),
                                        Task.end_time >= day0,
-                                       Task.end_time < day0 + timedelta(days=days))\
+                                       Task.start_time < day0 + timedelta(days=days))\
             .execution_options(include_deleted=True)\
             .order_by(Task.start_time).limit(1000).all()
         rows = db.session.query(
-            TaskAssignment.task_id, TaskAssignment.status).filter(
+            TaskAssignment.task_id, TaskAssignment.user_id,
+            TaskAssignment.status).filter(
             TaskAssignment.task_id.in_([t.id for t in candidates])).all()
-        by_task = {}
-        for tid, st in rows:
-            by_task.setdefault(tid, set()).add(st)
+        all_status, my_status = {}, {}
+        for tid, uid, st in rows:
+            all_status.setdefault(tid, set()).add(st)
+            if uid == user.id:
+                my_status.setdefault(tid, set()).add(st)
 
-        def _still_open(tid):
-            active = by_task.get(tid, set()) - {'abandoned'}
-            return not active or not active <= {'completed', 'approved'}
+        _ACTIVE = {'pending', 'rejected'}
 
-        # 已完成的不再同步/提醒: 存在非放弃的负责人且全部已完成/已验收;
-        # 无任何有效负责人的(纯自建待办)视为未完成, 保留。软删除同样不进源
-        open_map = {t.id: t for t in candidates
-                    if t.deleted_at is None and _still_open(t.id)}
-        tasks = list(open_map.values())
-        # 取消通知: 原本在同步窗口内、现在已关闭(完成/全部放弃)或已软删除的条目
-        # → 显式发出 STATUS:CANCELLED 让手机日历删除旧条目/撤销提醒
-        cancelled = [t for t in candidates if t.id not in open_map]
+        def _user_open(t):
+            """本人视角是否仍未完成: 本人已完成/废弃则不同步; 未分配给自己时
+            (创建者)退回全体负责人状态, 全部完成/废弃才关闭。"""
+            if t.deleted_at is not None:
+                return False
+            mine = my_status.get(t.id)
+            if mine:
+                return bool(mine & _ACTIVE)
+            if t.creator_id != user.id:
+                return False
+            allst = all_status.get(t.id)
+            return True if allst is None else bool(allst & _ACTIVE)
+
+        # 已完成/废弃的不再同步/提醒(按本人状态判断, 其他负责人未完成也不影响);
+        # 无任何负责人的纯自建待办保留。软删除同样不进源。
+        # 跨天事项(开始日 != 截止日)不同步到手机日历: 避免多日横幅占满日历。
+        open_map = {t.id: t for t in candidates if _user_open(t)}
+        synced_map = {tid: t for tid, t in open_map.items()
+                      if t.start_time.date() == t.end_time.date()}
+        tasks = list(synced_map.values())
+        # 不输出 STATUS:CANCELLED: iPhone/小米等订阅客户端对取消条目的处理不一致,
+        # 有的仍会显示成日程。已排除事项直接不下发, 手机端旧条目通过删除订阅
+        # 后重新添加链接来清理。
+        cancelled = ()
     label = '今日待办' if days == 1 else f'未来{days}日待办'
-    resp = Response(_build_todo_ics(user, tasks, feed_label=label, cancelled=cancelled),
-                    mimetype='text/calendar')
-    resp.headers['Content-Disposition'] = 'inline; filename="todo.ics"'
-    resp.headers['Cache-Control'] = 'no-store'
+    resp = Response(_build_todo_ics(
+        user, tasks, feed_label=label, cancelled=cancelled,
+        remind=remind, meeting_minutes=meeting_minutes,
+        due_minutes=due_minutes, base_url=request.url_root),
+        mimetype='text/calendar')
+    resp.headers['Content-Disposition'] = (
+        'attachment; filename="todo.ics"'
+        if (request.args.get('download') or '').strip() in ('1', 'true', 'yes')
+        else 'inline; filename="todo.ics"')
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
     return resp

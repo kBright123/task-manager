@@ -17,11 +17,11 @@
 """个人知识库模块(单文件版)。
 
 组成:
-- 配置: 路径/opencode 端点/模型,环境变量可覆盖
+- 配置: 路径/模型,环境变量可覆盖
 - OCR:  RapidOCR + pypdfium2 文本识别
 - 嵌入: fastembed 中文向量
 - 存储: SochDB 持久化/检索封装
-- LLM:  opencode serve 客户端(问答)
+- LLM:  OpenAI 兼容接口(问答)
 - 视图: Flask Blueprint 路由
 - Worker: 后台处理进程(python knowledge.py)
 
@@ -49,7 +49,6 @@ import time
 import uuid
 from types import SimpleNamespace
 
-import requests
 import markupsafe
 from PIL import Image, ImageOps
 from flask import (Blueprint, Response, abort, current_app, flash, jsonify,
@@ -75,10 +74,6 @@ KB_PAGES_COLLECTION = 'pages'
 
 KB_EMBED_MODEL = os.environ.get('KB_EMBED_MODEL', 'BAAI/bge-small-zh-v1.5')
 
-KB_OPENCODE_BASE_URL = os.environ.get('KB_OPENCODE_BASE_URL', 'http://127.0.0.1:4096')
-KB_OPENCODE_PROVIDER = os.environ.get('KB_OPENCODE_PROVIDER', 'opencode')
-KB_OPENCODE_MODEL = os.environ.get('KB_OPENCODE_MODEL', 'ling-3.0-flash-fin-free')
-KB_OPENCODE_TIMEOUT = int(os.environ.get('KB_OPENCODE_TIMEOUT', '180'))
 KB_LLM_DISABLED = os.environ.get('KB_LLM_DISABLED', '0') == '1'
 # 标签黑名单:识别/打标签时剔除这些词汇(机构名等),逗号/分号分隔
 KB_TAG_BLACKLIST = [t.strip() for t in re.split(
@@ -1513,7 +1508,7 @@ def _parse_tag_json(raw):
 
 
 def extract_point_tags(point_ids, max_text=180):
-    """使用 opencode 为知识点批量提取标签。返回 {point_id: [tags]}。"""
+    """使用大模型为知识点批量提取标签。返回 {point_id: [tags]}。"""
     if not point_ids:
         return {}
     if KB_LLM_DISABLED:
@@ -1553,7 +1548,7 @@ def extract_point_tags(point_ids, max_text=180):
 
 
 def tag_points_untagged(max_points=200):
-    """为尚未打标签的知识点批量提取标签(经 opencode)。返回处理条数。"""
+    """为尚未打标签的知识点批量提取标签(经大模型)。返回处理条数。"""
     conn = _db_conn()
     try:
         rows = conn.execute(
@@ -3168,7 +3163,7 @@ def get_recent_unified(user_id, limit=5):
 
 
 # ---------------------------------------------------------------------------
-# LLM(opencode serve)
+# LLM(OpenAI 兼容接口)
 # ---------------------------------------------------------------------------
 
 _ASK_SYSTEM = (
@@ -3176,47 +3171,6 @@ _ASK_SYSTEM = (
     '如果资料不足以回答,明确说"资料中未找到",不要编造。'
     '回答简洁,使用中文。引用资料时用 [资料 N] 标注。\n\n'
 )
-
-
-def _session_create():
-    resp = requests.post(
-        f'{KB_OPENCODE_BASE_URL}/session',
-        json={'title': 'kb'},
-        timeout=KB_OPENCODE_TIMEOUT)
-    resp.raise_for_status()
-    return resp.json()['id']
-
-
-def _send(session_id, text):
-    body = {
-        'parts': [{'type': 'text', 'text': text}],
-        'model': {'providerID': KB_OPENCODE_PROVIDER,
-                  'modelID': KB_OPENCODE_MODEL},
-    }
-    resp = requests.post(
-        f'{KB_OPENCODE_BASE_URL}/session/{session_id}/message',
-        json=body, timeout=KB_OPENCODE_TIMEOUT)
-    resp.raise_for_status()
-    data = resp.json()
-    if 'name' in data:
-        raise RuntimeError(f'opencode error: {data.get("name")} '
-                           f'{data.get("data", {}).get("message", "")}')
-    parts = data.get('parts', [])
-    return '\n'.join(p.get('text', '') for p in parts
-                     if p.get('type') == 'text').strip()
-
-
-def _retry(fn, attempts=3, delay=2):
-    last = None
-    for i in range(attempts):
-        try:
-            return fn()
-        except Exception as e:
-            last = e
-            logger.warning('opencode call failed (%s), retry %s/%s',
-                           e, i + 1, attempts)
-            time.sleep(delay * (i + 1))
-    raise last
 
 
 _SUMMARY_SYSTEM = '请用 2-3 句话总结以下文档的核心内容。'

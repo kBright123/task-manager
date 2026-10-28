@@ -1646,6 +1646,8 @@ def _build_todo_ics(user, tasks, feed_label='今日待办', cancelled=(),
     触发器重新武装 → 同一条待办当天反复提醒, 且 RELATED=END 会被算成异常值
     且在手机上关不掉。
     提醒时点已经过去的闹钟不再下发, 避免每次刷新都补一次过期提醒。
+    每个 VALARM 带 UID / X-WR-ALARMUID, 提升 iOS 对订阅源提醒的兼容性;
+    同一时刻的开始/到期闹钟自动去重。
     每条事件附 URL, iPhone 点开后可直接进入待办详情完成事项。
     cancelled: 已完成/删除的待办, 以 STATUS:CANCELLED 形式下发, 让手机日历
     删除对应条目并撤销提醒。"""
@@ -1714,19 +1716,32 @@ def _build_todo_ics(user, tasks, feed_label='今日待办', cancelled=(),
                 lead = meeting_minutes if is_meeting else 30
                 alarms.append((
                     s - timedelta(minutes=lead),
-                    '会议即将开始' if is_meeting else '待办即将开始'))
+                    '会议即将开始' if is_meeting else '待办即将开始',
+                    'start'))
             if remind in ('both', 'due') and not is_meeting:
                 lead = (due_minutes if due_minutes is not None
                         else (30 if s.date() == today else 60))
                 alarms.append((e - timedelta(minutes=lead),
-                               '待办即将截止，请尽快完成'))
-            for alarm_at, alarm_desc in alarms:
+                               '待办即将截止，请尽快完成', 'due'))
+            seen_alarm_times = set()
+            for alarm_at, alarm_desc, kind in alarms:
                 if alarm_at <= now:
                     continue
+                trigger = _ics_utc(alarm_at)
+                # 短待办的「开始提醒」与「到期提醒」可能落在同一时刻,
+                # 去重避免手机同时弹两条相同通知。
+                if trigger in seen_alarm_times:
+                    continue
+                seen_alarm_times.add(trigger)
+                # iOS 对订阅源中的 VALARM 兼容性较差, 部分版本要求闹钟带
+                # UID / X-WR-ALARMUID 才会保留提醒(见 Apple Calendar 实测)。
+                alarm_uid = f'alarm-{t.id}-{kind}@taskmanager'
                 lines += ['BEGIN:VALARM',
+                          f'UID:{alarm_uid}',
+                          f'X-WR-ALARMUID:{alarm_uid}',
                           'ACTION:DISPLAY',
                           'DESCRIPTION:' + _ics_escape(alarm_desc),
-                          f'TRIGGER;VALUE=DATE-TIME:{_ics_utc(alarm_at)}',
+                          f'TRIGGER;VALUE=DATE-TIME:{trigger}',
                           'END:VALARM']
         lines.append('END:VEVENT')
     # 已完成/删除(或改为不再同步)的待办: 单纯从源里去掉并不能让手机日历删除

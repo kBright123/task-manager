@@ -17,10 +17,7 @@
 # -*- coding: utf-8 -*-
 """auth 路由, 自 app.py 单文件拆分, 保持原 endpoint 名称不变。"""
 from app import (app, login_required, User, client_ip, cn_now,
-                 create_notification, db, generate_verify_code,
-                 log_operation, logger, normalize_email, send_email,
-                 email_has_common_suffix,
-                 send_verify_code)
+                 db, log_operation)
 
 from flask import (flash, jsonify, redirect, render_template, request,
                    session, url_for)
@@ -44,7 +41,6 @@ UNLOCK_CODE_TTL_MINUTES = 10
 # --- 轻量 IP 限速(内存滑动窗口): 与按账号锁定互补, 防脚本高频撞库 ---
 import threading
 import time as _time_mod
-import hmac
 from collections import deque as _deque
 
 _ip_attempts = {}
@@ -78,48 +74,11 @@ def _client_key():
         'X-Forwarded-For', '').split(',')[0].strip() or 'unknown'
 
 
-def mask_email(email):
-    """脱敏邮箱用于页面展示: abc@qq.com -> a**@qq.com"""
-    if not email:
-        return ''
-    local, _, domain = email.partition('@')
-    if len(local) <= 2:
-        return f'{local[0]}***@{domain}'
-    return f'{local[0]}***{local[-1]}@{domain}'
-
-
-def send_unlock_code(user):
-    """为锁定账号生成解锁验证码并发送邮件。返回 (ok, err, dev_code)。"""
-    code = generate_verify_code()
-    user.unlock_code = code
-    user.unlock_code_expires_at = (cn_now() +
-                                   timedelta(minutes=UNLOCK_CODE_TTL_MINUTES))
-    user.locked_until = cn_now() + timedelta(minutes=LOGIN_LOCK_MINUTES)
-    db.session.commit()
-    text = (f'您的账号 @{user.username} 因多次密码输入错误已被临时锁定。\n'
-            f'解锁验证码为: {code}\n'
-            f'验证码 {UNLOCK_CODE_TTL_MINUTES} 分钟内有效,请勿泄露给他人。\n'
-            f'如非本人操作,请忽略本邮件,并考虑修改密码。')
-    html = (f'<div style="font-family:Microsoft YaHei,Arial,sans-serif;font-size:14px;color:#1e293b;">'
-            f'<p>您的账号 <b>@{user.username}</b> 因多次密码输入错误已被临时锁定。</p>'
-            f'<p>解锁验证码为:</p>'
-            f'<p style="font-size:24px;font-weight:700;letter-spacing:4px;color:#4f46e7;">{code}</p>'
-            f'<p>验证码 <b>{UNLOCK_CODE_TTL_MINUTES} 分钟</b>内有效,请勿泄露给他人。</p>'
-            f'<p style="color:#94a3b8;font-size:12px;">如非本人操作,请忽略本邮件,并考虑修改密码。</p></div>')
-    ok, err = send_email(user.email, '【知行合一】账号解锁验证码', html,
-                         text, category='unlock')
-    if not ok and not app.config['MAIL_SERVER']:
-        logger.info('邮件服务未配置,解锁验证码(%s) 已写入日志,目标邮箱: %s',
-                    code, user.email)
-        return False, '邮件服务未配置,验证码已写入服务器日志', code
-    return ok, err, ''
-
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
-    ctx = {'username': '', 'lock_email': False, 'masked_email': ''}
+    ctx = {'username': ''}
     if request.method == 'POST':
         if _ip_rate_limited('login:' + _client_key(), limit=10, window=60):
             flash('尝试过于频繁，请 1 分钟后再试', 'warning')
@@ -130,11 +89,6 @@ def login():
         user = User.query.filter_by(username=username).first()
         now = cn_now()
         if user and user.locked_until and user.locked_until > now:
-            if user.unlock_code:
-                ctx['lock_email'] = True
-                ctx['masked_email'] = mask_email(user.email)
-                flash('密码错误次数过多，账号已锁定。请输入邮箱验证码解锁（也可验证后重置密码）', 'warning')
-                return render_template('login.html', **ctx)
             wait_min = int((user.locked_until - now).total_seconds() // 60) + 1
             log_operation('login_fail', username, '账号锁定中')
             db.session.commit()
@@ -154,12 +108,10 @@ def login():
             if user.is_disabled:
                 log_operation('login_fail', username, '账号已禁用')
                 db.session.commit()
-                flash('该账号已被禁用，请联系管理员', 'danger')
+                flash('该账号尚未启用或已被禁用，请联系管理员启用', 'danger')
                 return render_template('login.html', **ctx)
             user.failed_login_count = 0
             user.locked_until = None
-            user.unlock_code = ''
-            user.unlock_code_expires_at = None
             user.last_login = cn_now()
             user.last_seen = cn_now()
             login_user(user)
@@ -182,17 +134,12 @@ def login():
             return render_template('login.html', **ctx)
         user.failed_login_count = (user.failed_login_count or 0) + 1
         if user.failed_login_count >= MAX_LOGIN_FAILS:
-            if user.email_verified and user.email:
-                send_unlock_code(user)
-                ctx['lock_email'] = True
-                ctx['masked_email'] = mask_email(user.email)
-                flash(f'密码错误 {MAX_LOGIN_FAILS} 次，账号已锁定。已向绑定邮箱发送解锁验证码', 'warning')
-            else:
-                user.locked_until = now + timedelta(minutes=LOGIN_LOCK_MINUTES)
-                db.session.commit()
-                log_operation('login_fail', username, f'连续密码错误，锁定 {LOGIN_LOCK_MINUTES} 分钟')
-                db.session.commit()
-                flash(f'密码错误 {MAX_LOGIN_FAILS} 次，账号已锁定 {LOGIN_LOCK_MINUTES} 分钟。请稍后再试', 'warning')
+            user.locked_until = now + timedelta(minutes=LOGIN_LOCK_MINUTES)
+            db.session.commit()
+            log_operation('login_fail', username,
+                          f'连续密码错误，锁定 {LOGIN_LOCK_MINUTES} 分钟')
+            db.session.commit()
+            flash(f'密码错误 {MAX_LOGIN_FAILS} 次，账号已锁定 {LOGIN_LOCK_MINUTES} 分钟。请稍后再试或联系管理员', 'warning')
             return render_template('login.html', **ctx)
         remaining = MAX_LOGIN_FAILS - user.failed_login_count
         log_operation('login_fail', username, '用户名或密码错误')
@@ -202,132 +149,20 @@ def login():
     return render_template('login.html', **ctx)
 
 
-@app.route('/login/unlock/send', methods=['POST'])
-def login_unlock_send():
-    """锁定账号重发解锁验证码。"""
-    if _ip_rate_limited('unlock_send:' + _client_key(), limit=3, window=300):
-        flash('重发过于频繁，请 5 分钟后再试', 'warning')
-        return redirect(url_for('login'))
-    username = request.form.get('username', '').strip()
-    user = User.query.filter_by(username=username).first()
-    now = cn_now()
-    if (user and user.locked_until and user.locked_until > now
-            and user.email_verified and user.email):
-        send_unlock_code(user)
-        flash('解锁验证码已重新发送，请查收邮件', 'success')
-    else:
-        flash('账号未处于可解锁状态', 'danger')
-    return redirect(url_for('login'))
-
-
-@app.route('/login/unlock', methods=['POST'])
-def login_unlock():
-    """邮箱验证码解锁:验证通过后解锁账号,可同时重置密码。"""
-    if _ip_rate_limited('unlock:' + _client_key(), limit=10, window=300):
-        flash('尝试过于频繁，请 5 分钟后再试', 'warning')
-        return redirect(url_for('login'))
-    username = request.form.get('username', '').strip()
-    code = (request.form.get('code') or '').strip()
-    new_password = request.form.get('new_password', '')
-    user = User.query.filter_by(username=username).first()
-    now = cn_now()
-    if not user or not user.locked_until or user.locked_until <= now:
-        flash('账号未处于锁定状态', 'danger')
-        return redirect(url_for('login'))
-    if not code:
-        flash('请输入邮箱收到的验证码', 'danger')
-        return redirect(url_for('login'))
-    if not user.unlock_code or user.unlock_code_expires_at < now:
-        flash('验证码已过期，请重新获取', 'danger')
-        return redirect(url_for('login'))
-    if not hmac.compare_digest(str(user.unlock_code or ''), code):
-        log_operation('login_fail', username, '解锁验证码错误')
-        db.session.commit()
-        flash('验证码错误，请重新输入', 'danger')
-        return redirect(url_for('login'))
-    if new_password:
-        if len(new_password) < 6:
-            flash('新密码长度至少 6 位', 'danger')
-            return redirect(url_for('login'))
-        user.set_password(new_password)
-    user.failed_login_count = 0
-    user.locked_until = None
-    user.unlock_code = ''
-    user.unlock_code_expires_at = None
-    log_operation('login_unlock', username,
-                  '通过邮箱验证码解锁账号' + ('并重置密码' if new_password else ''))
-    db.session.commit()
-    if new_password:
-        flash('验证通过，密码已重置，请使用新密码登录', 'success')
-    else:
-        flash('验证通过，账号已解锁，请重新登录', 'success')
-    return redirect(url_for('login'))
-
-
-# --- 自助注册: 邮箱验证码(10分钟有效), 验证通过即自动开通账号, 无需管理员审批 ---
-_REG_CODE_TTL_MINUTES = 10
-_reg_pending = {}  # email -> {username, name, password_hash, code, expires_at} (内存态)
-
-
-def _prune_reg_pending():
-    """清理过期的待注册记录, 防止内存无限增长。"""
-    _now = cn_now()
-    for _e in [e for e, p in _reg_pending.items()
-               if p.get('expires_at', _now) < _now]:
-        _reg_pending.pop(_e, None)
-    if len(_reg_pending) > 1000:  # 兜底: 大量唯一邮箱轰炸时直接收敛
-        _reg_pending.clear()
-
-
-def _send_register_code(email, username, name, password):
-    """为用户自助注册生成验证码, 暂存待注册信息并发送邮件。
-    返回 (ok, err, dev_code): 邮件服务未配置时 dev_code 供开发联调。"""
-    code = generate_verify_code()
-    from werkzeug.security import generate_password_hash
-    _reg_pending[email] = {
-        'username': username,
-        'name': name,
-        'password_hash': generate_password_hash(password),
-        'code': code,
-        'expires_at': cn_now() + timedelta(minutes=_REG_CODE_TTL_MINUTES),
-    }
-    text = (f'您正在注册【知行合一】账号: @{username}。\n'
-            f'注册验证码为: {code}\n'
-            f'验证码 {_REG_CODE_TTL_MINUTES} 分钟内有效,请勿泄露给他人。\n'
-            f'验证通过后将自动开通账号,无需管理员审批。\n'
-            f'如非本人操作,请忽略本邮件。')
-    html = (f'<div style="font-family:Microsoft YaHei,Arial,sans-serif;font-size:14px;color:#1e293b;">'
-            f'<p>您正在注册【知行合一】账号 <b>@{username}</b>。</p>'
-            f'<p>注册验证码为:</p>'
-            f'<p style="font-size:24px;font-weight:700;letter-spacing:4px;color:#4f46e7;">{code}</p>'
-            f'<p>验证码 <b>{_REG_CODE_TTL_MINUTES} 分钟</b>内有效,请勿泄露给他人。</p>'
-            f'<p>验证通过后将自动开通账号,无需管理员审批。</p>'
-            f'<p style="color:#94a3b8;font-size:12px;">如非本人操作,请忽略本邮件。</p></div>')
-    ok, err = send_email(email, '【知行合一】注册验证码', html, text, category='verify')
-    if not ok and not app.config['MAIL_SERVER']:
-        logger.info('邮件服务未配置,注册验证码(%s) 已写入日志,目标邮箱: %s', code, email)
-        return False, '邮件服务未配置,验证码已写入服务器日志', code
-    return ok, err, ''
-
-
+# --- 自助注册: 直接注册, 账号默认禁用, 需管理员在后台启用后才能登录 ---
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
     username = (request.form.get('username') or '').strip()
     name = (request.form.get('name') or '').strip()
-    email = (request.form.get('email') or '').strip().lower()
     password = request.form.get('password', '')
-    code = (request.form.get('code') or '').strip()
-    step = request.values.get('step') or ('verify' if code else 'send_code')
-    _prune_reg_pending()
     errs = []
 
     if request.method == 'POST':
         if _ip_rate_limited('register:' + _client_key(), limit=6, window=600):
-            flash('注册/发码过于频繁，请 10 分钟后再试', 'warning')
-            return render_template('register.html', username=username, name=name,
-                                   email=email, code=code, step=step)
+            flash('注册过于频繁，请 10 分钟后再试', 'warning')
+            return render_template('register.html', username=username, name=name)
         if not username or not name:
             errs.append('用户名和昵称不能为空')
         if len(username) < 2 or len(username) > 80:
@@ -338,73 +173,24 @@ def register():
             errs.append('昵称不能超过 80 个字符')
         if len(password) < 6:
             errs.append('密码长度至少 6 位')
-        email = normalize_email(email)
-        if not email:
-            errs.append('邮箱格式不正确,请检查后重试')
-        elif not email_has_common_suffix(email):
-            # 先校验常见邮箱后缀: 非常见后缀直接拦截, 并记入操作日志
-            log_operation('register_blocked', username,
-                          f'邮箱后缀不是常见邮箱:{email}')
-            errs.append('邮箱后缀不在常见邮箱列表中,请换用 qq/163/gmail 等邮箱')
-        if not errs:
-            if User.query.filter_by(username=username).first():
-                errs.append('该账号已注册，请直接登录')
-        if not errs:
-            if User.query.filter(db.or_(User.email == email,
-                                        User.pending_email == email)).first():
-                errs.append('该邮箱已被注册，请直接登录')
+        if not errs and User.query.filter_by(username=username).first():
+            errs.append('该账号已注册，请直接登录')
         if errs:
             flash('；'.join(errs), 'danger')
-            return render_template('register.html', username=username, name=name,
-                                   email=email, code=code, step=step)
+            return render_template('register.html', username=username, name=name)
 
-    # ---- 第二步: 校验验证码并完成注册(自动开通账号) ----
-    if request.method == 'POST' and step == 'verify':
-        pending = _reg_pending.get(email)
-        if pending is None or pending['username'] != username:
-            flash('未找到对应的注册信息，请重新填写并发送验证码', 'danger')
-            return render_template('register.html', username=username, name=name,
-                                   email=email, step='send_code')
-        if pending['expires_at'] < cn_now():
-            _reg_pending.pop(email, None)
-            flash('验证码已过期，请重新获取', 'danger')
-            return render_template('register.html', username=username, name=name,
-                                   email=email, step='send_code')
-        if not code or pending['code'] != code:
-            flash('验证码不正确，请重新输入', 'danger')
-            return render_template('register.html', username=username, name=name,
-                                   email=email, code=code, step='verify')
-        user = User(username=username, name=name, role='user', status='approved',
-                    email=email, email_verified=True,
+        user = User(username=username, name=name, role='user',
+                    status='approved', is_disabled=True,
                     registration_ip=client_ip())
-        user.password_hash = pending['password_hash']
+        user.set_password(password)
         db.session.add(user)
         db.session.commit()
-        _reg_pending.pop(email, None)
         log_operation('register', username,
-                      f'新用户 {name or username} 注册成功(邮箱验证自动开通)')
-        login_user(user)
-        session.permanent = True
-        flash('注册成功，欢迎使用！', 'success')
-        return redirect(url_for('index'))
+                      f'新用户 {name or username} 注册成功(默认禁用, 待管理员启用)')
+        flash('注册成功，账号已提交。请等待管理员启用后再登录。', 'success')
+        return redirect(url_for('login'))
 
-    # ---- 第一步: 发送验证码 ----
-    if request.method == 'POST':
-        ok, err, dev_code = _send_register_code(email, username, name, password)
-        if dev_code:
-            flash(f'邮件服务未配置，验证码(仅开发模式可见): {dev_code}', 'warning')
-            return render_template('register.html', username=username, name=name,
-                                   email=email, masked_email=mask_email(email),
-                                   email_sent=True, step='verify')
-        if ok:
-            flash(f'注册验证码已发送至 {mask_email(email)}，{_REG_CODE_TTL_MINUTES} 分钟内有效', 'info')
-            return render_template('register.html', username=username, name=name,
-                                   email=email, masked_email=mask_email(email),
-                                   email_sent=True, step='verify')
-        flash(err or '验证码发送失败，请稍后重试', 'danger')
-        return render_template('register.html', username=username, name=name,
-                               email=email)
-    return render_template('register.html')
+    return render_template('register.html', username=username, name=name)
 
 
 @app.route('/logout')
@@ -419,7 +205,7 @@ def logout():
 @app.route('/profile', methods=['GET'])
 @login_required
 def profile():
-    """个人信息页:展示账号信息、邮箱绑定、密码修改与日历订阅。"""
+    """个人信息页:展示账号信息、密码修改与日历订阅。"""
     return render_template('profile.html')
 
 
@@ -433,11 +219,9 @@ def profile_llm_save():
             and existing.get('api_key'):
         new_key = existing['api_key']
     llm_svc.save_user_config(current_user, {
-        'mode': request.form.get('mode', ''),
         'api_key': new_key,
         'base_url': request.form.get('base_url', ''),
         'model': request.form.get('model', ''),
-        'provider': request.form.get('provider', ''),
     })
     flash('大模型个人设置已保存', 'success')
     return redirect(url_for('profile'))
@@ -448,58 +232,10 @@ def profile_llm_save():
 def profile_llm_clear():
     """清除个人大模型配置, 恢复跟随管理员默认。"""
     llm_svc.save_user_config(current_user, {
-        'mode': '', 'api_key': '', 'base_url': '',
-        'model': '', 'provider': '',
+        'api_key': '', 'base_url': '', 'model': '',
     })
     flash('已恢复跟随管理员默认配置', 'success')
     return redirect(url_for('profile'))
-
-
-@app.route('/profile/send-verify-code', methods=['POST'])
-@login_required
-def profile_send_verify_code():
-    """发送邮箱绑定校验码。"""
-    if _ip_rate_limited('bind_code:' + _client_key(), limit=5, window=600):
-        return jsonify({'ok': False, 'error': '发送过于频繁，请 10 分钟后再试'})
-    data = request.get_json(silent=True) or {}
-    email = normalize_email(data.get('email'))
-    if not email:
-        return jsonify({'ok': False, 'error': '邮箱格式不正确,请检查后重试'})
-    dup = User.query.filter(
-        db.or_(User.email == email, User.pending_email == email),
-        User.id != current_user.id).first()
-    if dup:
-        return jsonify({'ok': False, 'error': '该邮箱已被其他账号绑定'})
-    ok, err, dev_code = send_verify_code(current_user, email)
-    return jsonify({'ok': ok, 'error': err or '', 'dev_code': dev_code})
-
-
-@app.route('/profile/verify-email', methods=['POST'])
-@login_required
-def profile_verify_email():
-    """校验邮箱校验码并完成绑定。"""
-    data = request.get_json(silent=True) or {}
-    email = normalize_email(data.get('email'))
-    code = (data.get('code') or '').strip()
-    if not email:
-        return jsonify({'ok': False, 'error': '邮箱格式不正确,请检查后重试'})
-    if not code:
-        return jsonify({'ok': False, 'error': '请输入校验码'})
-    user = current_user
-    if user.pending_email != email:
-        return jsonify({'ok': False, 'error': '邮箱与发送校验码时不一致,请重新发送'})
-    if user.email_code != code:
-        return jsonify({'ok': False, 'error': '校验码不正确,请重新输入'})
-    if not user.email_code_expires_at or user.email_code_expires_at < cn_now():
-        return jsonify({'ok': False, 'error': '校验码已过期,请重新发送'})
-    user.email = email
-    user.email_verified = True
-    user.pending_email = ''
-    user.email_code = ''
-    user.email_code_expires_at = None
-    db.session.commit()
-    log_operation('email_bind', email, f'用户 {user.name or user.username} 绑定邮箱')
-    return jsonify({'ok': True})
 
 
 @app.route('/api/token', methods=['POST'])
@@ -563,24 +299,6 @@ def api_token():
         'user': {'id': user.id, 'username': user.username,
                  'name': user.name, 'role': user.role}
     })
-
-
-@app.route('/profile/unbind-email', methods=['POST'])
-@login_required
-def profile_unbind_email():
-    """解除邮箱绑定。"""
-    user = current_user
-    if not user.email:
-        return jsonify({'ok': False, 'error': '当前未绑定邮箱'})
-    email = user.email
-    user.email = ''
-    user.email_verified = False
-    user.pending_email = ''
-    user.email_code = ''
-    user.email_code_expires_at = None
-    db.session.commit()
-    log_operation('email_unbind', email, f'用户 {user.name or user.username} 解除邮箱绑定')
-    return jsonify({'ok': True})
 
 
 @app.route('/profile/update-info', methods=['POST'])

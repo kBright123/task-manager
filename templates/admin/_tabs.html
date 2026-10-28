@@ -21,7 +21,6 @@
     <a class="nav-link nav-tab-link" href="{{ url_for('admin_logs') }}" style="font-size:.85rem;{% if _ep == 'admin_logs' %}font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);{% else %}color:var(--gray-500);{% endif %}"><i class="bi bi-journal-text"></i> 操作日志</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link nav-tab-link" href="{{ url_for('admin_emails') }}" style="font-size:.85rem;{% if _ep == 'admin_emails' %}font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);{% else %}color:var(--gray-500);{% endif %}"><i class="bi bi-envelope"></i> 邮件记录</a>
   </li>
   {% endif %}
 </ul>

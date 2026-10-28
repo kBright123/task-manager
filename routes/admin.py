@@ -16,7 +16,7 @@
 
 # -*- coding: utf-8 -*-
 """admin 路由, 自 app.py 单文件拆分, 保持原 endpoint 名称不变。"""
-from app import (app, login_required, init_db, EmailRecord, Group,
+from app import (app, login_required, init_db, Group,
                  JOB_SCHEDULE_DEFAULTS, Notification, OperationLog, Task,
                  TaskAssignment, User, _clear_cached_notifications,
                  _count_kb, _count_notes,
@@ -247,59 +247,6 @@ def admin_logs_cleanup():
     return redirect(url_for('admin_logs'))
 
 
-@app.route('/admin/emails', methods=['GET'])
-@login_required
-@admin_required
-def admin_emails():
-    """邮件发送记录:按类型/状态筛选,分页展示。"""
-    page = request.args.get('page', 1, type=int)
-    category = (request.args.get('category') or '').strip()
-    status = (request.args.get('status') or '').strip()
-
-    query = EmailRecord.query
-    if category:
-        query = query.filter(EmailRecord.category == category)
-    if status:
-        query = query.filter(EmailRecord.status == status)
-
-    pagination = db.paginate(
-        query.order_by(EmailRecord.created_at.desc()),
-        page=page, per_page=30, error_out=False)
-    records = pagination.items
-
-    category_counts = dict(db.session.query(
-        EmailRecord.category, func.count(EmailRecord.id)
-    ).group_by(EmailRecord.category).all())
-    status_counts = dict(db.session.query(
-        EmailRecord.status, func.count(EmailRecord.id)
-    ).group_by(EmailRecord.status).all())
-
-    return render_template('admin/emails.html', records=records,
-                           pagination=pagination, category=category,
-                           status=status,
-                           category_counts=category_counts,
-                           status_counts=status_counts,
-total=(db.session.query(EmailRecord.id).count()))
-                                                            
-@app.route('/admin/emails/cleanup', methods=['POST'])
-@login_required
-@admin_required
-def admin_emails_cleanup():
-    """清理邮件记录:删除已超过30天的记录。"""
-    try:
-        from datetime import datetime, timedelta
-        cutoff = cn_now() - timedelta(days=30)
-        deleted = db.session.query(EmailRecord).filter(
-            EmailRecord.created_at < cutoff).delete(synchronize_session=False)
-        db.session.commit()
-        _log_op('email_cleanup', f'{deleted} 条邮件记录', '邮件记录清理')
-        return jsonify({'ok': True, 'deleted': deleted})
-    except Exception as e:
-        db.session.rollback()
-        logger.exception('email cleanup failed: %s', request.path)
-        return jsonify({'ok': False, 'error': '清理失败，请稍后重试'}), 500
-
-
 @app.route('/admin/users', methods=['GET'])
 @login_required
 @admin_required
@@ -323,17 +270,14 @@ def admin_settings():
                     and existing.get('api_key'):
                 new_key = existing['api_key']
             llm_svc.save_global_config({
-                'mode': request.form.get('mode', ''),
                 'api_key': new_key,
                 'base_url': request.form.get('base_url', ''),
                 'model': request.form.get('model', ''),
-                'provider': request.form.get('provider', ''),
             })
             flash('大模型设置已保存', 'success')
         elif request.form.get('clear') == '1':
             llm_svc.save_user_config(current_user, {
-                'mode': '', 'api_key': '', 'base_url': '',
-                'model': '', 'provider': '',
+                'api_key': '', 'base_url': '', 'model': '',
             })
             flash('已恢复跟随系统默认配置', 'success')
         else:
@@ -343,11 +287,9 @@ def admin_settings():
                     and existing.get('api_key'):
                 new_key = existing['api_key']
             llm_svc.save_user_config(current_user, {
-                'mode': request.form.get('mode', ''),
                 'api_key': new_key,
                 'base_url': request.form.get('base_url', ''),
                 'model': request.form.get('model', ''),
-                'provider': request.form.get('provider', ''),
             })
             flash('个人大模型设置已保存', 'success')
         return redirect(url_for('admin_settings'))
@@ -1022,33 +964,6 @@ def admin_clear_data():
         db.session.rollback()
         logger.warning('Demo reseed skipped after clear')
     flash('所有数据已清空并重新初始化', 'success')
-    return redirect(url_for('admin_dashboard'))
-
-
-@app.route('/admin/send-daily-summary', methods=['POST'])
-@login_required
-@admin_required
-def admin_send_daily_summary():
-    """管理员手动触发日报发送（可选指定用户id）。"""
-    from reminder_worker import _send_daily_summary, _already_sent
-    user_id = request.form.get('user_id', type=int)
-    now = cn_now()
-    try:
-        if user_id:
-            user = User.query.get(user_id)
-            if not user:
-                flash('用户不存在', 'danger')
-                return redirect(url_for('admin_dashboard'))
-            key = 'summary:%s:%d' % (now.strftime('%Y-%m-%d'), user_id)
-            if _already_sent(key):
-                flash('今日日报已发送过该用户，如需重发请先清除 EmailLog', 'warning')
-                return redirect(url_for('admin_dashboard'))
-            _send_daily_summary(now, target_user_id=user_id)
-        else:
-            _send_daily_summary(now)
-        flash('日报发送任务已触发', 'success')
-    except Exception as e:
-        flash('发送失败: %s' % str(e), 'danger')
     return redirect(url_for('admin_dashboard'))
 
 

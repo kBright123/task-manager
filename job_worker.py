@@ -22,12 +22,11 @@
 职责:
 1. 消费 note_job 队列:手动触发(后台管理页)与自动定时任务均为入队,
    本进程领取并执行"整理/合并/提炼知识库文档"以及
-   scope=cleanup 的黑名单字样清理 + 操作日志/邮件记录/任务执行记录清理。
+   scope=cleanup 的黑名单字样清理 + 操作日志/任务执行记录清理。
 2. 每个周六 22:00 自动入队一周整理待办(仅当近 7 天有新增知识库文档);
-   每周日 03:00 自动入队清理(黑名单字样 或 有过期的日志/邮件/任务记录)。
+   每周日 03:00 自动入队清理(黑名单字样 或 有过期的日志/任务记录)。
 
-数据:结构化元数据在 tasks.db;大模型调用复用 knowledge 的 opencode
-serve 客户端。
+数据:结构化元数据在 tasks.db;大模型调用复用统一接入层(OpenAI 兼容接口)。
 """
 import json
 import logging
@@ -171,20 +170,16 @@ def _cleanup_keep_days():
 
 
 def _has_cleanup_work():
-    """是否还有待清理内容: 黑名单字样 或 过期的日志/邮件/任务执行记录。"""
+    """是否还有待清理内容: 黑名单字样 或 过期的日志/任务执行记录。"""
     if _has_blacklist_hits():
         return True
     days = _cleanup_keep_days()
-    from app import OperationLog, EmailRecord
+    from app import OperationLog
     cutoff_log = cn_now() - timedelta(days=days)
-    cutoff_email = cn_now() - timedelta(days=days)
     cutoff_job = cn_now() - timedelta(days=days)
     try:
         if OperationLog.query.filter(
                 OperationLog.created_at < cutoff_log).first():
-            return True
-        if EmailRecord.query.filter(
-                EmailRecord.created_at < cutoff_email).first():
             return True
         if NoteJob.query.filter(NoteJob.created_at < cutoff_job).first():
             return True
@@ -209,24 +204,6 @@ def _cleanup_logs_msg():
     if not deleted:
         return '操作日志清理:%d 天内无过期日志,跳过' % days
     return '操作日志清理:删除 %d 条(保留 %d 天)' % (deleted, days)
-
-
-def _cleanup_emails_msg():
-    """清理超过保留期的邮件记录,返回报告文本。"""
-    from app import EmailRecord
-    days = _cleanup_keep_days()
-    cutoff = cn_now() - timedelta(days=days)
-    try:
-        deleted = EmailRecord.query.filter(
-            EmailRecord.created_at < cutoff).delete(
-                synchronize_session=False)
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        return '邮件记录清理:失败(%s)' % e
-    if not deleted:
-        return '邮件记录清理:%d 天内无过期记录,跳过' % days
-    return '邮件记录清理:删除 %d 条(保留 %d 天)' % (deleted, days)
 
 
 def _cleanup_jobs_msg():
@@ -284,7 +261,7 @@ def _sync_result(job, reports):
 
 
 def run_organization(job):
-    """按 scope 执行整理任务(笔记去重不调大模型,其余基于 opencode 接口),返回 (结果文本, 是否被停止)。
+    """按 scope 执行整理任务(笔记去重不调大模型,其余基于大模型接口),返回 (结果文本, 是否被停止)。
 
     - notes:  笔记去重合并(不调用大模型)
     - kb:     知识点合并 + 知识点标签 + 知识点提炼(仅未提炼) + 文档标题提炼(仅未提炼)
@@ -324,7 +301,6 @@ def run_organization(job):
     if job.scope == 'cleanup':
         _step('黑名单字清理', lambda: _cleanup_blacklist_msg(job))
         _step('操作日志清理', _cleanup_logs_msg)
-        _step('邮件记录清理', _cleanup_emails_msg)
         _step('任务执行记录清理', _cleanup_jobs_msg)
 
     if job.scope in ('notes', 'all'):
@@ -495,7 +471,7 @@ def _enqueue_auto_cleanup(now):
     db.session.add(NoteJob(scope='cleanup', status='queued', trigger='auto',
                            created_by=None, created_at=cn_now()))
     db.session.commit()
-    logger.info('入队本周自动清理(黑名单字/操作日志/邮件/任务记录)')
+    logger.info('入队本周自动清理(黑名单字/操作日志/任务记录)')
 
 
 def _enqueue_auto_backup(now):

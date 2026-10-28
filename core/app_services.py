@@ -1,25 +1,19 @@
 # -*- coding: utf-8 -*-
-"""应用业务辅助层: 系统设置/操作日志/邮件/通知/敏感词/相似任务检测等.
+"""应用业务辅助层: 系统设置/操作日志/通知/敏感词/相似任务检测等.
 
-不依赖 app 模块(配置经 current_app 获取), 供路由与 worker 复用.
+不依赖 app 模块, 供路由与 worker 复用.
 """
-import os
-import re
-import secrets
 import logging
 
 import markupsafe
 from cachetools import TTLCache
-from flask import request, current_app, g
+from flask import request, g
 from flask_login import current_user
 from sqlalchemy import func
 
-from datetime import timedelta
-
 from core.extensions import db, login_manager
-from core.timeutil import cn_now
 from core.models import (User, Task, TaskAssignment, Group, Notification,
-                    OperationLog, SysSetting, EmailRecord, user_group, task_group)
+                    OperationLog, SysSetting, user_group, task_group)
 
 logger = logging.getLogger(__name__)
 
@@ -79,112 +73,6 @@ def log_operation(action, target='', detail='', user=None):
         db.session.commit()
     except Exception as e:
         logger.exception('log_operation failed: %s', e)
-
-COMMON_EMAIL_SUFFIXES = ['qq.com', '163.com', '126.com', 'gmail.com',
-                         'outlook.com', 'hotmail.com', 'foxmail.com',
-                         'sina.com', 'sohu.com', '139.com', '189.cn',
-                         'aliyun.com', 'icloud.com', 'yahoo.com',
-                         '126.net', '163.net', 'vip.163.com', '188.com',
-                         'tom.com', '21cn.com', 'wo.cn', '10086.cn',
-                         'sina.cn', 'sina.com.cn', 'yahoo.com.cn',
-                         'googlemail.com', 'live.com', 'msn.com',
-                         'me.com', 'mac.com', 'protonmail.com', 'proton.me',
-                         'dingtalk.com', 'yeah.net']
-
-def email_has_common_suffix(email):
-    """注册拦截: 邮箱域名是否为常见邮箱后缀(防滥用注册)。
-    返回 True 表示常见/允许; local@域名 无 @ 或域名不在白名单返回 False。"""
-    domain = ''
-    if email and '@' in email:
-        domain = (email.rsplit('@', 1)[1] or '').lower().strip('.')
-    return bool(domain) and any(
-        domain == d.lower() or domain.endswith('.' + d.lower())
-        for d in COMMON_EMAIL_SUFFIXES)
-
-def normalize_email(value):
-    """规范化邮箱地址;不合法返回 None。"""
-    value = (value or '').strip().lower()
-    if len(value) > 120:
-        return None
-    if not re.match(r'^[a-z0-9._%+\-]+@[a-z0-9\-]+(\.[a-z0-9\-]+)+$', value):
-        return None
-    return value
-
-def send_email(to, subject, html_body, text_body='', category=''):
-    """通过 SMTP 发送邮件。返回 (ok, error),并记录发送结果到 email_record。"""
-    server = current_app.config['MAIL_SERVER']
-    port = current_app.config['MAIL_PORT']
-    username = current_app.config['MAIL_USERNAME']
-    password = current_app.config['MAIL_PASSWORD']
-    mail_from = current_app.config['MAIL_FROM'] or username
-    ok = False
-    err = ''
-    if not server or not username:
-        err = '邮件服务未配置'
-    else:
-        try:
-            import smtplib
-            from email.mime.text import MIMEText
-            from email.mime.multipart import MIMEMultipart
-            from email.header import Header
-            msg = MIMEMultipart('alternative')
-            msg['Subject'] = Header(subject, 'utf-8')
-            msg['From'] = mail_from
-            msg['To'] = to
-            if text_body:
-                msg.attach(MIMEText(text_body, 'plain', 'utf-8'))
-            if html_body:
-                msg.attach(MIMEText(html_body, 'html', 'utf-8'))
-            if port == 465 or current_app.config['MAIL_USE_SSL']:
-                smtp = smtplib.SMTP_SSL(server, port, timeout=15)
-            else:
-                smtp = smtplib.SMTP(server, port, timeout=15)
-                if current_app.config['MAIL_USE_TLS']:
-                    smtp.starttls()
-            with smtp:
-                smtp.login(username, password)
-                smtp.sendmail(mail_from, [to], msg.as_string())
-            ok = True
-        except Exception as e:
-            logger.warning('send_email failed: %s', e)
-            err = str(e)
-    try:
-        db.session.add(EmailRecord(
-            email=to or '', subject=subject or '',
-            category=category or '',
-            status='sent' if ok else 'failed',
-            error=(err or '')[:500]))
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-    return ok, err
-
-def generate_verify_code():
-    import secrets
-    return f'{secrets.randbelow(1000000):06d}'
-
-def send_verify_code(user, email):
-    """生成校验码并发送邮件。返回 (ok, error, dev_code)。"""
-    code = generate_verify_code()
-    user.pending_email = email
-    user.email_code = code
-    user.email_code_expires_at = cn_now() + timedelta(minutes=10)
-    db.session.commit()
-    text = (f'您正在绑定邮箱 {email}。\n'
-            f'您的校验码为: {code}\n'
-            f'校验码 10 分钟内有效,请勿泄露给他人。\n'
-            f'如非本人操作,请忽略本邮件。')
-    html = (f'<div style="font-family:Microsoft YaHei,Arial,sans-serif;font-size:14px;color:#1e293b;">'
-            f'<p>您正在绑定邮箱 <b>{email}</b>。</p>'
-            f'<p>您的校验码为:</p>'
-            f'<p style="font-size:24px;font-weight:700;letter-spacing:4px;color:#4f46e7;">{code}</p>'
-            f'<p>校验码 <b>10 分钟</b>内有效,请勿泄露给他人。</p>'
-            f'<p style="color:#94a3b8;font-size:12px;">如非本人操作,请忽略本邮件。</p></div>')
-    ok, err = send_email(email, '【知行合一】邮箱绑定校验码', html, text, category='verify')
-    if not ok and not current_app.config['MAIL_SERVER']:
-        logger.info('邮件服务未配置,校验码(%s) 已写入日志,目标邮箱: %s', code, email)
-        return False, '邮件服务未配置,校验码已写入服务器日志', code
-    return ok, err, ''
 
 @login_manager.user_loader
 def load_user(user_id):

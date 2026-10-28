@@ -23,29 +23,15 @@
 
       <div class="row g-3 mb-3">
         <div class="col-md-6">
-          <label class="form-label mb-1" for="mode">调用模式</label>
-          <select class="form-select form-select-sm" id="mode" name="mode">
-            <option value="" {{ 'selected' if not cfg.mode }}>自动(有 API Key 用 API, 否则用 opencode)</option>
-            <option value="api" {{ 'selected' if cfg.mode == 'api' }}>OpenAI 兼容 API</option>
-            <option value="opencode" {{ 'selected' if cfg.mode == 'opencode' }}>opencode(本地服务)</option>
-          </select>
-          <div class="form-text">留空自动判断: 配置了 API Key 则走 API, 否则走本地 opencode serve。</div>
-        </div>
-        <div class="col-md-6">
           <label class="form-label mb-1" for="base_url">接口地址(base URL)</label>
-          <input type="text" class="form-control form-control-sm" id="base_url" name="base_url" value="{{ cfg.base_url }}" placeholder="https://api.openai.com/v1  或  http://127.0.0.1:4096">
+          <input type="text" class="form-control form-control-sm" id="base_url" name="base_url" value="{{ cfg.base_url }}" placeholder="https://api.openai.com/v1">
         </div>
         <div class="col-md-6">
           <label class="form-label mb-1" for="model">模型名称</label>
-          <input type="text" class="form-control form-control-sm" id="model" name="model" value="{{ cfg.model }}" placeholder="gpt-4o-mini / Nemotron 3 Ultra Free ...">
-          <div class="form-text">opencode 模式留空则使用服务默认模型:</div>
-        </div>
-        <div class="col-md-6">
-          <label class="form-label mb-1" for="provider">供应商(仅 opencode 模式)</label>
-          <input type="text" class="form-control form-control-sm" id="provider" name="provider" value="{{ cfg.provider }}" placeholder="opencode">
+          <input type="text" class="form-control form-control-sm" id="model" name="model" value="{{ cfg.model }}" placeholder="gpt-4o-mini">
         </div>
         <div class="col-12">
-          <label class="form-label mb-1" for="api_key">API Key(仅 API 模式)</label>
+          <label class="form-label mb-1" for="api_key">API Key</label>
           <div class="input-group input-group-sm">
             <input type="password" class="form-control" id="api_key" name="api_key" placeholder="sk-...">
             <button type="button" class="btn btn-outline-secondary" onclick="var i=document.getElementById('api_key');i.type=i.type==='password'?'text':'password';" style="font-size:.75rem;">查看</button>
@@ -80,14 +66,6 @@
       </div>
 
       <div class="mb-2">
-        <label class="form-label d-block mb-1">使用方式</label>
-        <select class="form-select form-select-sm" name="mode">
-          <option value="" {{ 'selected' if not cfg.mode }}>跟随系统默认配置</option>
-          <option value="api" {{ 'selected' if cfg.mode == 'api' }}>OpenAI 兼容 API（用自己的 Key）</option>
-          <option value="opencode" {{ 'selected' if cfg.mode == 'opencode' }}>opencode（指定本地服务）</option>
-        </select>
-      </div>
-      <div class="mb-2">
         <label class="form-label d-block mb-1">接口地址</label>
         <input type="text" class="form-control form-control-sm" name="base_url" value="{{ cfg.base_url }}" placeholder="留空跟随默认">
       </div>
@@ -96,11 +74,7 @@
         <input type="text" class="form-control form-control-sm" name="model" value="{{ cfg.model }}" placeholder="留空跟随默认">
       </div>
       <div class="mb-2">
-        <label class="form-label d-block mb-1">供应商（opencode 模式）</label>
-        <input type="text" class="form-control form-control-sm" name="provider" value="{{ cfg.provider }}" placeholder="opencode">
-      </div>
-      <div class="mb-2">
-        <label class="form-label d-block mb-1">API Key（API 模式）</label>
+        <label class="form-label d-block mb-1">API Key</label>
         <div class="input-group input-group-sm">
           <input type="password" class="form-control" name="api_key" placeholder="sk-...">
           <button type="button" class="btn btn-outline-secondary" onclick="var i=this.parentElement.querySelector('input');i.type=i.type==='password'?'text':'password';" style="font-size:.75rem;">查看</button>

@@ -23,11 +23,6 @@ class User(UserMixin, db.Model):
     locked_until = db.Column(db.DateTime)
     unlock_code = db.Column(db.String(6), default='')
     unlock_code_expires_at = db.Column(db.DateTime)
-    email = db.Column(db.String(120), default='', index=True)
-    email_verified = db.Column(db.Boolean, default=False)
-    pending_email = db.Column(db.String(120), default='')
-    email_code = db.Column(db.String(6), default='')
-    email_code_expires_at = db.Column(db.DateTime)
     api_token = db.Column(db.String(64), default='', index=True)
     api_token_created_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=cn_now)
@@ -111,24 +106,6 @@ class BoardItem(db.Model):
     updated_at = db.Column(db.DateTime, default=cn_now, onupdate=cn_now)
 
     user = db.relationship('User', backref='board_items')
-
-
-class EmailLog(db.Model):
-    __tablename__ = 'email_log'
-    id = db.Column(db.Integer, primary_key=True)
-    key = db.Column(db.String(200), unique=True, nullable=False, index=True)
-    sent_at = db.Column(db.DateTime, default=cn_now)
-
-
-class EmailRecord(db.Model):
-    __tablename__ = 'email_record'
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(120), nullable=False, index=True)
-    subject = db.Column(db.String(200), default='')
-    category = db.Column(db.String(30), default='')
-    status = db.Column(db.String(20), default='sent')
-    error = db.Column(db.String(500), default='')
-    created_at = db.Column(db.DateTime, default=cn_now, index=True)
 
 
 user_group = db.Table('user_group',

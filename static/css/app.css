@@ -727,7 +727,7 @@
   .cal-cell.today { background:#38202a; }
   .cal-cell.selected { background:#12293f; }
   .cal-cell.holiday { background:#2a1a22; }
-  /* --- 暗色补全第二轮: 抽屉/用户菜单/toast/表格/下拉项/关闭钮/邮箱横幅 --- */
+  /* --- 暗色补全第二轮: 抽屉/用户菜单/toast/表格/下拉项/关闭钮 --- */
   .drawer { background:#101a2d; box-shadow:-8px 0 24px rgba(0,0,0,.5); }
   .user-dropdown { background:#101a2d !important; border:1px solid var(--gray-200); }
   #globalToast > div { background:#101a2d !important; border-color:var(--gray-200) !important; color:var(--gray-700) !important; }
@@ -738,7 +738,6 @@
   .dropdown-item { color:var(--gray-600); }
   .dropdown-item:hover, .dropdown-item:focus { background:var(--gray-100); color:var(--gray-700); }
   .btn-close { filter:invert(1) grayscale(1) brightness(1.6); }
-  .email-reminder { background:linear-gradient(135deg,#16213f,#131c33) !important; border-color:#2c3a66 !important; }
   /* --- 暗色补全第三轮: 工作台面板群/图谱与原文抽屉/认证卡/闪现条/状态徽章 --- */
   .wb-panel,.graph-left,.kb-stat,.points-side,.points-detail,.kb-prev-frame,.preview-modal-sheet{background:#101a2d;}
   .gd-drawer,.dd-drawer{background:#101a2d;border-color:var(--gray-200);}

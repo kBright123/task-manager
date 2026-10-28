@@ -55,50 +55,6 @@
           </div>
         </div>
 
-        <div class="d-flex align-items-center gap-2 mb-2"
-             style="font-size:.82rem;font-weight:700;color:var(--gray-700);border-top:1px dashed var(--gray-300);margin-top:10px;padding-top:9px;">
-          <i class="bi bi-envelope-check"></i> 邮箱绑定
-        </div>
-        <div id="bindForm">
-          <div class="mb-1">
-            <label style="font-weight:600;color:var(--gray-600);display:block;">
-              {% if current_user.email_verified %}更换邮箱（当前邮箱：{{ current_user.email }}）{% else %}绑定邮箱{% endif %}
-            </label>
-            <div class="input-group input-group-sm">
-              <span class="input-group-text"><i class="bi bi-envelope"></i></span>
-              <input type="email" id="bindEmail" class="form-control" list="commonEmails"
-                     placeholder="请输入邮箱地址" value="{{ current_user.pending_email or current_user.email or '' }}"
-                     style="font-size:.82rem;" autocomplete="email">
-              <datalist id="commonEmails">
-                {% for s in ['qq.com','163.com','126.com','gmail.com','outlook.com','hotmail.com','foxmail.com','sina.com','sohu.com','139.com','189.cn','aliyun.com','icloud.com','yahoo.com'] %}
-                <option value="you@{{ s }}"></option>
-                {% endfor %}
-              </datalist>
-            </div>
-            <small style="color:var(--gray-400);font-size:.68rem;">支持常见邮箱（QQ、163、126、Gmail、Outlook 等）</small>
-          </div>
-          <div class="mb-1">
-            <label style="font-weight:600;color:var(--gray-600);display:block;">校验码</label>
-            <div class="d-flex gap-2">
-              <input type="text" id="bindCode" class="form-control" inputmode="numeric" maxlength="6"
-                     placeholder="6 位校验码" style="font-size:.82rem;letter-spacing:4px;">
-              <button type="button" id="sendCodeBtn" class="btn btn-outline-primary" style="white-space:nowrap;font-size:.8rem;" onclick="sendCode()">
-                <i class="bi bi-send"></i> 发送校验码
-              </button>
-            </div>
-          </div>
-          <div id="codeResult" class="mb-1" style="font-size:.75rem;"></div>
-          <div class="d-flex gap-2">
-            <button type="button" class="btn btn-primary" style="font-size:.8rem;" onclick="verifyEmail()">
-              <i class="bi bi-check-lg"></i> 确认绑定
-            </button>
-            {% if current_user.email_verified %}
-            <button type="button" class="btn btn-outline-danger" style="font-size:.8rem;" onclick="unbindEmail()">
-              <i class="bi bi-unlink"></i> 解除绑定
-            </button>
-            {% endif %}
-          </div>
-        </div>
       </div>
     </div>
   </div>

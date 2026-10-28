@@ -141,18 +141,10 @@ app.config['TEMPLATES_AUTO_RELOAD'] = (
     os.environ.get('FLASK_DEBUG') == '1'
     or os.environ.get('KB_AUTO_RELOAD', '0') == '1')
 
-# 邮件(SMTP)配置,用于邮箱绑定验证码;未配置时校验码仅写入日志
-app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', '')
-app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', '465'))
-app.config['MAIL_USE_SSL'] = os.environ.get('MAIL_USE_SSL', '1') == '1'
-app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', '0') == '1'
-app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', '')
-app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD', '')
-app.config['MAIL_FROM'] = os.environ.get('MAIL_FROM', '')
-
 # 授权校验(演示版本控制): 环境变量 born 必须等于 base64("MAIL_PASSWORD="+MAIL_USERNAME)
 # 才允许业务数据写入; 否则视为演示版本, 拦截业务写入并提示授权升级。
-# 登录/注册/解锁等认证相关写入放行, 避免管理员无法登录授权。
+# 注: MAIL_USERNAME/MAIL_PASSWORD 仅作为授权种子保留, 不再用于邮件发送。
+# 登录/注册等认证相关写入放行, 避免管理员无法登录授权。
 import base64 as _b64
 _LICENSE_MSG = '当前为演示版本，请授权升级。'
 
@@ -166,7 +158,7 @@ _LICENSE_READ_PATHS = (
 def is_licensed():
     """正式版判定: born 环境变量非空 且 === base64('MAIL_PASSWORD='+MAIL_USERNAME)。"""
     expected = _b64.b64encode(
-        ('MAIL_PASSWORD=' + app.config.get('MAIL_USERNAME', '')).encode('utf-8')
+        ('MAIL_PASSWORD=' + os.environ.get('MAIL_USERNAME', '')).encode('utf-8')
     ).decode('ascii')
     return bool(os.environ.get('born')) and os.environ.get('born') == expected
 
@@ -197,7 +189,7 @@ db.init_app(app)
 
 # ---- 扩展初始化与 SQLite 加固 ----
 # ---- 数据模型(抽离至 models.py, 此处再导出保持 from app import X 兼容) ----
-from core.models import (User, Task, TaskAssignment, EmailLog, EmailRecord,
+from core.models import (User, Task, TaskAssignment,
                     Group, Notification, OperationLog, SysSetting,
                     task_group, user_group)
 # ---- SQLite 并发加固: WAL + busy_timeout 由 kb/knowledge.enable_sqlite_wal() 统一注册 ----
@@ -495,9 +487,7 @@ _orm_event.listen(_ORM_Session, 'do_orm_execute', _soft_delete_exclude)
 
 # ---- 业务辅助与 NLP 解析(再导出保持 from app import X 兼容) ----
 from core.app_services import (get_job_setting, set_job_setting, client_ip,
-                          log_operation, normalize_email, send_email,
-                          email_has_common_suffix,
-                          generate_verify_code, send_verify_code,
+                          log_operation,
                           load_user, _api_token_user,
                           _load_user_from_api_token, allowed_file,
                           create_notification, _get_cached_notifications,
@@ -563,16 +553,6 @@ def _run_sqlite_migrations():
         cols = [r[1] for r in c.fetchall()]
         if 'name' not in cols:
             c.execute('ALTER TABLE user ADD COLUMN name TEXT DEFAULT ""')
-        if 'email' not in cols:
-            c.execute('ALTER TABLE user ADD COLUMN email VARCHAR(120) DEFAULT ""')
-        if 'email_verified' not in cols:
-            c.execute('ALTER TABLE user ADD COLUMN email_verified BOOLEAN DEFAULT 0')
-        if 'pending_email' not in cols:
-            c.execute('ALTER TABLE user ADD COLUMN pending_email VARCHAR(120) DEFAULT ""')
-        if 'email_code' not in cols:
-            c.execute('ALTER TABLE user ADD COLUMN email_code VARCHAR(6) DEFAULT ""')
-        if 'email_code_expires_at' not in cols:
-            c.execute('ALTER TABLE user ADD COLUMN email_code_expires_at DATETIME')
         if 'status' not in cols:
             c.execute("ALTER TABLE user ADD COLUMN status VARCHAR(20) DEFAULT 'approved'")
         if 'failed_login_count' not in cols:
@@ -738,8 +718,6 @@ def _run_sqlite_migrations():
 _TZ_MIGRATE_TABLES = [
     ('user', ('created_at', 'api_token_created_at')),
     ('task', ('created_at',)),
-    ('email_log', ('sent_at',)),
-    ('email_record', ('created_at',)),
     ('group', ('created_at',)),
     ('notification', ('created_at',)),
     ('operation_log', ('created_at',)),

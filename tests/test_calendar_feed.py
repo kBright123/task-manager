@@ -245,6 +245,8 @@ def test_meeting_15min_and_due_alarm():
     assert '待办即将截止，请尽快完成' not in body
     assert f'TRIGGER;VALUE=DATE-TIME:{_ics_utc(e - timedelta(minutes=30))}' not in body
     assert body.count('BEGIN:VALARM') == 1
+    assert 'UID:alarm-30-start@taskmanager' in body
+    assert 'X-WR-ALARMUID:alarm-30-start@taskmanager' in body
     assert 'URL:https://example.com/user/tasks/30' in body
 
     # 会议提前量可通过 meeting_minutes 调整
@@ -487,3 +489,18 @@ def test_feed_download_attachment(client):
     assert r.headers['Content-Disposition'].startswith('attachment')
     r2 = client.get('/user/todo.ics')
     assert r2.headers['Content-Disposition'].startswith('inline')
+
+def test_short_task_alarm_deduped():
+    """短待办的开始提醒与到期提醒落在同一时刻时只下发一条闹钟。"""
+    from core.timeutil import cn_now as _cn_now
+    from routes.tasks_api import _build_todo_ics
+
+    now = _cn_now()
+    s = (now + timedelta(hours=2)).replace(second=0, microsecond=0)
+    e = s + timedelta(minutes=30)
+    u = type('U', (), {'name': '张三', 'username': 'zs'})()
+    t = type('T', (), {'id': 32, 'title': '短会', 'category': '工作',
+                       'description': '', 'start_time': s, 'end_time': e})()
+    body = _build_todo_ics(u, [t], due_minutes=60)
+    assert body.count('BEGIN:VALARM') == 1
+    assert body.count('TRIGGER;VALUE=DATE-TIME:') == 1

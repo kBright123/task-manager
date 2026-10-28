@@ -303,7 +303,7 @@
 <a href="{{ url_for('kb.workbench') }}" class="{% if request.endpoint in ('kb.workbench', 'kb.doc_detail') %}active{% endif %}">
             <i class="bi bi-collection"></i> 知识库
           </a>
-        <a href="{{ url_for('admin_profile') }}" class="{% if request.endpoint in ('admin_users', 'admin_logs', 'admin_emails', 'admin_jobs', 'admin_settings', 'admin_calendar', 'admin_profile') %}active{% endif %}">
+        <a href="{{ url_for('admin_profile') }}" class="{% if request.endpoint in ('admin_users', 'admin_logs', 'admin_jobs', 'admin_settings', 'admin_calendar', 'admin_profile') %}active{% endif %}">
           <i class="bi bi-gear"></i> 设置
         </a>
       </div>
@@ -392,7 +392,7 @@
 <a href="{{ url_for('kb.workbench') }}" class="{% if request.endpoint in ('kb.workbench', 'kb.doc_detail') %}active{% endif %}">
             <i class="bi bi-collection"></i><span>知识库</span>
           </a>
-    <a href="{{ url_for('admin_profile') }}" class="{% if request.endpoint in ('admin_users', 'admin_logs', 'admin_emails', 'admin_jobs', 'admin_settings', 'admin_calendar', 'admin_profile') %}active{% endif %}">
+    <a href="{{ url_for('admin_profile') }}" class="{% if request.endpoint in ('admin_users', 'admin_logs', 'admin_jobs', 'admin_settings', 'admin_calendar', 'admin_profile') %}active{% endif %}">
       <i class="bi bi-gear"></i><span>设置</span>
     </a>
   </nav>
@@ -534,25 +534,6 @@
 
   <!-- 内容区: 独立于登录态(公开页游客可见); 导航/悬浮球仍仅登录用户渲染 -->
   <div class="app-container">
-    {% if current_user.is_authenticated and current_user.email_verified == false %}
-    <div class="email-reminder" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1px solid #c7d2fe;border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:16px;font-size:.85rem;">
-      <i class="bi bi-envelope-exclamation" style="color:var(--primary);font-size:1.1rem;"></i>
-      <div style="flex:1;">
-        <span style="font-weight:600;color:var(--gray-800);">
-          {% if current_user.email %}
-            邮箱 {{ current_user.email }} 尚未完成校验
-          {% else %}
-            您尚未绑定邮箱
-          {% endif %}
-        </span>
-        <span style="color:var(--gray-500);margin-left:6px;">绑定后可接收待办通知与重要提醒</span>
-      </div>
-      <a href="{{ url_for('profile') }}" class="btn btn-sm" style="font-size:.78rem;padding:4px 14px;background:var(--primary);color:#fff;border:none;border-radius:6px;white-space:nowrap;">
-        <i class="bi bi-link-45deg"></i> 去绑定
-      </a>
-      <button type="button" class="btn-close" onclick="this.parentElement.remove()" style="font-size:.7rem;" aria-label="关闭"></button>
-    </div>
-    {% endif %}
     {% block content %}{% endblock %}
   </div>
 
